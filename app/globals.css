@@ -1,3 +1,6 @@
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100..900;1,100..900&display=swap');
 @import "tailwindcss";
 @import "tw-animate-css";
 /*---break---*/
@@ -62,11 +65,12 @@
 /* top header: width full, height 60px */
 *{
   box-sizing: border-box;
+  /* "Open Sans" */
 }
 body {
   @apply m-0 p-0 text-base bg-[var(--background)] text-[var(--primary)]; 
-  font-family:'Roboto', sans-serif;
-  line-height: 1.5;
+  font-family: "Roboto", sans-serif;
+  font-optical-sizing: auto;
 }
 .sidebar{
   @apply  w-4/5 lg:w-[250px] h-screen;
@@ -74,8 +78,13 @@ body {
 footer{
   @apply w-full h-10;
 }
+.site-main-title{
+  @apply text-3xl lg:text-5xl font-extrabold text-center text-wrap;
+  font-family: "Orbitron", sans-serif;
+  line-height: 1.5;
+}
 .main-title{
-  font-family: "Poppins", sans-serif;
+  font-family: "Open sans", sans-serif;
   font-size: 32px;
   line-height: 1.5;
 }
