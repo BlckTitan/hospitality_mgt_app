@@ -68,9 +68,9 @@
   /* "Open Sans" */
 }
 body {
-  @apply m-0 p-0 text-base bg-[var(--background)] text-[var(--primary)]; 
+  @apply m-0 p-0 text-base bg-[var(--secondary)] text-[var(--primary)]; 
   font-family: "Roboto", sans-serif;
-  font-optical-sizing: auto;
+  /* font-optical-sizing: auto; */
 }
 .sidebar{
   @apply  w-4/5 lg:w-[250px] h-screen;
@@ -78,24 +78,31 @@ body {
 footer{
   @apply w-full h-10;
 }
-.site-main-title{
-  @apply text-3xl lg:text-5xl font-extrabold text-center text-wrap;
+.main_nav a{
+  @apply text-lg;
+}
+.site_main_title{
+  @apply text-3xl lg:text-5xl font-extrabold text-center text-wrap text-[var(--foreground)];
   font-family: "Orbitron", sans-serif;
   line-height: 1.5;
 }
-.main-title{
+.site_sub_title{
+  @apply text-xl lg:text-2xl font-semibold text-center text-wrap text-[var(--foreground)];
+  font-family: "Orbitron", sans-serif;
+}
+.main_title{
   font-family: "Open sans", sans-serif;
   font-size: 32px;
   line-height: 1.5;
 }
-.section-headers{
+.section_headers{
   @apply text-2xl;
 }
-.small-texts{
+.small_texts{
   @apply text-sm;
 }
 .icons{
-  @apply text-xs;
+  @apply text-5xl;
 }
 /*---break---*/
 @theme inline {

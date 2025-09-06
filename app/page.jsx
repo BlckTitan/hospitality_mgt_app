@@ -6,13 +6,13 @@ import React from 'react'
 export default function Home() {
 
   return (
-    <section className="w-full h-screen flex justify-center items-center p-4 lg:p-0">
+    <section className="w-full h-screen bg-white flex justify-center items-center p-4 lg:p-0">
           
       <div className='w-full lg:w-[600px] h-[500px] rounded-md flex flex-col items-center justify-center gap-4'>
 
         <header className='w-full h-fit flex flex-col items-center justify-center gap-2 mb-8'>
 
-          <h1 className='site-main-title'>Hospitality Manager</h1>
+          <h1 className='site_main_title'>Hospitality Manager</h1>
           <p className='text-center'>Welcome, Manager! Please, sign in to begin</p>
 
         </header>
