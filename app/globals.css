@@ -65,12 +65,15 @@
 /* top header: width full, height 60px */
 *{
   box-sizing: border-box;
+  font-family:  "Open Sans", "Roboto", Arial, Helvetica, sans-serif;
+  font-optical-sizing: auto;
   /* "Open Sans" */
 }
 body {
-  @apply m-0 p-0 text-base bg-[var(--secondary)] text-[var(--primary)]; 
-  font-family: "Roboto", sans-serif;
-  /* font-optical-sizing: auto; */
+  @apply m-0 p-0 text-base bg-[var(--secondary)] text-[var(--primary)];
+}
+main{
+  @apply bg-[var(--secondary)];
 }
 footer{
   @apply w-full h-10;
@@ -92,7 +95,6 @@ a.main_nav_link{
   font-family: "Orbitron", sans-serif;
 }
 .main_title{
-  font-family: "Open sans", sans-serif;
   font-size: 32px;
   line-height: 1.5;
 }
@@ -120,7 +122,8 @@ aside{
 aside li{
   @apply w-full h-12 flex justify-between items-center px-4 my-2 hover:bg-[var(--foreground)];
 }
-aside li:hover{
+aside li:hover,
+.admin_btn button:hover{
   transition: all 0.4s ease-in-out;
 }
 aside a{

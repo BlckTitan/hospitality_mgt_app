@@ -17,17 +17,17 @@ export default function Home() {
 
         </header>
 
-        <div className='w-full h-fit flex items-center justify-center gap-4 mt-4'>
+        <div className='admin_btn w-full h-fit flex items-center justify-center gap-4 mt-4'>
           <SignedOut className='w-full h-fit flex flex-col lg:flex-row items-center justify-center gap-4 mt-4'>
             <SignInButton>
-              <button className="border bg-white hover:bg-gray-300 text-black rounded-sm font-medium w-full lg:w-1/2 h-10 sm:h-12 px-4 sm:px-5 cursor-pointer">
-                  Sign In
+              <button className="border bg-white hover:!bg-gray-100 text-black !rounded-sm font-medium w-full lg:w-1/2 h-10 sm:h-12 px-4 sm:px-5 cursor-pointer">
+                Sign In
               </button>
             </SignInButton>
 
             <SignUpButton>
-                <button className="bg-black hover:bg-gray-800 text-white rounded-sm font-medium  w-full lg:w-1/2 h-10 sm:h-12 px-4 sm:px-5 cursor-pointer">
-                    Sign Up
+                <button className="bg-black hover:!bg-gray-800 text-white !rounded-sm font-medium w-full lg:w-1/2 h-10 sm:h-12 px-4 sm:px-5 cursor-pointer">
+                  Sign Up
                 </button>
             </SignUpButton>
 

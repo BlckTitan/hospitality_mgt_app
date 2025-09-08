@@ -7,7 +7,7 @@ import { FaUsers, FaRegChartBar, FaCreditCard, FaCoins, FaDollyFlatbed, FaMailBu
 export default function Navigation() {
     
   return (
-    <nav className="w-full h-14 flex items-center fixed top-0 main_nav z-10">
+    <nav className="w-full h-14 flex items-center fixed top-0 main_nav z-10 shadow-blue-100 shadow-sm">
       <Navbar expand="lg" className='w-full h-full flex items-center px-4 lg:px-16 bg-white rounded-none'>
         <div className='w-full h-full flex justify-between items-center'>
           

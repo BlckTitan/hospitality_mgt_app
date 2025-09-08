@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import './globals.css';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { ClerkProvider } from '@clerk/nextjs'
-import Navigation from "@/shared/navigation";
+import DashboardLayout from "@/shared/dashboard-layout";
 
 export const metadata: Metadata = {
   title: "Hospitality Manager",
@@ -20,8 +20,9 @@ export default function RootLayout({
    <ClerkProvider> 
     <html lang="en">
       <body>
-        <Navigation/>
-        {children}
+        <DashboardLayout>
+          {children}
+        </DashboardLayout>
       </body>
     </html>
   </ClerkProvider>
