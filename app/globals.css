@@ -122,6 +122,7 @@ aside{
 aside li{
   @apply w-full h-12 flex justify-between items-center px-4 my-2 hover:bg-[var(--foreground)];
 }
+/* transition effect for sidebar links and buttons in the homepage */
 aside li:hover,
 .admin_btn button:hover{
   transition: all 0.4s ease-in-out;

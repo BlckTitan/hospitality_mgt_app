@@ -16,9 +16,9 @@ export default function DashboardLayout({children}: {children: React.ReactNode})
     return (
         <>
             <Navigation />
-            <section className="w-full h-screen relative flex">
+            <section className="w-full h-[calc(100vh-56px)] relative flex">
                 <Sidebar />
-                <main className="w-full xl:w-9/12 h-screen pb-4 pt-16">{children}</main>
+                <main className="w-full h-full xl:w-9/12 absolute right-0 top-14 ">{children}</main>
             </section>
         </>
     );

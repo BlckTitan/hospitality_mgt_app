@@ -1,14 +1,12 @@
 'use client'
 
-import Navigation from '@/shared/navigation'
-import Sidebar from '@/shared/sidebar'
 import React from 'react'
 
-export default function Page({children}: {children: React.ReactNode}) {
+export default function Page() {
 
   return (
-    <>
-      home
-    </>
+    <section className="w-full h-full p-4">
+      dashboard
+    </section>
   )
 }
