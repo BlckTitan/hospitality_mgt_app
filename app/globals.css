@@ -72,14 +72,15 @@ body {
   font-family: "Roboto", sans-serif;
   /* font-optical-sizing: auto; */
 }
-.sidebar{
-  @apply  w-4/5 lg:w-[250px] h-screen;
-}
 footer{
   @apply w-full h-10;
 }
-.main_nav a{
-  @apply text-lg;
+/* main navigation */
+a.main_nav_link{
+  @apply !w-full lg:w-fit h-12 lg:h-fit text-lg m-1 text-nowrap flex justify-between items-center lg:!hidden;
+}
+.main_nav_link i{
+  @apply inline-block lg:hidden;
 }
 .site_main_title{
   @apply text-3xl lg:text-5xl font-extrabold text-center text-wrap text-[var(--foreground)];
@@ -101,8 +102,29 @@ footer{
 .small_texts{
   @apply text-sm;
 }
-.icons{
-  @apply text-5xl;
+.icon{
+  @apply text-xl;
+}
+
+/* sidebar styling */
+.glass{
+  @apply w-full h-full inline-block backdrop-blur-md;
+  background: rgba(255, 255, 255, 0.12);
+}
+aside{
+  background-image: url('../public/astral.webp');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+aside li{
+  @apply w-full h-12 flex justify-between items-center px-4 my-2 hover:bg-[var(--foreground)];
+}
+aside li:hover{
+  transition: all 0.4s ease-in-out;
+}
+aside a{
+  @apply text-white text-lg no-underline;
 }
 /*---break---*/
 @theme inline {

@@ -1,7 +1,45 @@
-import React from 'react'
+'use client'
 
-export default function sidebar() {
+import React from 'react'
+import { FaUsers, FaRegChartBar, FaCreditCard, FaCoins, FaDollyFlatbed, FaMailBulk } from "react-icons/fa";
+
+export default function Sidebar() {
   return (
-    <aside className='w-3/12 h-screen hidden px-4 pb-4 pt-16 xl:inline-block bg-red-500'>d</aside>
+    <aside className='w-3/12 h-screen hidden pt-14 xl:inline-block'>
+
+      <ul className='w-full h-full pt-16 text-white !px-0 glass'>
+
+        <li>
+          <a href="/#">Sales</a>
+          <i className='icon'><FaCreditCard /></i>
+        </li>
+
+        <li>
+          <a href="/#">Expenditure</a>
+          <i className='icon'><FaCoins /></i>
+        </li>
+
+        <li>
+          <a href="/#">Report and Analytics</a>
+          <i className='icon'><FaRegChartBar /></i>
+        </li>
+
+        <li>
+          <a href="/#">Staff</a>
+          <i className='icon'><FaUsers /></i>
+        </li>
+
+        <li>
+          <a href="/#">Inventory</a>
+          <i className='icon'><FaDollyFlatbed /></i>
+        </li>
+
+        <li>
+          <a href="/#">Biling</a>
+          <i className='icon'><FaMailBulk /></i>
+        </li>
+      </ul>
+
+    </aside>
   )
 }
