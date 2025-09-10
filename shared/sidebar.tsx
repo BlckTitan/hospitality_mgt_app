@@ -5,7 +5,7 @@ import { FaUsers, FaRegChartBar, FaCreditCard, FaCoins, FaDollyFlatbed, FaMailBu
 
 export default function Sidebar() {
   return (
-    <aside className='w-3/12 h-full fixed left-0 hidden pt-14 xl:inline-block'>
+    <aside className='w-[300px] max-w-[300px] h-full fixed left-0 hidden pt-14 xl:inline-block'>
 
       <ul className='w-full h-full pt-16 text-white !px-0 glass'>
 
