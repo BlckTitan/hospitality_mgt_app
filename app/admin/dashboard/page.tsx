@@ -2,10 +2,10 @@
 
 import React from 'react'
 import { redirect } from 'next/navigation'
-import { checkRole } from '@/utils/roles'
+import { checkRole } from '../../../utils/roles'
 import { SearchUsers } from '../SearchUsers'
 import { clerkClient } from '@clerk/nextjs/server'
-import { removeRole, setRole } from '../_actions'
+import { removeRoleAction, setRoleAction } from '../_actions'
 
 
 export default async function Page(params: {
@@ -45,19 +45,19 @@ export default async function Page(params: {
 
             <div>{user.publicMetadata.role as string}</div>
 
-            <form action={setRole}>
+            <form action={setRoleAction}>
               <input type="hidden" value={user.id} name="id" />
               <input type="hidden" value="admin" name="role" />
               <button type="submit">Make Admin</button>
             </form>
 
-            <form action={setRole}>
+            <form action={setRoleAction}>
               <input type="hidden" value={user.id} name="id" />
               <input type="hidden" value="moderator" name="role" />
               <button type="submit">Make Moderator</button>
             </form>
 
-            <form action={removeRole}>
+            <form action={removeRoleAction}>
               <input type="hidden" value={user.id} name="id" />
               <button type="submit">Remove Role</button>
             </form>

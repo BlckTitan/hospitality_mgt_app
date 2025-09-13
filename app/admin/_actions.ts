@@ -1,12 +1,10 @@
 'use server'
 
-import { checkRole } from '@/utils/roles'
+import { checkRole } from '../../utils/roles'
 import { clerkClient } from '@clerk/nextjs/server'
 
 export async function setRole(formData: FormData ) {
 
-    const id = formData.get('id')
-  const role = formData.get('role')
   const client = await clerkClient()
 
   // Check that the user trying to set the role is an admin
@@ -23,7 +21,9 @@ export async function setRole(formData: FormData ) {
     return { message: err }
   }
 }
-
+export async function setRoleAction(formData: FormData): Promise<void> {
+  await setRole(formData)
+}
 export async function removeRole(formData: FormData) {
   const client = await clerkClient()
 
@@ -35,4 +35,7 @@ export async function removeRole(formData: FormData) {
   } catch (err) {
     return { message: err }
   }
+}
+export async function removeRoleAction(formData: FormData): Promise<void> {
+  await removeRole(formData)
 }

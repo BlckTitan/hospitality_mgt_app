@@ -1,13 +1,13 @@
 'use client'
 
-import Navigation from '@/shared/navigation'
-import Sidebar from '@/shared/sidebar'
+import Navigation from '../shared/navigation'
+import Sidebar from '../shared/sidebar'
 import { usePathname } from 'next/navigation'
 import React from 'react'
 
 export default function DashboardLayout({children}: {children: React.ReactNode}) {
     const path = usePathname()
-    const noLayoutRoutes = ["/", "/admin/sign-in", "/admin/sign-up"];
+    const noLayoutRoutes = ["/", "/sign-in", "/sign-up"];
 
     if (noLayoutRoutes.includes(path)) {
         return <>{children}</>;
@@ -23,3 +23,4 @@ export default function DashboardLayout({children}: {children: React.ReactNode})
         </>
     );
 }
+// levi8ted

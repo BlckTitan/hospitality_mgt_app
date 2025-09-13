@@ -124,7 +124,7 @@ aside li{
 }
 /* transition effect for sidebar links and buttons in the homepage */
 aside li:hover,
-.admin_btn button:hover{
+.admin_btn a:hover{
   transition: all 0.4s ease-in-out;
 }
 aside a{
