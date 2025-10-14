@@ -12,7 +12,7 @@ export default function Navigation() {
         <div className='w-full h-full flex justify-between items-center'>
           
           <div className='w-full flex justify-between '>
-            <NavbarBrand className='site_sub_title'>Hospitality Manager</NavbarBrand>
+            <NavbarBrand className='site_sub_title' href='/'>Hospitality Manager</NavbarBrand>
             <NavbarToggle aria-controls="basic-navbar-nav relative" />
           </div>
           

@@ -4,13 +4,28 @@ import { v } from "convex/values";
 export default defineSchema({
   // Users table for authentication and roles
   users: defineTable({
+    externalId: v.string(),
+    name: v.string(), // For custom fields like preferences
+  })
+    .index("byExternalId", ["externalId"]),
+
+  staffs: defineTable({
     username: v.string(),
+    firstName: v.string(),
+    lastName: v.string(),
     passwordHash: v.string(),
+    clerkId: v.string(), // Clerk's unique user ID
+    phone: v.number(),
+    employed: v.number(),
+    terminated: v.number(),
     role: v.union(v.literal("admin"), v.literal("manager"), v.literal("staff"), v.literal("accountant")),
     email: v.optional(v.string()),
+    metadata: v.optional(v.any()), // For custom fields like preferences
+    updatedAt: v.number(),
     createdAt: v.number(),
   })
-    .index("by_username", ["username"]),
+    .index("by_username", ["username"])
+    .index('by_clerkId', ['clerkId']),
 
   // Properties table for multiple hospitality locations
   properties: defineTable({

@@ -3,6 +3,7 @@ import './globals.css';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { ClerkProvider } from '@clerk/nextjs'
 import DashboardLayout from "../shared/dashboard-layout";
+import ConvexClientProvider from '../components/ConvexClientProvider'
 
 export const metadata: Metadata = {
   title: "Hospitality Manager",
@@ -18,13 +19,15 @@ export default function RootLayout({
   
   return (
    <ClerkProvider> 
-    <html lang="en">
-      <body>
-        <DashboardLayout>
-          {children}
-        </DashboardLayout>
-      </body>
-    </html>
+      <html lang="en">
+        <body>
+          <DashboardLayout>
+            <ConvexClientProvider>
+              {children}
+            </ConvexClientProvider>
+          </DashboardLayout>
+        </body>
+      </html>
   </ClerkProvider>
   );
 }

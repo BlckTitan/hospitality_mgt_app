@@ -128,7 +128,7 @@ aside li:hover,
   transition: all 0.4s ease-in-out;
 }
 aside a{
-  @apply text-white text-lg no-underline;
+  @apply text-white no-underline;
 }
 /*---break---*/
 @theme inline {
