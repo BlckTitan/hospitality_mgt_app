@@ -1,12 +1,11 @@
-// 'use client'
+
 
 import React from 'react'
 import { redirect } from 'next/navigation'
 import { checkRole } from '../../../utils/roles'
-import { SearchUsers } from '../SearchUsers'
-import { clerkClient } from '@clerk/nextjs/server'
-import { removeRoleAction, setRoleAction } from '../_actions'
-import { useUser } from '@clerk/nextjs'
+// import { SearchUsers } from '../SearchUsers'
+// import { clerkClient } from '@clerk/nextjs/server'
+// import { removeRoleAction, setRoleAction } from '../_actions'
 
 
 export default async function Page(params: {
@@ -17,24 +16,26 @@ export default async function Page(params: {
     redirect('/')
   }
 
-  // const query = (await params.searchParams).search
 
-  // const client = await clerkClient()
 
-  // const users = query ? (await client.users.getUserList({ query })).data : []
-  const user = useUser()
-  console.log(user)
 
   return (
     <section className="w-full h-full">
       
       <p>This is the protected admin dashboard restricted to users with the `admin` role.</p>
 
-      <p>dasboard</p>
+      
       
     </section>
   )
 }
+
+// const query = (await params.searchParams).search
+
+// const client = await clerkClient()
+
+// const users = query ? (await client.users.getUserList({ query })).data : []
+
 {/* <SearchUsers />
 
 {users.map((user) => {
@@ -71,4 +72,4 @@ export default async function Page(params: {
       </form>
     </div>
   )
-})} */}
+})}  */}
