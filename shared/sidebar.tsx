@@ -25,7 +25,7 @@ export default function Sidebar() {
         </li>
 
         <li>
-          <a href="/#">Staff</a>
+          <a href="/admin/staff">Staff</a>
           <i className='icon'><FaUsers /></i>
         </li>
 
