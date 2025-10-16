@@ -10,22 +10,22 @@ export default defineSchema({
     .index("byExternalId", ["externalId"]),
 
   staffs: defineTable({
-    username: v.string(),
     firstName: v.string(),
     lastName: v.string(),
-    passwordHash: v.string(),
-    clerkId: v.string(), // Clerk's unique user ID
-    phone: v.number(),
-    employed: v.number(),
-    terminated: v.number(),
-    role: v.union(v.literal("admin"), v.literal("manager"), v.literal("staff"), v.literal("accountant")),
+    phone: v.string(),
+    DoB: v.string(),
+    state_of_origin: v.string(),
+    LGA: v.string(),
+    address: v.string(),
+    salary: v.number(),
+    employment_status: v.union(v.literal("employed"), v.literal("terminated")),
+    date_recruited: v.string(),
+    date_terminated: v.optional(v.string()),
+    role: v.string(),
     email: v.optional(v.string()),
-    metadata: v.optional(v.any()), // For custom fields like preferences
-    updatedAt: v.number(),
-    createdAt: v.number(),
   })
-    .index("by_username", ["username"])
-    .index('by_clerkId', ['clerkId']),
+    .index("employment_status", ["employment_status"])
+    .index("date_recruited", ["date_recruited"]),
 
   // Properties table for multiple hospitality locations
   properties: defineTable({

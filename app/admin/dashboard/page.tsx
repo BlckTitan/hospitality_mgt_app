@@ -1,5 +1,4 @@
 
-
 import React from 'react'
 import { redirect } from 'next/navigation'
 import { checkRole } from '../../../utils/roles'
@@ -15,9 +14,6 @@ export default async function Page(params: {
   if (!checkRole('admin')) {
     redirect('/')
   }
-
-
-
 
   return (
     <section className="w-full h-full">

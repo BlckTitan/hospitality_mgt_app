@@ -2,73 +2,76 @@ import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
 
 
-export const get = query({
+export const getAllStaffs = query({
     args: {},
     handler: async (ctx) => {
-      const customers = await ctx.db.query('users').collect()
-      return customers;
+      const staffs = await ctx.db.query('staffs').collect()
+      return staffs;
     }
 });
 
-export const create = mutation({
+export const createStaff = mutation({
   args: {
-    clerkId: v.string(),
     email: v.string(),
     firstName: v.string(),
     lastName: v.string(),
-    username: v.string(),
-    passwordHash: v.string(),
-    phone: v.number(),
-    employed: v.number(),
-    terminated: v.number(),
-    role: v.union(v.literal("admin"), v.literal("manager"), v.literal("staff"), v.literal("accountant")),
-    createdAt: v.number(),
-    updatedAt: v.number(),
-    metadata: v.optional(v.any()),
+    phone: v.string(),
+    DoB: v.string(),
+    state_of_origin: v.string(),
+    salary: v.number(),
+    employment_status: v.union(v.literal("employed"), v.literal("terminated")),
+    LGA: v.string(),
+    address: v.string(),
+    date_recruited: v.string(),
+    date_terminated: v.optional(v.string()),
+    role: v.string(),
   },
   handler: async (ctx, args) => {
     await ctx.db.insert('staffs', args);
   },
 });
-export const update = mutation({
+export const updateStaff = mutation({
   args: {
-    clerkId: v.string(),
     email: v.string(),
-    firstName: v.optional(v.string()),
-    lastName: v.optional(v.string()),
-    username: v.string(),
-    passwordHash: v.string(),
-    phone: v.number(),
-    employed: v.number(),
-    terminated: v.number(),
-    role: v.union(v.literal("admin"), v.literal("manager"), v.literal("staff"), v.literal("accountant")),
-    updatedAt: v.number(),
-    metadata: v.optional(v.any()),
+    firstName: v.string(),
+    lastName: v.string(),
+    phone: v.string(),
+    DoB: v.string(),
+    state_of_origin: v.string(),
+    salary: v.number(),
+    employment_status: v.union(v.literal("employed"), v.literal("terminated")),
+    LGA: v.string(),
+    address: v.string(),
+    date_recruited: v.string(),
+    date_terminated: v.optional(v.string()),
+    role: v.string(),
   },
 
   handler: async (ctx, args) => {
     const existing = await ctx.db
       .query('staffs')
-      .withIndex('by_clerkId', (q) => q.eq('clerkId', args.clerkId))
       .first();
     if (existing) {
       await ctx.db.patch(existing._id, {
         email: args.email,
         firstName: args.firstName,
         lastName: args.lastName,
-        updatedAt: args.updatedAt,
-        metadata: args.metadata,
+        salary: args.salary,
+        employment_status: args.employment_status,
+        phone: args.phone,
+        DoB: args.DoB,
+        state_of_origin: args.state_of_origin,
+        address: args.address,
+        LGA: args.LGA,
       });
     }
   },
 });
 
-export const remove = mutation({
-  args: { clerkId: v.string() },
+export const removeStaff = mutation({
   handler: async (ctx, args) => {
     const existing = await ctx.db
       .query('staffs')
-      .withIndex('by_clerkId', (q) => q.eq('clerkId', args.clerkId))
       .first();
     if (existing) {
       await ctx.db.delete(existing._id);
