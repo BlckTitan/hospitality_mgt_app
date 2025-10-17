@@ -1,3 +1,4 @@
+
 import type { Metadata } from "next";
 import './globals.css';
 import 'bootstrap/dist/css/bootstrap.min.css';
@@ -16,10 +17,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
 
-  const publishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+  const publishableKey = process.env.CLERK_PUBLISHABLE_KEY;
 
   if (!publishableKey) {
-    throw new Error('Missing NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY');
+    throw new Error('Missing CLERK_PUBLISHABLE_KEY');
   }
   
   return (
