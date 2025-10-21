@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { FaUsers, FaRegChartBar, FaCreditCard, FaCoins, FaDollyFlatbed, FaMailBulk } from "react-icons/fa";
+import { FcPhone, FcSalesPerformance , FcConferenceCall, FcMoneyTransfer , FcList, FcCurrencyExchange } from "react-icons/fc";
 
 export default function Sidebar() {
   return (
@@ -11,32 +11,32 @@ export default function Sidebar() {
 
         <li>
           <a href="/#">Sales</a>
-          <i className='icon'><FaCreditCard /></i>
+          <i className='icon'><FcCurrencyExchange  /></i>
         </li>
 
         <li>
-          <a href="/#">Expenditure</a>
-          <i className='icon'><FaCoins /></i>
+          <a href="/#">Expense Tracker</a>
+          <i className='ico'><FcMoneyTransfer  /></i>
         </li>
 
         <li>
           <a href="/#">Report and Analytics</a>
-          <i className='icon'><FaRegChartBar /></i>
+          <i className='icon'><FcSalesPerformance  /></i>
         </li>
 
         <li>
           <a href="/admin/staff">Staff</a>
-          <i className='icon'><FaUsers /></i>
+          <i className='icon'><FcConferenceCall /></i>
         </li>
 
         <li>
           <a href="/#">Inventory</a>
-          <i className='icon'><FaDollyFlatbed /></i>
+          <i className='icon'><FcList  /></i>
         </li>
 
         <li>
           <a href="/#">Biling</a>
-          <i className='icon'><FaMailBulk /></i>
+          <i className='icon'><FcPhone  /></i>
         </li>
       </ul>
 

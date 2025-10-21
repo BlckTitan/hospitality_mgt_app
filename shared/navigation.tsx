@@ -2,7 +2,7 @@
 import { SignedIn, UserButton } from '@clerk/nextjs'
 import React from 'react'
 import { Nav, Navbar, NavbarBrand, NavbarCollapse, NavbarToggle, NavLink } from 'react-bootstrap'
-import { FaUsers, FaRegChartBar, FaCreditCard, FaCoins, FaDollyFlatbed, FaMailBulk } from "react-icons/fa";
+import { FcPhone, FcSalesPerformance , FcConferenceCall, FcMoneyTransfer , FcList, FcCurrencyExchange } from "react-icons/fc";
 
 export default function Navigation() {
     
@@ -28,32 +28,32 @@ export default function Navigation() {
               {/* sidebar links for dropdown navigationin smaller devices */}
               <NavLink href="/#" className='main_nav_link'>
                 <span>Sales</span>
-                <i className='icon'><FaCreditCard /></i>
+                <i className='icon'><FcCurrencyExchange /></i>
               </NavLink> 
 
               <NavLink href="/#" className='main_nav_link'>
                 <span>Expenditure</span>
-                <i className='icon'><FaCoins /></i>
+                <i className='icon'><FcMoneyTransfer  /></i>
               </NavLink> 
               
               <NavLink href="/#" className='main_nav_link'>
                 <span>Report and Analytics</span>
-                <i className='icon'><FaRegChartBar /></i>
+                <i className='icon'><FcSalesPerformance /></i>
               </NavLink> 
               
               <NavLink href="/#" className='main_nav_link'>
                 <span>Staff</span>
-                <i className='icon'><FaUsers /></i>
+                <i className='icon'><FcConferenceCall /></i>
               </NavLink> 
               
               <NavLink href="/#" className='main_nav_link'>
                 <span>Inventory</span>
-                <i className='icon'><FaDollyFlatbed /></i>
+                <i className='icon'><FcList /></i>
               </NavLink> 
               
               <NavLink href="/#" className='main_nav_link'>
                 <span>Billing</span>
-                <i className='icon'><FaMailBulk /></i>
+                <i className='icon'><FcPhone /></i>
               </NavLink> 
 
               {/* <NavDropdown title="Dropdown" id="basic-nav-dropdown">

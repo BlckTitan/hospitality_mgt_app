@@ -18,7 +18,7 @@ function TableComponent<T extends Record <string, any>>({data, columns}: TablePr
     <Table striped bordered hover>
       <thead>
         <tr>
-            <th>#</th>
+            <th>SN</th>
             {columns && columns.map((items, index) => (
                 <th key={index}>{items.label}</th>
             ))}

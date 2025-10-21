@@ -105,19 +105,19 @@ a.main_nav_link{
   @apply text-sm;
 }
 .icon{
-  @apply text-xl;
+  @apply text-2xl;
 }
-
 /* sidebar styling */
 .glass{
   @apply w-full h-full inline-block backdrop-blur-md;
   background: rgba(255, 255, 255, 0.12);
 }
 aside{
-  background-image: url('../public/astral.webp');
+  /* background-image: url('../public/astral.webp');
   background-size: cover;
   background-position: center;
-  background-repeat: no-repeat;
+  background-repeat: no-repeat; */
+  background-color: #000;
 }
 aside li{
   @apply w-full h-12 flex justify-between items-center px-4 my-2 hover:bg-[var(--foreground)];

@@ -10,6 +10,14 @@ export const getAllStaffs = query({
     }
 });
 
+export const getStaff = query({
+  args: {staff_id: v.id('staffs')},
+  handler: async (ctx, args) => {
+    const staff = await ctx.db.get(args.staff_id)
+    return staff;
+  }
+});
+
 export const createStaff = mutation({
   args: {
     email: v.string(),

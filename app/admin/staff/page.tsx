@@ -1,12 +1,13 @@
 'use client'
 
 import { useQuery } from 'convex/react'
-import React from 'react'
+import React, { useState } from 'react'
 import { api } from '../../../convex/_generated/api'
 import { Button, Spinner } from 'react-bootstrap'
-import { isAccordionItemSelected } from 'react-bootstrap/esm/AccordionContext'
 import TableComponent, { TableColumn } from '../../../shared/table'
- 
+import { FcEmptyTrash, FcDocument, FcPlus} from "react-icons/fc";
+import { MdEditDocument } from "react-icons/md";
+import BootstrapModal from '../../../shared/modal'
 interface StaffProps {
   _id: string;
   firstName: string;
@@ -23,10 +24,24 @@ interface StaffProps {
 }
 
  export default function Page() {
+  
+  const [modalShow, setModalShow] = useState(false);
 
   return (
     <div>
-      <Staff/>
+      <header className='w-full h-16 lg:h-24 bg-white p-2 rounded-md mb-4 flex justify-between items-center'>
+        <h3>Staffs</h3>
+        <Button 
+          variant='light' 
+          className='cursor-pointer' 
+          style={{width: 'fit', height: 'fit', padding: '0', borderRadius: '100%'}}
+          onClick={() => setModalShow(true)}
+        >
+          <FcPlus className='w-8 h-8'/>
+        </Button>
+      </header>
+      <Staff/> 
+      <ModalComponent modalShow={modalShow} setModalShow={setModalShow}/>
     </div>
   )
 
@@ -35,9 +50,11 @@ interface StaffProps {
  const Staff = () =>{
     // fetches all the data from user table to display it in a table
 
-    const handleView = (id: string) =>{
-      console.log(id)
+    const handleDelete = (id: string, name: string) =>{
+      confirm('Are you sure you want to delete records for '+name)
+      console.log(id);
     }
+
     const tableColumns: TableColumn <StaffProps>[] = [
       { label: 'First Name', key: 'firstName' },
       { label: 'Last Name', key: 'lastName' },
@@ -48,10 +65,29 @@ interface StaffProps {
         label: 'Action', 
         key: '_id',
         render: (value, row) => (
-          <>          
-            <Button className='!mr-2' onClick={() => handleView(row._id)}>view</Button>
-            <Button variant='secondary' onClick={() => handleView(row._id)}>Edit</Button>
-          </>
+          <div className='flex flex-col lg:flex-row lg:items-center gap-1'>
+
+            <a 
+              href={`/admin/staff/view?staff_id=${row._id}`} 
+              className='!mr-2 !no-underline' 
+            >
+              <i className='icon'><FcDocument /></i>
+            </a>
+
+            <a 
+              href={`/admin/staff/edit?staff_id=${row._id}`} 
+              className='!no-underline !text-amber-400'
+            >
+              <i className='icon'><MdEditDocument /></i>
+            </a>
+
+            <Button 
+              variant='white'
+              onClick={() => handleDelete(row._id, row.firstName)} 
+            >
+              <i className='icon'><FcEmptyTrash /></i>
+            </Button>
+          </div>
         ),
       },
     ]
@@ -59,20 +95,34 @@ interface StaffProps {
     const staffData = useQuery(api.staff.getAllStaffs)  || []
 
     if(!staffData){
-        return <div className='w-full h-full flex items-center justify-center'>
+        return <div className='w-full h-full flex items-center justify-center p-2 bg-white rounded-md'>
                 <Spinner animation="border" variant="primary" />
                </div>
     }else if(staffData.length === 0){
-        return <div className='w-full h-fit flex items-center justify-center'>
+        return <div className='w-full h-fit flex items-center justify-center p-2 bg-white rounded-md'>
                 <h3 className='text-xl font-bold'>No data available</h3>
                </div>
     }else{
        
         return(
+          <div className='w-full h-full p-2 bg-white rounded-md'>
             <TableComponent data={staffData} columns={tableColumns}/>
+          </div>
         )
     }
 
 
  }
+
  
+function ModalComponent(props: any) {
+
+  return (
+    <>
+      <BootstrapModal
+        show={props.modalShow}
+        onHide={() => props.setModalShow(false)}
+      />
+    </>
+  );
+}
