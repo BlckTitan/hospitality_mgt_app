@@ -28,8 +28,8 @@ interface StaffProps {
   const [modalShow, setModalShow] = useState(false);
 
   return (
-    <div>
-      <header className='w-full h-16 lg:h-24 bg-white p-2 rounded-md mb-4 flex justify-between items-center'>
+    <div className='w-full p-4 bg-white'>
+      <header className='w-full border-b mb-4 flex justify-between items-center'>
         <h3>Staffs</h3>
         <Button 
           variant='light' 
@@ -94,18 +94,18 @@ interface StaffProps {
 
     const staffData = useQuery(api.staff.getAllStaffs)  || []
 
-    if(!staffData){
-        return <div className='w-full h-full flex items-center justify-center p-2 bg-white rounded-md'>
+    if(staffData === undefined){
+        return <div className='w-full h-full flex items-center justify-center p-2 bg-white rounded-sm'>
                 <Spinner animation="border" variant="primary" />
                </div>
     }else if(staffData.length === 0){
-        return <div className='w-full h-fit flex items-center justify-center p-2 bg-white rounded-md'>
+        return <div className='w-full h-fit flex items-center justify-center p-2 bg-white rounded-sm'>
                 <h3 className='text-xl font-bold'>No data available</h3>
                </div>
     }else{
        
         return(
-          <div className='w-full h-full p-2 bg-white rounded-md'>
+          <div className='w-full h-full'>
             <TableComponent data={staffData} columns={tableColumns}/>
           </div>
         )
