@@ -24,30 +24,35 @@ interface StaffProps {
     role: string;
 }
 
-export default function StaffViewComponent() {
+export default function StaffViewComponent(){
 
   const query = useSearchParams()
   const id = query.get('staff_id')
 
-    const staffData = useQuery(api.staff.getStaff, id ? { staff_id: id as Id<"staffs"> } : "skip" );
+    const staffData = useQuery(
+      api.staff.getStaff, 
+      id ? { staff_id: id as Id<"staffs"> } : "skip" 
+    );
     
     if (staffData === undefined) {
-        return (
-            <div className='w-full h-full flex items-center justify-center'>
-                <Spinner animation="border" variant="primary" />
-            </div>
-        );
+      return (
+        <div className='w-full h-full flex items-center justify-center'>
+          <Spinner animation="border" variant="primary" />
+        </div>
+      );
     }else if(!staffData){
-      return <div className='w-full h-fit flex items-center justify-center'>
-              <h3 className='text-xl font-bold'>No data available</h3>
-              </div>
+      return(
+        <div className='w-full h-fit flex items-center justify-center'>
+          <h3 className='text-xl font-bold'>No data available</h3>
+        </div>
+      )
     }else{
        
       return(
         <div className='w-full h-full'>
-          <div className='w-full h-full flex flex-col lg:flex-row lg:justify-between lg:items-start'>
+          <div className='w-full h-full flex flex-col justify-start items-start'>
 
-            <div className='w-4/12 h-fit flex justify-end border-r px-2'>
+            <div className='w-full h-40 flex justify-start items-center'>
               <Image
                 src={Avatar}
                 alt='profile avatar format: webp'
@@ -57,7 +62,7 @@ export default function StaffViewComponent() {
               />
             </div>
 
-            <div className='w-8/12 h-full px-2 [&_div]:w-full [&_div]:h-fit [&_div]:flex [&_div]:justify-start [&_div]:items-center [&_div]:gap-1'>
+            <div className='w-full h-full px-2 [&_div]:w-full [&_div]:h-fit [&_div]:flex [&_div]:justify-start [&_div]:items-center [&_div]:gap-1'>
               
               <div>
                 <p className='!font-semibold'>Name:</p>

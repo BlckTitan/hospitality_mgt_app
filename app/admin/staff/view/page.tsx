@@ -18,7 +18,7 @@ export default function Page() {
         </a>
       </header>
       
-      <Suspense fallback={<Spinner/>}>
+      <Suspense fallback={<p>Please wait...</p>}>
         <StaffViewComponent/> 
       </Suspense>
 

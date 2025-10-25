@@ -22,7 +22,12 @@ function TableComponent<T extends Record <string, any>>({data, columns}: TablePr
           <tr>
               <th>SN</th>
               {columns && columns.map((items, index) => (
-                  <th key={index}>{items.label}</th>
+                  <th 
+                    key={index}
+                    style={{textWrap: 'nowrap'}}
+                  >
+                    {items.label}
+                  </th>
               ))}
           </tr>
         </thead>

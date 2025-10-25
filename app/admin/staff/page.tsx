@@ -1,7 +1,7 @@
 'use client'
 
 import { useQuery } from 'convex/react'
-import React, { useState } from 'react'
+import React, { Suspense, useState } from 'react'
 import { api } from '../../../convex/_generated/api'
 import { Button, Spinner } from 'react-bootstrap'
 import TableComponent, { TableColumn } from '../../../shared/table'
@@ -65,7 +65,7 @@ interface StaffProps {
         label: 'Action', 
         key: '_id',
         render: (value, row) => (
-          <div className='flex flex-col lg:flex-row lg:items-center gap-1'>
+          <div className='flex justify-evenly lg:justify-start items-center gap-1'>
 
             <a 
               href={`/admin/staff/view?staff_id=${row._id}`} 
@@ -105,8 +105,10 @@ interface StaffProps {
     }else{
        
         return(
-          <div className='w-full h-full'>
-            <TableComponent data={staffData} columns={tableColumns}/>
+          <div className='w-full h-full overflow-x-scroll'>
+            <Suspense fallback={<p>Please wait...</p>}>
+              <TableComponent data={staffData} columns={tableColumns}/>
+            </Suspense>
           </div>
         )
     }
