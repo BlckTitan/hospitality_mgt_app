@@ -2,7 +2,7 @@ import Pagination from 'react-bootstrap/Pagination';
 
 export default function PaginationComponent() {
   return (
-    <Pagination>
+    <Pagination size='sm'>
       <Pagination.First />
       <Pagination.Prev />
       <Pagination.Item>{1}</Pagination.Item>

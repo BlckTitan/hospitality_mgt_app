@@ -1,12 +1,11 @@
 'use client'
 
 import { useQuery } from 'convex/react';
-import React from 'react'
-import { Button, Spinner } from 'react-bootstrap';
+import React, { Suspense } from 'react'
+import { Spinner } from 'react-bootstrap';
 import { api } from '../../../../convex/_generated/api';
 import { useSearchParams } from 'next/navigation';
 import { Id } from '../../../../convex/_generated/dataModel';
-import { FaLongArrowAltLeft } from 'react-icons/fa';
 import Avatar from '../../../../public/profileAvatar.webp'
 import Image from 'next/image';
 interface StaffProps {
@@ -40,7 +39,11 @@ export default function Page() {
           Back
         </a>
       </header>
-      <Staff id={id}/> 
+      
+      <Suspense fallback={<Spinner/>}>
+        <Staff id={id}/> 
+      </Suspense>
+
     </div>
   )
 }
