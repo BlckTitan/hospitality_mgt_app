@@ -1,7 +1,6 @@
 'use client'
 
 import Table from 'react-bootstrap/Table';
-import PaginationComponent from './pagination';
 
 export interface TableColumn<T> {
   label: string;
@@ -17,7 +16,9 @@ function TableComponent<T extends Record <string, any>>({data, columns}: TablePr
 
   return (
     <>
-      <Table striped bordered hover>
+
+      <Table striped bordered hover >
+
         <thead>
           <tr>
               <th>SN</th>
@@ -31,6 +32,7 @@ function TableComponent<T extends Record <string, any>>({data, columns}: TablePr
               ))}
           </tr>
         </thead>
+
         <tbody>
             {
               data.length > 0 && data.map((row, index) => (
@@ -45,8 +47,10 @@ function TableComponent<T extends Record <string, any>>({data, columns}: TablePr
               ))
             }
         </tbody>
+
       </Table>
-      <PaginationComponent/>
+
+
     </>
   );
 }

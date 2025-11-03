@@ -2,13 +2,13 @@ import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
 
 
-export const getAllStaffs = query({
-    args: {},
-    handler: async (ctx) => {
-      const staffs = await ctx.db.query('staffs').collect()
-      return staffs;
-    }
-});
+// export const getAllStaffs = query({
+//     args: {},
+//     handler: async (ctx) => {
+//       const staffs = await ctx.db.query('staffs').collect()
+//       return staffs;
+//     }
+// });
 
 export const getStaff = query({
   args: {staff_id: v.id('staffs')},

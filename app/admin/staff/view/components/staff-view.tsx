@@ -52,7 +52,7 @@ export default function StaffViewComponent(){
         <div className='w-full h-full'>
           <div className='w-full h-full flex flex-col justify-start items-start'>
 
-            <div className='w-full h-40 flex justify-start items-center'>
+            <div className='w-full h-40 flex justify-center lg:justify-start items-center'>
               <Image
                 src={Avatar}
                 alt='profile avatar format: webp'
@@ -62,7 +62,7 @@ export default function StaffViewComponent(){
               />
             </div>
 
-            <div className='w-full h-full px-2 [&_div]:w-full [&_div]:h-fit [&_div]:flex [&_div]:justify-start [&_div]:items-center [&_div]:gap-1'>
+            <div className='w-full h-full px-2 [&_div]:w-full [&_div]:h-fit [&_div]:flex lg:[&_div]:justify-start [&_div]:items-center [&_div]:gap-2'>
               
               <div>
                 <p className='!font-semibold'>Name:</p>

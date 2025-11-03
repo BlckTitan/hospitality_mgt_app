@@ -18,9 +18,7 @@ export default async function Page(params: {
   return (
     <section className="w-full h-full">
       
-      <p>This is the protected admin dashboard restricted to users with the `admin` role.</p>
-
-      
+      <p>Dashboard</p>
       
     </section>
   )
