@@ -22,8 +22,7 @@ interface StaffProps {
 
   
 const Staff = () =>{
-    // fetches all the data from user table to display it in a table
-
+    
     const handleDelete = (id: string, name: string) =>{
       confirm('Are you sure you want to delete records for '+name)
       console.log(id);

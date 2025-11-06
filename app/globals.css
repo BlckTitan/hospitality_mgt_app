@@ -108,15 +108,7 @@ a.main_nav_link{
   @apply text-2xl;
 }
 /* sidebar styling */
-.glass{
-  @apply w-full h-full inline-block backdrop-blur-md;
-  background: rgba(255, 255, 255, 0.12);
-}
 aside{
-  /* background-image: url('../public/astral.webp');
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat; */
   background-color: #000;
 }
 aside li{
@@ -129,6 +121,51 @@ aside li:hover,
 }
 aside a{
   @apply text-white no-underline;
+}
+
+/* date picker styling */
+.react-datepicker__month-container {
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.react-datepicker__month {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  justify-content: space-between;
+}
+
+.react-datepicker__week {
+  display: flex !important;
+  width: 100%;
+  justify-content: space-around;
+}
+
+.react-datepicker__day--selected,
+.react-datepicker__day--keyboard-selected {
+  background-color: #0d6efd !important;
+  color: white !important;
+  border-radius: 100% !important;
+}
+.react-datepicker__day:hover {
+  background-color: #0d6efd!important;
+  color: #fff !important;
+  border-radius: 100% !important;
+}
+.react-datepicker__header {
+  background-color: #0d6efd !important;
+  border-bottom: 1px solid #0d6efd !important;
+}
+.react-datepicker__current-month,
+.react-datepicker-time__header,
+.react-datepicker-year-header {
+  color: #fff !important;
+}
+.react-datepicker__day-name {
+  color: #0d6efd !important;
+}
+.react-datepicker__triangle {
+  display: none !important;
 }
 /*---break---*/
 @theme inline {

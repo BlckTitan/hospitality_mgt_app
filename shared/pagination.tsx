@@ -67,10 +67,10 @@ export default function PaginationComponent({collectionName, columns}) {
   return (
     //Pagination Buttons
     <>
-      // Data Table
+      {/* Data Table */}
       <TableComponent data={currentData} columns={columns}/>
 
-      // Table Pagination
+      {/* Table Pagination */}
       <Pagination className="justify-content-center mt-3">
 
         <Pagination.Prev 

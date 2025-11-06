@@ -2,9 +2,12 @@
 import type { Metadata } from "next";
 import './globals.css';
 import 'bootstrap/dist/css/bootstrap.min.css';
+
 import { ClerkProvider } from '@clerk/nextjs'
 import DashboardLayout from "../shared/dashboard-layout";
 import ConvexClientProvider from '../components/ConvexClientProvider'
+import { Suspense } from "react";
+import { Spinner } from "react-bootstrap";
 
 export const metadata: Metadata = {
   title: "Hospitality Manager",
@@ -27,11 +30,19 @@ export default function RootLayout({
    <ClerkProvider publishableKey={publishableKey}> 
       <html lang="en">
         <body>
-          <DashboardLayout>
-            <ConvexClientProvider>
-              {children}
-            </ConvexClientProvider>
-          </DashboardLayout>
+          <Suspense 
+            fallback={
+              <div>
+                <Spinner variant="primary" size="sm"/>
+              </div>
+            }
+          >
+            <DashboardLayout>
+              <ConvexClientProvider>
+                {children}
+              </ConvexClientProvider>
+            </DashboardLayout>
+          </Suspense>
         </body>
       </html>
   </ClerkProvider>
