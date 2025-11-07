@@ -3,6 +3,17 @@ import { SignedIn, UserButton } from '@clerk/nextjs'
 import React from 'react'
 import { Nav, Navbar, NavbarBrand, NavbarCollapse, NavbarToggle, NavLink } from 'react-bootstrap'
 import { FcPhone, FcSalesPerformance , FcConferenceCall, FcMoneyTransfer , FcList, FcCurrencyExchange } from "react-icons/fc";
+import { RxDashboard } from "react-icons/rx";
+
+const navItems = [
+  { href: "/admin/dashboard", label: "Dashboard", icon: <RxDashboard className='text-blue-500'/> },
+  { href: "/#", label: "Sales", icon: <FcCurrencyExchange /> },
+  { href: "/#", label: "Expenditure", icon: <FcMoneyTransfer /> },
+  { href: "/#", label: "Report and Analytics", icon: <FcSalesPerformance /> },
+  { href: "/#", label: "Staff", icon: <FcConferenceCall /> },
+  { href: "/#", label: "Inventory", icon: <FcList /> },
+  { href: "/#", label: "Billing", icon: <FcPhone /> },
+];
 
 export default function Navigation() {
     
@@ -25,37 +36,14 @@ export default function Navigation() {
                 </SignedIn>
               </NavLink>
 
-              {/* sidebar links for dropdown navigationin smaller devices */}
-              <NavLink href="/#" className='main_nav_link'>
-                <span>Sales</span>
-                <i className='icon'><FcCurrencyExchange /></i>
-              </NavLink> 
-
-              <NavLink href="/#" className='main_nav_link'>
-                <span>Expenditure</span>
-                <i className='icon'><FcMoneyTransfer  /></i>
-              </NavLink> 
-              
-              <NavLink href="/#" className='main_nav_link'>
-                <span>Report and Analytics</span>
-                <i className='icon'><FcSalesPerformance /></i>
-              </NavLink> 
-              
-              <NavLink href="/#" className='main_nav_link'>
-                <span>Staff</span>
-                <i className='icon'><FcConferenceCall /></i>
-              </NavLink> 
-              
-              <NavLink href="/#" className='main_nav_link'>
-                <span>Inventory</span>
-                <i className='icon'><FcList /></i>
-              </NavLink> 
-              
-              <NavLink href="/#" className='main_nav_link'>
-                <span>Billing</span>
-                <i className='icon'><FcPhone /></i>
-              </NavLink> 
-
+             
+              {/* Sidebar links for dropdown navigation in smaller devices */}
+              {navItems.map(({ href, label, icon }, index) => (
+                <NavLink key={index} href={href} className="main_nav_link">
+                  <span>{label}</span>
+                  <i className="icon">{icon}</i>
+                </NavLink>
+              ))}
               {/* <NavDropdown title="Dropdown" id="basic-nav-dropdown">
                 <NavDropdown.Item href="#action/3.1">Action</NavDropdown.Item>
 
