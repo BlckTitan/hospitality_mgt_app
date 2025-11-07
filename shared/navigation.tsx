@@ -1,5 +1,6 @@
 'use client'
 import { SignedIn, UserButton } from '@clerk/nextjs'
+import { usePathname } from 'next/navigation';
 import React from 'react'
 import { Nav, Navbar, NavbarBrand, NavbarCollapse, NavbarToggle, NavLink } from 'react-bootstrap'
 import { FcPhone, FcSalesPerformance , FcConferenceCall, FcMoneyTransfer , FcList, FcCurrencyExchange } from "react-icons/fc";
@@ -16,6 +17,8 @@ const navItems = [
 ];
 
 export default function Navigation() {
+
+    const path = usePathname()
     
   return (
     <nav className="w-full h-14 flex items-center fixed top-0 main_nav z-10 shadow-blue-100 shadow-sm">
@@ -28,9 +31,9 @@ export default function Navigation() {
           </div>
           
           <NavbarCollapse id="basic-navbar-nav" className='right-0 top-14 w-full lg:w-auto absolute lg:static border-b border-t lg:border-0 bg-white'>
-            <Nav className="w-full lg:w-fit px-4 flex flex-col items-start lg:flex-row lg:items-center lg:justify-evenly me-auto">
+            <Nav className="w-full lg:w-fit flex flex-col items-start lg:flex-row lg:items-center lg:justify-evenly me-auto">
 
-              <NavLink href="/#">
+              <NavLink href="/#" className='px-1'>
                 <SignedIn>
                   <UserButton />
                 </SignedIn>
@@ -39,10 +42,14 @@ export default function Navigation() {
              
               {/* Sidebar links for dropdown navigation in smaller devices */}
               {navItems.map(({ href, label, icon }, index) => (
-                <NavLink key={index} href={href} className="main_nav_link">
-                  <span>{label}</span>
-                  <i className="icon">{icon}</i>
-                </NavLink>
+                  <NavLink
+                    key={index}
+                    href={href}
+                    className={`main_nav_link ${(href === path) ? "!bg-[#333] text-white" : "bg-transparent"}`}
+                  >
+                    <span>{label}</span>
+                    <i className="icon">{icon}</i>
+                  </NavLink>
               ))}
               {/* <NavDropdown title="Dropdown" id="basic-nav-dropdown">
                 <NavDropdown.Item href="#action/3.1">Action</NavDropdown.Item>
