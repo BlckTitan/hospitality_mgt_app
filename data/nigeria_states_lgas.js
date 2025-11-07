@@ -1,4 +1,4 @@
-[
+export const states_lga = [
   {
     "state": "Abia",
     "lgas": [
