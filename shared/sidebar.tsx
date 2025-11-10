@@ -28,7 +28,7 @@ export default function Sidebar() {
         <a 
           key={index} 
           href={href} 
-          className={`flex items-center justify-between p-2 hover:bg-white/10 ${(href === path) ? "!bg-[#333] text-white " : "bg-transparent"}`}
+          className={`flex items-center justify-between p-2 hover:!bg-white/10 ${(href === path) ? "!bg-[#333] text-white " : "bg-transparent"}`}
         >
           <span>{label}</span>
           <i className="icon">{icon}</i>

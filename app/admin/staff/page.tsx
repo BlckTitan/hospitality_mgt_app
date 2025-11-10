@@ -8,8 +8,7 @@ import Staff from './components/staffs'
 import { Controller, useForm } from 'react-hook-form';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
-import { states_lga } from '../../../data/nigeria_states_lgas'
-import { roles } from '../../../data/roles'
+import { states_lga, roles } from '../../../lib/data'
 
 type FormData = {
   DoB: Date | null;

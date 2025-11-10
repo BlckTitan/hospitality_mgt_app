@@ -32,8 +32,8 @@ export default function RootLayout({
         <body>
           <Suspense 
             fallback={
-              <div>
-                <Spinner variant="primary" size="sm"/>
+              <div className="w-full h-screen flex justify-center items-center">
+                <Spinner variant="dark" size="sm"/>
               </div>
             }
           >

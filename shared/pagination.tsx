@@ -61,7 +61,7 @@ export default function PaginationComponent({collectionName, columns}) {
 
   const currentData = pageCache[currentPage] || [];
 
-  if(response === undefined) return <div className='w-full h-full flex items-center justify-center'><Spinner animation="border" variant="primary" /></div>
+  if(response === undefined) return <div className='w-full h-full flex items-center justify-center'><Spinner animation="border" size='sm' variant="dark" /></div>
   if(response.page.length === 0) return <div>No data available!</div>
   
   return (

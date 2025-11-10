@@ -1,16 +1,16 @@
 'use client'
 
-import { SignUp, useUser } from '@clerk/nextjs'
+import { SignUp, useAuth } from '@clerk/nextjs'
 import { redirect } from 'next/navigation';
 import React from 'react'
+import { Spinner } from 'react-bootstrap';
 
 export default function Page() {
   
-  const { isSignedIn } = useUser();
+  const { isLoaded, userId } = useAuth();
 
-  if (!isSignedIn) {
-    return redirect('/admin/dashboard')
-  }
+  if (!isLoaded) return <div className='w-full h-screen flex items-center justify-center'><Spinner size='sm' variant='dark'/></div>;
+  if (userId) return redirect('/admin/dashboard')
 
   return (
     <div className='w-full h-screen flex justify-center items-center'>
