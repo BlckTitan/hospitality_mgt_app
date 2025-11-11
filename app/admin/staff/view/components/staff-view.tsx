@@ -15,12 +15,12 @@ interface StaffProps {
     lastName: string;
     phone: string;
     DoB: string;
-    state_of_origin: string;
+    stateOfOrigin: string;
     LGA: string;
-    employment_status: string;
+    employmentStatus: string;
     address: string;
-    date_recruited: string;
-    date_terminated?: string;
+    dateRecruited: string;
+    dateTerminated?: string;
     role: string;
 }
 
@@ -86,7 +86,7 @@ export default function StaffViewComponent(){
 
               <div>
                 <p className='!font-semibold'>State of Origin:</p>
-                <p>{staffData?.state_of_origin}</p>
+                <p>{staffData?.stateOfOrigin}</p>
               </div>
 
               <div>
@@ -106,20 +106,20 @@ export default function StaffViewComponent(){
 
               <div>
                 <p className='!font-semibold'>Employment Status:</p>
-                <p>{staffData?.employment_status}</p>
+                <p>{staffData?.employmentStatus}</p>
               </div>
 
               <div>
                 <p className='!font-semibold'>Date Recruited:</p>
                 <p>
-                  {staffData?.date_recruited}
+                  {staffData?.dateRecruited}
                 </p>
               </div>
 
               <div>
                 <p className='!font-semibold'>Date Terminated:</p>
                 <p>
-                  {(staffData.employment_status === 'employed') ? 'Actively employed' : staffData?.date_terminated}
+                  {(staffData.employmentStatus === 'employed') ? 'Actively employed' : staffData?.dateTerminated}
                 </p>
               </div>
 
