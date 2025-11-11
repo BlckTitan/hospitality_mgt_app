@@ -14,18 +14,18 @@ export default defineSchema({
     lastName: v.string(),
     phone: v.string(),
     DoB: v.string(),
-    state_of_origin: v.string(),
+    stateOfOrigin: v.string(),
     LGA: v.string(),
     address: v.string(),
     salary: v.number(),
-    employment_status: v.union(v.literal("employed"), v.literal("terminated")),
-    date_recruited: v.string(),
-    date_terminated: v.optional(v.string()),
+    employmentStatus: v.union(v.literal("employed"), v.literal("terminated")),
+    dateRecruited: v.string(),
+    dateTerminated: v.optional(v.string()),
     role: v.string(),
     email: v.optional(v.string()),
   })
-    .index("employment_status", ["employment_status"])
-    .index("date_recruited", ["date_recruited"]),
+    .index("employmentStatus", ["employmentStatus"])
+    .index("dateRecruited", ["dateRecruited"]),
 
   // Properties table for multiple hospitality locations
   properties: defineTable({

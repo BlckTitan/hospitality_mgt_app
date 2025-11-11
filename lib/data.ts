@@ -531,6 +531,7 @@ export const states_lga = [
     { value: "griller", label: "Griller" },
     { value: "houseKeeper", label: "Housekeeper" },
     { value: "laundryAttendant", label: "Laundry Attendant" },
+    { value: "receptionist", label: "Receptionist" },
     { value: "security", label: "Security" },
     { value: "waiter", label: "Waiter" },
     { value: "cook", label: "Cook" },

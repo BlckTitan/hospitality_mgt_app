@@ -11,12 +11,12 @@ interface StaffProps {
     lastName: string;
     phone: string;
     DoB: string;
-    state_of_origin: string;
+    stateOfOrigin: string;
     LGA: string;
-    employment_status: string;
+    employmentStatus: string;
     address: string;
-    date_recruited: string;
-    date_terminated?: string;
+    dateRecruited: string;
+    dateTerminated?: string;
     role: string;
   }
 
@@ -33,7 +33,7 @@ const Staff = () =>{
       { label: 'Last Name', key: 'lastName' },
       { label: 'Phone', key: 'phone' },
       { label: 'Role', key: 'role' },
-      { label: 'Employment Status', key: 'employment_status' },
+      { label: 'Employment Status', key: 'employmentStatus' },
       { 
         label: 'Action', 
         key: '_id',
@@ -68,11 +68,11 @@ const Staff = () =>{
     ]
 
     return(
-        <div className='w-full h-full overflow-x-scroll lg:!overflow-x-hidden'>
-          <Suspense>
-            <PaginationComponent collectionName='staffs' columns={tableColumns}/>
-          </Suspense>
-        </div>
+      <div className='w-full h-full overflow-x-scroll lg:!overflow-x-hidden'>
+        <Suspense>
+          <PaginationComponent collectionName='staffs' columns={tableColumns}/>
+        </Suspense>
+      </div>
     )
     
  }

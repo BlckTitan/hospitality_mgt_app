@@ -16,12 +16,19 @@ export const getPaginatedData = query({
   },
   handler: async ({ db }, { table, limit, cursor, sortOrder }) => {
     
-    // Use convex pagination pattern
-    const items = await db
-      .query(table)
-      .order(sortOrder ?? "desc")   // respect sortOrder if provided, default to "desc"
-      .paginate({ numItems: limit, cursor: cursor ?? null });
+    try {
+      // Use convex pagination pattern
+        const items = await db
+        .query(table)
+        .order(sortOrder ?? "desc")   // respect sortOrder if provided, default to "desc"
+        .paginate({ numItems: limit, cursor: cursor  ?? null});
 
-    return items;
+      return items;
+    } catch (error) {
+      console.log(`Fetch failed ${error}`)
+      throw new Error("Failed to fetch paginated data");
+    }
+    
   },
+    
 });

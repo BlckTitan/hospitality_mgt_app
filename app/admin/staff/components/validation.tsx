@@ -29,6 +29,7 @@ export const formSchema = yup.object().shape({
         "supervisor",
         "griller",
         "houseKeeper",
+        "receptionist",
         "laundryAttendant",
         "security",
       ],

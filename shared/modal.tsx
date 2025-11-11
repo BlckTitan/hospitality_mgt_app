@@ -22,9 +22,6 @@ export default  function BootstrapModal(props) {
         {props.body || 'Modal Body'}
       </Modal.Body>
       
-      <Modal.Footer>
-        <Button onClick={props.onHide}>Cancel</Button>
-      </Modal.Footer>
     </Modal>
   );
 }

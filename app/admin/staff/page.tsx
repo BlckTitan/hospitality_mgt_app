@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import { Button } from 'react-bootstrap'
+import { Button, Modal } from 'react-bootstrap'
 import { FcPlus} from "react-icons/fc";
 import BootstrapModal from '../../../shared/modal'
 import Staff from './components/staffs'
@@ -14,13 +14,14 @@ import {yupResolver} from '@hookform/resolvers/yup'
 import { useMutation } from 'convex/react';
 import { api } from '../../../convex/_generated/api';
 import { toast } from 'sonner';
+import { redirect, useRouter } from 'next/navigation';
 
 type FormData = {
   DoB: Date | null;
-  date_recruited: Date | null;
+  dateRecruited: Date | null;
   firstName: string;
   lastName: string;
-  role: "manager"| "assistantManager" |"supervisor" | "griller" | "houseKeeper" | "laundryAttendant" | "security" | null;
+  role: "manager"| "assistantManager" |"supervisor" | "griller" | "houseKeeper" | "laundryAttendant" | "security" | 'Receptionist' | null;
   address: string;
   phone: string;
   email: string
@@ -78,10 +79,10 @@ function ModalComponent(props: any) {
 
 function FormComponent() {
 
+  const router = useRouter()
   const createStaff = useMutation(api.staff.createStaff)
 
   const [staffState, setStaffState] = useState<string>('')
-  const [LGA, setLGA] = useState<string>('')
 
   const { control, register, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: yupResolver(formSchema) as any,
@@ -95,7 +96,7 @@ function FormComponent() {
       phone: '',
       stateOfOrigin: '',
       LGA: '',
-      date_recruited: null,
+      dateRecruited: null,
       salary: 0 
     },
   });
@@ -107,12 +108,12 @@ function FormComponent() {
         lastName: data.lastName,
         phone: data.phone,
         DoB: data.DoB ? data.DoB.toISOString() : null,
-        state_of_origin: data.stateOfOrigin,
+        stateOfOrigin: data.stateOfOrigin,
         address: data.address,
         LGA: data.LGA,
         email: data.email,
-        employment_status: 'employed',
-        date_recruited: new Date().toISOString(),
+        employmentStatus: 'employed',
+        dateRecruited: new Date().toISOString(),
         salary: Number(data.salary),
         role: data.role
       })
@@ -120,9 +121,15 @@ function FormComponent() {
       toast.success("New staff created successfully!");
       console.log("Staff created with ID:", response);
 
+      //reload page form on submission
+      setTimeout(() => {
+        // router.push('/admin/staff')
+        window.location.href = "/admin/staff";
+      }, 3000)
+
     } catch (error: any) {
-      console.error("Create Staff failed:", error);
-      toast.error("Failed to create new staff. Please try again.");
+      console.error("Add new staff failed:", error);
+      toast.error("Failed to add new staff. Please try again.");
     }
     
   }
@@ -155,7 +162,6 @@ function FormComponent() {
         className='w-full h-fit flex flex-col lg:flex-row lg:justify-start lg:items-center gap-1 
         [&_input]:w-full [&_input]:h-10 [&_input]:rounded-md [&_input]:border [&_input]:p-2 
         [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4
-        [&_select]:w-full [&_select]:h-10 [&_select]:rounded-md [&_select]:border
         '
       >
 
@@ -192,6 +198,21 @@ function FormComponent() {
         </div>
 
         <div className='w-full lg:w-1/3'>
+          <label htmlFor="email">Email</label>
+          <input id='email' className='' {...register("email", { required: true })} />
+          {errors.email && <span className='text-red-500 text-sm'>This field is required</span>}
+        </div>
+
+      </div>
+
+      <div 
+        className='w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-1 
+        [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4
+        [&_select]:w-full [&_select]:h-10 [&_select]:rounded-md [&_select]:border [&_label]:text-left
+        [&_input]:w-full [&_input]:h-10 [&_input]:rounded-md [&_input]:border [&_input]:p-2'
+      >
+
+        <div className='w-full lg:w-1/3'>
 
           <label htmlFor="stateOfOrigin">State of Origin</label>
 
@@ -217,22 +238,28 @@ function FormComponent() {
 
         </div>
 
-      </div>
-
-      <div 
-        className='w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-1 
-        [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4
-        [&_select]:w-full [&_select]:h-10 [&_select]:rounded-md [&_select]:border [&_label]:text-left
-        [&_input]:w-full [&_input]:h-10 [&_input]:rounded-md [&_input]:border [&_input]:p-2'
-      >
-
         <div className='w-full lg:w-1/3'>
-          <label htmlFor="email">Email</label>
-          <input id='email' className='' {...register("email", { required: true })} />
-          {errors.email && <span className='text-red-500 text-sm'>This field is required</span>}
+
+          <label htmlFor="LGA">Local Government Area</label>
+
+          <select defaultValue='' {...register("LGA", { required: true })}>
+            <option disabled value=''>- select local government area -</option>
+            {
+              (states_lga && (staffState !== '')) && states_lga
+              .filter((item) => item.state === staffState)
+              .map((item) => (
+                item.lgas.map((lga, index) => (
+                  <option key={index} value={lga}>{lga}</option>
+                ))
+              ))
+            }
+          </select>
+
+          {errors.LGA && <span className='text-red-500 text-sm'>This field is required</span>}
+
         </div>
         
-        <div className='w-full lg:w-2/3'>
+        <div className='w-full lg:w-1/3'>
           <label htmlFor="address">Address</label>
           <input id='address' className='' {...register("address", { required: true })} />
           {errors.address && <span className='text-red-500 text-sm'>This field is required</span>}
@@ -247,27 +274,6 @@ function FormComponent() {
         [&_input]:w-full [&_input]:h-10 [&_input]:rounded-md [&_input]:border [&_input]:p-2
         [&_select]:w-full [&_select]:h-10 [&_select]:rounded-md [&_select]:border [&_label]:text-left'
       >
-
-        <div className='w-full lg:w-1/3'>
-
-        <label htmlFor="LGA">Local Government Area</label>
-
-        <select defaultValue='' {...register("LGA", { required: true })}>
-          <option disabled value=''>- select local government area -</option>
-          {
-            (states_lga && (staffState !== '')) && states_lga
-            .filter((item) => item.state === staffState)
-            .map((item) => (
-              item.lgas.map((lga, index) => (
-                <option key={index} value={lga}>{lga}</option>
-              ))
-            ))
-          }
-        </select>
-
-        {errors.LGA && <span className='text-red-500 text-sm'>This field is required</span>}
-
-        </div>
 
         <div className='w-full lg:w-1/3'>
           <label htmlFor="salary" className=''>Salary</label>
@@ -297,7 +303,11 @@ function FormComponent() {
 
       </div>
       
-      <Button type="submit" variant='dark'>Submit</Button>
+      <Modal.Footer>
+        
+        <Button type="submit" variant='dark'>Submit</Button>
+        {/* <Button onClick={props.onHide}>Cancel</Button> */}
+      </Modal.Footer>
     </form>
   );
 }
