@@ -11,7 +11,7 @@
   "dependencies": {
     "@clerk/backend": "^2.14.0",
     "@clerk/nextjs": "^6.31.4",
-    "@hookform/resolvers": "^5.2.2",
+    "@esbuild/win32-x64": "^0.27.0",
     "bootstrap": "^5.3.8",
     "chart.js": "^4.5.0",
     "class-variance-authority": "^0.7.1",

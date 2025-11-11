@@ -21,7 +21,7 @@ type FormData = {
   dateRecruited: Date | null;
   firstName: string;
   lastName: string;
-  role: "manager"| "assistantManager" |"supervisor" | "griller" | "houseKeeper" | "laundryAttendant" | "security" | 'Receptionist' | null;
+  role: "manager"| "assistantManager" |"supervisor" | "griller" | "houseKeeper" | "laundryAttendant" | "security" | 'receptionist' | null;
   address: string;
   phone: string;
   email: string
