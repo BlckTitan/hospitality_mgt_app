@@ -5,21 +5,28 @@ import { Button } from 'react-bootstrap'
 import { FcPlus} from "react-icons/fc";
 import BootstrapModal from '../../../shared/modal'
 import Staff from './components/staffs'
-import { Controller, useForm } from 'react-hook-form';
+import { Controller, SubmitHandler, useForm } from 'react-hook-form';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { states_lga, roles } from '../../../lib/data'
+import { formSchema } from './components/validation';
+import {yupResolver} from '@hookform/resolvers/yup'
+import { useMutation } from 'convex/react';
+import { api } from '../../../convex/_generated/api';
+import { toast } from 'sonner';
 
 type FormData = {
   DoB: Date | null;
+  date_recruited: Date | null;
   firstName: string;
   lastName: string;
-  role: string;
+  role: "manager"| "assistantManager" |"supervisor" | "griller" | "houseKeeper" | "laundryAttendant" | "security" | null;
   address: string;
   phone: string;
+  email: string
   stateOfOrigin: string;
   LGA: string;
-  salary: string;
+  salary: number;
 };
 
  export default function Page() {
@@ -71,14 +78,54 @@ function ModalComponent(props: any) {
 
 function FormComponent() {
 
-  const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
+  const createStaff = useMutation(api.staff.createStaff)
+
   const [staffState, setStaffState] = useState<string>('')
   const [LGA, setLGA] = useState<string>('')
 
-  const { control, register, handleSubmit, watch, formState: { errors } } = useForm<FormData>({
-    defaultValues: { DoB: null },
+  const { control, register, handleSubmit, formState: { errors } } = useForm<FormData>({
+    resolver: yupResolver(formSchema) as any,
+    defaultValues: { 
+      DoB: null,
+      firstName: '',
+      lastName: '',
+      role: null,
+      address: '',
+      email: '',
+      phone: '',
+      stateOfOrigin: '',
+      LGA: '',
+      date_recruited: null,
+      salary: 0 
+    },
   });
-  const onSubmit = data => console.log(data); // watch input value by passing the name of it
+
+  const onSubmit: SubmitHandler<FormData> = async (data) => { 
+    try {
+      const response = await createStaff({
+        firstName: data.firstName,
+        lastName: data.lastName,
+        phone: data.phone,
+        DoB: data.DoB ? data.DoB.toISOString() : null,
+        state_of_origin: data.stateOfOrigin,
+        address: data.address,
+        LGA: data.LGA,
+        email: data.email,
+        employment_status: 'employed',
+        date_recruited: new Date().toISOString(),
+        salary: Number(data.salary),
+        role: data.role
+      })
+
+      toast.success("New staff created successfully!");
+      console.log("Staff created with ID:", response);
+
+    } catch (error: any) {
+      console.error("Create Staff failed:", error);
+      toast.error("Failed to create new staff. Please try again.");
+    }
+    
+  }
 
   return (
     /* "handleSubmit" will validate your inputs before invoking "onSubmit" */
@@ -91,7 +138,7 @@ function FormComponent() {
       >
 
         <div className='w-full lg:w-1/2'>
-          <label htmlFor="firstName" className='text-left'>First name</label>
+          <label htmlFor="firstName">First name</label>
           <input id='firstName' className='' {...register("firstName", { required: true })} />
           {errors.firstName && <span className='text-red-500 text-sm'>This field is required</span>}
         </div>
@@ -180,29 +227,14 @@ function FormComponent() {
       >
 
         <div className='w-full lg:w-1/3'>
-
-          <label htmlFor="LGA">Local Government Area</label>
-
-          <select defaultValue='' {...register("LGA", { required: true })}>
-            <option disabled value=''>- select local government area -</option>
-            {
-              (states_lga && (staffState !== '')) && states_lga
-              .filter((item) => item.state === staffState)
-              .map((item) => (
-                item.lgas.map((lga, index) => (
-                  <option key={index} value={lga}>{lga}</option>
-                ))
-              ))
-            }
-          </select>
-
-          {errors.LGA && <span className='text-red-500 text-sm'>This field is required</span>}
-
+          <label htmlFor="email">Email</label>
+          <input id='email' className='' {...register("email", { required: true })} />
+          {errors.email && <span className='text-red-500 text-sm'>This field is required</span>}
         </div>
         
         <div className='w-full lg:w-2/3'>
-          <label htmlFor="Address">Address</label>
-          <input id='Address' className='' {...register("address", { required: true })} />
+          <label htmlFor="address">Address</label>
+          <input id='address' className='' {...register("address", { required: true })} />
           {errors.address && <span className='text-red-500 text-sm'>This field is required</span>}
         </div>
 
@@ -217,7 +249,28 @@ function FormComponent() {
       >
 
         <div className='w-full lg:w-1/3'>
-          <label htmlFor="salary">Salary</label>
+
+        <label htmlFor="LGA">Local Government Area</label>
+
+        <select defaultValue='' {...register("LGA", { required: true })}>
+          <option disabled value=''>- select local government area -</option>
+          {
+            (states_lga && (staffState !== '')) && states_lga
+            .filter((item) => item.state === staffState)
+            .map((item) => (
+              item.lgas.map((lga, index) => (
+                <option key={index} value={lga}>{lga}</option>
+              ))
+            ))
+          }
+        </select>
+
+        {errors.LGA && <span className='text-red-500 text-sm'>This field is required</span>}
+
+        </div>
+
+        <div className='w-full lg:w-1/3'>
+          <label htmlFor="salary" className=''>Salary</label>
 
           <input 
             id='salary' 
@@ -230,8 +283,8 @@ function FormComponent() {
 
         <div className='w-full lg:w-1/3'>
           <label htmlFor="role">Role</label>
-          <select className="border rounded p-2"  {...register("role", { required: true })} >
-            <option key={0} disabled defaultChecked>- select role -</option>
+          <select className="border rounded p-2" defaultValue='' {...register("role", { required: true })} >
+            <option disabled value=''>- select role -</option>
             {roles.map((role) => (
               <option key={role.value} value={role.value}>
                 {role.label}
@@ -244,7 +297,7 @@ function FormComponent() {
 
       </div>
       
-      <Button type="submit" variant='primary'>Submit</Button>
+      <Button type="submit" variant='dark'>Submit</Button>
     </form>
   );
 }

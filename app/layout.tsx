@@ -8,6 +8,7 @@ import DashboardLayout from "../shared/dashboard-layout";
 import ConvexClientProvider from '../components/ConvexClientProvider'
 import { Suspense } from "react";
 import { Spinner } from "react-bootstrap";
+import { Toaster } from 'sonner'
 
 export const metadata: Metadata = {
   title: "Hospitality Manager",
@@ -42,6 +43,7 @@ export default function RootLayout({
                 {children}
               </ConvexClientProvider>
             </DashboardLayout>
+            <Toaster position="bottom-right"/>
           </Suspense>
         </body>
       </html>
