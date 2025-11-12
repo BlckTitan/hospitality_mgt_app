@@ -26,7 +26,7 @@ export const getPaginatedData = query({
       return items;
     } catch (error) {
       console.log(`Fetch failed ${error}`)
-      throw new Error("Failed to fetch paginated data");
+      return { success: false, message: "Failed to fetch paginated data"};
     }
     
   },

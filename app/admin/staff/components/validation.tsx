@@ -24,14 +24,14 @@ export const formSchema = yup.object().shape({
     .string()
     .oneOf(
       [
-        "manager",
-        "assistantManager",
-        "supervisor",
-        "griller",
-        "houseKeeper",
-        "receptionist",
-        "laundryAttendant",
-        "security",
+        "Manager",
+        "Assistant Manager",
+        "Supervisor",
+        "Griller",
+        "Housekeeper",
+        "Receptionist",
+        "Laundry Attendant",
+        "Security",
       ],
       "Invalid role"
     )

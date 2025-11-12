@@ -21,7 +21,7 @@ type FormData = {
   dateRecruited: Date | null;
   firstName: string;
   lastName: string;
-  role: "manager"| "assistantManager" |"supervisor" | "griller" | "houseKeeper" | "laundryAttendant" | "security" | 'receptionist' | null;
+  role: "Manager"| "Assistant Manager" |"Supervisor" | "Griller" | "Housekeeper" | "Laundry Attendant" | "Security" | 'Receptionist' | null;
   address: string;
   phone: string;
   email: string
@@ -118,14 +118,20 @@ function FormComponent() {
         role: data.role
       })
 
-      toast.success("New staff created successfully!");
-      console.log("Staff created with ID:", response);
+      if(response.success === false){
+        toast.error(response.message);
+      }else{          
 
-      //reload page form on submission
-      setTimeout(() => {
-        // router.push('/admin/staff')
-        window.location.href = "/admin/staff";
-      }, 3000)
+        toast.success("New staff created successfully!");
+        console.log("Staff created with ID:", response);
+
+        //reload page form on submission
+        setTimeout(() => {
+          // router.push('/admin/staff')
+          window.location.href = "/admin/staff";
+        }, 3000)
+
+      }
 
     } catch (error: any) {
       console.error("Add new staff failed:", error);

@@ -24,8 +24,7 @@ export default defineSchema({
     role: v.string(),
     email: v.optional(v.string()),
   })
-    .index("employmentStatus", ["employmentStatus"])
-    .index("dateRecruited", ["dateRecruited"]),
+    .index("email", ["email"]),
 
   // Properties table for multiple hospitality locations
   properties: defineTable({

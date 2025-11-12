@@ -525,15 +525,15 @@ export const states_lga = [
   ]
 
   export const roles = [
-    { value: "manager", label: "Manager" },
-    { value: "assistantManager", label: "Assistant Manager" },
-    { value: "supervisor", label: "Supervisor" },
-    { value: "griller", label: "Griller" },
-    { value: "houseKeeper", label: "Housekeeper" },
-    { value: "laundryAttendant", label: "Laundry Attendant" },
-    { value: "receptionist", label: "Receptionist" },
-    { value: "security", label: "Security" },
-    { value: "waiter", label: "Waiter" },
-    { value: "cook", label: "Cook" },
-    { value: "kitchenAssistant", label: "Kitchen Assistant" },
+    { value: "Manager", label: "Manager" },
+    { value: "Assistant Manager", label: "Assistant Manager" },
+    { value: "Supervisor", label: "Supervisor" },
+    { value: "Griller", label: "Griller" },
+    { value: "HouseKeeper", label: "Housekeeper" },
+    { value: "Laundry Attendant", label: "Laundry Attendant" },
+    { value: "Receptionist", label: "Receptionist" },
+    { value: "Security", label: "Security" },
+    { value: "Waiter", label: "Waiter" },
+    { value: "Cook", label: "Cook" },
+    { value: "kitchen Assistant", label: "Kitchen Assistant" },
   ];

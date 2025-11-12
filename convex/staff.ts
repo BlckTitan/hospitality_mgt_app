@@ -1,15 +1,6 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
 
-
-// export const getAllStaffs = query({
-//     args: {},
-//     handler: async (ctx) => {
-//       const staffs = await ctx.db.query('staffs').collect()
-//       return staffs;
-//     }
-// });
-
 export const getStaff = query({
   args: {staff_id: v.id('staffs')},
   handler: async (ctx, args) => {
@@ -35,7 +26,25 @@ export const createStaff = mutation({
     role: v.string(),
   },
   handler: async (ctx, args) => {
-    await ctx.db.insert('staffs', args);
+
+    try {
+      
+      const existingUser = await ctx.db.query('staffs')
+      .filter(q => q.eq(q.field('email'), args.email))
+      .first()
+
+      if(existingUser){
+        return { success: false, message: "User already exists" };
+      }
+
+      await ctx.db.insert('staffs', args);
+      return { success: true, message: "User added successfully" };
+
+    } catch (error) {
+      console.log(`Insert failed ${error}`)
+      return { success: false, message: "Failed to create new user!" };
+    }
+    
   },
 });
 export const updateStaff = mutation({
@@ -56,33 +65,58 @@ export const updateStaff = mutation({
   },
 
   handler: async (ctx, args) => {
-    const existing = await ctx.db
+
+    try {
+
+      const existing = await ctx.db
       .query('staffs')
       .first();
-    if (existing) {
-      await ctx.db.patch(existing._id, {
-        email: args.email,
-        firstName: args.firstName,
-        lastName: args.lastName,
-        salary: args.salary,
-        employmentStatus: args.employmentStatus,
-        phone: args.phone,
-        DoB: args.DoB,
-        stateOfOrigin: args.stateOfOrigin,
-        address: args.address,
-        LGA: args.LGA,
-      });
+
+      if (existing) {
+        await ctx.db.patch(existing._id, {
+          email: args.email,
+          firstName: args.firstName,
+          lastName: args.lastName,
+          salary: args.salary,
+          employmentStatus: args.employmentStatus,
+          phone: args.phone,
+          DoB: args.DoB,
+          stateOfOrigin: args.stateOfOrigin,
+          address: args.address,
+          LGA: args.LGA,
+        });
+
+      }else{
+        return { success: false, message: "User does not exist!" };
+      }
+
+    } catch (error) {
+      console.log(`Update failed ${error}`)
+      return { success: false, message: "Failed to update existing user data" };
     }
+    
   },
 });
 
 export const removeStaff = mutation({
+
   handler: async (ctx, args) => {
-    const existing = await ctx.db
+    try {
+      
+      const existing = await ctx.db
       .query('staffs')
       .first();
-    if (existing) {
-      await ctx.db.delete(existing._id);
+      if (existing) {
+        await ctx.db.delete(existing._id);
+      }else{
+        return { success: false, message: "User does not exist" };
+      }
+
+    } catch (error) {
+      console.log(`Failed to delete user record ${error}`)
+      return { success: false, message: "Failed to delete user record" };
     }
+    
   },
+
 });
