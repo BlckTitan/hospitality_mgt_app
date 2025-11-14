@@ -5,8 +5,7 @@ import { Button, Modal } from 'react-bootstrap'
 import { FcPlus} from "react-icons/fc";
 import BootstrapModal from '../../../shared/modal'
 import Staff from './components/staffs'
-import { Controller, SubmitHandler, useForm } from 'react-hook-form';
-import DatePicker from 'react-datepicker';
+import { SubmitHandler, useForm } from 'react-hook-form';
 import 'react-datepicker/dist/react-datepicker.css';
 import { states_lga, roles } from '../../../lib/data'
 import { formSchema } from './components/validation';
@@ -14,14 +13,16 @@ import {yupResolver} from '@hookform/resolvers/yup'
 import { useMutation } from 'convex/react';
 import { api } from '../../../convex/_generated/api';
 import { toast } from 'sonner';
-import { redirect, useRouter } from 'next/navigation';
+import InputComponent from '../../../shared/input';
+import SelectComponent from '../../../shared/select';
+import DatepickerComponent from '../../../shared/datepicker';
 
 type FormData = {
   DoB: Date | null;
   dateRecruited: Date | null;
   firstName: string;
   lastName: string;
-  role: "Manager"| "Assistant Manager" |"Supervisor" | "Griller" | "Housekeeper" | "Laundry Attendant" | "Security" | 'Receptionist' | null;
+  role: "Manager" | "Assistant Manager" | "Supervisor" | "Griller" | "Housekeeper" | "Laundry Attendant" | "Security" | 'Receptionist' | null;
   address: string;
   phone: string;
   email: string
@@ -56,7 +57,6 @@ type FormData = {
   )
 
 }
-
  
 function ModalComponent(props: any) {
 
@@ -79,7 +79,6 @@ function ModalComponent(props: any) {
 
 function FormComponent() {
 
-  const router = useRouter()
   const createStaff = useMutation(api.staff.createStaff)
 
   const [staffState, setStaffState] = useState<string>('')
@@ -150,17 +149,17 @@ function FormComponent() {
         [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4'
       >
 
-        <div className='w-full lg:w-1/2'>
-          <label htmlFor="firstName">First name</label>
-          <input id='firstName' className='' {...register("firstName", { required: true })} />
-          {errors.firstName && <span className='text-red-500 text-sm'>This field is required</span>}
-        </div>
+        <InputComponent
+          id='firstName' label='First Name'
+          type='string' inputWidth='w-1/2'
+          register={register("firstName", { required: true })} error={errors.firstName}
+        /> 
 
-        <div className='w-full lg:w-1/2'>
-          <label htmlFor="lastName">Last name</label>
-          <input id='lastName' className='' {...register("lastName", { required: true })} />
-          {errors.lastName && <span className='text-red-500 text-sm'>This field is required</span>}
-        </div>
+        <InputComponent
+          id='lastName' label='Last Name'
+          type='string' inputWidth='w-1/2'
+          register={register("lastName", { required: true })} error={errors.firstName}
+        />
 
       </div>
 
@@ -171,43 +170,26 @@ function FormComponent() {
         '
       >
 
-        <div className='w-full lg:w-1/3'>
-          <label htmlFor="phone">Phone</label>
-          <input id='phone' className='' {...register("phone", { required: true })} />
-          {errors.phone && <span className='text-red-500 text-sm'>This field is required</span>}
-        </div>
+        <InputComponent
+          id='phone' label='Phone'
+          inputWidth='w-1/3' type='tel'
+          register={register("phone", { required: true })} error={errors.phone}
+        />
 
-        <div className='w-full lg:w-1/3'>
-          <label htmlFor="DoB">Date of Birth</label>
-          <Controller
-            name="DoB"
-            control={control}
-            rules={{ required: true }}
-            render={({ field }) => (
-              <DatePicker
-                id="DoB"
-                selected={field.value as Date | null}
-                onChange={(date: Date | null) => field.onChange(date)}
-                dateFormat="dd/MM/yyyy"
-                className="!w-full"
-                calendarClassName="!w-full !h-fit flex items-center gap-1 text-black rounded-md shadow-md border relative"
-                popperClassName="!z-[9999] !w-[250px] !h-fit rounded-md"
-                fixedHeight
-                popperPlacement="top-start"
-                portalId="root"
-              />
-            )}
-          />
+        <DatepickerComponent
+          id='DoB'
+          label="Date of Birth"
+          dateWidth='w-1/3'
+          name='DoB'
+          control={control}
+          error={errors.DoB}
+        />
 
-          
-          {errors.DoB && <span className='text-red-500 text-sm'>This field is required</span>}
-        </div>
-
-        <div className='w-full lg:w-1/3'>
-          <label htmlFor="email">Email</label>
-          <input id='email' className='' {...register("email", { required: true })} />
-          {errors.email && <span className='text-red-500 text-sm'>This field is required</span>}
-        </div>
+        <InputComponent
+          id='email' label='Email'
+          inputWidth='w-1/3' type='email'
+          register={register("email", { required: true })} error={errors.email}
+        />
 
       </div>
 
@@ -218,31 +200,13 @@ function FormComponent() {
         [&_input]:w-full [&_input]:h-10 [&_input]:rounded-md [&_input]:border [&_input]:p-2'
       >
 
-        <div className='w-full lg:w-1/3'>
-
-          <label htmlFor="stateOfOrigin">State of Origin</label>
-
-          <select 
-            {...register("stateOfOrigin", { required: true })}
-            onChange={(e) => setStaffState(e.target.value)}
-            defaultValue=''
-          >
-            <option value='' disabled>- select state of origin -</option>
-            {
-              states_lga && states_lga.map((items, index) => (
-                <option 
-                  key={index} 
-                  value={items?.state}
-                >
-                  {items?.state}
-                </option>
-              ))
-            }
-          </select>
-
-          {errors.stateOfOrigin && <span className='text-red-500 text-sm'>This field is required</span>}
-
-        </div>
+        <SelectComponent
+          id='stateOfOrigin' label='State of Origin' defaultText='select state of origin'
+          data={states_lga}
+          setStaffState={setStaffState} selectWidth='w-1/3' 
+          register={register("stateOfOrigin", { required: true })}
+          error={errors.stateOfOrigin}
+        />
 
         <div className='w-full lg:w-1/3'>
 
@@ -264,13 +228,12 @@ function FormComponent() {
           {errors.LGA && <span className='text-red-500 text-sm'>This field is required</span>}
 
         </div>
-        
-        <div className='w-full lg:w-1/3'>
-          <label htmlFor="address">Address</label>
-          <input id='address' className='' {...register("address", { required: true })} />
-          {errors.address && <span className='text-red-500 text-sm'>This field is required</span>}
-        </div>
 
+        <InputComponent
+          id='address' label='Address'
+          inputWidth='w-1/3' type='address'
+          register={register("address", { required: true })} error={errors.address}
+        />
 
       </div>
 
@@ -281,17 +244,11 @@ function FormComponent() {
         [&_select]:w-full [&_select]:h-10 [&_select]:rounded-md [&_select]:border [&_label]:text-left'
       >
 
-        <div className='w-full lg:w-1/3'>
-          <label htmlFor="salary" className=''>Salary</label>
-
-          <input 
-            id='salary' 
-            type='number' 
-            {...register("salary", { required: true, minLength: 5 })} 
-          />
-
-          {errors.salary && <span className='text-red-500 text-sm'>This field is required</span>}
-        </div>
+        <InputComponent
+          id='salary' label='Salary'
+          inputWidth='w-1/3' type='number'
+          register={register("salary", { required: true })} error={errors.salary}
+        />
 
         <div className='w-full lg:w-1/3'>
           <label htmlFor="role">Role</label>

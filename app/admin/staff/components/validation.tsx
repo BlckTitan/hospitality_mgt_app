@@ -56,16 +56,16 @@ export const formSchema = yup.object().shape({
       const domain = value.split("@")[1];
       return !blockedDomains.includes(domain);
     }
-  )
-  .test(
-    "allowed-domain",
-    "Only company emails are allowed",
-    value => {
-      if (!value) return true;
-      return value.endsWith("@yourcompany.com");
-    }
-  )
-  .required('Email is required'),
+  ),
+  // .test(
+  //   "allowed-domain",
+  //   "Only company emails are allowed",
+  //   value => {
+  //     if (!value) return true;
+  //     return value.endsWith("@gmail.com");
+  //   }
+  // )
+  // .required('Email is required'),
   
   address: yup
     .string()
