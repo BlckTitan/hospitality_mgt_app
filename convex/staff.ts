@@ -100,21 +100,32 @@ export const updateStaff = mutation({
 
 export const removeStaff = mutation({
 
+  
+  args: {id: v.id('staffs')},
+
   handler: async (ctx, args) => {
     try {
       
-      const existing = await ctx.db
-      .query('staffs')
-      .first();
-      if (existing) {
-        await ctx.db.delete(existing._id);
+      const existingUser = await ctx.db.query('staffs')
+      .filter(q => q.eq(q.field('_id'), args.id))
+      .first()
+
+      if (existingUser) {
+
+        await ctx.db.delete(existingUser._id);
+        return { success: true, message: "User removed successfully!" };
+
       }else{
+
         return { success: false, message: "User does not exist" };
+
       }
 
     } catch (error) {
+
       console.log(`Failed to delete user record ${error}`)
       return { success: false, message: "Failed to delete user record" };
+      
     }
     
   },

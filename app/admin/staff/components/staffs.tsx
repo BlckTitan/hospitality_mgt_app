@@ -4,6 +4,10 @@ import { MdEditDocument } from "react-icons/md";
 import { Button } from "react-bootstrap";
 import PaginationComponent from "../../../../shared/pagination";
 import { Suspense } from "react";
+import { useMutation } from "convex/react";
+import { api } from "../../../../convex/_generated/api";
+import { Id } from "../../../../convex/_generated/dataModel";
+import { toast } from "sonner";
 
 interface StaffProps {
     _id: string;
@@ -22,10 +26,28 @@ interface StaffProps {
 
   
 const Staff = () =>{
-    
-    const handleDelete = (id: string, name: string) =>{
+    const removeStaffRecord = useMutation(api.staff.removeStaff);
+
+    const handleDelete = async (id: string, name: string) =>{
       confirm('Are you sure you want to delete records for '+name)
-      console.log(id);
+      try {
+        const response = await removeStaffRecord({id: id  as Id<'staffs'>})
+        
+        if(response.success === true){
+          
+            toast.success(response.message)
+            //reload page form on submission
+            setTimeout(() => {
+              // router.push('/admin/staff')
+              window.location.href = "/admin/staff";
+            }, 3000)
+            
+        }else{
+          return toast.error(response.message)
+        }
+      } catch (error) {
+        console.log(`Failed to delete staff! ${error}`)
+      }
     }
 
     const tableColumns: TableColumn <StaffProps>[] = [
