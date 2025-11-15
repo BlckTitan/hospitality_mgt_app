@@ -1,7 +1,6 @@
 'use client'
 
 import React, { Suspense } from 'react'
-import { Spinner } from 'react-bootstrap';
 import StaffViewComponent from './components/staff-view';
 
 export default function Page() {

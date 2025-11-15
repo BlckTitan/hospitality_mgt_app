@@ -12,13 +12,14 @@ interface TableProps<T>{
   columns: TableColumn<T>[]
   data: T[]
 }
+
+
 function TableComponent<T extends Record <string, any>>({data, columns}: TableProps<T>) {
 
   return (
     <>
-
+  
       <Table striped bordered hover >
-
         <thead>
           <tr>
               <th>SN</th>

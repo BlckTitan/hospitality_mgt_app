@@ -9,20 +9,20 @@ import Image from 'next/image'
 import { Id } from '../../../../../convex/_generated/dataModel';
 import Avatar from '../../../../../public/profileAvatar.webp'
 
-interface StaffProps {
-    id: string;
-    firstName: string;
-    lastName: string;
-    phone: string;
-    DoB: string;
-    stateOfOrigin: string;
-    LGA: string;
-    employmentStatus: string;
-    address: string;
-    dateRecruited: string;
-    dateTerminated?: string;
-    role: string;
-}
+// interface StaffProps {
+//     id: string;
+//     firstName: string;
+//     lastName: string;
+//     phone: string;
+//     DoB: string;
+//     stateOfOrigin: string;
+//     LGA: string;
+//     employmentStatus: string;
+//     address: string;
+//     dateRecruited: string;
+//     dateTerminated?: string;
+//     role: string;
+// }
 
 export default function StaffViewComponent(){
 
@@ -71,7 +71,7 @@ export default function StaffViewComponent(){
 
               <div>
                 <p className='!font-semibold'>Date of Birth:</p>
-                <p>{staffData?.DoB}</p>
+                <p>{staffData?.DoB.substring(0, 10)}</p>
               </div>
 
               <div>
@@ -112,7 +112,7 @@ export default function StaffViewComponent(){
               <div>
                 <p className='!font-semibold'>Date Recruited:</p>
                 <p>
-                  {staffData?.dateRecruited}
+                  {staffData?.dateRecruited.substring(0, 10)}
                 </p>
               </div>
 

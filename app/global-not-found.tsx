@@ -10,9 +10,9 @@ export const metadata: Metadata = {
 export default function GlobalNotFound() {
   return (
     <html lang="en">
-      <body>
-        <h1>404 - Page Not Found</h1>
-        <p>This page does not exist.</p>
+      <body className='w-full h-screen flex flex-col items-center justify-center'>
+        <h1 className='text-xl font-bold flex-wrap'>404 - Page Not Found</h1>
+        <p>This page does not exist</p>
       </body>
     </html>
   )

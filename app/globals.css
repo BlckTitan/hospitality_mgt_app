@@ -78,6 +78,12 @@ main{
 footer{
   @apply w-full h-10;
 }
+input, select{
+  @apply w-full h-10 p-2 border rounded-sm;
+}
+label{
+  @apply text-left;
+}
 /* main navigation */
 a.main_nav_link{
   @apply !w-full lg:w-fit h-12 px-4 lg:h-fit text-lg m-1 text-nowrap flex justify-between items-center lg:!hidden;

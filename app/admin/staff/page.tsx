@@ -37,7 +37,7 @@ type FormData = {
 
   return (
     <div className='w-full p-4 bg-white'>
-      <header className='w-full border-b mb-4 flex justify-between items-center'>
+      <header className='w-full border-b flex justify-between items-center'>
         <h3>Staffs</h3>
         <Button 
           variant='light' 
@@ -145,7 +145,6 @@ function FormComponent() {
       
       <div 
         className='w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-1 
-        [&_input]:w-full [&_input]:h-10 [&_input]:rounded-md [&_input]:border [&_input]:p-2 
         [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4'
       >
 
@@ -165,7 +164,6 @@ function FormComponent() {
 
       <div 
         className='w-full h-fit flex flex-col lg:flex-row lg:justify-start lg:items-center gap-1 
-        [&_input]:w-full [&_input]:h-10 [&_input]:rounded-md [&_input]:border [&_input]:p-2 
         [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4
         '
       >
@@ -195,9 +193,7 @@ function FormComponent() {
 
       <div 
         className='w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-1 
-        [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4
-        [&_select]:w-full [&_select]:h-10 [&_select]:rounded-md [&_select]:border [&_label]:text-left
-        [&_input]:w-full [&_input]:h-10 [&_input]:rounded-md [&_input]:border [&_input]:p-2'
+        [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4'
       >
 
         <SelectComponent
@@ -239,9 +235,7 @@ function FormComponent() {
 
       <div 
         className='w-full h-fit flex flex-col items-start justify-center lg:flex-row lg:justify-start lg:items-center gap-1 
-        [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-4
-        [&_input]:w-full [&_input]:h-10 [&_input]:rounded-md [&_input]:border [&_input]:p-2
-        [&_select]:w-full [&_select]:h-10 [&_select]:rounded-md [&_select]:border [&_label]:text-left'
+        [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-4'
       >
 
         <InputComponent
