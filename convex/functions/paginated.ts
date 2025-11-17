@@ -20,8 +20,9 @@ export const getPaginatedData = query({
   handler: async ({ db }, { table, limit, cursor, sortOrder, searchTerm}) => {
     
     try {
-
-      if (searchTerm && table === 'staffs') {
+      //if we have a searchTerm and a request comes for the staffs document, 
+      // search the staffs record for firstname, lastName, employmentStatus, role data, if found, return it
+      if ( table === 'staffs' && searchTerm ) {
         const items = await db
           .query('staffs')
           .withSearchIndex('search_staff', (idx) => 
@@ -36,10 +37,14 @@ export const getPaginatedData = query({
           )
           .paginate({ numItems: limit, cursor: cursor  ?? null});
 
-        return items;
+          if(items){
+            return items;
+          }else{
+            return { success: false, message: "No matching results were found!", page: null, isDone: null, continueCursor: null};
+          }
 
       } else {
-
+        // if there is no search request, just return all the data in the database
         const items = await db
           .query(table)
           .order(sortOrder ?? "desc")// respect sortOrder if provided, default to "desc"

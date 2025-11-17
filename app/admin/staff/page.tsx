@@ -140,7 +140,6 @@ function FormComponent() {
   }
 
   return (
-    /* "handleSubmit" will validate your inputs before invoking "onSubmit" */
     <form onSubmit={handleSubmit(onSubmit)} className='createStaffForm'>
       
       <div 

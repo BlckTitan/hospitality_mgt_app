@@ -16,6 +16,7 @@ interface StaffProps {
     phone: string;
     DoB: string;
     stateOfOrigin: string;
+    email: string;
     LGA: string;
     employmentStatus: string;
     address: string;
@@ -54,8 +55,19 @@ const Staff = () =>{
       { label: 'First Name', key: 'firstName' },
       { label: 'Last Name', key: 'lastName' },
       { label: 'Phone', key: 'phone' },
+      { label: 'Email', key: 'email' },
       { label: 'Role', key: 'role' },
-      { label: 'Employment Status', key: 'employmentStatus' },
+      { 
+        label: 'Employment Status', 
+        key: 'employmentStatus',
+        render: (value, row) => (
+          <p 
+            className={(row.employmentStatus === 'terminated') ? 'text-red-500' : 'text-green-600'}
+          >
+            {row.employmentStatus}
+          </p>
+        )
+      },
       { 
         label: 'Action', 
         key: '_id',

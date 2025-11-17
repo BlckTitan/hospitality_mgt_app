@@ -7,7 +7,7 @@ import { Spinner } from 'react-bootstrap';
 import { FcSearch } from 'react-icons/fc';
 import { yupResolver } from '@hookform/resolvers/yup';
 import { searchFormSchema } from './search-form-validation';
-import { useForm } from 'react-hook-form';
+import { useForm, Watch } from 'react-hook-form';
 import { useDebounce } from 'use-debounce';
 
 interface PaginationProps{
@@ -69,15 +69,18 @@ export default function PaginationComponent({collectionName, columns}) {
   const handleNext = () => {
     // Only move forward if not done
     if (!response?.isDone && cursorHistory.length >= currentPage) {
-      setCurrentPage((prev) => prev + 1);
+      setCurrentPage((prev) => prev  + 1);
     }
   };
 
   const currentData = pageCache[currentPage] || [];
-  
-  if(response === undefined) return <div className='w-full h-full flex items-center justify-center'><Spinner animation="border" size='sm' variant="dark" /></div>
-  if(response.page.length === 0) return <div>No data available!</div>
-  
+
+  // check response for data
+  if(response === undefined) return <div className='w-full h-screen flex items-center justify-center'><Spinner animation="border" size='sm' variant="dark" /></div>
+  if(currentData.length === 0) return <div>No data available!</div>
+
+  console.log(currentData+' response here')
+
   return (
     //Pagination Buttons
     <>
@@ -114,6 +117,7 @@ export default function PaginationComponent({collectionName, columns}) {
   );
 }
 
+// search form component
 const SearchComponent = ({setSearchQuery}: SearchComponentProps) =>{
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
@@ -123,28 +127,29 @@ const SearchComponent = ({setSearchQuery}: SearchComponentProps) =>{
     }
   })
 
-  const onSubmit = (e: any) =>{
-    e.preventDefault()
+  const onSubmit = (data: FormData) => {
+
+    setSearchQuery(data.search);
+
   }
   
   return (
     <form 
       action="" 
       className='w-full h-fit p-2 flex items-start justify-end'
-      onSubmit={handleSubmit(onsubmit)}
+      onSubmit={handleSubmit(onSubmit)}
     >
 
       <div className='w-full lg:w-1/3 h-fit flex flex-col items-end'>
 
         <div className='w-full h-full flex justify-start items-center gap-2'>
 
-          <label className='icon'>
+          <button type='submit' className='icon'>
             <FcSearch/>
-          </label>
+          </button>
 
           <input 
-            type="text" 
-            onChange={e => setSearchQuery(e.target.value)}
+            type="text"
             placeholder='search by firstname, lastname, employment status or role'
             {...register("search", { required: true })}
           />
