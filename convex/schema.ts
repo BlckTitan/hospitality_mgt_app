@@ -26,8 +26,8 @@ export default defineSchema({
   })
     .index("email", ["email"])
     .searchIndex('search_staff', {
-      searchField: 'firstName', //field to index for search
-      filterFields: ['lastName', 'employmentStatus', 'role'] //optional fields to filter
+      searchField: 'firstName', //field to index for search \\'lastName', \\
+      filterFields: ['employmentStatus', 'role'] //optional fields to filter
     }),
 
   // Properties table for multiple hospitality locations

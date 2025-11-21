@@ -62,7 +62,7 @@ const Staff = () =>{
         key: 'employmentStatus',
         render: (value, row) => (
           <p 
-            className={(row.employmentStatus === 'terminated') ? 'text-red-500' : 'text-green-600'}
+            className={`w-fit h-fit px-2 py-1 text-white rounded-sm bg-green-600 ${(row.employmentStatus === 'terminated') &&  'bg-red-400'}`}
           >
             {row.employmentStatus}
           </p>

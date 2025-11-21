@@ -11,7 +11,7 @@ const navItems = [
   { href: "/#", label: "Sales", icon: <FcCurrencyExchange /> },
   { href: "/#", label: "Expenditure", icon: <FcMoneyTransfer /> },
   { href: "/#", label: "Report and Analytics", icon: <FcSalesPerformance /> },
-  { href: "/#", label: "Staff", icon: <FcConferenceCall /> },
+  { href: "/admin/staff", label: "Staff", icon: <FcConferenceCall /> },
   { href: "/#", label: "Inventory", icon: <FcList /> },
   { href: "/#", label: "Billing", icon: <FcPhone /> },
 ];

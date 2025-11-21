@@ -1,0 +1,761 @@
+@startuml Hospitality Management Suite ERD
+
+!define PK_COLOR #FFE6E6
+!define FK_COLOR #E6F3FF
+!define ENTITY_COLOR #F0F0F0
+
+skinparam class {
+    BackgroundColor ENTITY_COLOR
+    BorderColor #333333
+    ArrowColor #333333
+}
+
+skinparam package {
+    BackgroundColor #E8E8E8
+    BorderColor #666666
+}
+
+package "Core Platform" {
+    class Property {
+        + propertyId : PK
+        + name : String
+        + address : String
+        + contactNumber : String
+        + email : String
+        + timezone : String
+        + currency : String
+        + taxId : String
+        + isActive : Boolean
+        + createdAt : Timestamp
+        + updatedAt : Timestamp
+    }
+
+    class User {
+        + userId : PK
+        + externalId : String
+        + email : String
+        + name : String
+        + phone : String
+        + isActive : Boolean
+        + lastLoginAt : Timestamp
+        + createdAt : Timestamp
+        + updatedAt : Timestamp
+    }
+
+    class Role {
+        + roleId : PK
+        + name : String
+        + description : String
+        + permissions : JSON
+        + isSystemRole : Boolean
+        + createdAt : Timestamp
+        + updatedAt : Timestamp
+    }
+
+    class UserRole {
+        + userRoleId : PK
+        + userId : FK
+        + roleId : FK
+        + propertyId : FK
+        + assignedAt : Timestamp
+        + assignedBy : String
+    }
+}
+
+package "Room Management" {
+    class RoomType {
+        + roomTypeId : PK
+        + propertyId : FK
+        + name : String
+        + description : String
+        + maxOccupancy : Integer
+        + baseRate : Decimal
+        + amenities : JSON
+        + isActive : Boolean
+        + createdAt : Timestamp
+        + updatedAt : Timestamp
+    }
+
+    class Room {
+        + roomId : PK
+        + propertyId : FK
+        + roomTypeId : FK
+        + roomNumber : String
+        + floor : Integer
+        + status : String
+        + lastCleanedAt : Timestamp
+        + notes : String
+        + isActive : Boolean
+        + createdAt : Timestamp
+        + updatedAt : Timestamp
+    }
+
+    class Guest {
+        + guestId : PK
+        + propertyId : FK
+        + firstName : String
+        + lastName : String
+        + email : String
+        + phone : String
+        + address : String
+        + dateOfBirth : Date
+        + loyaltyNumber : String
+        + preferences : JSON
+        + createdAt : Timestamp
+        + updatedAt : Timestamp
+    }
+
+    class Reservation {
+        + reservationId : PK
+        + propertyId : FK
+        + roomId : FK
+        + guestId : FK
+        + confirmationNumber : String
+        + checkInDate : Date
+        + checkOutDate : Date
+        + numberOfGuests : Integer
+        + rate : Decimal
+        + totalAmount : Decimal
+        + depositAmount : Decimal
+        + status : String
+        + source : String
+        + specialRequests : String
+        + createdAt : Timestamp
+        + updatedAt : Timestamp
+        + checkedInAt : Timestamp
+        + checkedOutAt : Timestamp
+    }
+
+    class RatePlan {
+        + ratePlanId : PK
+        + propertyId : FK
+        + roomTypeId : FK
+        + name : String
+        + description : String
+        + baseRate : Decimal
+        + discountPercent : Decimal
+        + validFrom : Date
+        + validTo : Date
+        + isActive : Boolean
+        + createdAt : Timestamp
+        + updatedAt : Timestamp
+    }
+
+    class HousekeepingTask {
+        + taskId : PK
+        + propertyId : FK
+        + roomId : FK
+        + assignedTo : FK
+        + taskType : String
+        + status : String
+        + priority : String
+        + scheduledAt : Timestamp
+        + startedAt : Timestamp
+        + completedAt : Timestamp
+        + estimatedDuration : Integer
+        + actualDuration : Integer
+        + notes : String
+        + checklist : JSON
+        + createdAt : Timestamp
+        + updatedAt : Timestamp
+    }
+}
+
+package "Food & Beverage" {
+    class FnbMenuItem {
+        + menuItemId : PK
+        + propertyId : FK
+        + name : String
+        + description : String
+        + category : String
+        + subcategory : String
+        + price : Decimal
+        + cost : Decimal
+        + isAvailable : Boolean
+        + imageUrl : String
+        + preparationTime : Integer
+        + isActive : Boolean
+        + createdAt : Timestamp
+        + updatedAt : Timestamp
+    }
+
+    class Recipe {
+        + recipeId : PK
+        + menuItemId : FK
+        + name : String
+        + servings : Integer
+        + instructions : String
+        + totalCost : Decimal
+        + lastCalculatedAt : Timestamp
+        + createdAt : Timestamp
+        + updatedAt : Timestamp
+    }
+
+    class RecipeLine {
+        + recipeLineId : PK
+        + recipeId : FK
+        + inventoryItemId : FK
+        + quantity : Decimal
+        + unit : String
+        + wastePercent : Decimal
+        + createdAt : Timestamp
+        + updatedAt : Timestamp
+    }
+
+    class Table {
+        + tableId : PK
+        + propertyId : FK
+        + tableNumber : String
+        + capacity : Integer
+        + section : String
+        + status : String
+        + currentOrderId : FK
+        + isActive : Boolean
+        + createdAt : Timestamp
+        + updatedAt : Timestamp
+    }
+
+    class Order {
+        + orderId : PK
+        + propertyId : FK
+        + tableId : FK
+        + reservationId : FK
+        + orderType : String
+        + status : String
+        + subtotal : Decimal
+        + taxAmount : Decimal
+        + discountAmount : Decimal
+        + totalAmount : Decimal
+        + serverId : FK
+        + createdAt : Timestamp
+        + updatedAt : Timestamp
+        + completedAt : Timestamp
+    }
+
+    class OrderLine {
+        + orderLineId : PK
+        + orderId : FK
+        + menuItemId : FK
+        + quantity : Integer
+        + unitPrice : Decimal
+        + totalPrice : Decimal
+        + specialInstructions : String
+        + status : String
+        + createdAt : Timestamp
+        + updatedAt : Timestamp
+    }
+}
+
+package "Inventory Management" {
+    class InventoryItem {
+        + inventoryItemId : PK
+        + propertyId : FK
+        + supplierId : FK
+        + sku : String
+        + name : String
+        + category : String
+        + unit : String
+        + currentQuantity : Decimal
+        + reorderPoint : Decimal
+        + reorderQuantity : Decimal
+        + unitCost : Decimal
+        + lastCostUpdate : Timestamp
+        + location : String
+        + isActive : Boolean
+        + createdAt : Timestamp
+        + updatedAt : Timestamp
+    }
+
+    class InventoryTransaction {
+        + transactionId : PK
+        + inventoryItemId : FK
+        + transactionType : String
+        + quantity : Decimal
+        + unitCost : Decimal
+        + totalCost : Decimal
+        + referenceType : String
+        + referenceId : String
+        + reason : String
+        + performedBy : FK
+        + transactionDate : Timestamp
+        + createdAt : Timestamp
+    }
+
+    class Supplier {
+        + supplierId : PK
+        + propertyId : FK
+        + name : String
+        + contactPerson : String
+        + email : String
+        + phone : String
+        + address : String
+        + paymentTerms : String
+        + taxId : String
+        + isActive : Boolean
+        + createdAt : Timestamp
+        + updatedAt : Timestamp
+    }
+
+    class PurchaseOrder {
+        + purchaseOrderId : PK
+        + propertyId : FK
+        + supplierId : FK
+        + orderNumber : String
+        + orderDate : Date
+        + expectedDeliveryDate : Date
+        + status : String
+        + subtotal : Decimal
+        + taxAmount : Decimal
+        + shippingAmount : Decimal
+        + totalAmount : Decimal
+        + createdBy : FK
+        + approvedBy : FK
+        + approvedAt : Timestamp
+        + receivedAt : Timestamp
+        + createdAt : Timestamp
+        + updatedAt : Timestamp
+    }
+
+    class PurchaseOrderLine {
+        + purchaseOrderLineId : PK
+        + purchaseOrderId : FK
+        + inventoryItemId : FK
+        + quantity : Decimal
+        + unitPrice : Decimal
+        + totalPrice : Decimal
+        + receivedQuantity : Decimal
+        + createdAt : Timestamp
+        + updatedAt : Timestamp
+    }
+}
+
+package "Payroll Management" {
+    class Employee {
+        + employeeId : PK
+        + propertyId : FK
+        + userId : FK
+        + employeeNumber : String
+        + firstName : String
+        + lastName : String
+        + email : String
+        + phone : String
+        + dateOfBirth : Date
+        + address : String
+        + hireDate : Date
+        + terminationDate : Date
+        + employmentStatus : String
+        + department : String
+        + position : String
+        + baseSalary : Decimal
+        + hourlyRate : Decimal
+        + payFrequency : String
+        + taxId : String
+        + bankAccount : String
+        + createdAt : Timestamp
+        + updatedAt : Timestamp
+    }
+
+    class Timesheet {
+        + timesheetId : PK
+        + employeeId : FK
+        + propertyId : FK
+        + workDate : Date
+        + clockInTime : Timestamp
+        + clockOutTime : Timestamp
+        + regularHours : Decimal
+        + overtimeHours : Decimal
+        + breakDuration : Integer
+        + status : String
+        + approvedBy : FK
+        + approvedAt : Timestamp
+        + notes : String
+        + createdAt : Timestamp
+        + updatedAt : Timestamp
+    }
+
+    class PayrollRun {
+        + payrollRunId : PK
+        + propertyId : FK
+        + payPeriodStart : Date
+        + payPeriodEnd : Date
+        + payDate : Date
+        + status : String
+        + totalGrossPay : Decimal
+        + totalDeductions : Decimal
+        + totalNetPay : Decimal
+        + createdBy : FK
+        + approvedBy : FK
+        + approvedAt : Timestamp
+        + processedAt : Timestamp
+        + createdAt : Timestamp
+        + updatedAt : Timestamp
+    }
+
+    class PayrollRunLine {
+        + payrollRunLineId : PK
+        + payrollRunId : FK
+        + employeeId : FK
+        + regularHours : Decimal
+        + overtimeHours : Decimal
+        + regularPay : Decimal
+        + overtimePay : Decimal
+        + grossPay : Decimal
+        + deductions : JSON
+        + totalDeductions : Decimal
+        + netPay : Decimal
+        + gratuityAmount : Decimal
+        + createdAt : Timestamp
+        + updatedAt : Timestamp
+    }
+}
+
+package "Maintenance Management" {
+    class Asset {
+        + assetId : PK
+        + propertyId : FK
+        + roomId : FK
+        + assetTag : String
+        + name : String
+        + category : String
+        + manufacturer : String
+        + model : String
+        + serialNumber : String
+        + purchaseDate : Date
+        + purchaseCost : Decimal
+        + depreciationMethod : String
+        + usefulLife : Integer
+        + currentValue : Decimal
+        + location : String
+        + status : String
+        + lastMaintenanceDate : Date
+        + nextMaintenanceDate : Date
+        + warrantyExpiry : Date
+        + createdAt : Timestamp
+        + updatedAt : Timestamp
+    }
+
+    class MaintenanceOrder {
+        + maintenanceOrderId : PK
+        + propertyId : FK
+        + assetId : FK
+        + roomId : FK
+        + requestedBy : FK
+        + assignedTo : FK
+        + orderType : String
+        + priority : String
+        + title : String
+        + description : String
+        + status : String
+        + scheduledDate : Date
+        + startedAt : Timestamp
+        + completedAt : Timestamp
+        + estimatedCost : Decimal
+        + actualCost : Decimal
+        + slaDeadline : Timestamp
+        + resolutionNotes : String
+        + createdAt : Timestamp
+        + updatedAt : Timestamp
+    }
+}
+
+package "Financial Management" {
+    class ChartOfAccounts {
+        + accountId : PK
+        + propertyId : FK
+        + accountCode : String
+        + accountName : String
+        + accountType : String
+        + parentAccountId : FK
+        + isActive : Boolean
+        + description : String
+        + createdAt : Timestamp
+        + updatedAt : Timestamp
+    }
+
+    class JournalEntry {
+        + journalEntryId : PK
+        + propertyId : FK
+        + entryNumber : String
+        + entryDate : Date
+        + entryType : String
+        + referenceType : String
+        + referenceId : String
+        + description : String
+        + totalDebit : Decimal
+        + totalCredit : Decimal
+        + status : String
+        + postedAt : Timestamp
+        + postedBy : FK
+        + createdAt : Timestamp
+        + updatedAt : Timestamp
+    }
+
+    class JournalEntryLine {
+        + journalEntryLineId : PK
+        + journalEntryId : FK
+        + accountId : FK
+        + debitAmount : Decimal
+        + creditAmount : Decimal
+        + description : String
+        + createdAt : Timestamp
+    }
+
+    class Expense {
+        + expenseId : PK
+        + propertyId : FK
+        + category : String
+        + subcategory : String
+        + amount : Decimal
+        + expenseDate : Date
+        + description : String
+        + vendor : String
+        + invoiceNumber : String
+        + status : String
+        + submittedBy : FK
+        + approvedBy : FK
+        + approvedAt : Timestamp
+        + glAccountId : FK
+        + createdAt : Timestamp
+        + updatedAt : Timestamp
+    }
+
+    class UtilityBill {
+        + utilityBillId : PK
+        + propertyId : FK
+        + utilityType : String
+        + provider : String
+        + accountNumber : String
+        + billingPeriodStart : Date
+        + billingPeriodEnd : Date
+        + dueDate : Date
+        + amount : Decimal
+        + usageAmount : Decimal
+        + unitRate : Decimal
+        + meterReading : Decimal
+        + previousMeterReading : Decimal
+        + status : String
+        + paidAt : Timestamp
+        + glAccountId : FK
+        + createdAt : Timestamp
+        + updatedAt : Timestamp
+    }
+
+    class Payment {
+        + paymentId : PK
+        + propertyId : FK
+        + paymentType : String
+        + referenceType : String
+        + referenceId : String
+        + amount : Decimal
+        + paymentMethod : String
+        + paymentDate : Date
+        + transactionId : String
+        + status : String
+        + processedBy : FK
+        + notes : String
+        + createdAt : Timestamp
+        + updatedAt : Timestamp
+    }
+}
+
+package "Document Management" {
+    class Document {
+        + documentId : PK
+        + propertyId : FK
+        + documentType : String
+        + fileName : String
+        + fileUrl : String
+        + fileSize : Long
+        + mimeType : String
+        + uploadedBy : FK
+        + uploadedAt : Timestamp
+        + description : String
+        + referenceType : String
+        + referenceId : String
+        + documentDate : Date
+        + amount : Decimal
+        + isVerified : Boolean
+        + verifiedBy : FK
+        + verifiedAt : Timestamp
+        + ocrData : JSON
+        + createdAt : Timestamp
+        + updatedAt : Timestamp
+    }
+}
+
+package "Reporting & Analytics" {
+    class Report {
+        + reportId : PK
+        + propertyId : FK
+        + name : String
+        + reportType : String
+        + configuration : JSON
+        + createdBy : FK
+        + isScheduled : Boolean
+        + scheduleFrequency : String
+        + lastRunAt : Timestamp
+        + nextRunAt : Timestamp
+        + createdAt : Timestamp
+        + updatedAt : Timestamp
+    }
+
+    class ReportSnapshot {
+        + snapshotId : PK
+        + reportId : FK
+        + snapshotDate : Date
+        + data : JSON
+        + generatedAt : Timestamp
+        + generatedBy : FK
+    }
+}
+
+package "System" {
+    class Integration {
+        + integrationId : PK
+        + propertyId : FK
+        + integrationType : String
+        + provider : String
+        + status : String
+        + configuration : JSON
+        + lastSyncAt : Timestamp
+        + syncFrequency : String
+        + errorMessage : String
+        + createdAt : Timestamp
+        + updatedAt : Timestamp
+    }
+
+    class AuditLog {
+        + auditLogId : PK
+        + propertyId : FK
+        + userId : FK
+        + action : String
+        + entityType : String
+        + entityId : String
+        + changes : JSON
+        + ipAddress : String
+        + userAgent : String
+        + timestamp : Timestamp
+    }
+}
+
+' Core Platform Relationships
+Property ||--o{ UserRole : "has"
+User ||--o{ UserRole : "has"
+Role ||--o{ UserRole : "assigned to"
+User ||--o| Employee : "linked to"
+
+' Room Management Relationships
+Property ||--o{ RoomType : "has"
+Property ||--o{ Room : "has"
+Property ||--o{ Guest : "has"
+Property ||--o{ Reservation : "has"
+Property ||--o{ RatePlan : "has"
+Property ||--o{ HousekeepingTask : "has"
+RoomType ||--o{ Room : "categorizes"
+RoomType ||--o{ RatePlan : "has"
+Room ||--o{ Reservation : "assigned to"
+Room ||--o{ HousekeepingTask : "requires"
+Guest ||--o{ Reservation : "makes"
+Employee ||--o{ HousekeepingTask : "assigned to"
+
+' Food & Beverage Relationships
+Property ||--o{ FnbMenuItem : "has"
+Property ||--o{ Table : "has"
+Property ||--o{ Order : "has"
+FnbMenuItem ||--o| Recipe : "has"
+FnbMenuItem ||--o{ OrderLine : "ordered as"
+Recipe ||--o{ RecipeLine : "contains"
+InventoryItem ||--o{ RecipeLine : "used in"
+Table ||--o{ Order : "serves"
+Reservation ||--o{ Order : "room service"
+Order ||--o{ OrderLine : "contains"
+Employee ||--o{ Order : "serves"
+
+' Inventory Management Relationships
+Property ||--o{ InventoryItem : "has"
+Property ||--o{ Supplier : "has"
+Property ||--o{ PurchaseOrder : "has"
+Supplier ||--o{ InventoryItem : "supplies"
+Supplier ||--o{ PurchaseOrder : "receives"
+InventoryItem ||--o{ InventoryTransaction : "tracks"
+InventoryItem ||--o{ PurchaseOrderLine : "ordered as"
+InventoryItem ||--o{ RecipeLine : "used in"
+PurchaseOrder ||--o{ PurchaseOrderLine : "contains"
+Employee ||--o{ PurchaseOrder : "creates"
+
+' Payroll Management Relationships
+Property ||--o{ Employee : "has"
+Property ||--o{ Timesheet : "has"
+Property ||--o{ PayrollRun : "has"
+Employee ||--o{ Timesheet : "tracks"
+Employee ||--o{ PayrollRunLine : "paid in"
+PayrollRun ||--o{ PayrollRunLine : "contains"
+Employee ||--o{ PayrollRun : "approves"
+
+' Maintenance Management Relationships
+Property ||--o{ Asset : "has"
+Property ||--o{ MaintenanceOrder : "has"
+Room ||--o{ Asset : "contains"
+Room ||--o{ MaintenanceOrder : "requires"
+Asset ||--o{ MaintenanceOrder : "requires"
+Employee ||--o{ MaintenanceOrder : "requests"
+Employee ||--o{ MaintenanceOrder : "assigned to"
+
+' Financial Management Relationships
+Property ||--o{ ChartOfAccounts : "has"
+Property ||--o{ JournalEntry : "has"
+Property ||--o{ Expense : "has"
+Property ||--o{ UtilityBill : "has"
+Property ||--o{ Payment : "has"
+ChartOfAccounts ||--o{ ChartOfAccounts : "parent of"
+ChartOfAccounts ||--o{ JournalEntryLine : "posted to"
+ChartOfAccounts ||--o{ Expense : "mapped to"
+ChartOfAccounts ||--o{ UtilityBill : "mapped to"
+JournalEntry ||--o{ JournalEntryLine : "contains"
+Employee ||--o{ Expense : "submits/approves"
+
+' Document Management Relationships
+Property ||--o{ Document : "has"
+Employee ||--o{ Document : "uploads"
+Employee ||--o{ Document : "verifies"
+
+' Reporting Relationships
+Property ||--o{ Report : "has"
+Report ||--o{ ReportSnapshot : "has"
+Employee ||--o{ Report : "creates"
+
+' System Relationships
+Property ||--o{ Integration : "has"
+Property ||--o{ AuditLog : "has"
+User ||--o{ AuditLog : "generates"
+
+note right of Document
+  Documents link to:
+  - Expense
+  - PurchaseOrder
+  - UtilityBill
+  - Payment
+  - MaintenanceOrder
+  via referenceType/referenceId
+end note
+
+note right of JournalEntry
+  Journal entries link to:
+  - Reservation
+  - Order
+  - PayrollRun
+  - Expense
+  via referenceType/referenceId
+end note
+
+note right of Payment
+  Payments link to:
+  - Reservation
+  - Order
+  - Expense
+  - PayrollRun
+  via referenceType/referenceId
+end note
+
+@enduml
+

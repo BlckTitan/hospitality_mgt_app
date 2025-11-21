@@ -77,9 +77,9 @@ export default function PaginationComponent({collectionName, columns}) {
 
   // check response for data
   if(response === undefined) return <div className='w-full h-screen flex items-center justify-center'><Spinner animation="border" size='sm' variant="dark" /></div>
-  if(currentData.length === 0) return <div>No data available!</div>
+  if(!response || !response?.page) return <div className='w-full h-full flex justify-center items-center'>No data available!</div>
 
-  console.log(currentData+' response here')
+  console.log(response+' response here')
 
   return (
     //Pagination Buttons
@@ -136,7 +136,7 @@ const SearchComponent = ({setSearchQuery}: SearchComponentProps) =>{
   return (
     <form 
       action="" 
-      className='w-full h-fit p-2 flex items-start justify-end'
+      className='w-full h-fit py-2 flex items-start justify-end'
       onSubmit={handleSubmit(onSubmit)}
     >
 

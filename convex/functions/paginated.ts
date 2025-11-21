@@ -28,19 +28,19 @@ export const getPaginatedData = query({
           .withSearchIndex('search_staff', (idx) => 
             idx.search('firstName', searchTerm)
           )
-          .filter(q => 
-            q.or(
-              q.eq(q.field('lastName'), searchTerm),
-              q.eq(q.field('employmentStatus'), searchTerm),
-              q.eq(q.field('role'), searchTerm),
-            )
-          )
+          // .filter(q => 
+          //   q.or(
+          //     // q.eq(q.field('lastName'), searchTerm),
+          //     q.eq(q.field('employmentStatus'), searchTerm),
+          //     q.eq(q.field('role'), searchTerm),
+          //   )
+          // )
           .paginate({ numItems: limit, cursor: cursor  ?? null});
 
-          if(items){
-            return items;
-          }else{
+          if(items.page.length === 0){
             return { success: false, message: "No matching results were found!", page: null, isDone: null, continueCursor: null};
+          }else{
+            return items;
           }
 
       } else {
