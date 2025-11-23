@@ -3,6 +3,7 @@
 ## Project Overview
 
 - **Product name**: Hospitality Management Suite (working title)
+- **Project Vision**: To develop a comprehensive software that empowers hospitality businesses (hotels, motels, resorts, B&Bs) to streamline operations, ensure profitability, maximize revenue and ultimately ensure efficient financial management. Hospitality manager will serve as a central hub for managing reservation, front-desk activities, housekeeping, billing and guest relations.
 - **Purpose**: Provide a finance-first operations platform for hospitality businesses—especially small/medium hotels, guest houses, and boutique resorts—so they can monitor profitability, automate accounting workflows, and coordinate operational teams from a single source of truth.
 - **Primary value props**: real-time financial visibility, user-friendly cross-platform experience, automated compliance-ready records, and streamlined integrations with POS, payroll, and booking channels.
 
@@ -21,7 +22,7 @@ Hospitality operators juggle siloed systems for reservations, POS, payroll, proc
 - **G4**: Ensure compliance & audit readiness.
   - *KPI*: Immutable audit logs for 100% financial events; SOC 2 aligned controls.
 - **G5**: Accelerate onboarding & adoption.
-  - *KPI*: New property live within 5 business days; ≥85% CSAT for support.
+  - *KPI*: New property live within 5 business days; ≥85% CSAT for support.7
 
 ## Target Users & Personas
 
@@ -298,3 +299,4 @@ Hospitality operators juggle siloed systems for reservations, POS, payroll, proc
 - Do properties require multi-language interfaces at MVP?
 - Should we embed a booking engine or rely entirely on integrations long term?
 - What jurisdictions' compliance frameworks (e.g., local tax rules) are priority?
+
