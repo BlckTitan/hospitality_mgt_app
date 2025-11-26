@@ -754,38 +754,403 @@ Represents payments received or made (for reservations, orders, expenses, etc.).
 ### Reporting & Analytics Entities
 
 #### Report
-Represents saved report configurations and cached report data.
+Represents saved report configurations and cached report data. Reports can be configured for daily, monthly, or yearly periods and include comprehensive performance and profitability metrics.
 
 **Attributes:**
 - `reportId` (PK): Unique identifier
 - `propertyId` (FK): Reference to Property
 - `name`: Report name
-- `reportType`: Type (daily-flash, monthly-statement, yearly-trend, custom, etc.)
-- `configuration`: JSON object with report parameters (filters, date ranges, etc.)
+- `reportType`: Type (daily-flash, monthly-statement, yearly-trend, operational-performance, profitability, cost-efficiency, liquidity-solvency, custom, etc.)
+- `configuration`: JSON object with report parameters (filters, date ranges, metrics to include, persona access level, etc.)
 - `createdBy` (FK): Reference to Employee
 - `isScheduled`: Scheduled report flag
-- `scheduleFrequency`: Schedule frequency (daily, weekly, monthly)
+- `scheduleFrequency`: Schedule frequency (daily, weekly, monthly, yearly)
 - `lastRunAt`: Last run timestamp
 - `nextRunAt`: Next scheduled run timestamp
 - `createdAt`: Timestamp of creation
 - `updatedAt`: Timestamp of last update
 
-**Purpose**: Stores report configurations and enables scheduled report generation.
+**Purpose**: Stores report configurations and enables scheduled report generation. Supports all four metric categories: Operational Performance, Profitability, Cost & Efficiency, and Liquidity & Solvency.
 
 ---
 
 #### ReportSnapshot
-Stores cached report data for performance and historical tracking.
+Stores cached report data for performance and historical tracking. Contains calculated metrics and aggregated data for specific time periods.
 
 **Attributes:**
 - `snapshotId` (PK): Unique identifier
 - `reportId` (FK): Reference to Report
-- `snapshotDate`: Snapshot date
-- `data`: JSON object with report data
+- `snapshotDate`: Snapshot date (for daily reports) or period end date (for monthly/yearly)
+- `periodType`: Period type (daily, monthly, yearly)
+- `data`: JSON object with report data including all calculated metrics
 - `generatedAt`: Generation timestamp
 - `generatedBy` (FK): Reference to Employee (optional)
 
-**Purpose**: Caches report results for fast retrieval and historical comparison.
+**Purpose**: Caches report results for fast retrieval and historical comparison. Enables trend analysis and period-over-period comparisons.
+
+---
+
+## Reporting & Analytics: Metrics and Data Sources
+
+The system supports comprehensive reporting across four core metric categories. All metrics can be calculated from the entity data and are available for daily, monthly, and yearly reporting periods.
+
+### 1. Operational Performance Metrics
+
+These metrics assess how effectively core hospitality assets (rooms, seats, services) are utilized to generate revenue.
+
+#### Revenue Per Available Room (RevPAR)
+- **Calculation**: `Total Room Revenue / Total Available Rooms` OR `ADR × Occupancy Rate`
+- **Data Sources**: 
+  - `Reservation.totalAmount` (summed for period) for room revenue
+  - `Room` count (where `isActive = true`) for available rooms
+  - `Reservation.status IN ('checked-in', 'checked-out')` for rooms sold
+- **Available For**: Daily, Monthly, Yearly
+- **Persona Access**: Hotel Owners/General Managers, Finance Teams, Front Office Leads
+
+#### Occupancy Rate
+- **Calculation**: `(Total Rooms Sold / Total Available Rooms) × 100`
+- **Data Sources**:
+  - `Reservation` records with `status IN ('checked-in', 'checked-out')` for rooms sold
+  - `Room` count (where `isActive = true`) for available rooms
+  - `Reservation.checkInDate` and `checkOutDate` for date range filtering
+- **Available For**: Daily, Monthly, Yearly
+- **Persona Access**: Hotel Owners/General Managers, Finance Teams, Front Office Leads
+
+#### Average Daily Rate (ADR)
+- **Calculation**: `Total Room Revenue / Total Rooms Sold`
+- **Data Sources**:
+  - `Reservation.totalAmount` (summed) for total room revenue
+  - `Reservation` count (where `status IN ('checked-in', 'checked-out')`) for rooms sold
+- **Available For**: Daily, Monthly, Yearly
+- **Persona Access**: Hotel Owners/General Managers, Finance Teams, Front Office Leads
+
+#### Total Revenue Per Available Room (TRevPAR)
+- **Calculation**: `Total Hotel Revenue / Total Available Rooms`
+- **Data Sources**:
+  - `Reservation.totalAmount` (room revenue)
+  - `Order.totalAmount` (F&B revenue)
+  - `Room` count (where `isActive = true`) for available rooms
+  - All revenue from `JournalEntry` where `accountType = 'revenue'`
+- **Available For**: Daily, Monthly, Yearly
+- **Persona Access**: Hotel Owners/General Managers, Finance Teams
+
+#### Average Check / Average Spend Per Customer
+- **Calculation**: `Total Sales / Total Customers/Covers`
+- **Data Sources**:
+  - `Order.totalAmount` (summed) for total sales
+  - `Order` count or `Guest` count (unique guests with orders) for customers/covers
+  - `OrderLine.quantity` can be used for cover count
+- **Available For**: Daily, Monthly, Yearly
+- **Persona Access**: Hotel Owners/General Managers, Finance Teams, F&B Managers
+
+#### Revenue Per Available Seat Hour (RevPASH)
+- **Calculation**: `Total Outlet Revenue / (Available Seats × Operating Hours)`
+- **Data Sources**:
+  - `Order.totalAmount` (summed) for outlet revenue
+  - `Table.capacity` (summed) for available seats
+  - Operating hours from property configuration or `Table` entity
+- **Available For**: Daily, Monthly, Yearly
+- **Persona Access**: Hotel Owners/General Managers, Finance Teams, F&B Managers
+
+---
+
+### 2. Profitability Metrics
+
+These metrics assess the enterprise's ability to turn revenue into profit after accounting for costs.
+
+#### Gross Operating Profit Per Available Room (GOPPAR)
+- **Calculation**: `Gross Operating Profit (GOP) / Total Available Rooms`
+- **Data Sources**:
+  - `JournalEntry` with `accountType = 'revenue'` (total revenue)
+  - `JournalEntry` with `accountType = 'expense'` and operational accounts (operating expenses)
+  - `Room` count (where `isActive = true`) for available rooms
+  - GOP = Total Revenue - Operating Expenses (from `ChartOfAccounts` hierarchy)
+- **Available For**: Daily, Monthly, Yearly
+- **Persona Access**: Hotel Owners/General Managers, Finance Teams
+
+#### EBITDA / GOP Margin
+- **Calculation**: `(EBITDA / Total Revenue) × 100` OR `(GOP / Total Revenue) × 100`
+- **Data Sources**:
+  - `JournalEntry` aggregated by `accountType`:
+    - Revenue accounts (total revenue)
+    - Operating expense accounts (EBITDA = Revenue - Operating Expenses)
+    - Excludes interest, taxes, depreciation, amortization from `ChartOfAccounts`
+- **Available For**: Monthly, Yearly
+- **Persona Access**: Hotel Owners/General Managers, Finance Teams
+
+#### Net Profit Margin
+- **Calculation**: `(Net Income / Total Revenue) × 100`
+- **Data Sources**:
+  - `JournalEntry` with all revenue accounts (total revenue)
+  - `JournalEntry` with all expense accounts (total expenses)
+  - Net Income = Total Revenue - Total Expenses (from `ChartOfAccounts` balances)
+- **Available For**: Monthly, Yearly
+- **Persona Access**: Hotel Owners/General Managers, Finance Teams
+
+#### Gross Profit Margin
+- **Calculation**: `(Revenue - Cost of Goods Sold) / Revenue`
+- **Data Sources**:
+  - `Order.totalAmount` (F&B revenue) or `JournalEntry` with F&B revenue accounts
+  - `InventoryTransaction` with `transactionType = 'usage'` and `referenceType = 'OrderLine'` (COGS)
+  - Recipe costing: `Recipe.totalCost` × `OrderLine.quantity` for menu item COGS
+- **Available For**: Daily, Monthly, Yearly
+- **Persona Access**: Hotel Owners/General Managers, Finance Teams, F&B Managers
+
+#### Return on Assets (ROA)
+- **Calculation**: `Net Income / Total Assets`
+- **Data Sources**:
+  - `JournalEntry` aggregated for Net Income (Revenue - Expenses)
+  - `Asset.currentValue` (summed) for total assets
+  - `ChartOfAccounts` with `accountType = 'asset'` (balance from `JournalEntryLine`)
+- **Available For**: Monthly, Yearly
+- **Persona Access**: Hotel Owners/General Managers, Finance Teams
+
+#### Return on Equity (ROE)
+- **Calculation**: `Net Income / Shareholders' Equity`
+- **Data Sources**:
+  - `JournalEntry` aggregated for Net Income
+  - `ChartOfAccounts` with `accountType = 'equity'` (balance from `JournalEntryLine`)
+- **Available For**: Monthly, Yearly
+- **Persona Access**: Hotel Owners/General Managers, Finance Teams
+
+---
+
+### 3. Cost & Efficiency Ratios
+
+These ratios highlight cost control and resource management efficiency.
+
+#### Labor Cost Percentage
+- **Calculation**: `(Total Labor Costs / Total Revenue) × 100`
+- **Data Sources**:
+  - `PayrollRun.totalGrossPay` (summed) for total labor costs
+  - `JournalEntry` with `accountId` pointing to labor expense accounts (from `ChartOfAccounts`)
+  - `JournalEntry` with revenue accounts (total revenue)
+- **Available For**: Daily, Monthly, Yearly
+- **Persona Access**: Hotel Owners/General Managers, Finance Teams, Housekeeping/Maintenance Supervisors
+
+#### Food/Beverage Cost Percentage
+- **Calculation**: `(Cost of Food/Beverage Sold / Food/Beverage Revenue) × 100`
+- **Data Sources**:
+  - `InventoryTransaction` with `transactionType = 'usage'` and `referenceType = 'OrderLine'` (F&B COGS)
+  - Recipe-based: `Recipe.totalCost` × `OrderLine.quantity` for each menu item sold
+  - `Order.totalAmount` where `orderType IN ('dine-in', 'room-service', 'bar')` (F&B revenue)
+  - `JournalEntry` with F&B revenue accounts
+- **Available For**: Daily, Monthly, Yearly
+- **Persona Access**: Hotel Owners/General Managers, Finance Teams, F&B Managers, Storekeepers
+
+#### Cost Per Occupied Room (CPOR)
+- **Calculation**: `Total Operational Costs of Rooms / Total Rooms Sold`
+- **Data Sources**:
+  - `HousekeepingTask` linked to `InventoryTransaction` (cleaning supplies cost)
+  - `InventoryTransaction` with `referenceType = 'HousekeepingTask'` (room service costs)
+  - `UtilityBill.amount` (prorated per room or total utility costs)
+  - `Reservation` count (where `status IN ('checked-in', 'checked-out')`) for rooms sold
+- **Available For**: Daily, Monthly, Yearly
+- **Persona Access**: Hotel Owners/General Managers, Finance Teams, Housekeeping Supervisors
+
+#### Prime Cost (F&B)
+- **Calculation**: `Cost of Goods Sold + Total Labor Costs`
+- **Data Sources**:
+  - `InventoryTransaction` with F&B usage (COGS)
+  - `PayrollRun.totalGrossPay` filtered by F&B department employees
+  - `Employee.department = 'F&B'` for F&B labor costs
+- **Available For**: Daily, Monthly, Yearly
+- **Persona Access**: Hotel Owners/General Managers, Finance Teams, F&B Managers
+
+#### Inventory Turnover
+- **Calculation**: `Cost of Goods Sold / Average Inventory Value`
+- **Data Sources**:
+  - `InventoryTransaction` with `transactionType = 'usage'` (COGS)
+  - `InventoryItem.currentQuantity × unitCost` (summed) for average inventory value
+  - Average = (Beginning Inventory + Ending Inventory) / 2
+- **Available For**: Monthly, Yearly
+- **Persona Access**: Hotel Owners/General Managers, Finance Teams, F&B Managers, Storekeepers
+
+---
+
+### 4. Liquidity & Solvency Metrics
+
+These ratios assess the enterprise's ability to meet short-term and long-term financial obligations.
+
+#### Current Ratio
+- **Calculation**: `Current Assets / Current Liabilities`
+- **Data Sources**:
+  - `ChartOfAccounts` with `accountType = 'asset'` and parent account indicating "Current Assets"
+  - `JournalEntryLine` balances for current asset accounts
+  - `ChartOfAccounts` with `accountType = 'liability'` and parent account indicating "Current Liabilities"
+  - `JournalEntryLine` balances for current liability accounts
+- **Available For**: Monthly, Yearly
+- **Persona Access**: Hotel Owners/General Managers, Finance Teams
+
+#### Quick Ratio (Acid-Test Ratio)
+- **Calculation**: `(Current Assets - Inventory) / Current Liabilities`
+- **Data Sources**:
+  - Current Assets from `ChartOfAccounts` and `JournalEntryLine` (as above)
+  - `InventoryItem.currentQuantity × unitCost` (summed) for inventory value
+  - Current Liabilities from `ChartOfAccounts` and `JournalEntryLine`
+- **Available For**: Monthly, Yearly
+- **Persona Access**: Hotel Owners/General Managers, Finance Teams
+
+#### Debt-to-Equity Ratio
+- **Calculation**: `Total Debt / Shareholders' Equity`
+- **Data Sources**:
+  - `ChartOfAccounts` with `accountType = 'liability'` (total debt from `JournalEntryLine` balances)
+  - `ChartOfAccounts` with `accountType = 'equity'` (shareholders' equity from `JournalEntryLine` balances)
+- **Available For**: Monthly, Yearly
+- **Persona Access**: Hotel Owners/General Managers, Finance Teams
+
+#### Interest Coverage Ratio
+- **Calculation**: `EBIT / Interest Expense`
+- **Data Sources**:
+  - `JournalEntry` with revenue and operating expenses (EBIT = Earnings Before Interest and Taxes)
+  - `JournalEntry` with `accountId` pointing to interest expense account (from `ChartOfAccounts`)
+  - `Expense.category = 'interest'` or interest expense GL account
+- **Available For**: Monthly, Yearly
+- **Persona Access**: Hotel Owners/General Managers, Finance Teams
+
+#### Cash Flow from Operations
+- **Calculation**: Derived from Cash Flow Statement (Operating Activities)
+- **Data Sources**:
+  - `Payment` records with `paymentType` and `status = 'completed'` (cash inflows/outflows)
+  - `JournalEntry` with cash accounts (`accountType = 'asset'` and account name contains "Cash")
+  - Net Income from `JournalEntry` (starting point)
+  - Adjustments for non-cash items (depreciation from `Asset` depreciation calculations)
+  - Changes in working capital from `JournalEntryLine` balances
+- **Available For**: Monthly, Yearly
+- **Persona Access**: Hotel Owners/General Managers, Finance Teams
+
+---
+
+## Report Access by Persona
+
+### Hotel Owners / General Managers
+**Access Level**: Full access to all metrics and reports
+- **Daily Reports**: RevPAR, Occupancy Rate, ADR, TRevPAR, Average Check, Labor Cost %, F&B Cost %, CPOR, Prime Cost
+- **Monthly Reports**: All operational performance, profitability, cost efficiency, and liquidity metrics
+- **Yearly Reports**: All metrics including ROA, ROE, Debt-to-Equity, Interest Coverage, Cash Flow from Operations
+- **Custom Reports**: Can create and schedule any report configuration
+
+### Finance & Accounting Teams
+**Access Level**: Full access to all financial metrics and reports
+- **Daily Reports**: RevPAR, ADR, TRevPAR, Labor Cost %, F&B Cost %, CPOR, Prime Cost, Gross Profit Margin
+- **Monthly Reports**: All profitability metrics (GOPPAR, EBITDA Margin, Net Profit Margin), cost efficiency ratios, liquidity metrics
+- **Yearly Reports**: All financial metrics including ROA, ROE, Debt-to-Equity, Interest Coverage, Cash Flow from Operations
+- **Custom Reports**: Can create financial reports, P&L statements, balance sheets, cash flow statements
+
+### Front Office & Reservations Leads
+**Access Level**: Operational performance metrics and room-related reports
+- **Daily Reports**: RevPAR, Occupancy Rate, ADR, TRevPAR, Room status, Check-in/Check-out metrics
+- **Monthly Reports**: Occupancy trends, ADR trends, Revenue by source, Room utilization
+- **Yearly Reports**: Annual occupancy, ADR trends, Revenue performance
+- **Custom Reports**: Room availability, Booking trends, Revenue by channel
+
+### Housekeeping & Maintenance Supervisors
+**Access Level**: Operational metrics related to their departments
+- **Daily Reports**: CPOR, Housekeeping task completion rates, Room readiness
+- **Monthly Reports**: Labor Cost % (for their department), CPOR trends, Maintenance costs
+- **Yearly Reports**: Annual labor costs, Maintenance expense trends
+- **Custom Reports**: Task productivity, Supply usage, Maintenance order costs
+
+### Food & Beverage Managers & Storekeepers
+**Access Level**: F&B and inventory-related metrics
+- **Daily Reports**: Average Check, RevPASH, F&B Cost %, Prime Cost, Inventory levels
+- **Monthly Reports**: Gross Profit Margin, F&B Cost % trends, Inventory Turnover, Menu performance
+- **Yearly Reports**: Annual F&B performance, Inventory efficiency, Cost trends
+- **Custom Reports**: Menu item profitability, Recipe costing analysis, Supplier performance
+
+### Vendors & External Auditors (View-Only)
+**Access Level**: Limited read-only access to specific reports
+- **Monthly Reports**: Summary financial statements (if authorized)
+- **Yearly Reports**: Annual financial summaries (if authorized)
+- **Custom Reports**: Document access only (invoices, receipts linked to their transactions)
+
+---
+
+## Report Generation and Scheduling
+
+### Daily Reports
+- **Generation Time**: Typically generated at 6:00 AM for previous day's data
+- **Metrics Included**: Real-time operational metrics, daily revenue, occupancy, cost ratios
+- **Data Sources**: `Reservation`, `Order`, `Payment`, `HousekeepingTask`, `InventoryTransaction`, `PayrollRun` (if daily payroll)
+- **Storage**: `ReportSnapshot` with `periodType = 'daily'`
+
+### Monthly Reports
+- **Generation Time**: Generated on 1st of each month for previous month's data
+- **Metrics Included**: All operational, profitability, cost efficiency, and liquidity metrics
+- **Data Sources**: Aggregated `JournalEntry`, `Reservation`, `Order`, `PayrollRun`, `Expense`, `UtilityBill`, `Asset` depreciation
+- **Storage**: `ReportSnapshot` with `periodType = 'monthly'`
+
+### Yearly Reports
+- **Generation Time**: Generated at year-end or on demand
+- **Metrics Included**: All metrics including ROA, ROE, Debt-to-Equity, Interest Coverage, Cash Flow
+- **Data Sources**: Full year aggregation of all entities, `ChartOfAccounts` balances, `Asset` depreciation schedules
+- **Storage**: `ReportSnapshot` with `periodType = 'yearly'`
+
+### Report Configuration Example
+
+```json
+{
+  "reportType": "operational-performance",
+  "period": "monthly",
+  "dateRange": {
+    "start": "2024-07-01",
+    "end": "2024-07-31"
+  },
+  "metrics": [
+    "revpar",
+    "occupancy_rate",
+    "adr",
+    "trevpar",
+    "average_check",
+    "revpash"
+  ],
+  "filters": {
+    "propertyId": 1,
+    "department": null
+  },
+  "personaAccess": ["hotel_owner", "finance_team", "front_office"]
+}
+```
+
+### ReportSnapshot Data Structure Example
+
+```json
+{
+  "snapshotDate": "2024-07-31",
+  "periodType": "monthly",
+  "metrics": {
+    "operational_performance": {
+      "revpar": 125.50,
+      "occupancy_rate": 78.5,
+      "adr": 160.00,
+      "trevpar": 185.30,
+      "average_check": 45.20,
+      "revpash": 12.50
+    },
+    "profitability": {
+      "goppar": 85.20,
+      "ebitda_margin": 32.5,
+      "net_profit_margin": 18.2,
+      "gross_profit_margin": 65.8
+    },
+    "cost_efficiency": {
+      "labor_cost_percentage": 28.5,
+      "f&b_cost_percentage": 32.0,
+      "cpor": 25.50,
+      "prime_cost": 125000,
+      "inventory_turnover": 8.5
+    },
+    "liquidity_solvency": {
+      "current_ratio": 1.85,
+      "quick_ratio": 1.45,
+      "debt_to_equity": 0.65,
+      "interest_coverage": 5.2,
+      "cash_flow_from_operations": 125000
+    }
+  },
+  "generatedAt": "2024-08-01T06:00:00Z"
+}
+```
 
 ---
 
@@ -1217,15 +1582,43 @@ Tracks all system actions for compliance and security auditing.
 
 #### Property → Report (One-to-Many)
 - **Relationship**: A Property has many Reports.
-- **Explanation**: Each property can have multiple saved report configurations. Reports are property-specific for data isolation.
+- **Explanation**: Each property can have multiple saved report configurations. Reports are property-specific for data isolation. All metrics are calculated from property-scoped entities (Reservation, Order, Employee, InventoryItem, etc.).
 
 #### Report → ReportSnapshot (One-to-Many)
 - **Relationship**: A Report can have many ReportSnapshots.
-- **Explanation**: Stores historical snapshots of report data. Enables trend analysis and performance comparison over time.
+- **Explanation**: Stores historical snapshots of report data with calculated metrics. Enables trend analysis and performance comparison over time. Each snapshot captures metrics for a specific period (daily, monthly, yearly).
 
 #### Employee → Report (One-to-Many, as Creator)
 - **Relationship**: An Employee can create many Reports.
-- **Explanation**: Tracks who created each report configuration for access control and audit purposes.
+- **Explanation**: Tracks who created each report configuration for access control and audit purposes. Report access is controlled by Role permissions, enabling different personas to view different metric categories.
+
+#### Report → Reservation (Many-to-One, via Data Aggregation)
+- **Relationship**: Reports aggregate data from Reservation entities.
+- **Explanation**: Operational performance metrics (RevPAR, Occupancy Rate, ADR) are calculated by aggregating Reservation records filtered by date range and property. Reports query Reservation.totalAmount, checkInDate, checkOutDate, and status.
+
+#### Report → Order (Many-to-One, via Data Aggregation)
+- **Relationship**: Reports aggregate data from Order entities.
+- **Explanation**: F&B metrics (Average Check, RevPASH, F&B Cost %) are calculated from Order and OrderLine records. Reports aggregate Order.totalAmount, orderType, and link to InventoryTransaction for COGS calculation.
+
+#### Report → JournalEntry (Many-to-One, via Data Aggregation)
+- **Relationship**: Reports aggregate data from JournalEntry entities.
+- **Explanation**: Profitability and liquidity metrics (GOPPAR, EBITDA Margin, Net Profit Margin, Current Ratio, etc.) are calculated from JournalEntry and JournalEntryLine records. Reports aggregate by ChartOfAccounts to calculate revenue, expenses, assets, and liabilities.
+
+#### Report → PayrollRun (Many-to-One, via Data Aggregation)
+- **Relationship**: Reports aggregate data from PayrollRun entities.
+- **Explanation**: Labor cost metrics are calculated from PayrollRun.totalGrossPay aggregated by period. Reports can filter by Employee.department for department-specific labor cost analysis.
+
+#### Report → InventoryTransaction (Many-to-One, via Data Aggregation)
+- **Relationship**: Reports aggregate data from InventoryTransaction entities.
+- **Explanation**: Cost efficiency metrics (F&B Cost %, Inventory Turnover, Prime Cost) are calculated from InventoryTransaction records. Reports aggregate by transactionType ('usage' for COGS) and referenceType to track inventory consumption.
+
+#### Report → Asset (Many-to-One, via Data Aggregation)
+- **Relationship**: Reports aggregate data from Asset entities.
+- **Explanation**: ROA and asset-related metrics are calculated from Asset.currentValue (depreciated value). Reports aggregate total assets for profitability and solvency calculations.
+
+#### Report → ChartOfAccounts (Many-to-One, via Data Aggregation)
+- **Relationship**: Reports aggregate data from ChartOfAccounts via JournalEntryLine.
+- **Explanation**: Financial metrics (liquidity ratios, solvency ratios) are calculated from ChartOfAccounts balances derived from JournalEntryLine records. Reports use account hierarchies to aggregate parent account balances.
 
 ---
 
@@ -1304,6 +1697,8 @@ Tracks all system actions for compliance and security auditing.
 8. **Labor Cost Tracking**: Employee, Timesheet, and PayrollRun relationships enable comprehensive labor cost analysis.
 
 9. **Document Management**: Document entity provides centralized storage for payment evidence (invoices, receipts) linked to expenditures (Expense, UtilityBill, PurchaseOrder, Payment, MaintenanceOrder). Enables complete audit trails, compliance verification, and automated document processing (OCR).
+
+10. **Comprehensive Reporting & Analytics**: Report and ReportSnapshot entities enable calculation of all four metric categories (Operational Performance, Profitability, Cost & Efficiency, Liquidity & Solvency) from entity data. Reports aggregate data from Reservation, Order, JournalEntry, PayrollRun, InventoryTransaction, Asset, and ChartOfAccounts entities. Persona-based access control ensures appropriate metric visibility (daily, monthly, yearly) for different user roles. All metrics are derived from transactional data, ensuring accuracy and real-time availability.
 
 ---
 
