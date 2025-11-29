@@ -537,3 +537,33 @@ export const states_lga = [
     { value: "Cook", label: "Cook" },
     { value: "kitchen Assistant", label: "Kitchen Assistant" },
   ];
+
+  
+  export const timezones = [
+    { value: 'UTC', label: 'UTC (Coordinated Universal Time)' },
+    { value: 'America/New_York', label: 'America/New_York (EST)' },
+    { value: 'America/Chicago', label: 'America/Chicago (CST)' },
+    { value: 'America/Denver', label: 'America/Denver (MST)' },
+    { value: 'America/Los_Angeles', label: 'America/Los_Angeles (PST)' },
+    { value: 'Europe/London', label: 'Europe/London (GMT)' },
+    { value: 'Europe/Paris', label: 'Europe/Paris (CET)' },
+    { value: 'Asia/Tokyo', label: 'Asia/Tokyo (JST)' },
+    { value: 'Asia/Singapore', label: 'Asia/Singapore (SGT)' },
+    { value: 'Australia/Sydney', label: 'Australia/Sydney (AEDT)' },
+    { value: 'Africa/Lagos', label: 'Africa/Lagos (WAT)' },
+    { value: 'Asia/Dubai', label: 'Asia/Dubai (GST)' },
+  ];
+  
+  export const currencies = [
+    { value: 'USD', label: 'USD - US Dollar' },
+    { value: 'EUR', label: 'EUR - Euro' },
+    { value: 'GBP', label: 'GBP - British Pound' },
+    { value: 'JPY', label: 'JPY - Japanese Yen' },
+    { value: 'AUD', label: 'AUD - Australian Dollar' },
+    { value: 'CAD', label: 'CAD - Canadian Dollar' },
+    { value: 'SGD', label: 'SGD - Singapore Dollar' },
+    { value: 'INR', label: 'INR - Indian Rupee' },
+    { value: 'NGN', label: 'NGN - Nigerian Naira' },
+    { value: 'ZAR', label: 'ZAR - South African Rand' },
+  ];
+  

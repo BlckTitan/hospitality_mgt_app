@@ -2,11 +2,12 @@
 
 import { usePathname } from 'next/navigation';
 import React from 'react'
-import { FcPhone, FcSalesPerformance , FcConferenceCall, FcMoneyTransfer , FcList, FcCurrencyExchange } from "react-icons/fc";
+import { FcPhone, FcSalesPerformance , FcConferenceCall, FcMoneyTransfer , FcList, FcCurrencyExchange, FcDepartment } from "react-icons/fc";
 import { RxDashboard } from "react-icons/rx";
 
 const navLinks = [
   { href: "/admin/dashboard", label: "Dashboard", icon: <RxDashboard className='text-blue-500'/> },
+  { href: "/admin/properties", label: "Properties", icon: <FcDepartment /> },
   { href: "/#", label: "Sales", icon: <FcCurrencyExchange /> },
   { href: "/#", label: "Expense Tracker", icon: <FcMoneyTransfer /> },
   { href: "/#", label: "Report and Analytics", icon: <FcSalesPerformance /> },

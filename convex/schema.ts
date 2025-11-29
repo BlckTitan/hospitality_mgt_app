@@ -35,8 +35,14 @@ export default defineSchema({
     name: v.string(),
     address: v.optional(v.string()),
     contactNumber: v.optional(v.string()),
+    email: v.optional(v.string()),
+    timezone: v.optional(v.string()),
+    currency: v.optional(v.string()),
+    taxId: v.optional(v.string()),
+    isActive: v.boolean(),
   })
-    .index("by_name", ["name"]),
+    .index("by_name", ["name"])
+    .index("by_email", ["email"]),
 
   // Sale categories for bar, restaurant, and lodging
   saleCategories: defineTable({
