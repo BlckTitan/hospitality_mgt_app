@@ -7,7 +7,7 @@ import { RxDashboard } from "react-icons/rx";
 
 const navLinks = [
   { href: "/admin/dashboard", label: "Dashboard", icon: <RxDashboard className='text-blue-500'/> },
-  { href: "/admin/properties", label: "Properties", icon: <FcDepartment /> },
+  { href: "/admin/property", label: "Properties", icon: <FcDepartment /> },
   { href: "/#", label: "Sales", icon: <FcCurrencyExchange /> },
   { href: "/#", label: "Expense Tracker", icon: <FcMoneyTransfer /> },
   { href: "/#", label: "Report and Analytics", icon: <FcSalesPerformance /> },

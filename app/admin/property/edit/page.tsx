@@ -1,46 +1,42 @@
 'use client'
 
-import React from 'react'
-import { Spinner } from 'react-bootstrap';
 import { useQuery } from 'convex/react';
+import { useSearchParams } from 'next/navigation';
+import React from 'react'
 import { api } from '../../../../convex/_generated/api';
 import { Id } from '../../../../convex/_generated/dataModel';
-import { useSearchParams } from 'next/navigation';
-import { FormComponent } from '../components/editEmployeeForm';
+import { Spinner } from 'react-bootstrap';
+import { FormComponent } from '../components/editPropertyForm';
+
 
 export default function Page() {
 
   const searchParams = useSearchParams();
-  const id = searchParams.get("staff_id") ?? null
+  const id = searchParams.get("property_id") ?? null
   // const [id, setId] = useState<Id<"staffs">>(null)
-  const response = useQuery(api.staff.getStaff, {staff_id: id as Id<'staffs'>})
+  const response = useQuery(api.property.getProperty, {property_id: id as Id<'properties'>})
 
   // check response for data
   if(response === undefined) return <div className='w-full h-screen flex items-center justify-center'><Spinner animation="border" size='sm' variant="dark" /></div>
   if(!response) return <div>No data available!</div>
-
+  
   return (
     <div className='w-full p-4 bg-white'>
       
       <header className='w-full border-b flex justify-between items-center'>
-        <h3>Update {`${response.lastName}`}</h3>
+        <h3>Update {`${response?.name}`}</h3>
       </header>
 
       <FormComponent 
-        id={id}
-        firstName={response.firstName}
-        lastName={response.lastName}
-        phone={response.phone}
-        DoB={response.DoB}
-        stateOfOrigin={response.stateOfOrigin}
-        LGA={response.LGA}
+        id={response._id}
+        name={response.name}
         address={response.address}
-        salary={response.salary}
+        phone={response.phone}
         email={response.email}
-        employmentStatus={response.employmentStatus}
-        role={response.role}
-        dateRecruited={response.dateRecruited}
-        dateTerminated={response.dateTerminated}
+        timezone={response.timezone}
+        currency={response.currency}
+        taxId={response.taxId}
+        isActive={response.isActive}
       />
 
     </div>

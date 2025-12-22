@@ -32,7 +32,7 @@ export const propertySetupSchema = yup.object().shape({
     )
     .optional(),
 
-  contactNumber: yup
+    phone: yup
     .string()
     .trim()
     .matches(

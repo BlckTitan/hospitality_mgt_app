@@ -129,7 +129,7 @@ const SearchComponent = ({setSearchQuery}: SearchComponentProps) =>{
 
   const onSubmit = (data: FormData) => {
 
-    setSearchQuery(data.search);
+    // setSearchQuery(data.search);
 
   }
   

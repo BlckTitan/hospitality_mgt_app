@@ -1,7 +1,7 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
 
-export const listProperties = query({
+export const getAllProperties = query({
   handler: async (ctx) => {
     try {
       const properties = await ctx.db.query('properties').collect();
@@ -14,14 +14,14 @@ export const listProperties = query({
 });
 
 export const getProperty = query({
-  args: { propertyId: v.id('properties') },
+  args: { property_id: v.id('properties') },
   handler: async (ctx, args) => {
     try {
-      const property = await ctx.db.get(args.propertyId);
+      const property = await ctx.db.get(args.property_id);
       if (!property) {
         return { success: false, data: null, message: 'Property not found' };
       }
-      return { success: true, data: property };
+      return property;
     } catch (error) {
       console.log(`Failed to fetch property: ${error}`);
       return { success: false, data: null, message: 'Failed to fetch property' };
@@ -33,7 +33,7 @@ export const createProperty = mutation({
   args: {
     name: v.string(),
     address: v.optional(v.string()),
-    contactNumber: v.optional(v.string()),
+    phone: v.optional(v.string()),
     email: v.optional(v.string()),
     timezone: v.optional(v.string()),
     currency: v.optional(v.string()),
@@ -64,10 +64,10 @@ export const createProperty = mutation({
         }
       }
 
-      const propertyId = await ctx.db.insert('properties', {
+      const property_id = await ctx.db.insert('properties', {
         name: args.name,
         address: args.address,
-        contactNumber: args.contactNumber,
+        phone: args.phone,
         email: args.email,
         timezone: args.timezone || 'UTC',
         currency: args.currency || 'USD',
@@ -75,7 +75,7 @@ export const createProperty = mutation({
         isActive: args.isActive,
       });
 
-      return { success: true, message: 'Property created successfully', id: propertyId };
+      return { success: true, message: 'Property created successfully', id: property_id };
     } catch (error) {
       console.log(`Failed to create property: ${error}`);
       return { success: false, message: 'Failed to create property' };
@@ -85,10 +85,10 @@ export const createProperty = mutation({
 
 export const updateProperty = mutation({
   args: {
-    id: v.id('properties'),
+    property_id: v.id('properties'),
     name: v.string(),
     address: v.optional(v.string()),
-    contactNumber: v.optional(v.string()),
+    phone: v.optional(v.string()),
     email: v.optional(v.string()),
     timezone: v.optional(v.string()),
     currency: v.optional(v.string()),
@@ -97,7 +97,7 @@ export const updateProperty = mutation({
   },
   handler: async (ctx, args) => {
     try {
-      const existingProperty = await ctx.db.get(args.id);
+      const existingProperty = await ctx.db.get(args.property_id);
 
       if (!existingProperty) {
         return { success: false, message: 'Property does not exist' };
@@ -127,10 +127,10 @@ export const updateProperty = mutation({
         }
       }
 
-      await ctx.db.patch(args.id, {
+      await ctx.db.patch(args.property_id, {
         name: args.name,
         address: args.address,
-        contactNumber: args.contactNumber,
+        phone: args.phone,
         email: args.email,
         timezone: args.timezone,
         currency: args.currency,
@@ -147,16 +147,16 @@ export const updateProperty = mutation({
 });
 
 export const deleteProperty = mutation({
-  args: { id: v.id('properties') },
+  args: { property_id: v.id('properties') },
   handler: async (ctx, args) => {
     try {
-      const property = await ctx.db.get(args.id);
+      const property = await ctx.db.get(args.property_id);
 
       if (!property) {
         return { success: false, message: 'Property does not exist' };
       }
 
-      await ctx.db.delete(args.id);
+      await ctx.db.delete(args.property_id);
       return { success: true, message: 'Property deleted successfully' };
     } catch (error) {
       console.log(`Failed to delete property: ${error}`);

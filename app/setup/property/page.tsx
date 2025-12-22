@@ -17,7 +17,7 @@ import SelectComponent from '../../../shared/select';
 interface PropertyFormData {
   name: string;
   email?: string;
-  contactNumber?: string;
+  phone?: string;
   address?: string;
   timezone: string;
   currency: string;
@@ -39,7 +39,7 @@ export default function PropertySetupPage() {
     defaultValues: {
       name: '',
       email: '',
-      contactNumber: '',
+      phone: '',
       address: '',
       timezone: 'UTC',
       currency: 'USD',
@@ -65,7 +65,7 @@ export default function PropertySetupPage() {
       const response = await createProperty({
         name: data.name,
         address: data.address || undefined,
-        contactNumber: data.contactNumber || undefined,
+        phone: data.phone || undefined,
         email: data.email || undefined,
         timezone: data.timezone || 'UTC',
         currency: data.currency || 'USD',
@@ -135,12 +135,12 @@ export default function PropertySetupPage() {
           {/* Row 2: Contact Number and Address */}
           <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-start lg:items-center gap-1 [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4">
             <InputComponent
-              id="contactNumber"
-              label="Contact Number"
+              id="phone"
+              label="Phone"
               type="tel"
               inputWidth="w-2/5"
-              register={register('contactNumber')}
-              error={errors.contactNumber}
+              register={register('phone')}
+              error={errors.phone}
             />
 
             <InputComponent

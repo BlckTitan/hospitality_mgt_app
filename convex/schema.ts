@@ -34,7 +34,7 @@ export default defineSchema({
   properties: defineTable({
     name: v.string(),
     address: v.optional(v.string()),
-    contactNumber: v.optional(v.string()),
+    phone: v.optional(v.string()),
     email: v.optional(v.string()),
     timezone: v.optional(v.string()),
     currency: v.optional(v.string()),
