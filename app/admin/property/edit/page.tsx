@@ -24,19 +24,19 @@ export default function Page() {
     <div className='w-full p-4 bg-white'>
       
       <header className='w-full border-b flex justify-between items-center'>
-        <h3>Update {`${response?.name}`}</h3>
+        <h3>Update {`${response && 'name' in response ? response.name : undefined}`}</h3>
       </header>
 
       <FormComponent 
-        id={response._id}
-        name={response.name}
-        address={response.address}
-        phone={response.phone}
-        email={response.email}
-        timezone={response.timezone}
-        currency={response.currency}
-        taxId={response.taxId}
-        isActive={response.isActive}
+        id={response && '_id' in response ? response._id : undefined}
+        name={response && '_id' in response ? response.name : undefined}
+        address={response && '_id' in response ? response.address : undefined}
+        phone={response && '_id' in response ? response.phone : undefined}
+        email={response && '_id' in response ? response.email : undefined}
+        timezone={response && '_id' in response ? response.timezone : undefined}
+        currency={response && '_id' in response ? response.currency : undefined}
+        taxId={response && '_id' in response ? response.taxId : undefined}
+        isActive={response && '_id' in response ? response.isActive : undefined}
       />
 
     </div>
