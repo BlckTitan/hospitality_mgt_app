@@ -17,6 +17,18 @@ export default defineSchema({
     .index("by_email", ["email"])
     .index("by_isActive", ["isActive"]),
 
+  // Roles table for RBAC (Role-Based Access Control)
+  roles: defineTable({
+    name: v.string(),
+    description: v.optional(v.string()),
+    permissions: v.any(), // JSON object defining permissions
+    isSystemRole: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_name", ["name"])
+    .index("by_isSystemRole", ["isSystemRole"]),
+
   staffs: defineTable({
     firstName: v.string(),
     lastName: v.string(),

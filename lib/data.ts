@@ -567,3 +567,96 @@ export const states_lga = [
     { value: 'ZAR', label: 'ZAR - South African Rand' },
   ];
   
+
+  
+// Define available permissions grouped by category
+export const PERMISSION_GROUPS = [
+  {
+    category: "Users & Roles",
+    permissions: [
+      { key: "users.read", label: "View Users" },
+      { key: "users.create", label: "Create Users" },
+      { key: "users.update", label: "Update Users" },
+      { key: "users.delete", label: "Delete Users" },
+      { key: "roles.read", label: "View Roles" },
+      { key: "roles.create", label: "Create Roles" },
+      { key: "roles.update", label: "Update Roles" },
+      { key: "roles.delete", label: "Delete Roles" },
+    ],
+  },
+  {
+    category: "Properties",
+    permissions: [
+      { key: "properties.read", label: "View Properties" },
+      { key: "properties.create", label: "Create Properties" },
+      { key: "properties.update", label: "Update Properties" },
+      { key: "properties.delete", label: "Delete Properties" },
+    ],
+  },
+  {
+    category: "Staff Management",
+    permissions: [
+      { key: "staff.read", label: "View Staff" },
+      { key: "staff.create", label: "Create Staff" },
+      { key: "staff.update", label: "Update Staff" },
+      { key: "staff.delete", label: "Delete Staff" },
+    ],
+  },
+  {
+    category: "Reservations & Rooms",
+    permissions: [
+      { key: "reservations.read", label: "View Reservations" },
+      { key: "reservations.create", label: "Create Reservations" },
+      { key: "reservations.update", label: "Update Reservations" },
+      { key: "reservations.delete", label: "Delete Reservations" },
+      { key: "rooms.read", label: "View Rooms" },
+      { key: "rooms.update", label: "Update Rooms" },
+    ],
+  },
+  {
+    category: "Food & Beverage",
+    permissions: [
+      { key: "fnb.read", label: "View F&B" },
+      { key: "fnb.create", label: "Create Orders" },
+      { key: "fnb.update", label: "Update Orders" },
+      { key: "fnb.delete", label: "Delete Orders" },
+    ],
+  },
+  {
+    category: "Inventory",
+    permissions: [
+      { key: "inventory.read", label: "View Inventory" },
+      { key: "inventory.create", label: "Create Items" },
+      { key: "inventory.update", label: "Update Inventory" },
+      { key: "inventory.delete", label: "Delete Items" },
+    ],
+  },
+  {
+    category: "Financial",
+    permissions: [
+      { key: "financial.read", label: "View Financial Data" },
+      { key: "financial.create", label: "Create Transactions" },
+      { key: "financial.update", label: "Update Transactions" },
+      { key: "financial.delete", label: "Delete Transactions" },
+      { key: "expenses.read", label: "View Expenses" },
+      { key: "expenses.create", label: "Create Expenses" },
+      { key: "expenses.approve", label: "Approve Expenses" },
+    ],
+  },
+  {
+    category: "Reports & Analytics",
+    permissions: [
+      { key: "reports.read", label: "View Reports" },
+      { key: "reports.create", label: "Create Reports" },
+      { key: "reports.export", label: "Export Reports" },
+    ],
+  },
+  {
+    category: "System",
+    permissions: [
+      { key: "system.admin", label: "System Administration" },
+      { key: "system.settings", label: "Manage Settings" },
+      { key: "system.audit", label: "View Audit Logs" },
+    ],
+  },
+];
