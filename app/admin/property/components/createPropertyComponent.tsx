@@ -58,7 +58,7 @@ export function FormComponent({ onSuccess, onClose }: { onSuccess: () => void; o
           reset();
           setTimeout(() => {
             onSuccess();
-            window.location.href = '/admin/properties';
+            window.location.href = '/admin/property';
           }, 1500);
         }
       } catch (error: any) {

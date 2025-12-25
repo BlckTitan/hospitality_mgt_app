@@ -76,10 +76,22 @@ export default function PaginationComponent({collectionName, columns}) {
   const currentData = pageCache[currentPage] || [];
 
   // check response for data
-  if(response === undefined) return <div className='w-full h-screen flex items-center justify-center'><Spinner animation="border" size='sm' variant="dark" /></div>
-  if(!response || !response?.page) return <div className='w-full h-full flex justify-center items-center'>No data available!</div>
+  if (response === undefined) {
+    return (
+      <div className='w-full h-screen flex items-center justify-center'>
+        <Spinner animation="border" size='sm' variant="dark" />
+      </div>
+    );
+  }
+  if (!response || !response.page || response?.page.length === 0) {
+    return (
+      <div className='w-full h-full flex justify-center items-center'>
+        No data available!
+      </div>
+    );
+  }
 
-  console.log(response+' response here')
+  console.log(response?.page, 'response here', currentData, 'currentData here');
 
   return (
     //Pagination Buttons

@@ -45,7 +45,7 @@ const Property = () => {
       if (response.success === true) {
         toast.success(response.message);
         setTimeout(() => {
-          window.location.href = '/admin/properties';
+          window.location.href = '/admin/property';
         }, 1500);
       } else {
         toast.error(response.message);

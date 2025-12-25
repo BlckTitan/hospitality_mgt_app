@@ -15,7 +15,8 @@ interface TableProps<T>{
 
 
 function TableComponent<T extends Record <string, any>>({data, columns}: TableProps<T>) {
-
+  // console.log(data)
+  // if(data.length === 0) return <div className='w-full h-full flex justify-center items-center'>No data available!</div>
   return (
     <>
   

@@ -3,12 +3,13 @@ import { SignedIn, UserButton } from '@clerk/nextjs'
 import { usePathname } from 'next/navigation';
 import React from 'react'
 import { Nav, Navbar, NavbarBrand, NavbarCollapse, NavbarToggle, NavLink } from 'react-bootstrap'
-import { FcPhone, FcSalesPerformance , FcConferenceCall, FcMoneyTransfer , FcList, FcCurrencyExchange, FcDepartment } from "react-icons/fc";
+import { FcPhone, FcSalesPerformance , FcConferenceCall, FcMoneyTransfer , FcList, FcCurrencyExchange, FcDepartment, FcManager } from "react-icons/fc";
 import { RxDashboard } from "react-icons/rx";
 
 const navItems = [
   { href: "/admin/dashboard", label: "Dashboard", icon: <RxDashboard className='text-blue-500'/> },
   { href: "/admin/property", label: "Properties", icon: <FcDepartment /> },
+  { href: "/admin/user", label: "Users", icon: <FcManager /> },
   { href: "/#", label: "Sales", icon: <FcCurrencyExchange /> },
   { href: "/#", label: "Expenditure", icon: <FcMoneyTransfer /> },
   { href: "/#", label: "Report and Analytics", icon: <FcSalesPerformance /> },

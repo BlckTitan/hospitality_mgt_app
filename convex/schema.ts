@@ -5,9 +5,17 @@ export default defineSchema({
   // Users table for authentication and roles
   users: defineTable({
     externalId: v.string(),
-    name: v.string(), // For custom fields like preferences
+    email: v.string(),
+    name: v.string(),
+    phone: v.optional(v.string()),
+    isActive: v.boolean(),
+    lastLoginAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
   })
-    .index("byExternalId", ["externalId"]),
+    .index("byExternalId", ["externalId"])
+    .index("by_email", ["email"])
+    .index("by_isActive", ["isActive"]),
 
   staffs: defineTable({
     firstName: v.string(),

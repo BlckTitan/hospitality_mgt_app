@@ -66,7 +66,7 @@ export function FormComponent(/*{ onSuccess, onClose }: { onSuccess: () => void;
           toast.success('Property created successfully!');
           reset();
           setTimeout(() => {
-            window.location.href = '/admin/properties';
+            window.location.href = '/admin/property';
           }, 1500);
         }
       } catch (error: any) {
