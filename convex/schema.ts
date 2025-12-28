@@ -29,6 +29,19 @@ export default defineSchema({
     .index("by_name", ["name"])
     .index("by_isSystemRole", ["isSystemRole"]),
 
+  // UserRoles junction table for many-to-many relationships (User-Role-Property)
+  userRoles: defineTable({
+    userId: v.id("users"),
+    roleId: v.id("roles"),
+    propertyId: v.id("properties"),
+    assignedAt: v.number(),
+    assignedBy: v.string(), // User ID who assigned the role
+  })
+    .index("by_userId", ["userId"])
+    .index("by_propertyId", ["propertyId"])
+    .index("by_roleId", ["roleId"])
+    .index("by_userId_propertyId", ["userId", "propertyId"]),
+
   staffs: defineTable({
     firstName: v.string(),
     lastName: v.string(),

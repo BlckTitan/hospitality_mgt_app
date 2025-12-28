@@ -44,135 +44,6 @@
   --background: oklch(1 0 0); 
   --foreground: oklch(0.129 0.042 264.695);
 }
-
-/*---break---*/
-
-/* @layer base {
-  * {
-    @apply border-border outline-ring/50;
-  }
-  body {
-    @apply bg-background text-foreground;
-  }
-} */
-
-/*--presets--*/
-/* padding 8px */
-/* margin-8px */
-/* cards 300 * auto */
-/* border-radius 8px */
-/* buttons: padding 10px * 20px, border-radius 4px */
-/* top header: width full, height 60px */
-*{
-  box-sizing: border-box;
-  font-family:  "Open Sans", "Roboto", Arial, Helvetica, sans-serif;
-  font-optical-sizing: auto;
-  /* "Open Sans" */
-}
-body {
-  @apply m-0 p-0 text-base bg-[var(--secondary)] text-[var(--primary)];
-}
-main{
-  @apply bg-[var(--secondary)];
-}
-footer{
-  @apply w-full h-10;
-}
-input, select{
-  @apply w-full h-10 p-2 border rounded-sm;
-}
-label{
-  @apply text-left;
-}
-/* main navigation */
-a.main_nav_link{
-  @apply !w-full lg:w-fit h-12 px-4 lg:h-fit text-lg m-1 text-nowrap flex justify-between items-center lg:!hidden;
-}
-.main_nav_link i{
-  @apply inline-block lg:hidden;
-}
-.site_main_title{
-  @apply text-3xl lg:text-5xl font-extrabold text-center text-wrap text-[var(--foreground)];
-  font-family: "Orbitron", sans-serif;
-  line-height: 1.5;
-}
-.site_sub_title{
-  @apply text-xl lg:text-2xl font-semibold text-center text-wrap text-[var(--foreground)];
-  font-family: "Orbitron", sans-serif;
-}
-.main_title{
-  font-size: 32px;
-  line-height: 1.5;
-}
-.section_headers{
-  @apply text-2xl;
-}
-.small_texts{
-  @apply text-sm;
-}
-.icon{
-  @apply text-2xl;
-}
-/* sidebar styling */
-aside{
-  background-color: #000;
-}
-aside a{
-  @apply w-full h-12 flex justify-between items-center px-4 my-2 hover:bg-[#333];
-}
-/* transition effect for sidebar links and buttons in the homepage */
-aside a:hover,
-.admin_btn a:hover{
-  transition: all 0.4s ease-in-out;
-}
-aside a{
-  @apply text-white no-underline;
-}
-
-/* date picker styling */
-.react-datepicker__month-container {
-  display: flex !important;
-  flex-direction: column !important;
-}
-
-.react-datepicker__month {
-  display: flex !important;
-  flex-wrap: wrap !important;
-  justify-content: space-between;
-}
-
-.react-datepicker__week {
-  display: flex !important;
-  width: 100%;
-  justify-content: space-around;
-}
-
-.react-datepicker__day--selected,
-.react-datepicker__day--keyboard-selected {
-  background-color: #0d6efd !important;
-  color: white !important;
-  border-radius: 100% !important;
-}
-.react-datepicker__day:hover {
-  background-color: #0d6efd!important;
-  color: #fff !important;
-  border-radius: 100% !important;
-}
-.react-datepicker__header {
-  background-color: #0d6efd !important;
-  border-bottom: 1px solid #0d6efd !important;
-}
-.react-datepicker__current-month,
-.react-datepicker-time__header,
-.react-datepicker-year-header {
-  color: #fff !important;
-}
-.react-datepicker__day-name {
-  color: #0d6efd !important;
-}
-.react-datepicker__triangle {
-  display: none !important;
-}
 /*---break---*/
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
@@ -254,3 +125,139 @@ aside a{
     @apply bg-background text-foreground;
   }
 }
+
+*{
+  box-sizing: border-box;
+  font-family:  "Open Sans", "Roboto", Arial, Helvetica, sans-serif;
+  font-optical-sizing: auto;
+  /* "Open Sans" */
+}
+body {
+  @apply m-0 p-0 text-base bg-[var(--secondary)] text-[var(--primary)];
+}
+main{
+  @apply bg-[var(--secondary)];
+}
+footer{
+  @apply w-full h-10;
+}
+input, select{
+  @apply w-full h-10 p-2 border rounded-sm;
+}
+label{
+  @apply text-left;
+}
+/* main navigation */
+a.main_nav_link{
+  @apply !w-full lg:w-fit h-12 px-4 lg:h-fit text-lg m-1 text-nowrap flex justify-between items-center lg:!hidden;
+}
+.main_nav_link i{
+  @apply inline-block lg:hidden;
+}
+.site_main_title{
+  @apply text-3xl lg:text-5xl font-extrabold text-center text-wrap text-[var(--foreground)];
+  font-family: "Orbitron", sans-serif;
+  line-height: 1.5;
+}
+.site_sub_title{
+  @apply text-xl lg:text-2xl font-semibold text-center text-wrap text-[var(--foreground)];
+  font-family: "Orbitron", sans-serif;
+}
+.main_title{
+  font-size: 32px;
+  line-height: 1.5;
+}
+.section_headers{
+  @apply text-2xl;
+}
+.small_texts{
+  @apply text-sm;
+}
+.icon{
+  @apply text-2xl;
+}
+/* sidebar styling */
+aside{
+  background-color: #000;
+}
+aside a{
+  @apply w-full flex justify-between items-center px-4;
+}
+/* transition effect for sidebar links and buttons in the homepage */
+aside a:hover,
+.admin_btn a:hover{
+  transition: all 0.4s ease-in-out;
+}
+aside a{
+  @apply text-white no-underline;
+}
+
+/* date picker styling */
+.react-datepicker__month-container {
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.react-datepicker__month {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  justify-content: space-between;
+}
+
+.react-datepicker__week {
+  display: flex !important;
+  width: 100%;
+  justify-content: space-around;
+}
+
+.react-datepicker__day--selected,
+.react-datepicker__day--keyboard-selected {
+  background-color: #0d6efd !important;
+  color: white !important;
+  border-radius: 100% !important;
+}
+.react-datepicker__day:hover {
+  background-color: #0d6efd!important;
+  color: #fff !important;
+  border-radius: 100% !important;
+}
+.react-datepicker__header {
+  background-color: #0d6efd !important;
+  border-bottom: 1px solid #0d6efd !important;
+}
+.react-datepicker__current-month,
+.react-datepicker-time__header,
+.react-datepicker-year-header {
+  color: #fff !important;
+}
+.react-datepicker__day-name {
+  color: #0d6efd !important;
+}
+.react-datepicker__triangle {
+  display: none !important;
+}
+
+/* Remove border, outline & shadow on all states */
+.custom-dropdown .dropdown-toggle,
+.custom-dropdown .dropdown-toggle:focus,
+.custom-dropdown .dropdown-toggle:active,
+.custom-dropdown .dropdown-toggle.show {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  color: white;
+}
+
+/* Caret color */
+.custom-dropdown .dropdown-toggle::after {
+  border-top-color: white;
+}
+
+/* Make caret bigger */
+.custom-dropdown .dropdown-toggle::after {
+  margin-left: 0.4rem;
+  border-top-width: 0.5em;
+  border-right-width: 0.4em;
+  border-left-width: 0.4em;
+}
+

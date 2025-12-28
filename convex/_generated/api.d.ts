@@ -14,6 +14,7 @@ import type * as property from "../property.js";
 import type * as roles from "../roles.js";
 import type * as staff from "../staff.js";
 import type * as user from "../user.js";
+import type * as userRoles from "../userRoles.js";
 import type * as users from "../users.js";
 
 import type {
@@ -29,6 +30,7 @@ declare const fullApi: ApiFromModules<{
   roles: typeof roles;
   staff: typeof staff;
   user: typeof user;
+  userRoles: typeof userRoles;
   users: typeof users;
 }>;
 
