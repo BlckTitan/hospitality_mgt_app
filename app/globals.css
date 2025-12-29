@@ -237,27 +237,21 @@ aside a{
   display: none !important;
 }
 
-/* Remove border, outline & shadow on all states */
-.custom-dropdown .dropdown-toggle,
-.custom-dropdown .dropdown-toggle:focus,
-.custom-dropdown .dropdown-toggle:active,
-.custom-dropdown .dropdown-toggle.show {
+.custom-dropdown {
   border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+.custom-dropdown:focus,
+.custom-dropdown:active,
+.custom-dropdown:focus-visible {
   outline: none !important;
   box-shadow: none !important;
+}
+
+.caret-icon {
   color: white;
+  font-size: 1.2rem;
 }
-
-/* Caret color */
-.custom-dropdown .dropdown-toggle::after {
-  border-top-color: white;
-}
-
-/* Make caret bigger */
-.custom-dropdown .dropdown-toggle::after {
-  margin-left: 0.4rem;
-  border-top-width: 0.5em;
-  border-right-width: 0.4em;
-  border-left-width: 0.4em;
-}
-

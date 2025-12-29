@@ -90,9 +90,7 @@ export default function PaginationComponent({collectionName, columns}) {
       </div>
     );
   }
-
-  console.log(response?.page, 'response here', currentData, 'currentData here');
-
+  
   return (
     //Pagination Buttons
     <>
