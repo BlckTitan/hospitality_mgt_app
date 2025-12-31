@@ -149,7 +149,7 @@ label{
 }
 /* main navigation */
 a.main_nav_link{
-  @apply !w-full lg:w-fit h-12 px-4 lg:h-fit text-lg m-1 text-nowrap flex justify-between items-center lg:!hidden;
+  @apply !w-full lg:w-fit h-12 px-4 lg:h-fit text-lg text-nowrap flex justify-between items-center lg:!hidden;
 }
 .main_nav_link i{
   @apply inline-block lg:hidden;

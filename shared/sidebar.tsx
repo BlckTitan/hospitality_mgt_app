@@ -44,7 +44,7 @@ export default function Sidebar() {
           {/* dropdown if sublink exists */}
           {
             (
-              <Dropdown drop='end' key={href}>
+              <Dropdown drop='end' key={icon}>
                 <Dropdown.Toggle 
                   key={index+1}
                   variant="" 
@@ -58,13 +58,13 @@ export default function Sidebar() {
 
                 <Dropdown.Menu 
                   className='!bg-[#000] !rounded-none'
-                  key={index+2}
+                  key={label}
                 >
                   {
                     subLink && subLink.map((link, subIndex) => (
                       <Dropdown.Item 
                         href={link.href} 
-                        key={subIndex}
+                        key={subIndex+3}
                         className='w-full h-10 !flex !items-center text-white my-2 hover:!bg-white/10'
                       >
                         <span>{link.label}</span>
