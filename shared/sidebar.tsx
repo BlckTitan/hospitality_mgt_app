@@ -2,23 +2,21 @@
 
 import { usePathname } from 'next/navigation';
 import React from 'react'
-import { DropdownButton, Dropdown } from 'react-bootstrap';
-import { FcPhone, FcSalesPerformance , FcConferenceCall, FcMoneyTransfer , FcList, FcCurrencyExchange, FcDepartment, FcManager } from "react-icons/fc";
+import { Dropdown } from 'react-bootstrap';
+import { FcConferenceCall, FcCurrencyExchange, FcDepartment, FcList, FcManager, FcMoneyTransfer, FcPhone, FcSalesPerformance } from "react-icons/fc";
 import { RxDashboard } from "react-icons/rx";
-import { FaCaretRight } from "react-icons/fa";
 
 const navLinks = [
-  { href: "/admin/dashboard", label: "Dashboard", icon: <RxDashboard className='text-blue-500'/> },
-  { href: "/admin/property", label: "Properties", icon: <FcDepartment /> },
-  { href: "/admin/user", label: "Users", icon: <FcManager />, subLink: [{href: '/admin/role', label: 'Role'}, {href: '/admin/userRole', label: 'User role'}]},
-  { href: "/#", label: "Sales", icon: <FcCurrencyExchange /> },
-  { href: "/#", label: "Expense Tracker", icon: <FcMoneyTransfer /> },
-  { href: "/#", label: "Report and Analytics", icon: <FcSalesPerformance /> },
-  { href: "/admin/staff", label: "Staff", icon: <FcConferenceCall /> },
-  { href: "/#", label: "Inventory", icon: <FcList /> },
-  { href: "/#", label: "Billing", icon: <FcPhone /> },
+  {id: 1, href: "/admin/dashboard", label: "Dashboard", icon: <RxDashboard className='text-blue-500'/> },
+  {id: 2, href: "/admin/property", label: "Properties", icon: <FcDepartment /> },
+  {id: 3, href: "/admin/user", label: "Users", icon: <FcManager />, subLink: [{id: 21, href: '/admin/role', label: 'Role'}, {id: 22, href: '/admin/userRole', label: 'User role'}]},
+  {id: 4, href: "/#", label: "Sales", icon: <FcCurrencyExchange /> },
+  {id: 5, href: "/#", label: "Expense Tracker", icon: <FcMoneyTransfer /> },
+  {id: 6, href: "/#", label: "Report and Analytics", icon: <FcSalesPerformance /> },
+  {id: 7, href: "/admin/staff", label: "Staff", icon: <FcConferenceCall /> },
+  {id: 8, href: "/#", label: "Inventory", icon: <FcList /> },
+  {id: 9, href: "/#", label: "Billing", icon: <FcPhone /> },
 ];
-
 export default function Sidebar() {
   
   const path = usePathname()
@@ -28,13 +26,14 @@ export default function Sidebar() {
 
       <div className='w-full h-full pt-16 text-white !px-0 glass'>
 
-      {navLinks.map(({ href, label, icon, subLink }, index) => (
+      {navLinks.map(({ id, href, label, icon, subLink }, index) => (
         <div             
           className={`w-full h-12 flex items-center justify-center my-2 hover:!bg-white/10 ${(href === path) ? "!bg-[#333] text-white " : "bg-transparent"}`}
+          key={id}
         >
           {/* main link */}
           <a 
-            key={index} 
+            key={id} 
             href={href} 
           >
             <span>{label}</span>
@@ -44,9 +43,9 @@ export default function Sidebar() {
           {/* dropdown if sublink exists */}
           {
             (
-              <Dropdown drop='end' key={icon}>
+              <Dropdown drop='end'>
                 <Dropdown.Toggle 
-                  key={index+1}
+                  key={id}
                   variant="" 
                   id="dropdown-basic"
                   className={`!border-0 !bg-transparent !shadow-none 
@@ -64,7 +63,7 @@ export default function Sidebar() {
                     subLink && subLink.map((link, subIndex) => (
                       <Dropdown.Item 
                         href={link.href} 
-                        key={subIndex+3}
+                        key={link.id}
                         className='w-full h-10 !flex !items-center text-white my-2 hover:!bg-white/10'
                       >
                         <span>{link.label}</span>

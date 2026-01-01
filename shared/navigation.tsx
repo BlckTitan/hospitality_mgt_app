@@ -2,25 +2,31 @@
 import { SignedIn, UserButton } from '@clerk/nextjs'
 import { usePathname } from 'next/navigation';
 import React from 'react'
-import { Accordion, Card, Dropdown, Nav, Navbar, NavbarBrand, NavbarCollapse, NavbarToggle, NavLink, useAccordionButton } from 'react-bootstrap'
+import { Accordion, Card, Nav, Navbar, NavbarBrand, NavbarCollapse, NavbarToggle, NavLink, useAccordionButton } from 'react-bootstrap'
 import { FcPhone, FcSalesPerformance , FcConferenceCall, FcMoneyTransfer , FcList, FcCurrencyExchange, FcDepartment, FcManager } from "react-icons/fc";
 import { RxDashboard, RxCaretDown } from "react-icons/rx";
 
+interface CustomToggleProps {
+  eventKey: string
+  children: React.ReactNode
+  className?: string
+}
+
 const navItems = [
-  { href: "/admin/dashboard", label: "Dashboard", icon: <RxDashboard className='text-blue-500'/> },
-  { href: "/admin/property", label: "Properties", icon: <FcDepartment /> },
-  { href: "/admin/user", label: "Users", icon: <FcManager />, subLink: [{href: '/admin/role', label: 'Role'}, {href: '/admin/userRole', label: 'User role'}] },
-  { href: "/#", label: "Sales", icon: <FcCurrencyExchange /> },
-  { href: "/#", label: "Expenditure", icon: <FcMoneyTransfer /> },
-  { href: "/#", label: "Report and Analytics", icon: <FcSalesPerformance /> },
-  { href: "/admin/staff", label: "Staff", icon: <FcConferenceCall /> },
-  { href: "/#", label: "Inventory", icon: <FcList /> },
-  { href: "/#", label: "Billing", icon: <FcPhone /> },
+  { id: 1, href: "/admin/dashboard", label: "Dashboard", icon: <RxDashboard className='text-blue-500'/> },
+  { id: 2, href: "/admin/property", label: "Properties", icon: <FcDepartment /> },
+  { id: 3, href: "/admin/user", label: "Users", icon: <FcManager />, subLink: [{href: '/admin/role', label: 'Role'}, {href: '/admin/userRole', label: 'User role'}] },
+  { id: 4, href: "/#", label: "Sales", icon: <FcCurrencyExchange /> },
+  { id: 5, href: "/#", label: "Expenditure", icon: <FcMoneyTransfer /> },
+  { id: 6, href: "/#", label: "Report and Analytics", icon: <FcSalesPerformance /> },
+  { id: 7, href: "/admin/staff", label: "Staff", icon: <FcConferenceCall /> },
+  { id: 8, href: "/#", label: "Inventory", icon: <FcList /> },
+  { id: 9, href: "/#", label: "Billing", icon: <FcPhone /> },
 ];
 
 export default function Navigation() {
 
-    const path = usePathname()
+  const path = usePathname()
     
   return (
     <nav className="w-full h-14 flex items-center fixed top-0 main_nav z-10 shadow-blue-100 shadow-sm">
@@ -45,9 +51,9 @@ export default function Navigation() {
                 defaultActiveKey="0" 
                 className='w-full h-12 inline-block lg:hidden'
               >
-                {navItems.map(({ href, label, icon, subLink }, index) => (
+                {navItems.map(({ id, href, label, icon, subLink }, index) => (
 
-                  <Card className='border-0' key={href+4}>
+                  <Card className='border-0' key={id}>
                     
                     <Card.Header 
                       className={`
@@ -56,36 +62,19 @@ export default function Navigation() {
                       `}
                     >
                       <NavLink
-                        key={index}
+                        key={id}
                         href={href}
                         className={`main_nav_link ${(href === path) ? "!bg-[#333] text-white" : "bg-transparent"}`}
                       >
                         <span>{label}</span>
                         <i className="icon">{icon}</i>
                       </NavLink>
-                      
-
-                      {/* {
-                        subLink && subLink.map((link, subIndex) => (
-                          <CustomToggle 
-                            eventKey={link.href} 
-                            key={subIndex}
-                            className={`!bg-transparent ${!subLink ? "invisible" : ""}`}
-                          >
-                            <i className='icon'><RxCaretDown /></i>
-                          </CustomToggle>
-                        ))
-                      } */}
 
                       {
-                        subLink && (
+                        (
                           <CustomToggle 
                             key={href}
-                            eventKey={
-                              subLink && subLink.map((items, subIndex) => (
-                                items.href
-                              ))
-                            }
+                            eventKey={label}
                             className={`!bg-transparent ${!subLink ? "invisible" : ""}`}
                           >
                             <i className='icon'><RxCaretDown /></i>
@@ -98,18 +87,20 @@ export default function Navigation() {
                     {
                       subLink && subLink.map((link, subIndex) => (
                         <Accordion.Collapse
-                          eventKey={link.href} 
+                          eventKey={label} 
                           key={subIndex}
                           className={`!bg-transparent ${!subLink ? "invisible" : ""}`}
                         >
                           <Card.Body>
+
                             <NavLink
                               key={index}
                               href={link.href}
-                              className='px-2 border-b'
+                              className='px-3 py-0 h-5 flex items-center'
                             >
                               <span>{link.label}</span>
                             </NavLink>
+
                           </Card.Body>
                         </Accordion.Collapse>
                       ))
@@ -127,7 +118,7 @@ export default function Navigation() {
   )
 }
 
-function CustomToggle({ children, eventKey }) {
+const CustomToggle: React.FC<CustomToggleProps> = ({ children, eventKey, className }: CustomToggleProps) => {
   const decoratedOnClick = useAccordionButton(eventKey, () =>
     console.log('custom toggle active'),
   );
@@ -137,60 +128,9 @@ function CustomToggle({ children, eventKey }) {
       type="button"
       style={{ backgroundColor: 'transparent' }}
       onClick={decoratedOnClick}
+      className={className || ''}
     >
       {children}
     </button>
   );
 }
-
-{/* Sidebar links for dropdown navigation in smaller devices */}
-// {navItems.map(({ href, label, icon, subLink }, index) => (
-//   <div             
-//     className={`w-full h-12 flex items-center justify-center my-2 hover:!bg-white/10 ${(href === path) ? "!bg-[#333] text-white " : "bg-transparent"}`}
-//   >
-//     <NavLink
-//       key={index}
-//       href={href}
-//       className={`main_nav_link ${(href === path) ? "!bg-[#333] text-white" : "bg-transparent"}`}
-//     >
-//       <span>{label}</span>
-//       <i className="icon">{icon}</i>
-//     </NavLink>
-
-//     {/* dropdown if sublink exists */}
-//     {
-//       (
-//         <Dropdown drop='start' key={href}>
-//           <Dropdown.Toggle 
-//             key={index+1}
-//             variant="" 
-//             id="dropdown-basic"
-//             className={`!border-0 !bg-transparent !shadow-none 
-//               focus:!shadow-none focus:!outline-none text-black
-//               ${!subLink ? "invisible" : ""}`}
-//           >
-//             {/* <FaCaretRight className="text-white text-lg" /> */}
-//           </Dropdown.Toggle>
-
-//           <Dropdown.Menu 
-//             className='!bg-[#000] !rounded-none'
-//             key={index+2}
-//           >
-//             {
-//               subLink && subLink.map((link, subIndex) => (
-//                 <Dropdown.Item 
-//                   href={link.href} 
-//                   key={subIndex}
-//                   className='w-full h-10 !flex !items-center text-white my-2 hover:!bg-white/10'
-//                 >
-//                   <span>{link.label}</span>
-//                 </Dropdown.Item>
-//               ))
-//             }
-//           </Dropdown.Menu>
-
-//         </Dropdown>
-//       )
-//   }
-//   </div>
-// ))}
