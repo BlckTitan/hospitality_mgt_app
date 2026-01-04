@@ -12,6 +12,8 @@ import { FormComponent } from './components/createEmployeeForm';
   
   const [modalShow, setModalShow] = useState(false);
 
+  console.log('staff page modalShow '+modalShow);
+
   return (
     <div className='w-full p-4 bg-white'>
       <header className='w-full border-b flex justify-between items-center'>
@@ -19,7 +21,7 @@ import { FormComponent } from './components/createEmployeeForm';
         <Button 
           variant='light' 
           className='cursor-pointer' 
-          style={{width: 'fit', height: 'fit', padding: '0', borderRadius: '100%'}}
+          style={{width: 'fit', height: 'fit', padding: '0', borderRadius: '100%',}}
           onClick={() => setModalShow(true)}
         >
           <FcPlus className='w-8 h-8'/>

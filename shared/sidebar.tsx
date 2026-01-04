@@ -22,7 +22,7 @@ export default function Sidebar() {
   const path = usePathname()
 
   return (
-    <aside className='w-[300px] max-w-[300px] h-full fixed left-0 hidden pt-14 xl:inline-block'>
+    <aside className='w-[300px] max-w-[300px] h-full fixed left-0 hidden pt-14 xl:inline-block z-10'>
 
       <div className='w-full h-full pt-16 text-white !px-0 glass'>
 
@@ -56,7 +56,7 @@ export default function Sidebar() {
                 </Dropdown.Toggle>
 
                 <Dropdown.Menu 
-                  className='!bg-[#000] !rounded-none'
+                  className='dropdown-menu !bg-[#000] !rounded-none'
                   key={label}
                 >
                   {

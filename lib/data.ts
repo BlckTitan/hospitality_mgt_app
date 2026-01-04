@@ -567,8 +567,6 @@ export const states_lga = [
     { value: 'ZAR', label: 'ZAR - South African Rand' },
   ];
   
-
-  
 // Define available permissions grouped by category
 export const PERMISSION_GROUPS = [
   {
