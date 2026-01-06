@@ -44,7 +44,7 @@ export function FormComponent({
   const onSubmit: SubmitHandler<FormData> = async (data) => {
     try {
       const response = await updateUserRole({
-        userRole_id: data.id,
+        userRole_id: id,
         userId: data.userId as Id<'users'>,
         roleId: data.roleId as Id<'roles'>,
         propertyId: data.propertyId as Id<'properties'>,

@@ -60,7 +60,7 @@ export function FormComponent({
     try {
       // Use the permissions state instead of form data
       const response = await updateRole({
-        role_id: data.id,
+        role_id: id,
         name: data.name,
         description: data.description,
         permissions: permissions,

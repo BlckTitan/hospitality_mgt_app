@@ -4,7 +4,7 @@ import { MdEditDocument } from "react-icons/md";
 import { Button } from "react-bootstrap";
 import PaginationComponent from "../../../../shared/pagination";
 import { Suspense } from "react";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { toast } from "sonner";
@@ -25,6 +25,7 @@ interface UserRoleProps {
 }
 
 const UserRoles = () => {
+  const userRoleData = useQuery(api.userRoles.getAllUserRoles) //data from userRoles
   const removeUserRole = useMutation(api.userRoles.deleteUserRole);
 
   const handleDelete = async (id: string, userName: string, roleName: string) => {
@@ -98,7 +99,11 @@ const UserRoles = () => {
   return (
     <div className='w-full h-full overflow-x-scroll lg:!overflow-x-hidden'>
       <Suspense>
-        <PaginationComponent collectionName='userRoles' columns={tableColumns} />
+        <PaginationComponent 
+          collectionName='userRoles' 
+          columns={tableColumns} 
+          jointTableData={(userRoleData?.success === true) && userRoleData?.data}
+        />
       </Suspense>
     </div>
   );

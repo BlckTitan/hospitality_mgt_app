@@ -21,13 +21,13 @@ interface SearchComponentProps{
   setSearchQuery: Dispatch<SetStateAction<string>>
 }
 
-export default function PaginationComponent({collectionName, columns}) {
+export default function PaginationComponent({collectionName, columns, jointTableData = []}) {
 
   const limit = 10;
 
   // Keeps the cursor history in order: [null, "cursor_1", "cursor_2", ...]
   const [cursorHistory, setCursorHistory] = useState<(string | null)[]>([null]);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = useState(1);    ` `
   const [pageCache, setPageCache] = useState<Record<number, any[]>>({});
   const [searchQuery, setSearchQuery] = useState<string>('')
   const [query] = useDebounce(searchQuery, 300);
@@ -96,7 +96,11 @@ export default function PaginationComponent({collectionName, columns}) {
     <>
       <SearchComponent setSearchQuery={setSearchQuery}/>
       {/* Data Table */}
-      <TableComponent data={currentData} columns={columns}/>
+      {(jointTableData && jointTableData.length > 0) ? (
+        <TableComponent data={jointTableData} columns={columns}/>
+      ) : (
+        <TableComponent data={currentData} columns={columns}/>
+      )}
 
       {/* Table Pagination */}
       <Pagination className="justify-content-left mt-3">
