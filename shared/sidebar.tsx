@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation';
 import React from 'react'
 import { Dropdown } from 'react-bootstrap';
 import { FcConferenceCall, FcCurrencyExchange, FcDepartment, FcList, FcManager, FcMoneyTransfer, FcPhone, FcSalesPerformance } from "react-icons/fc";
+import { MdOutlineBedroomChild } from 'react-icons/md';
 import { RxDashboard } from "react-icons/rx";
 
 const navLinks = [
@@ -15,7 +16,7 @@ const navLinks = [
   {id: 6, href: "/#", label: "Report and Analytics", icon: <FcSalesPerformance /> },
   {id: 7, href: "/admin/staff", label: "Staff", icon: <FcConferenceCall /> },
   {id: 8, href: "/#", label: "Inventory", icon: <FcList /> },
-  {id: 9, href: "/#", label: "Billing", icon: <FcPhone /> },
+  {id: 10, href: "/room-management", label: "Room Management", icon: <MdOutlineBedroomChild />,  subLink: [{id: 21, href: '/admin/room-management/room-types', label: 'Room Types'}, {id: 22, href: '/admin/room-management/room', label: 'Room'}]},
 ];
 export default function Sidebar() {
   

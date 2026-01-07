@@ -187,4 +187,37 @@ export default defineSchema({
   })
     .index("by_propertyId_sentAt", ["propertyId", "sentAt"])
     .index("by_recipientId", ["recipientId"]),
+
+  // Room types for categorizing rooms (Standard, Deluxe, Suite, etc.)
+  roomTypes: defineTable({
+    propertyId: v.id("properties"),
+    name: v.string(),
+    description: v.optional(v.string()),
+    maxOccupancy: v.number(),
+    baseRate: v.number(),
+    amenities: v.array(v.string()),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_name", ["name"])
+    .index("by_isActive", ["isActive"]),
+
+  // Rooms for individual room inventory management
+  rooms: defineTable({
+    propertyId: v.id("properties"),
+    roomTypeId: v.id("roomTypes"),
+    roomNumber: v.string(),
+    floor: v.number(),
+    status: v.union(v.literal("available"), v.literal("occupied"), v.literal("out-of-order"), v.literal("maintenance")),
+    lastCleanedAt: v.optional(v.number()),
+    notes: v.optional(v.string()),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_roomTypeId", ["roomTypeId"])
+    .index("by_status", ["status"]),
 });

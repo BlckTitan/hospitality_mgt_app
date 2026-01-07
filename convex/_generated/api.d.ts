@@ -12,6 +12,7 @@ import type * as functions_paginated from "../functions/paginated.js";
 import type * as http from "../http.js";
 import type * as property from "../property.js";
 import type * as roles from "../roles.js";
+import type * as roomTypes from "../roomTypes.js";
 import type * as staff from "../staff.js";
 import type * as user from "../user.js";
 import type * as userRoles from "../userRoles.js";
@@ -28,6 +29,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   property: typeof property;
   roles: typeof roles;
+  roomTypes: typeof roomTypes;
   staff: typeof staff;
   user: typeof user;
   userRoles: typeof userRoles;

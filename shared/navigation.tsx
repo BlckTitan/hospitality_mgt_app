@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation';
 import React from 'react'
 import { Accordion, Card, Nav, Navbar, NavbarBrand, NavbarCollapse, NavbarToggle, NavLink, useAccordionButton } from 'react-bootstrap'
 import { FcPhone, FcSalesPerformance , FcConferenceCall, FcMoneyTransfer , FcList, FcCurrencyExchange, FcDepartment, FcManager } from "react-icons/fc";
+import { MdOutlineBedroomChild } from 'react-icons/md';
 import { RxDashboard, RxCaretDown } from "react-icons/rx";
 
 interface CustomToggleProps {
@@ -22,6 +23,7 @@ const navItems = [
   { id: 7, href: "/admin/staff", label: "Staff", icon: <FcConferenceCall /> },
   { id: 8, href: "/#", label: "Inventory", icon: <FcList /> },
   { id: 9, href: "/#", label: "Billing", icon: <FcPhone /> },
+    {id: 10, href: "/room-management", label: "Room Management", icon: <MdOutlineBedroomChild />,  subLink: [{id: 21, href: '/admin/room-management/room-types', label: 'Room Types'}, {id: 22, href: '/admin/room-management/room', label: 'Room'}]},
 ];
 
 export default function Navigation() {
