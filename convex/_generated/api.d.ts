@@ -9,10 +9,13 @@
  */
 
 import type * as functions_paginated from "../functions/paginated.js";
+import type * as guests from "../guests.js";
 import type * as http from "../http.js";
 import type * as property from "../property.js";
+import type * as reservations from "../reservations.js";
 import type * as roles from "../roles.js";
 import type * as roomTypes from "../roomTypes.js";
+import type * as rooms from "../rooms.js";
 import type * as staff from "../staff.js";
 import type * as user from "../user.js";
 import type * as userRoles from "../userRoles.js";
@@ -26,10 +29,13 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   "functions/paginated": typeof functions_paginated;
+  guests: typeof guests;
   http: typeof http;
   property: typeof property;
+  reservations: typeof reservations;
   roles: typeof roles;
   roomTypes: typeof roomTypes;
+  rooms: typeof rooms;
   staff: typeof staff;
   user: typeof user;
   userRoles: typeof userRoles;

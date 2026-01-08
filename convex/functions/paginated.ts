@@ -15,6 +15,9 @@ export const getPaginatedData = query({
       v.literal('roles'),
       v.literal('userRoles'),
       v.literal('roomTypes'),
+      v.literal('rooms'),
+      v.literal('reservations'),
+      v.literal('guests'),
     ),
     limit: v.number(), //items per page
     cursor: v.optional(v.string()), //current page cursor

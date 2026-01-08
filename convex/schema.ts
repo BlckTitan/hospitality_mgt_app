@@ -219,5 +219,56 @@ export default defineSchema({
   })
     .index("by_propertyId", ["propertyId"])
     .index("by_roomTypeId", ["roomTypeId"])
-    .index("by_status", ["status"]),
+    .index("by_status", ["status"])
+    .index("by_propertyId_roomNumber", ["propertyId", "roomNumber"]),
+
+  // Guests table for customer profiles
+  guests: defineTable({
+    propertyId: v.id("properties"),
+    firstName: v.string(),
+    lastName: v.string(),
+    email: v.optional(v.string()),
+    phone: v.optional(v.string()),
+    address: v.optional(v.string()),
+    dateOfBirth: v.optional(v.number()),
+    loyaltyNumber: v.optional(v.string()),
+    preferences: v.optional(v.any()), // JSON object
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_email", ["email"])
+    .index("by_loyaltyNumber", ["loyaltyNumber"])
+    .searchIndex("search_guests", {
+      searchField: "firstName",
+      filterFields: ["propertyId"],
+    }),
+
+  // Reservations table for room bookings
+  reservations: defineTable({
+    propertyId: v.id("properties"),
+    roomId: v.id("rooms"),
+    guestId: v.id("guests"),
+    confirmationNumber: v.string(),
+    checkInDate: v.number(),
+    checkOutDate: v.number(),
+    numberOfGuests: v.number(),
+    rate: v.number(),
+    totalAmount: v.number(),
+    depositAmount: v.optional(v.number()),
+    status: v.union(v.literal("pending"), v.literal("confirmed"), v.literal("checked-in"), v.literal("checked-out"), v.literal("cancelled")),
+    source: v.optional(v.union(v.literal("direct"), v.literal("ota"), v.literal("walk-in"), v.literal("phone"), v.literal("other"))),
+    specialRequests: v.optional(v.string()),
+    checkedInAt: v.optional(v.number()),
+    checkedOutAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_roomId", ["roomId"])
+    .index("by_guestId", ["guestId"])
+    .index("by_confirmationNumber", ["confirmationNumber"])
+    .index("by_propertyId_status", ["propertyId", "status"])
+    .index("by_propertyId_checkInDate", ["propertyId", "checkInDate"])
+    .index("by_propertyId_checkOutDate", ["propertyId", "checkOutDate"]),
 });
