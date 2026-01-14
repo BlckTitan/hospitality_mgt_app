@@ -1,11 +1,11 @@
 import { useMutation } from "convex/react";
 import { SubmitHandler, useForm } from "react-hook-form";
-import { formSchema } from "./validation";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { toast } from "sonner";
 import { Button } from "react-bootstrap";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { api } from "../../../../../convex/_generated/api";
+import { formSchema } from "./validation";
 import InputComponent from "../../../../../shared/input";
 
 type FormData = {
@@ -17,22 +17,33 @@ type FormData = {
   isActive: boolean;
 };
 
-export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: () => void; onClose: () => void; propertyId: string }) {
-  const createRoomType = useMutation(api.roomTypes.createRoomType);
-  const [amenities, setAmenities] = useState<string[]>([]);
+interface EditRoomTypeFormProps {
+  roomTypeData: any;
+  onSuccess: () => void;
+  onClose: () => void;
+  roomTypeId: string;
+}
+
+export function EditFormComponent({ roomTypeData, onSuccess, onClose, roomTypeId }: EditRoomTypeFormProps) {
+  const updateRoomType = useMutation(api.roomTypes.updateRoomType);
+  const [amenities, setAmenities] = useState<string[]>(roomTypeData?.amenities || []);
   const [amenityInput, setAmenityInput] = useState('');
 
   const { register, handleSubmit, formState: { errors }, reset } = useForm<FormData>({
     resolver: yupResolver(formSchema) as any,
     defaultValues: {
-      name: '',
-      description: '',
-      maxOccupancy: 1,
-      baseRate: 0,
-      amenities: [],
-      isActive: true,
+      name: roomTypeData?.name || '',
+      description: roomTypeData?.description || '',
+      maxOccupancy: roomTypeData?.maxOccupancy || 1,
+      baseRate: roomTypeData?.baseRate || 0,
+      amenities: roomTypeData?.amenities || [],
+      isActive: roomTypeData?.isActive ?? true,
     },
   });
+
+  useEffect(() => {
+    setAmenities(roomTypeData?.amenities || []);
+  }, [roomTypeData]);
 
   const handleAddAmenity = () => {
     if (amenityInput.trim()) {
@@ -47,8 +58,8 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
 
   const onSubmit: SubmitHandler<FormData> = async (data) => {
     try {
-      const response = await createRoomType({
-        propertyId: propertyId as any,
+      const response = await updateRoomType({
+        roomTypeId: roomTypeId as any,
         name: data.name,
         description: data.description,
         maxOccupancy: data.maxOccupancy,
@@ -60,22 +71,21 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
       if (response.success === false) {
         toast.error(response.message);
       } else {
-        toast.success('Room type created successfully!');
+        toast.success('Room type updated successfully!');
         reset();
-        setAmenities([]);
         setTimeout(() => {
           onSuccess();
           window.location.href = '/admin/roomType';
         }, 1500);
       }
     } catch (error: any) {
-      console.error('Add new room type failed:', error);
-      toast.error('Failed to add new room type. Please try again.');
+      console.error('Update room type failed:', error);
+      toast.error('Failed to update room type. Please try again.');
     }
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="createRoomTypeForm">
+    <form onSubmit={handleSubmit(onSubmit)} className="editRoomTypeForm">
       <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-1 [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4">
         <InputComponent
           id="name"
@@ -175,7 +185,7 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
           <input
             type="checkbox"
             {...register('isActive')}
-            defaultChecked={true}
+            defaultChecked={roomTypeData?.isActive ?? true}
             className="mr-2 !w-4 !h-3"
           />
           <span className='p-1 ml-2'>Active</span>
@@ -188,7 +198,7 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
           Cancel
         </Button>
         <Button variant="primary" type="submit">
-          Create Room Type
+          Update Room Type
         </Button>
       </div>
     </form>

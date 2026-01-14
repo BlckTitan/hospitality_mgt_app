@@ -3,11 +3,11 @@
 import React, { useState } from 'react';
 import { Button } from 'react-bootstrap';
 import { FcPlus } from 'react-icons/fc';
-import RoomTypes from './components/roomTypes';
-import { FormComponent } from './components/createRoomTypeForm';
 import { useQuery } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
+import RoomTypes from './components/roomTypes';
 import BootstrapModal from '../../../../shared/modal';
+import { FormComponent } from './components/createRoomTypeForm';
 
 export default function RoomTypePage() {
   const [modalShow, setModalShow] = useState(false);

@@ -4,9 +4,9 @@ import React, { useState } from 'react';
 import { Button } from 'react-bootstrap';
 import { useSearchParams } from 'next/navigation';
 import { useQuery } from 'convex/react';
-import { api } from '../../../../convex/_generated/api';
-import { Id } from '../../../../convex/_generated/dataModel';
-import BootstrapModal from '../../../../shared/modal';
+import { api } from '../../../../../convex/_generated/api';
+import { Id } from '../../../../../convex/_generated/dataModel';
+import BootstrapModal from '../../../../../shared/modal';
 import { EditFormComponent } from '../components/editRoomTypeForm';
 
 export default function EditRoomTypePage() {
@@ -15,7 +15,7 @@ export default function EditRoomTypePage() {
   const [modalShow, setModalShow] = useState(true);
 
   const roomTypeData = useQuery(
-    roomTypeId ? api.roomTypes.getRoomType({ roomTypeId: roomTypeId as Id<'roomTypes'> }) : null
+    api.roomTypes.getRoomType, roomTypeId ? { roomTypeId: roomTypeId as Id<'roomTypes'> } : null
   );
 
   if (!roomTypeId) {
