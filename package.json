@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@clerk/backend": "^2.14.0",
-    "@clerk/nextjs": "^6.31.4",
+    "@clerk/nextjs": "^6.36.7",
     "@hookform/resolvers": "^5.2.2",
     "bootstrap": "^5.3.8",
     "chart.js": "^4.5.0",
