@@ -4,13 +4,13 @@ import React, { useState } from 'react';
 import { Button } from 'react-bootstrap';
 import { FcPlus } from 'react-icons/fc';
 import BootstrapModal from '../../../../shared/modal';
-import Guests from './components/guests';
-import { FormComponent } from './components/createGuestForm';
+import HousekeepingTasks from './components/housekeepingTasks';
+import { FormComponent } from './components/createHousekeepingTaskForm';
 import { useQuery } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 import { Id } from '../../../../convex/_generated/dataModel';
 
-export default function GuestPage() {
+export default function HousekeepingTaskPage() {
   const [modalShow, setModalShow] = useState(false);
   const [propertyId, setPropertyId] = useState<string>('');
 
@@ -22,7 +22,7 @@ export default function GuestPage() {
   return (
     <div className="w-full p-4 bg-white">
       <header className="w-full border-b flex justify-between items-center mb-4">
-        <h3>Guests</h3>
+        <h3>Housekeeping Tasks</h3>
         <Button
           variant="light"
           className="cursor-pointer"
@@ -33,7 +33,7 @@ export default function GuestPage() {
         </Button>
       </header>
 
-      <Guests />
+      <HousekeepingTasks />
 
       <ModalComponent
         modalShow={modalShow}
@@ -54,7 +54,7 @@ function ModalComponent(props: { modalShow: boolean; setModalShow: (show: boolea
       onHide={() => props.setModalShow(false)}
       backdrop="static"
       keyboard={false}
-      heading="Add New Guest"
+      heading="Add New Housekeeping Task"
       body={<FormComponent onSuccess={props.onSuccess} onClose={() => props.setModalShow(false)} propertyId={props.propertyId} />}
     />
   );

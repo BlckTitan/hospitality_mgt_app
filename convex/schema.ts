@@ -271,4 +271,44 @@ export default defineSchema({
     .index("by_propertyId_status", ["propertyId", "status"])
     .index("by_propertyId_checkInDate", ["propertyId", "checkInDate"])
     .index("by_propertyId_checkOutDate", ["propertyId", "checkOutDate"]),
+
+  ratePlans: defineTable({
+    propertyId: v.id("properties"),
+    roomTypeId: v.id("roomTypes"),
+    name: v.string(),
+    description: v.optional(v.string()),
+    baseRate: v.number(),
+    discountPercent: v.optional(v.number()),
+    validFrom: v.number(),
+    validTo: v.number(),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_roomTypeId", ["roomTypeId"])
+    .index("by_propertyId_isActive", ["propertyId", "isActive"]),
+
+  housekeepingTasks: defineTable({
+    propertyId: v.id("properties"),
+    roomId: v.id("rooms"),
+    assignedTo: v.optional(v.id("staffs")),
+    taskType: v.string(), // checkout, stayover, deep-clean, inspection
+    status: v.string(), // pending, in-progress, completed, skipped
+    priority: v.string(), // low, medium, high, urgent
+    scheduledAt: v.optional(v.number()),
+    startedAt: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+    estimatedDuration: v.optional(v.number()),
+    actualDuration: v.optional(v.number()),
+    notes: v.optional(v.string()),
+    checklist: v.optional(v.any()), // JSON array
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_roomId", ["roomId"])
+    .index("by_assignedTo", ["assignedTo"])
+    .index("by_propertyId_status", ["propertyId", "status"])
+    .index("by_propertyId_priority", ["propertyId", "priority"]),
 });
