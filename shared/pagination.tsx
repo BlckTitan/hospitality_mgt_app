@@ -7,7 +7,7 @@ import { Spinner } from 'react-bootstrap';
 import { FcSearch } from 'react-icons/fc';
 import { yupResolver } from '@hookform/resolvers/yup';
 import { searchFormSchema } from './search-form-validation';
-import { useForm, Watch } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { useDebounce } from 'use-debounce';
 
 interface PaginationProps{

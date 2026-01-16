@@ -10,8 +10,10 @@
 
 import type * as functions_paginated from "../functions/paginated.js";
 import type * as guests from "../guests.js";
+import type * as housekeepingTasks from "../housekeepingTasks.js";
 import type * as http from "../http.js";
 import type * as property from "../property.js";
+import type * as ratePlans from "../ratePlans.js";
 import type * as reservations from "../reservations.js";
 import type * as roles from "../roles.js";
 import type * as roomTypes from "../roomTypes.js";
@@ -30,8 +32,10 @@ import type {
 declare const fullApi: ApiFromModules<{
   "functions/paginated": typeof functions_paginated;
   guests: typeof guests;
+  housekeepingTasks: typeof housekeepingTasks;
   http: typeof http;
   property: typeof property;
+  ratePlans: typeof ratePlans;
   reservations: typeof reservations;
   roles: typeof roles;
   roomTypes: typeof roomTypes;
