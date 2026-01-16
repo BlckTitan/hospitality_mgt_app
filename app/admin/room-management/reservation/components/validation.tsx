@@ -10,57 +10,59 @@ export const formSchema = yup.object().shape({
     .required("Room is required"),
 
   checkInDate: yup
-    .string()
+    .date()
     .required("Check-in date is required")
-    .test('is-future', 'Check-in date cannot be in the past', function(value) {
-      if (!value) return true;
-      const checkIn = new Date(value);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      return checkIn >= today;
-    }),
+    .typeError("Please enter a valid date")
+    .min(new Date(), "Check-in date cannot be in the past"),
 
   checkOutDate: yup
-    .string()
+    .date()
     .required("Check-out date is required")
-    .test('is-after-checkin', 'Check-out date must be after check-in date', function(value) {
-      const { checkInDate } = this.parent;
-      if (!checkInDate || !value) return true;
-      return new Date(value) > new Date(checkInDate);
-    }),
+    .typeError("Please enter a valid date")
+    .test(
+      "is-after-checkIn",
+      "Check-out date must be after check-in date",
+      function (value) {
+        const { checkInDate } = this.parent;
+        if (!value || !checkInDate) return true;
+        return new Date(value) > new Date(checkInDate);
+      }
+    ),
 
   numberOfGuests: yup
     .number()
-    .min(1, "Number of guests must be at least 1")
+    .typeError("Number of guests must be a number")
+    .positive("Number of guests must be greater than 0")
+    .integer("Number of guests must be an integer")
     .required("Number of guests is required"),
 
   rate: yup
     .number()
-    .min(0, "Rate cannot be negative")
+    .typeError("Rate must be a number")
+    .positive("Rate must be greater than 0")
     .required("Rate is required"),
 
   totalAmount: yup
     .number()
-    .min(0, "Total amount cannot be negative")
+    .typeError("Total amount must be a number")
+    .positive("Total amount must be greater than 0")
     .required("Total amount is required"),
 
   depositAmount: yup
     .number()
-    .min(0, "Deposit amount cannot be negative")
-    .optional(),
+    .typeError("Deposit amount must be a number")
+    .min(0, "Deposit amount cannot be negative"),
 
   status: yup
     .string()
-    .oneOf(['pending', 'confirmed', 'checked-in', 'checked-out', 'cancelled'], "Invalid status")
+    .oneOf(["pending", "confirmed", "checked-in", "checked-out", "cancelled"], "Invalid status")
     .required("Status is required"),
 
   source: yup
     .string()
-    .oneOf(['direct', 'ota', 'walk-in', 'phone', 'other'], "Invalid source")
-    .optional(),
+    .oneOf(["direct", "ota", "walk-in", "phone", "other"], "Invalid source"),
 
   specialRequests: yup
     .string()
-    .max(500, "Special requests must not exceed 500 characters")
-    .optional(),
+    .max(1000, "Special requests are too long"),
 });

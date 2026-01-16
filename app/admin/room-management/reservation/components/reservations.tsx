@@ -105,7 +105,7 @@ const Reservations = () => {
       label: 'Room',
       key: 'room',
       render: (value, row) => (
-        <span>{row.room ? `${row.room.roomNumber} (${row.room.roomType?.name || 'N/A'})` : 'N/A'}</span>
+        <span>{row.room ? `${row.room.roomNumber}${row.room.roomType ? ` (${row.room.roomType.name})` : ''}` : 'N/A'}</span>
       )
     },
     {
