@@ -12,7 +12,7 @@ export const formSchema = yup.object().shape({
   description: yup
     .string()
     .trim()
-    .max(500, "Description must not exceed 500 characters")
+    .max(5000, "Description must not exceed 5000 characters")
     .optional(),
 
   isSystemRole: yup

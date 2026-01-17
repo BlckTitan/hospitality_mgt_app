@@ -65,7 +65,7 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
         setAmenities([]);
         setTimeout(() => {
           onSuccess();
-          window.location.href = '/admin/roomType';
+          window.location.href = '/admin/room-management/room-type';
         }, 1500);
       }
     } catch (error: any) {

@@ -34,7 +34,7 @@ const RoomTypes = () => {
         toast.success(response.message);
         // Reload page after deletion
         setTimeout(() => {
-          window.location.href = "/admin/roomType";
+          window.location.href = "/admin/room-management/room-type";
         }, 2000);
       } else {
         return toast.error(response.message);
@@ -99,7 +99,7 @@ const RoomTypes = () => {
       render: (value, row) => (
         <div className='flex justify-evenly lg:justify-start items-center gap-1'>
           <a
-            href={`/admin/roomType/edit?roomTypeId=${row._id}`}
+            href={`/admin/room-management/room-type/edit?roomTypeId=${row._id}`}
             className='!mr-2 !no-underline !text-amber-400'
           >
             <i className='icon'><MdEditDocument /></i>

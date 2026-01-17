@@ -47,7 +47,7 @@ export default function EditRoomTypePage() {
     <div className="w-full p-4 bg-white">
       <header className="w-full border-b flex justify-between items-center mb-4">
         <h3>Edit Room Type</h3>
-        <a href="/admin/roomType" className="text-blue-600 hover:underline">
+        <a href="/admin/room-management/room-type" className="text-blue-600 hover:underline">
           ← Back
         </a>
       </header>

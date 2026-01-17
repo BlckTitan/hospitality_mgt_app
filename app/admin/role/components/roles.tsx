@@ -48,7 +48,7 @@ const Roles = () => {
 
   const tableColumns: TableColumn<RoleProps>[] = [
     { label: 'Role Name', key: 'name' },
-    { label: 'Description', key: 'description' },
+    // { label: 'Description', key: 'description' },
     {
       label: 'System Role',
       key: 'isSystemRole',
