@@ -49,7 +49,7 @@ export function FormComponent(/*{ onSuccess, onClose }: { onSuccess: () => void;
     const onSubmit: SubmitHandler<FormData> = async (data) => {
       try {
         const response = await updateProperty({
-          property_id: data.id,
+          property_id: id,
           name: data.name,
           address: data.address,
           phone: data.phone,
@@ -63,15 +63,15 @@ export function FormComponent(/*{ onSuccess, onClose }: { onSuccess: () => void;
         if (response.success === false) {
           toast.error(response.message);
         } else {
-          toast.success('Property created successfully!');
+          toast.success('Property edited successfully!');
           reset();
           setTimeout(() => {
             window.location.href = '/admin/property';
           }, 1500);
         }
       } catch (error: any) {
-        console.error('Add new property failed:', error);
-        toast.error('Failed to add new property. Please try again.');
+        console.error('Edit property failed:', error);
+        toast.error('Failed to edit property. Please try again.');
       }
     };
   
@@ -179,7 +179,7 @@ export function FormComponent(/*{ onSuccess, onClose }: { onSuccess: () => void;
             Cancel
           </Button>
           <Button variant="primary" type="submit">
-            Create Property
+            Edit Property
           </Button>
         </div>
       </form>
