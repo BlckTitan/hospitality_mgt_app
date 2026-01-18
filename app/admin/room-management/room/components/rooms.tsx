@@ -4,7 +4,7 @@ import { FcDocument, FcEmptyTrash } from "react-icons/fc";
 import { MdEditDocument } from "react-icons/md";
 import { Button } from "react-bootstrap";
 import { Suspense } from "react";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";
 import { api } from "../../../../../convex/_generated/api";
 import { TableColumn } from "../../../../../shared/table";
@@ -30,7 +30,8 @@ interface RoomProps {
   };
 }
 
-const Rooms = () => {
+const Rooms = ({ currentPropertyId }: { currentPropertyId: Id<"properties"> }) => {
+  const roomData = useQuery(api.rooms.getAllRooms, { propertyId: currentPropertyId }); //data from rooms
   const removeRoom = useMutation(api.rooms.deleteRoom);
 
   const handleDelete = async (id: string, roomNumber: string) => {
@@ -141,7 +142,11 @@ const Rooms = () => {
   return (
     <div className='w-full h-full overflow-x-scroll lg:!overflow-x-hidden'>
       <Suspense>
-        <PaginationComponent collectionName='rooms' columns={tableColumns} />
+        <PaginationComponent 
+          collectionName='rooms' 
+          columns={tableColumns}
+          jointTableData={(roomData?.success === true) && roomData?.data}  
+        />
       </Suspense>
     </div>
   );

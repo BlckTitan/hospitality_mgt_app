@@ -32,7 +32,7 @@ export default function RoomPage() {
         </Button>
       </header>
 
-      <Rooms />
+      <Rooms currentPropertyId={currentPropertyId}/>
 
       <ModalComponent
         modalShow={modalShow}
