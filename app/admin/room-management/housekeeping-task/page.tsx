@@ -8,7 +8,6 @@ import HousekeepingTasks from './components/housekeepingTasks';
 import { FormComponent } from './components/createHousekeepingTaskForm';
 import { useQuery } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
-import { Id } from '../../../../convex/_generated/dataModel';
 
 export default function HousekeepingTaskPage() {
   const [modalShow, setModalShow] = useState(false);
@@ -33,7 +32,7 @@ export default function HousekeepingTaskPage() {
         </Button>
       </header>
 
-      <HousekeepingTasks />
+      <HousekeepingTasks currentPropertyId={currentPropertyId}/>
 
       <ModalComponent
         modalShow={modalShow}

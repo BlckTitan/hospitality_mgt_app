@@ -4,7 +4,7 @@ import { FcEmptyTrash } from "react-icons/fc";
 import { MdEditDocument } from "react-icons/md";
 import { Button } from "react-bootstrap";
 import { Suspense } from "react";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";
 import { api } from "../../../../../convex/_generated/api";
 import { TableColumn } from "../../../../../shared/table";
@@ -42,7 +42,8 @@ interface HousekeepingTaskProps {
   };
 }
 
-const HousekeepingTasks = () => {
+const HousekeepingTasks = ({currentPropertyId}: {currentPropertyId: Id<'properties'>}) => {
+  const housekeepingData = useQuery(api.housekeepingTasks.getAllHousekeepingTasks, { propertyId: currentPropertyId}); //data from housekeepingTasks
   const removeTask = useMutation(api.housekeepingTasks.deleteHousekeepingTask);
 
   const handleDelete = async (id: string, roomNumber: string) => {
@@ -201,11 +202,15 @@ const HousekeepingTasks = () => {
       ),
     },
   ];
-
+  
   return (
     <div className='w-full h-full overflow-x-scroll lg:!overflow-x-hidden'>
       <Suspense>
-        <PaginationComponent collectionName='housekeepingTasks' columns={tableColumns} />
+        <PaginationComponent 
+          jointTableData={(housekeepingData?.success === true) && housekeepingData?.data}
+          collectionName='housekeepingTasks' 
+          columns={tableColumns} 
+        />
       </Suspense>
     </div>
   );

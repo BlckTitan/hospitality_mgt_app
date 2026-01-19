@@ -218,7 +218,7 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
       {nights > 0 && (
         <div className="w-full mb-4 p-2 bg-blue-50 rounded">
           <p className="text-sm text-gray-700">
-            <strong>Nights:</strong> {nights} | <strong>Rate per night:</strong> ${watchRate.toFixed(2)} | <strong>Total:</strong> ${calculatedTotal.toFixed(2)}
+            <strong>Nights:</strong> {nights} | <strong>Rate per night:</strong> {watchRate.toFixed(2)} | <strong>Total:</strong> {calculatedTotal.toFixed(2)}
           </p>
         </div>
       )}

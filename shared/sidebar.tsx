@@ -20,7 +20,8 @@ const navLinks = [
     {id: 101, href: '/admin/room-management/room-type', label: 'Room Types'}, 
     {id: 102, href: '/admin/room-management/room', label: 'Room'},
     {id: 103, href: '/admin/room-management/reservation', label: 'Reservation'}, 
-    {id: 104, href: '/admin/room-management/guest', label: 'Guest'}
+    {id: 104, href: '/admin/room-management/guest', label: 'Guest'},
+    {id: 105, href: '/admin/room-management/housekeeping-task', label: 'Housekeeping Task'}
   ]},
 ];
 export default function Sidebar() {
