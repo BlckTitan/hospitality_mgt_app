@@ -20,16 +20,19 @@ const navItems = [
   { id: 4, href: "/#", label: "Sales", icon: <FcCurrencyExchange /> },
   { id: 5, href: "/#", label: "Expenditure", icon: <FcMoneyTransfer /> },
   { id: 6, href: "/#", label: "Report and Analytics", icon: <FcSalesPerformance /> },
-  { id: 7, href: "/admin/staff", label: "Staff", icon: <FcConferenceCall /> },
-  { id: 8, href: "/#", label: "Inventory", icon: <FcList /> },
-  { id: 9, href: "/#", label: "Billing", icon: <FcPhone /> },
-  {id: 10, href: "/admin/room-management", label: "Room Management", icon: <MdOutlineBedroomChild />,  subLink: [
-    {id: 101, href: '/admin/room-management/room-type', label: 'Room Types'}, 
-    {id: 102, href: '/admin/room-management/room', label: 'Room'},
-    {id: 103, href: '/admin/room-management/reservation', label: 'Reservation'}, 
-    {id: 104, href: '/admin/room-management/guest', label: 'Guest'},
-    {id: 105, href: '/admin/room-management/housekeeping-task', label: 'Housekeeping Task'}
+  {id: 8, href: "/admin/inventory-management", label: "Inventory Management", icon: <FcList /> ,  subLink: [
+    {id: 801, href: '/admin/inventory-management/inventory-item', label: 'Inventory Item'}, 
+    {id: 802, href: '/admin/inventory-management/inventory-transaction', label: 'Inventory Transaction'},
+    {id: 803, href: '/admin/inventory-management/supplier', label: 'Supplier'}, 
   ]},
+  {id: 9, href: "/admin/room-management", label: "Room Management", icon: <MdOutlineBedroomChild />,  subLink: [
+    {id: 901, href: '/admin/room-management/room-type', label: 'Room Types'}, 
+    {id: 902, href: '/admin/room-management/room', label: 'Room'},
+    {id: 903, href: '/admin/room-management/reservation', label: 'Reservation'}, 
+    {id: 904, href: '/admin/room-management/guest', label: 'Guest'},
+    {id: 905, href: '/admin/room-management/housekeeping-task', label: 'Housekeeping Task'}
+  ]},
+  { id: 10, href: "/#", label: "Billing", icon: <FcPhone /> },
 ];
 
 export default function Navigation() {
@@ -57,7 +60,7 @@ export default function Navigation() {
               
               <Accordion 
                 defaultActiveKey="0" 
-                className='w-full h-12 inline-block lg:hidden'
+                className='w-full h-12 inline-block lg:hidden overflow-y-scroll lg:overflow-y-hidden'
               >
                 {navItems.map(({ id, href, label, icon, subLink }, index) => (
 

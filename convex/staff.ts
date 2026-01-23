@@ -9,6 +9,18 @@ export const getStaff = query({
   }
 });
 
+export const getAllStaffs = query({
+  handler: async (ctx) => {
+    try {
+      const staffs = await ctx.db.query('staffs').collect();
+      return staffs;
+    } catch (error) {
+      console.log(`Failed to fetch staffs: ${error}`);
+      return [];
+    }
+  },
+});
+
 export const createStaff = mutation({
   args: {
     email: v.string(),

@@ -141,7 +141,7 @@ export default defineSchema({
     .index("by_propertyId_expenseDate", ["propertyId", "expenseDate"])
     .index("by_category", ["category"]),
 
-  // Inventory items for stock management
+  // Inventory items for stock management (legacy - keeping for backward compatibility)
   inventory: defineTable({
     propertyId: v.id("properties"),
     itemName: v.string(),
@@ -153,16 +153,109 @@ export default defineSchema({
     .index("by_propertyId", ["propertyId"])
     .index("by_category", ["category"]),
 
-  // Inventory transactions for tracking stock changes
-  inventoryTransactions: defineTable({
-    itemId: v.id("inventory"),
-    transactionType: v.union(v.literal("add"), v.literal("remove")),
-    quantity: v.number(),
-    transactionDate: v.number(),
-    reason: v.optional(v.string()),
+  // ============================================
+  // Inventory Management (New Schema)
+  // ============================================
+
+  inventoryItems: defineTable({
+    propertyId: v.id("properties"),
+    supplierId: v.optional(v.id("suppliers")),
+    sku: v.string(),
+    name: v.string(),
+    category: v.string(),
+    unit: v.string(),
+    currentQuantity: v.number(),
+    reorderPoint: v.optional(v.number()),
+    reorderQuantity: v.optional(v.number()),
+    unitCost: v.optional(v.number()),
+    lastCostUpdate: v.optional(v.number()),
+    location: v.optional(v.string()),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
   })
-    .index("by_itemId", ["itemId"])
-    .index("by_transactionDate", ["transactionDate"]),
+    .index("by_propertyId", ["propertyId"])
+    .index("by_supplierId", ["supplierId"])
+    .index("by_sku", ["sku"])
+    .index("by_propertyId_category", ["propertyId", "category"])
+    .searchIndex("search_inventoryItems", {
+      searchField: "name",
+      filterFields: ["propertyId", "category"],
+    }),
+
+  inventoryTransactions: defineTable({
+    inventoryItemId: v.id("inventoryItems"),
+    transactionType: v.string(), // purchase, usage, adjustment, waste, transfer
+    quantity: v.number(),
+    unitCost: v.optional(v.number()),
+    totalCost: v.optional(v.number()),
+    referenceType: v.optional(v.string()),
+    referenceId: v.optional(v.string()),
+    reason: v.optional(v.string()),
+    performedBy: v.optional(v.id("staffs")),
+    transactionDate: v.number(),
+    createdAt: v.number(),
+  })
+    .index("by_inventoryItemId", ["inventoryItemId"])
+    .index("by_transactionDate", ["transactionDate"])
+    .index("by_referenceType_referenceId", ["referenceType", "referenceId"]),
+
+  suppliers: defineTable({
+    propertyId: v.id("properties"),
+    name: v.string(),
+    contactPerson: v.optional(v.string()),
+    email: v.optional(v.string()),
+    phone: v.optional(v.string()),
+    address: v.optional(v.string()),
+    paymentTerms: v.optional(v.string()),
+    taxId: v.optional(v.string()),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_propertyId_isActive", ["propertyId", "isActive"])
+    .searchIndex("search_suppliers", {
+      searchField: "name",
+      filterFields: ["propertyId"],
+    }),
+
+  purchaseOrders: defineTable({
+    propertyId: v.id("properties"),
+    supplierId: v.id("suppliers"),
+    orderNumber: v.string(),
+    orderDate: v.number(),
+    expectedDeliveryDate: v.optional(v.number()),
+    status: v.string(), // draft, sent, confirmed, received, cancelled
+    subtotal: v.number(),
+    taxAmount: v.number(),
+    shippingAmount: v.optional(v.number()),
+    totalAmount: v.number(),
+    createdBy: v.id("staffs"),
+    approvedBy: v.optional(v.id("staffs")),
+    approvedAt: v.optional(v.number()),
+    receivedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_supplierId", ["supplierId"])
+    .index("by_orderNumber", ["orderNumber"])
+    .index("by_propertyId_status", ["propertyId", "status"])
+    .index("by_propertyId_orderDate", ["propertyId", "orderDate"]),
+
+  purchaseOrderLines: defineTable({
+    purchaseOrderId: v.id("purchaseOrders"),
+    inventoryItemId: v.id("inventoryItems"),
+    quantity: v.number(),
+    unitPrice: v.number(),
+    totalPrice: v.number(),
+    receivedQuantity: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_purchaseOrderId", ["purchaseOrderId"])
+    .index("by_inventoryItemId", ["inventoryItemId"]),
 
   // Debit accounts for managing debts
   debits: defineTable({

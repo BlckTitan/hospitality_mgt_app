@@ -96,7 +96,7 @@ export default function PaginationComponent({collectionName, columns, jointTable
     <>
       <SearchComponent setSearchQuery={setSearchQuery}/>
       {/* Data Table */}
-      {(jointTableData && jointTableData.length > 0) ? (
+      {((jointTableData && jointTableData.length > 0) || collectionName === '') ? (
         <TableComponent data={jointTableData} columns={columns}/>
       ) : (
         <TableComponent data={currentData} columns={columns}/>
