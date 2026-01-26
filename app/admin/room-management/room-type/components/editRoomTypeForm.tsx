@@ -197,7 +197,7 @@ export function EditFormComponent({ roomTypeData, onSuccess, onClose, roomTypeId
         <Button variant="secondary" onClick={onClose}>
           Cancel
         </Button>
-        <Button variant="primary" type="submit">
+        <Button variant="dark" type="submit">
           Update Room Type
         </Button>
       </div>

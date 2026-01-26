@@ -272,7 +272,7 @@ export function EditInventoryTransactionForm({ transactionData, transactionId, o
         <Button variant="secondary" onClick={onClose}>
           Cancel
         </Button>
-        <Button variant="primary" type="submit">
+        <Button variant="dark" type="submit">
           Update Transaction
         </Button>
       </div>

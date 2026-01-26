@@ -152,7 +152,7 @@ export function FormComponent({
         <Button variant="secondary" onClick={() => window.location.href = '/admin/userRole'}>
           Cancel
         </Button>
-        <Button variant="primary" type="submit">
+        <Button variant="dark" type="submit">
           Update Role Assignment
         </Button>
       </div>

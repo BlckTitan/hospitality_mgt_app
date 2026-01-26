@@ -254,7 +254,7 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
         <Button variant="secondary" onClick={onClose}>
           Cancel
         </Button>
-        <Button variant="primary" type="submit">
+        <Button variant="dark" type="submit">
           Create Transaction
         </Button>
       </div>

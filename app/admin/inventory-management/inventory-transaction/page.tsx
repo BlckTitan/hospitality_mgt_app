@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Button } from 'react-bootstrap';
 import { FcPlus } from 'react-icons/fc';
 import InventoryTransactions from './components/inventoryTransactions';

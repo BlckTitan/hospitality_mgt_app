@@ -12,7 +12,7 @@ const navLinks = [
   {id: 2, href: "/admin/property", label: "Properties", icon: <FcDepartment /> },
   {id: 3, href: "/admin/user", label: "Users", icon: <FcManager />, subLink: [{id: 21, href: '/admin/role', label: 'Role'}, {id: 22, href: '/admin/userRole', label: 'User role'}]},
   {id: 4, href: "/#", label: "Sales", icon: <FcCurrencyExchange /> },
-  {id: 5, href: "/#", label: "Expense Tracker", icon: <FcMoneyTransfer /> },
+  {id: 5, href: "/#", label: "Expenditure", icon: <FcMoneyTransfer /> },
   {id: 6, href: "/#", label: "Report and Analytics", icon: <FcSalesPerformance /> },
   {id: 7, href: "/admin/staff", label: "Staff", icon: <FcConferenceCall /> },
   {id: 8, href: "/admin/inventory-management", label: "Inventory Management", icon: <FcList /> ,  subLink: [
@@ -27,6 +27,7 @@ const navLinks = [
     {id: 904, href: '/admin/room-management/guest', label: 'Guest'},
     {id: 905, href: '/admin/room-management/housekeeping-task', label: 'Housekeeping Task'}
   ]},
+  { id: 10, href: "/#", label: "Billing", icon: <FcPhone /> },
 ];
 export default function Sidebar() {
   

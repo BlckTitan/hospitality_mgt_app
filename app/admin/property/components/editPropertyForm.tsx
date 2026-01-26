@@ -178,7 +178,7 @@ export function FormComponent(/*{ onSuccess, onClose }: { onSuccess: () => void;
           <Button variant="secondary" /*onClick={onClose}*/>
             Cancel
           </Button>
-          <Button variant="primary" type="submit">
+          <Button variant="dark" type="submit">
             Edit Property
           </Button>
         </div>

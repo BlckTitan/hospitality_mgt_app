@@ -18,8 +18,9 @@ const navItems = [
   { id: 2, href: "/admin/property", label: "Properties", icon: <FcDepartment /> },
   { id: 3, href: "/admin/user", label: "Users", icon: <FcManager />, subLink: [{href: '/admin/role', label: 'Role'}, {href: '/admin/userRole', label: 'User role'}] },
   { id: 4, href: "/#", label: "Sales", icon: <FcCurrencyExchange /> },
-  { id: 5, href: "/#", label: "Expenditure", icon: <FcMoneyTransfer /> },
+  { id: 5, href: "/#", label: "Expense Tracker", icon: <FcMoneyTransfer /> },
   { id: 6, href: "/#", label: "Report and Analytics", icon: <FcSalesPerformance /> },
+  {id: 7, href: "/admin/staff", label: "Staff", icon: <FcConferenceCall /> },
   {id: 8, href: "/admin/inventory-management", label: "Inventory Management", icon: <FcList /> ,  subLink: [
     {id: 801, href: '/admin/inventory-management/inventory-item', label: 'Inventory Item'}, 
     {id: 802, href: '/admin/inventory-management/inventory-transaction', label: 'Inventory Transaction'},

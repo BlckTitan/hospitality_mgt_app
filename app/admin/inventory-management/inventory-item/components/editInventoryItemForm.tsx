@@ -275,7 +275,7 @@ export function EditInventoryItemForm({ inventoryItemData, inventoryItemId, onSu
         <Button variant="secondary" onClick={onClose}>
           Cancel
         </Button>
-        <Button variant="primary" type="submit">
+        <Button variant="dark" type="submit">
           Update Inventory Item
         </Button>
       </div>

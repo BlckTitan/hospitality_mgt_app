@@ -177,7 +177,7 @@ export function EditSupplierForm({ supplierData, supplierId, onSuccess, onClose 
         <Button variant="secondary" onClick={onClose}>
           Cancel
         </Button>
-        <Button variant="primary" type="submit">
+        <Button variant="dark" type="submit">
           Update Supplier
         </Button>
       </div>

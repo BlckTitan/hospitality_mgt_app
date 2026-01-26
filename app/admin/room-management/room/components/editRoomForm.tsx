@@ -180,7 +180,7 @@ export function EditRoomForm({ roomData, roomId, onSuccess, onClose }: EditRoomF
         <Button variant="secondary" onClick={onClose}>
           Cancel
         </Button>
-        <Button variant="primary" type="submit">
+        <Button variant="dark" type="submit">
           Update Room
         </Button>
       </div>
