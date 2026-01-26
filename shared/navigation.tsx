@@ -49,8 +49,8 @@ export default function Navigation() {
             <NavbarToggle aria-controls="basic-navbar-nav relative" />
           </div>
           
-          <NavbarCollapse id="basic-navbar-nav" className='right-0 top-14 w-full lg:w-auto h-fit absolute lg:static border-b border-t lg:border-0 bg-white overflow-y-scroll lg:overflow-y-hidden'>
-            <Nav className="w-full lg:w-fit h-screen flex flex-col items-start lg:flex-row lg:items-center lg:justify-evenly me-auto">
+          <NavbarCollapse id="basic-navbar-nav" className='right-0 top-14 w-full lg:w-auto h-fit absolute lg:static border-b border-t lg:border-0 bg-white overflow-y-scroll lg:!overflow-hidden'>
+            <Nav className="w-full lg:w-fit h-screen lg:h-fit flex flex-col items-start lg:flex-row lg:items-center lg:justify-evenly me-auto">
 
               <NavLink href="/#" className='py-2 px-4'>
                 <SignedIn>
