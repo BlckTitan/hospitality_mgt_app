@@ -24,7 +24,9 @@ const navItems = [
   {id: 8, href: "/admin/inventory-management", label: "Inventory Management", icon: <FcList /> ,  subLink: [
     {id: 801, href: '/admin/inventory-management/inventory-item', label: 'Inventory Item'}, 
     {id: 802, href: '/admin/inventory-management/inventory-transaction', label: 'Inventory Transaction'},
-    {id: 803, href: '/admin/inventory-management/supplier', label: 'Supplier'}, 
+    {id: 803, href: '/admin/inventory-management/supplier', label: 'Supplier'},
+    {id: 804, href: '/admin/inventory-management/purchase-order', label: 'Purchase Order'}, 
+    {id: 805, href: '/admin/inventory-management/purchase-order-line', label: 'Purchase Order Line'}, 
   ]},
   {id: 9, href: "/admin/room-management", label: "Room Management", icon: <MdOutlineBedroomChild />,  subLink: [
     {id: 901, href: '/admin/room-management/room-type', label: 'Room Types'}, 

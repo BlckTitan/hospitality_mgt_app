@@ -245,6 +245,7 @@ export default defineSchema({
     .index("by_propertyId_orderDate", ["propertyId", "orderDate"]),
 
   purchaseOrderLines: defineTable({
+    propertyId: v.id("properties"),
     purchaseOrderId: v.id("purchaseOrders"),
     inventoryItemId: v.id("inventoryItems"),
     quantity: v.number(),
@@ -254,6 +255,7 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
   })
+    .index("by_propertyId", ["propertyId"])
     .index("by_purchaseOrderId", ["purchaseOrderId"])
     .index("by_inventoryItemId", ["inventoryItemId"]),
 
