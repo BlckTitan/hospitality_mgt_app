@@ -24,7 +24,7 @@ interface PurchaseOrderLineProps {
 }
 
 const PurchaseOrderLines = ({ currentPropertyId }: { currentPropertyId: Id<"properties"> }) => {
-  const purchaseOrderLinesResponse = useQuery(api.purchaseOrderLines.getAllPurchaseOrderLines, { propertyId: currentPropertyId });
+  const purchaseOrderLinesResponse = useQuery(api.purchaseOrderLines.getAllPurchaseOrderLines, currentPropertyId ? { propertyId: currentPropertyId } : "skip");
   const removePurchaseOrderLine = useMutation(api.purchaseOrderLines.deletePurchaseOrderLine);
 
   const handleDelete = async (id: string) => {

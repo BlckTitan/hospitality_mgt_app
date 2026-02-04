@@ -406,4 +406,29 @@ export default defineSchema({
     .index("by_assignedTo", ["assignedTo"])
     .index("by_propertyId_status", ["propertyId", "status"])
     .index("by_propertyId_priority", ["propertyId", "priority"]),
+
+  // Food & Beverage Menu Items
+  fnbMenuItems: defineTable({
+    propertyId: v.id("properties"),
+    name: v.string(),
+    description: v.optional(v.string()),
+    category: v.string(), // appetizer, main, dessert, beverage, etc.
+    subcategory: v.optional(v.string()), // alcoholic, non-alcoholic, etc.
+    price: v.number(),
+    cost: v.optional(v.number()),
+    isAvailable: v.boolean(),
+    imageUrl: v.optional(v.string()),
+    preparationTime: v.optional(v.number()), // in minutes
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_category", ["category"])
+    .index("by_propertyId_category", ["propertyId", "category"])
+    .index("by_propertyId_isActive", ["propertyId", "isActive"])
+    .searchIndex("search_fnbMenuItems", {
+      searchField: "name",
+      filterFields: ["propertyId", "category"],
+    }),
 });

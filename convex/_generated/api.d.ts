@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as fnbMenuItems from "../fnbMenuItems.js";
 import type * as functions_paginated from "../functions/paginated.js";
 import type * as guests from "../guests.js";
 import type * as housekeepingTasks from "../housekeepingTasks.js";
@@ -35,6 +36,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  fnbMenuItems: typeof fnbMenuItems;
   "functions/paginated": typeof functions_paginated;
   guests: typeof guests;
   housekeepingTasks: typeof housekeepingTasks;
