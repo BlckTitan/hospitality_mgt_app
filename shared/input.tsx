@@ -10,6 +10,10 @@ interface FormInputProps{
     error?: FieldError
     type: string
     placeholder?: string
+    options?: {
+        value: string;
+        label: string;
+    }[]
 }
 
 export default function InputComponent({id, register, label, type, inputWidth, error, placeholder}: FormInputProps) {

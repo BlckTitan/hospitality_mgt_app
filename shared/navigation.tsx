@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation';
 import React from 'react'
 import { Accordion, Card, Nav, Navbar, NavbarBrand, NavbarCollapse, NavbarToggle, NavLink, useAccordionButton } from 'react-bootstrap'
 import { FcPhone, FcSalesPerformance , FcConferenceCall, FcMoneyTransfer , FcList, FcCurrencyExchange, FcDepartment, FcManager } from "react-icons/fc";
+import { IoFastFoodOutline } from "react-icons/io5";
 import { MdOutlineBedroomChild } from 'react-icons/md';
 import { RxDashboard, RxCaretDown } from "react-icons/rx";
 
@@ -17,7 +18,9 @@ const navItems = [
   { id: 1, href: "/admin/dashboard", label: "Dashboard", icon: <RxDashboard className='text-blue-500'/> },
   { id: 2, href: "/admin/property", label: "Properties", icon: <FcDepartment /> },
   { id: 3, href: "/admin/user", label: "Users", icon: <FcManager />, subLink: [{href: '/admin/role', label: 'Role'}, {href: '/admin/userRole', label: 'User role'}] },
-  { id: 4, href: "/#", label: "Sales", icon: <FcCurrencyExchange /> },
+  { id: 4, href: "/admin/food-n-beverage", label: "Food and Beverage", icon: <IoFastFoodOutline className='!text-brown-600'/>,  subLink: [
+    { id: 401, href: '/admin/food-n-beverage/fnb-menu-item', label: 'Food and Beverage Menu Item'}, 
+  ]},
   { id: 5, href: "/#", label: "Expense Tracker", icon: <FcMoneyTransfer /> },
   { id: 6, href: "/#", label: "Report and Analytics", icon: <FcSalesPerformance /> },
   {id: 7, href: "/admin/staff", label: "Staff", icon: <FcConferenceCall /> },
@@ -43,7 +46,7 @@ export default function Navigation() {
   const path = usePathname()
     
   return (
-    <nav className="w-full h-14 flex items-center fixed top-0 main_nav z-10 shadow-blue-100 shadow-sm">
+    <nav className="w-full h-14 flex items-center fixed top-0 main_nav lg:z-10 shadow-blue-100 shadow-sm">
       <Navbar expand="lg" className='w-full h-full flex items-center px-4 lg:px-16 bg-white rounded-none'>
         <div className='w-full h-full flex justify-between items-center'>
           

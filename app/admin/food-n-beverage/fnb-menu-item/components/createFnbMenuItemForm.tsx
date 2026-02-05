@@ -140,7 +140,7 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess?: 
           label='Price *'
           type='number'
           inputWidth='w-1/2'
-          step='0.01'
+          // step='0.01'
           placeholder='0.00'
           register={register('price', { required: true, valueAsNumber: true })}
           error={errors.price}
@@ -151,7 +151,7 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess?: 
           label='Cost'
           type='number'
           inputWidth='w-1/2'
-          step='0.01'
+          // step='0.01'
           placeholder='0.00'
           register={register('cost', { valueAsNumber: true })}
           error={errors.cost}
@@ -187,36 +187,36 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess?: 
           error={errors.preparationTime}
         />
 
-        <InputComponent
-          id='isAvailable'
-          label='Available'
-          type='select'
-          inputWidth='w-1/2'
-          register={register('isAvailable')}
-          options={[
-            { value: 'true', label: 'Yes' },
-            { value: 'false', label: 'No' }
-          ]}
-          error={errors.isAvailable}
-        />
+        <div className='w-1/2'>
+          <label htmlFor='isAvailable'>Available</label>
+          <select
+            id='isAvailable'
+            {...register('isAvailable')}
+            className='block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500'
+          >
+            <option value='true'>Yes</option>
+            <option value='false'>No</option>
+          </select>
+          {errors.isAvailable && <span className='text-red-500 text-sm'>{errors.isAvailable.message}</span>}
+        </div>
       </div>
 
       <div
         className='w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-1 
         [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4'
       >
-        <InputComponent
-          id='isActive'
-          label='Status'
-          type='select'
-          inputWidth='w-full'
-          register={register('isActive')}
-          options={[
-            { value: 'true', label: 'Active' },
-            { value: 'false', label: 'Inactive' }
-          ]}
-          error={errors.isActive}
-        />
+        <div className='w-full'>
+          <label htmlFor='isActive'>Status</label>
+          <select
+            id='isActive'
+            {...register('isActive')}
+            className='block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500'
+          >
+            <option value='true'>Active</option>
+            <option value='false'>Inactive</option>
+          </select>
+          {errors.isActive && <span className='text-red-500 text-sm'>{errors.isActive.message}</span>}
+        </div>
       </div>
 
       <Modal.Footer>

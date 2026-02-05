@@ -1,9 +1,9 @@
 'use client'
 
 import { usePathname } from 'next/navigation';
-import React from 'react'
 import { Dropdown } from 'react-bootstrap';
-import { FcConferenceCall, FcCurrencyExchange, FcDepartment, FcList, FcManager, FcMoneyTransfer, FcPhone, FcSalesPerformance } from "react-icons/fc";
+import { FcConferenceCall, FcDepartment, FcList, FcManager, FcMoneyTransfer, FcPhone, FcSalesPerformance } from "react-icons/fc";
+import { IoFastFoodOutline } from "react-icons/io5";
 import { MdOutlineBedroomChild } from 'react-icons/md';
 import { RxDashboard } from "react-icons/rx";
 
@@ -11,7 +11,9 @@ const navLinks = [
   {id: 1, href: "/admin/dashboard", label: "Dashboard", icon: <RxDashboard className='text-blue-500'/> },
   {id: 2, href: "/admin/property", label: "Properties", icon: <FcDepartment /> },
   {id: 3, href: "/admin/user", label: "Users", icon: <FcManager />, subLink: [{id: 21, href: '/admin/role', label: 'Role'}, {id: 22, href: '/admin/userRole', label: 'User role'}]},
-  {id: 4, href: "/#", label: "Sales", icon: <FcCurrencyExchange /> },
+  {id: 4, href: "/admin/food-n-beverage", label: "Food and Beverage", icon: <IoFastFoodOutline className='!text-green-600'/>,  subLink: [
+  {id: 401, href: '/admin/food-n-beverage/fnb-menu-item', label: 'Food and Beverage Menu Item'}, 
+  ]},
   {id: 5, href: "/#", label: "Expenditure", icon: <FcMoneyTransfer /> },
   {id: 6, href: "/#", label: "Report and Analytics", icon: <FcSalesPerformance /> },
   {id: 7, href: "/admin/staff", label: "Staff", icon: <FcConferenceCall /> },
