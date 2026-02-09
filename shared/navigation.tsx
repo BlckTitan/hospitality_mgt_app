@@ -46,7 +46,7 @@ export default function Navigation() {
   const path = usePathname()
     
   return (
-    <nav className="w-full h-14 flex items-center fixed top-0 main_nav lg:z-10 shadow-blue-100 shadow-sm">
+    <nav className="w-full h-14 flex items-center fixed top-0 main_nav z-10 shadow-blue-100 shadow-sm">
       <Navbar expand="lg" className='w-full h-full flex items-center px-4 lg:px-16 bg-white rounded-none'>
         <div className='w-full h-full flex justify-between items-center'>
           
