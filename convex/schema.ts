@@ -431,4 +431,34 @@ export default defineSchema({
       searchField: "name",
       filterFields: ["propertyId", "category"],
     }),
+
+  // Recipes for menu items
+  recipes: defineTable({
+    menuItemId: v.id("fnbMenuItems"),
+    name: v.string(),
+    servings: v.optional(v.number()),
+    instructions: v.optional(v.string()),
+    totalCost: v.optional(v.number()),
+    lastCalculatedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_menuItemId", ["menuItemId"])
+    .searchIndex("search_recipes", {
+      searchField: "name",
+      filterFields: ["menuItemId"],
+    }),
+
+  // Recipe lines - ingredients for recipes
+  recipeLines: defineTable({
+    recipeId: v.id("recipes"),
+    inventoryItemId: v.id("inventoryItems"),
+    quantity: v.number(),
+    unit: v.string(),
+    wastePercent: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_recipeId", ["recipeId"])
+    .index("by_inventoryItemId", ["inventoryItemId"]),
 });

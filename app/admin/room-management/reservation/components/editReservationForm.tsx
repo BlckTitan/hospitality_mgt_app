@@ -1,7 +1,5 @@
-'use client';
-
 import { useMutation, useQuery } from "convex/react";
-import { Button } from "react-bootstrap";
+import { Button, Modal } from "react-bootstrap";
 import { api } from "../../../../../convex/_generated/api";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { formSchema } from "./validation";
@@ -161,152 +159,164 @@ export function FormComponent({
   }));
 
   return (
-    <>
-      <form onSubmit={handleSubmit(onSubmit)} className='mt-4'>
-        <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-start gap-2 mb-2 lg:mb-4">
-          <div className="flex-1">
-            <label htmlFor="roomId" className="block mb-2">Room *</label>
-            <select
-              id="roomId"
-              {...register('roomId', { required: true })}
-              className="w-full border rounded p-2"
-            >
-              {roomOptions.map((option) => (
-                <option key={option.value} value={option.value} selected={option.value === roomId}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            {errors.roomId && <span className="text-red-500 text-sm">{errors.roomId.message}</span>}
-          </div>
+    <form onSubmit={handleSubmit(onSubmit)} className='editReservationForm'>
+      <div
+        className='w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-1 
+        [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4'
+      >
+        <div className="w-full">
+          <label htmlFor="roomId" className="block text-sm font-medium mb-1">Room *</label>
+          <select
+            id="roomId"
+            {...register('roomId', { required: true })}
+            className="w-full border rounded p-2"
+          >
+            {roomOptions.map((option) => (
+              <option key={option.value} value={option.value} selected={option.value === roomId}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          {errors.roomId && <span className="text-red-500 text-sm">{errors.roomId.message}</span>}
         </div>
+      </div>
 
-        <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-start gap-2 mb-2 lg:mb-4">
-          <div className="flex-1">
-            <InputComponent
-              id="checkInDate"
-              label="Check-in Date *"
-              type="date"
-              inputWidth="w-full"
-              register={register('checkInDate', { required: true })}
-              error={errors.checkInDate}
-            />
-          </div>
-          <div className="flex-1">
-            <InputComponent
-              id="checkOutDate"
-              label="Check-out Date *"
-              type="date"
-              inputWidth="w-full"
-              register={register('checkOutDate', { required: true })}
-              error={errors.checkOutDate}
-            />
-          </div>
+      <div
+        className='w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-1 
+        [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4'
+      >
+        <InputComponent
+          id='checkInDate'
+          label='Check-in Date *'
+          type='date'
+          inputWidth='w-1/2'
+          register={register('checkInDate', { required: true })}
+          error={errors.checkInDate}
+        />
+
+        <InputComponent
+          id='checkOutDate'
+          label='Check-out Date *'
+          type='date'
+          inputWidth='w-1/2'
+          register={register('checkOutDate', { required: true })}
+          error={errors.checkOutDate}
+        />
+      </div>
+
+      {nights > 0 && (
+        <div className="w-full mb-4 p-2 bg-blue-50 rounded">
+          <p className="text-sm text-gray-700">
+            <strong>Nights:</strong> {nights} | <strong>Rate per night:</strong> ${watchRate.toFixed(2)} | <strong>Total:</strong> ${calculatedTotal.toFixed(2)}
+          </p>
         </div>
+      )}
 
-        {nights > 0 && (
-          <div className="w-full mb-4 p-2 bg-blue-50 rounded">
-            <p className="text-sm text-gray-700">
-              <strong>Nights:</strong> {nights} | <strong>Rate per night:</strong> ${watchRate.toFixed(2)} | <strong>Total:</strong> ${calculatedTotal.toFixed(2)}
-            </p>
-          </div>
-        )}
+      <div
+        className='w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-1 
+        [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4'
+      >
+        <InputComponent
+          id='numberOfGuests'
+          label='Number of Guests *'
+          type='number'
+          inputWidth='w-1/2'
+          register={register('numberOfGuests', { valueAsNumber: true, required: true })}
+          error={errors.numberOfGuests}
+        />
 
-        <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-start gap-2 mb-2 lg:mb-4">
-          <div className="flex-1">
-            <InputComponent
-              id="numberOfGuests"
-              label="Number of Guests *"
-              type="number"
-              inputWidth="w-full"
-              register={register('numberOfGuests', { valueAsNumber: true, required: true })}
-              error={errors.numberOfGuests}
-            />
-          </div>
-          <div className="flex-1">
-            <InputComponent
-              id="rate"
-              label="Rate per Night *"
-              type="number"
-              inputWidth="w-full"
-              register={register('rate', { valueAsNumber: true, required: true })}
-              error={errors.rate}
-            />
-          </div>
+        <InputComponent
+          id='rate'
+          label='Rate per Night *'
+          type='number'
+          inputWidth='w-1/2'
+          register={register('rate', { valueAsNumber: true, required: true })}
+          error={errors.rate}
+        />
+      </div>
+
+      <div
+        className='w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-1 
+        [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4'
+      >
+        <InputComponent
+          id='totalAmount'
+          label='Total Amount *'
+          type='number'
+          inputWidth='w-1/2'
+          register={register('totalAmount', { valueAsNumber: true, required: true })}
+          error={errors.totalAmount}
+        />
+
+        <InputComponent
+          id='depositAmount'
+          label='Deposit Amount'
+          type='number'
+          inputWidth='w-1/2'
+          register={register('depositAmount', { valueAsNumber: true })}
+          error={errors.depositAmount}
+        />
+      </div>
+
+      <div
+        className='w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-1 
+        [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4'
+      >
+        <div className="flex-1">
+          <label htmlFor="status" className="block text-sm font-medium mb-1">Status *</label>
+          <select
+            id="status"
+            {...register('status', { required: true })}
+            className="w-full border rounded p-2"
+          >
+            {statusOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          {errors.status && <span className="text-red-500 text-sm">{errors.status.message}</span>}
         </div>
-
-        <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-start gap-2 mb-2 lg:mb-4">
-          <div className="flex-1">
-            <InputComponent
-              id="totalAmount"
-              label="Total Amount *"
-              type="number"
-              inputWidth="w-full"
-              register={register('totalAmount', { valueAsNumber: true, required: true })}
-              error={errors.totalAmount}
-            />
-          </div>
-          <div className="flex-1">
-            <InputComponent
-              id="depositAmount"
-              label="Deposit Amount"
-              type="number"
-              inputWidth="w-full"
-              register={register('depositAmount', { valueAsNumber: true })}
-              error={errors.depositAmount}
-            />
-          </div>
+        <div className="flex-1">
+          <label htmlFor="source" className="block text-sm font-medium mb-1">Booking Source</label>
+          <select
+            id="source"
+            {...register('source')}
+            className="w-full border rounded p-2"
+          >
+            {sourceOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          {errors.source && <span className="text-red-500 text-sm">{errors.source.message}</span>}
         </div>
+      </div>
 
-        <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-start gap-2 mb-2 lg:mb-4">
-          <div className="flex-1">
-            <label htmlFor="status" className="block mb-2">Status *</label>
-            <select
-              id="status"
-              {...register('status', { required: true })}
-              className="w-full border rounded p-2"
-            >
-              {statusOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            {errors.status && <span className="text-red-500 text-sm">{errors.status.message}</span>}
-          </div>
-          <div className="flex-1">
-            <label htmlFor="source" className="block mb-2">Booking Source</label>
-            <select
-              id="source"
-              {...register('source')}
-              className="w-full border rounded p-2"
-            >
-              {sourceOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            {errors.source && <span className="text-red-500 text-sm">{errors.source.message}</span>}
-          </div>
+      <div
+        className='w-full h-fit flex flex-col lg:flex-row lg:justify-start lg:items-center gap-1 
+        [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4'
+      >
+        <div className="w-full">
+          <label htmlFor="specialRequests" className="block text-sm font-medium mb-1">Special Requests</label>
+          <textarea
+            id="specialRequests"
+            {...register('specialRequests')}
+            rows={3}
+            className="w-full border rounded p-2"
+            placeholder="Enter special requests or notes (optional)"
+          />
+          {errors.specialRequests && <span className="text-red-500 text-sm">{errors.specialRequests.message}</span>}
         </div>
+      </div>
 
-        <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-start lg:items-center gap-1 [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4">
-          <div className="w-full">
-            <label htmlFor="specialRequests">Special Requests</label>
-            <textarea
-              id="specialRequests"
-              {...register('specialRequests')}
-              rows={3}
-              className="w-full border rounded p-2"
-              placeholder="Enter special requests or notes (optional)"
-            />
-            {errors.specialRequests && <span className="text-red-500 text-sm">{errors.specialRequests.message}</span>}
-          </div>
-        </div>
-
+      <Modal.Footer>
+        <Button variant="secondary" onClick={() => window.history.back()}>
+          Cancel
+        </Button>
         <Button type="submit" variant='dark'>Submit</Button>
-      </form>
-    </>
+      </Modal.Footer>
+    </form>
   );
 }

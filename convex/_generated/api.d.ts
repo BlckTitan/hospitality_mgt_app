@@ -19,6 +19,7 @@ import type * as property from "../property.js";
 import type * as purchaseOrderLines from "../purchaseOrderLines.js";
 import type * as purchaseOrders from "../purchaseOrders.js";
 import type * as ratePlans from "../ratePlans.js";
+import type * as recipes from "../recipes.js";
 import type * as reservations from "../reservations.js";
 import type * as roles from "../roles.js";
 import type * as roomTypes from "../roomTypes.js";
@@ -47,6 +48,7 @@ declare const fullApi: ApiFromModules<{
   purchaseOrderLines: typeof purchaseOrderLines;
   purchaseOrders: typeof purchaseOrders;
   ratePlans: typeof ratePlans;
+  recipes: typeof recipes;
   reservations: typeof reservations;
   roles: typeof roles;
   roomTypes: typeof roomTypes;

@@ -1,11 +1,9 @@
-'use client';
-
 import { useMutation, useQuery } from "convex/react";
 import { SubmitHandler, useForm } from "react-hook-form";
 import { formSchema } from "./validation";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { toast } from "sonner";
-import { Button } from "react-bootstrap";
+import { Button, Modal } from "react-bootstrap";
 import InputComponent from "../../../../../shared/input";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { api } from "../../../../../convex/_generated/api";
@@ -154,10 +152,13 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
   }));
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="createReservationForm">
-      <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-start gap-2 mb-2 lg:mb-4">
+    <form onSubmit={handleSubmit(onSubmit)} className='createReservationForm'>
+      <div
+        className='w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-1 
+        [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4'
+      >
         <div className="flex-1">
-          <label htmlFor="guestId" className="block mb-2">Guest *</label>
+          <label htmlFor="guestId" className="block text-sm font-medium mb-1">Guest *</label>
           <select
             id="guestId"
             {...register('guestId', { required: true })}
@@ -174,7 +175,7 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
           {errors.guestId && <span className="text-red-500 text-sm">{errors.guestId.message}</span>}
         </div>
         <div className="flex-1">
-          <label htmlFor="roomId" className="block mb-2">Room *</label>
+          <label htmlFor="roomId" className="block text-sm font-medium mb-1">Room *</label>
           <select
             id="roomId"
             {...register('roomId', { required: true })}
@@ -192,86 +193,89 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
         </div>
       </div>
 
-      <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-start gap-2 mb-2 lg:mb-4">
-        <div className="flex-1">
-          <InputComponent
-            id="checkInDate"
-            label="Check-in Date *"
-            type="date"
-            inputWidth="w-full"
-            register={register('checkInDate', { required: true })}
-            error={errors.checkInDate}
-          />
-        </div>
-        <div className="flex-1">
-          <InputComponent
-            id="checkOutDate"
-            label="Check-out Date *"
-            type="date"
-            inputWidth="w-full"
-            register={register('checkOutDate', { required: true })}
-            error={errors.checkOutDate}
-          />
-        </div>
+      <div
+        className='w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-1 
+        [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4'
+      >
+        <InputComponent
+          id='checkInDate'
+          label='Check-in Date *'
+          type='date'
+          inputWidth='w-1/2'
+          register={register('checkInDate', { required: true })}
+          error={errors.checkInDate}
+        />
+
+        <InputComponent
+          id='checkOutDate'
+          label='Check-out Date *'
+          type='date'
+          inputWidth='w-1/2'
+          register={register('checkOutDate', { required: true })}
+          error={errors.checkOutDate}
+        />
       </div>
 
       {nights > 0 && (
         <div className="w-full mb-4 p-2 bg-blue-50 rounded">
           <p className="text-sm text-gray-700">
-            <strong>Nights:</strong> {nights} | <strong>Rate per night:</strong> {watchRate.toFixed(2)} | <strong>Total:</strong> {calculatedTotal.toFixed(2)}
+            <strong>Nights:</strong> {nights} | <strong>Rate per night:</strong> ${watchRate.toFixed(2)} | <strong>Total:</strong> ${calculatedTotal.toFixed(2)}
           </p>
         </div>
       )}
 
-      <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-start gap-2 mb-2 lg:mb-4">
-        <div className="flex-1">
-          <InputComponent
-            id="numberOfGuests"
-            label="Number of Guests *"
-            type="number"
-            inputWidth="w-full"
-            register={register('numberOfGuests', { valueAsNumber: true, required: true })}
-            error={errors.numberOfGuests}
-          />
-        </div>
-        <div className="flex-1">
-          <InputComponent
-            id="rate"
-            label="Rate per Night *"
-            type="number"
-            inputWidth="w-full"
-            register={register('rate', { valueAsNumber: true, required: true })}
-            error={errors.rate}
-          />
-        </div>
+      <div
+        className='w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-1 
+        [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4'
+      >
+        <InputComponent
+          id='numberOfGuests'
+          label='Number of Guests *'
+          type='number'
+          inputWidth='w-1/2'
+          register={register('numberOfGuests', { valueAsNumber: true, required: true })}
+          error={errors.numberOfGuests}
+        />
+
+        <InputComponent
+          id='rate'
+          label='Rate per Night *'
+          type='number'
+          inputWidth='w-1/2'
+          register={register('rate', { valueAsNumber: true, required: true })}
+          error={errors.rate}
+        />
       </div>
 
-      <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-start gap-2 mb-2 lg:mb-4">
-        <div className="flex-1">
-          <InputComponent
-            id="totalAmount"
-            label="Total Amount *"
-            type="number"
-            inputWidth="w-full"
-            register={register('totalAmount', { valueAsNumber: true, required: true })}
-            error={errors.totalAmount}
-          />
-        </div>
-        <div className="flex-1">
-          <InputComponent
-            id="depositAmount"
-            label="Deposit Amount"
-            type="number"
-            inputWidth="w-full"
-            register={register('depositAmount', { valueAsNumber: true })}
-            error={errors.depositAmount}
-          />
-        </div>
+      <div
+        className='w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-1 
+        [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4'
+      >
+        <InputComponent
+          id='totalAmount'
+          label='Total Amount *'
+          type='number'
+          inputWidth='w-1/2'
+          register={register('totalAmount', { valueAsNumber: true, required: true })}
+          error={errors.totalAmount}
+        />
+
+        <InputComponent
+          id='depositAmount'
+          label='Deposit Amount'
+          type='number'
+          inputWidth='w-1/2'
+          register={register('depositAmount', { valueAsNumber: true })}
+          error={errors.depositAmount}
+        />
       </div>
 
-      <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-start gap-2 mb-2 lg:mb-4">
+      <div
+        className='w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-1 
+        [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4'
+      >
         <div className="flex-1">
-          <label htmlFor="status" className="block mb-2">Status *</label>
+          <label htmlFor="status" className="block text-sm font-medium mb-1">Status *</label>
           <select
             id="status"
             {...register('status', { required: true })}
@@ -287,7 +291,7 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
           {errors.status && <span className="text-red-500 text-sm">{errors.status.message}</span>}
         </div>
         <div className="flex-1">
-          <label htmlFor="source" className="block mb-2">Booking Source</label>
+          <label htmlFor="source" className="block text-sm font-medium mb-1">Booking Source</label>
           <select
             id="source"
             {...register('source')}
@@ -304,9 +308,12 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
         </div>
       </div>
 
-      <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-start lg:items-center gap-1 [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4">
+      <div
+        className='w-full h-fit flex flex-col lg:flex-row lg:justify-start lg:items-center gap-1 
+        [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4'
+      >
         <div className="w-full">
-          <label htmlFor="specialRequests">Special Requests</label>
+          <label htmlFor="specialRequests" className="block text-sm font-medium mb-1">Special Requests</label>
           <textarea
             id="specialRequests"
             {...register('specialRequests')}
@@ -318,14 +325,12 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
         </div>
       </div>
 
-      <div className="flex gap-2 justify-end">
+      <Modal.Footer>
         <Button variant="secondary" onClick={onClose}>
           Cancel
         </Button>
-        <Button variant="dark" type="submit">
-          Create Reservation
-        </Button>
-      </div>
+        <Button type="submit" variant='dark'>Submit</Button>
+      </Modal.Footer>
     </form>
   );
 }

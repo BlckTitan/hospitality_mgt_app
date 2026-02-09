@@ -24,6 +24,7 @@ export const getPaginatedData = query({
       v.literal('purchaseOrders'),
       v.literal('purchaseOrderLines'),
       v.literal('fnbMenuItems'),
+      v.literal('recipes'),
     ),
     limit: v.number(), //items per page
     cursor: v.optional(v.string()), //current page cursor
