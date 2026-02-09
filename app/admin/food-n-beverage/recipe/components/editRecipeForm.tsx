@@ -7,7 +7,7 @@ import { api } from '../../../../../convex/_generated/api';
 import InputComponent from '../../../../../shared/input';
 import { Button, Modal } from 'react-bootstrap';
 
-export function FormComponent({ recipe, onSuccess, onClose }: { recipe: any; onSuccess?: () => void; onClose?: () => void }) {
+export function EditFormComponent({ recipe, onSuccess, onClose }: { recipe: any; onSuccess?: () => void; onClose?: () => void }) {
   const updateRecipe = useMutation(api.recipes.updateRecipe);
 
   const {
