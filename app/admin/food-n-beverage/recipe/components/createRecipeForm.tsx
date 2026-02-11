@@ -103,7 +103,7 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess?: 
           type='number'
           inputWidth='w-1/2'
           placeholder='Number of servings'
-          register={register('servings')}
+          register={register('servings', { valueAsNumber: true })}
           error={errors.servings}
         />
       </div>

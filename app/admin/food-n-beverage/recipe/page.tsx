@@ -19,7 +19,6 @@ export default function RecipePage() {
   const properties = propertiesResponse?.data || [];
   const currentPropertyId = propertyId || properties?.[0]?._id || '';
 
-
   return (
     <div className='w-full p-4 bg-white'>
       <header className='w-full border-b flex justify-between items-center'>

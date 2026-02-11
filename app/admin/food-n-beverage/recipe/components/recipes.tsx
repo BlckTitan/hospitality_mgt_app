@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { Suspense } from 'react';
 import { FiTrash2 } from 'react-icons/fi';
 import { MdEditDocument } from 'react-icons/md';
+import { GiCook } from 'react-icons/gi';
 import { Button } from 'react-bootstrap';
 import PaginationComponent from '../../../../../shared/pagination';
 import { api } from '../../../../../convex/_generated/api';
@@ -70,8 +71,16 @@ export function Recipes({ currentPropertyId }: { currentPropertyId: Id<'properti
       render: (value, row) => (
         <div className='flex justify-evenly lg:justify-start items-center gap-1'>
           <a
+            href={`/admin/food-n-beverage/recipe-line?recipe_id=${row._id}`}
+            className='!mr-2 !no-underline !text-green-600 hover:!text-green-700'
+            title='Manage ingredients'
+          >
+            <i className='icon'><GiCook size={20} /></i>
+          </a>
+          <a
             href={`/admin/food-n-beverage/recipe/edit?recipe_id=${row._id}`}
             className='!mr-2 !no-underline !text-amber-400'
+            title='Edit recipe'
           >
             <i className='icon'><MdEditDocument /></i>
           </a>

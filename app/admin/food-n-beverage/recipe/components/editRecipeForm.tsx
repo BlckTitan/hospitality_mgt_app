@@ -1,7 +1,8 @@
 import { useMutation } from 'convex/react';
 import { SubmitHandler, useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
-import { RecipeValidationSchema, RecipeValidationType } from './validation';
+import { RecipeValidationSchema } from './validation';
+import type { RecipeValidationType } from './validation';
 import { toast } from 'sonner';
 import { api } from '../../../../../convex/_generated/api';
 import InputComponent from '../../../../../shared/input';
@@ -71,7 +72,7 @@ export function EditFormComponent({ recipe, onSuccess, onClose }: { recipe: any;
           type='number'
           inputWidth='w-1/2'
           placeholder='Number of servings'
-          register={register('servings')}
+          register={register('servings', { valueAsNumber: true })}
           error={errors.servings}
         />
       </div>
