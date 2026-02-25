@@ -2,14 +2,14 @@
 
 import { useState } from 'react';
 import { Button } from 'react-bootstrap';
-import { FormComponent } from './components/createRecipeForm';
+import { FormComponent } from './components/createTableForm';
 import { useQuery } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 import BootstrapModal from '../../../../shared/modal';
 import { FcPlus } from 'react-icons/fc';
-import { Recipes } from './components/recipes';
+import { Tables } from './components/tables';
 
-export default function RecipePage() {
+export default function TablePage() {
   const [modalShow, setModalShow] = useState(false);
   const [propertyId, setPropertyId] = useState<string>('');
 
@@ -21,7 +21,7 @@ export default function RecipePage() {
   return (
     <div className='w-full p-4 bg-white'>
       <header className='w-full border-b flex justify-between items-center'>
-        <h3>Recipes</h3>
+        <h3>Restaurant Tables</h3>
         <Button
           variant='light'
           className='cursor-pointer'
@@ -32,7 +32,7 @@ export default function RecipePage() {
         </Button>
       </header>
 
-      <Recipes currentPropertyId={currentPropertyId}/>
+      <Tables currentPropertyId={currentPropertyId} />
 
       <ModalComponent
         modalShow={modalShow}
@@ -42,7 +42,6 @@ export default function RecipePage() {
         }}
         propertyId={currentPropertyId}
       />
-
     </div>
   );
 }
@@ -55,7 +54,7 @@ function ModalComponent(props: any) {
         onHide={() => props.setModalShow(false)}
         backdrop='static'
         keyboard={false}
-        heading='Add New Recipe'
+        heading='Add New Table'
         body={
           <FormComponent
             onSuccess={props.onSuccess}

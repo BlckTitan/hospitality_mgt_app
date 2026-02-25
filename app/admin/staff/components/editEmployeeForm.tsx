@@ -190,7 +190,8 @@ export function FormComponent(
             <InputComponent
               id='address' label='Address'
               inputWidth='w-1/3' type='address'
-              register={register("address", { required: true })} error={errors.address}
+              register={register("address", { required: true })} 
+              error={errors.address}
             />
     
           </div>

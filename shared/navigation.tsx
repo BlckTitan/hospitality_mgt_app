@@ -22,6 +22,7 @@ const navItems = [
     { id: 401, href: '/admin/food-n-beverage/fnb-menu-item', label: 'Food and Beverage Menu Item'}, 
     { id: 402, href: '/admin/food-n-beverage/recipe', label: 'Recipe'}, 
     { id: 403, href: '/admin/food-n-beverage/recipe-line', label: 'Recipe Line'},
+    { id: 404, href: '/admin/food-n-beverage/table', label: 'Table'},
   ]},
   { id: 5, href: "/#", label: "Expense Tracker", icon: <FcMoneyTransfer /> },
   { id: 6, href: "/#", label: "Report and Analytics", icon: <FcSalesPerformance /> },

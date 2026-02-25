@@ -461,4 +461,85 @@ export default defineSchema({
   })
     .index("by_recipeId", ["recipeId"])
     .index("by_inventoryItemId", ["inventoryItemId"]),
+
+  // Restaurant Tables - represents physical dining tables
+  tables: defineTable({
+    propertyId: v.id("properties"),
+    tableNumber: v.string(),
+    capacity: v.number(),
+    section: v.optional(v.string()), // e.g., "main hall", "patio", "private"
+    status: v.union(
+      v.literal("available"),
+      v.literal("occupied"),
+      v.literal("reserved"),
+      v.literal("out-of-service")
+    ),
+    currentOrderId: v.optional(v.id("orders")),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_status", ["status"])
+    .index("by_propertyId_status", ["propertyId", "status"])
+    .index("by_section", ["section"])
+    .index("by_tableNumber", ["tableNumber"]),
+
+  // Orders - POS orders (dine-in, takeout, room service, bar)
+  orders: defineTable({
+    propertyId: v.id("properties"),
+    tableId: v.optional(v.id("tables")), // for dine-in orders
+    reservationId: v.optional(v.id("reservations")), // for room service
+    orderType: v.union(
+      v.literal("dine-in"),
+      v.literal("takeout"),
+      v.literal("room-service"),
+      v.literal("bar")
+    ),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("in-progress"),
+      v.literal("ready"),
+      v.literal("completed"),
+      v.literal("cancelled")
+    ),
+    subtotal: v.number(),
+    taxAmount: v.number(),
+    discountAmount: v.optional(v.number()),
+    totalAmount: v.number(),
+    serverId: v.optional(v.id("staffs")), // server/staff taking order
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    completedAt: v.optional(v.number()),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_tableId", ["tableId"])
+    .index("by_reservationId", ["reservationId"])
+    .index("by_status", ["status"])
+    .index("by_serverId", ["serverId"])
+    .index("by_propertyId_status", ["propertyId", "status"])
+    .index("by_propertyId_createdAt", ["propertyId", "createdAt"])
+    .index("by_orderType", ["orderType"]),
+
+  // Order Lines - individual items in an order
+  orderLines: defineTable({
+    orderId: v.id("orders"),
+    menuItemId: v.id("fnbMenuItems"),
+    quantity: v.number(),
+    unitPrice: v.number(),
+    totalPrice: v.number(), // quantity * unitPrice
+    specialInstructions: v.optional(v.string()),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("preparing"),
+      v.literal("ready"),
+      v.literal("served"),
+      v.literal("cancelled")
+    ),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_orderId", ["orderId"])
+    .index("by_menuItemId", ["menuItemId"])
+    .index("by_status", ["status"]),
 });
