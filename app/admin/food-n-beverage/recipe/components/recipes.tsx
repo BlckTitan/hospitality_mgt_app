@@ -1,6 +1,6 @@
 'use client';
 
-import { useMutation } from 'convex/react';
+import { useQuery, useMutation } from 'convex/react';
 import { toast } from 'sonner';
 import { Suspense } from 'react';
 import { FiTrash2 } from 'react-icons/fi';
@@ -15,6 +15,7 @@ import { TableColumn } from '../../../../../shared/table';
 interface RecipeProps {
   _id: string;
   menuItemId: string;
+  propertyId: Id<'properties'>;
   name: string;
   servings?: number;
   instructions: string;
@@ -24,12 +25,16 @@ interface RecipeProps {
 }
 
 export function Recipes({ currentPropertyId }: { currentPropertyId: Id<'properties'> }) {
+  const recipesResponse = useQuery(api.recipes.getAllRecipes, {
+    propertyId: currentPropertyId,
+  });
+  const recipes = recipesResponse?.data || [];
   const deleteRecipe = useMutation(api.recipes.deleteRecipe);
 
   const handleDelete = async (id: string, name: string) => {
     if (!confirm('Are you sure you want to delete recipe: ' + name + '?')) return;
     try {
-      const response = await deleteRecipe({ recipeId: id as any });
+      const response = await deleteRecipe({ recipeId: id as any, propertyId: currentPropertyId });
       if (response.success) {
         toast.success(response.message || 'Recipe deleted successfully');
         setTimeout(() => {
@@ -102,7 +107,11 @@ export function Recipes({ currentPropertyId }: { currentPropertyId: Id<'properti
   return (
     <div className='w-full h-full overflow-x-scroll lg:!overflow-x-hidden'>
       <Suspense>
-        <PaginationComponent collectionName='recipes' columns={tableColumns} />
+        <PaginationComponent 
+          collectionName='recipes' 
+          columns={tableColumns}
+          jointTableData={(recipesResponse?.success === true) && recipes}
+        />
       </Suspense>
     </div>
   );

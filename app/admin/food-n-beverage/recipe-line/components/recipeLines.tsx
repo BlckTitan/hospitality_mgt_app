@@ -1,13 +1,15 @@
 'use client';
 
-import { FcEmptyTrash } from "react-icons/fc";
-import { MdEditDocument } from "react-icons/md";
-import { Button } from "react-bootstrap";
-import { useMutation, useQuery } from "convex/react";
-import { toast } from "sonner";
-import { Id } from "../../../../../convex/_generated/dataModel";
-import { api } from "../../../../../convex/_generated/api";
-import { TableColumn } from "../../../../../shared/table";
+import { useQuery, useMutation } from 'convex/react';
+import { toast } from 'sonner';
+import { Suspense } from 'react';
+import { FcEmptyTrash } from 'react-icons/fc';
+import { MdEditDocument } from 'react-icons/md';
+import { Button } from 'react-bootstrap';
+import PaginationComponent from '../../../../../shared/pagination';
+import { api } from '../../../../../convex/_generated/api';
+import { Id } from '../../../../../convex/_generated/dataModel';
+import { TableColumn } from '../../../../../shared/table';
 
 interface RecipeLineProps {
   _id: string;
@@ -28,17 +30,22 @@ interface RecipeLineProps {
 
 interface RecipeLinesComponentProps {
   recipeId: string;
+  currentPropertyId: string;
   onDelete?: () => void;
 }
 
-const RecipeLines = ({ recipeId, onDelete }: RecipeLinesComponentProps) => {
-  const recipeLineData = useQuery(api.recipes.getAllRecipeLines, { recipeId: recipeId as Id<'recipes'> });
-  const removeRecipeLine = useMutation(api.recipes.deleteRecipeLine);
+const RecipeLines = ({ recipeId, currentPropertyId, onDelete }: RecipeLinesComponentProps) => {
+  const recipeLinesResponse = useQuery(api.recipeLines.getAllRecipeLines, {
+    recipeId: recipeId as Id<'recipes'>,
+    propertyId: currentPropertyId as Id<'properties'>,
+  });
+  const recipeLines = recipeLinesResponse?.data || [];
+  const removeRecipeLine = useMutation(api.recipeLines.deleteRecipeLine);
 
   const handleDelete = async (id: string, ingredientName: string) => {
     if (!confirm(`Are you sure you want to remove ${ingredientName} from this recipe?`)) return;
     try {
-      const response = await removeRecipeLine({ recipeLineId: id as Id<'recipeLines'> });
+      const response = await removeRecipeLine({ recipeLineId: id as Id<'recipeLines'>, propertyId: currentPropertyId as Id<'properties'> });
 
       if (response.success === true) {
         toast.success(response.message);
@@ -51,7 +58,7 @@ const RecipeLines = ({ recipeId, onDelete }: RecipeLinesComponentProps) => {
       }
     } catch (error) {
       console.log(`Failed to delete recipe line! ${error}`);
-      toast.error("Failed to delete recipe ingredient. Please try again.");
+      toast.error('Failed to delete recipe ingredient. Please try again.');
     }
   };
 
@@ -122,40 +129,15 @@ const RecipeLines = ({ recipeId, onDelete }: RecipeLinesComponentProps) => {
     },
   ];
 
-  const recipeLinesData = recipeLineData?.data || [];
-
   return (
-    <div className='w-full'>
-      {recipeLinesData.length === 0 ? (
-        <div className='text-center py-8 text-gray-500'>
-          <p>No ingredients added to this recipe yet.</p>
-        </div>
-      ) : (
-        <div className='w-full overflow-x-auto'>
-          <table className='w-full border-collapse'>
-            <thead>
-              <tr className='bg-gray-100'>
-                {tableColumns.map((col) => (
-                  <th key={col.key} className='border p-2 text-left font-semibold'>
-                    {col.label}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {recipeLinesData.map((row: RecipeLineProps) => (
-                <tr key={row._id} className='border-b hover:bg-gray-50'>
-                  {tableColumns.map((col) => (
-                    <td key={col.key} className='border p-2'>
-                      {col.render ? col.render(row[col.key as keyof RecipeLineProps], row) : String(row[col.key as keyof RecipeLineProps])}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+    <div className='w-full h-full overflow-x-scroll lg:!overflow-x-hidden'>
+      <Suspense>
+        <PaginationComponent 
+          collectionName='recipeLines' 
+          columns={tableColumns}
+          jointTableData={(recipeLinesResponse?.success === true) && recipeLines}
+        />
+      </Suspense>
     </div>
   );
 };

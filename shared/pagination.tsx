@@ -9,6 +9,7 @@ import { yupResolver } from '@hookform/resolvers/yup';
 import { searchFormSchema } from './search-form-validation';
 import { useForm } from 'react-hook-form';
 import { useDebounce } from 'use-debounce';
+import { Id } from '../convex/_generated/dataModel';
 
 interface PaginationProps{
   collectionName: string,

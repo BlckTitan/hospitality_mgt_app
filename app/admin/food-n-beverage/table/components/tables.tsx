@@ -120,7 +120,7 @@ export function Tables(props: any) {
       ),
     },
   ];
-
+  console.log(tables)
   return (
     <div className='w-full h-full overflow-x-scroll lg:!overflow-x-hidden'>
       <PaginationComponent

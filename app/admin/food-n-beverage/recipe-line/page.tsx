@@ -15,6 +15,12 @@ export default function RecipeLinePage() {
   const searchParams = useSearchParams();
   const recipeId = searchParams.get('recipe_id');
   const [modalShow, setModalShow] = useState(false);
+  const [propertyId, setPropertyId] = useState<string>('');
+
+  // Fetch properties to get the current property
+  const propertiesResponse = useQuery(api.property.getAllProperties);
+  const properties = propertiesResponse?.data || [];
+  const currentPropertyId = propertyId || properties?.[0]?._id || '';
 
   const recipeResponse = useQuery(
     api.recipes.getRecipe, 
@@ -88,6 +94,7 @@ export default function RecipeLinePage() {
         <h4 className="mb-4">Ingredients</h4>
         <RecipeLines 
           recipeId={recipeId}
+          currentPropertyId={currentPropertyId}
           onDelete={() => setModalShow(false)}
         />
       </div>
