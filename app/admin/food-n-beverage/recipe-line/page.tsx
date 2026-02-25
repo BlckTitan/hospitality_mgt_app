@@ -24,7 +24,7 @@ export default function RecipeLinePage() {
 
   const recipeResponse = useQuery(
     api.recipes.getRecipe, 
-    recipeId ? { recipeId: recipeId as Id<'recipes'> } : 'skip'
+    recipeId && currentPropertyId ? { recipeId: recipeId as Id<'recipes'>, propertyId: currentPropertyId as Id<'properties'> } : 'skip'
   );
 
   const recipe = recipeResponse?.data;
