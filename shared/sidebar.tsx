@@ -51,22 +51,26 @@ export default function Sidebar() {
           key={id}
         >
           {/* main link */}
-          <a 
-            key={id} 
-            href={href} 
-          >
-            <span>{label}</span>
-            <i className="icon">{icon}</i>
-          </a>
+          {subLink ? (
+            <button className="flex items-center gap-2">
+              <span>{label}</span>
+              <i className="icon">{icon}</i>
+            </button>
+          ) : (
+            <a href={href}>
+              <span>{label}</span>
+              <i className="icon">{icon}</i>
+            </a>
+          )}
 
           {/* dropdown if sublink exists */}
           {
             (
               <Dropdown drop='end'>
                 <Dropdown.Toggle 
-                  key={id}
+                  key={`dropdown-toggle-${id}`}
                   variant="" 
-                  id="dropdown-basic"
+                  id={`dropdown-${id}`}  
                   className={`!border-0 !bg-transparent !shadow-none 
                     focus:!shadow-none focus:!outline-none text-white
                     ${!subLink ? "invisible" : ""}`}
