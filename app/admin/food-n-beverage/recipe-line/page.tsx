@@ -52,6 +52,23 @@ export default function RecipeLinePage() {
     );
   }
 
+  // check if property is loading
+  if (!propertiesResponse?.data) {
+    return (
+      <div className='w-full h-full flex justify-center items-center'>
+        Loading...
+      </div>
+    );
+  }
+
+  if (propertiesResponse.data?.length === 0) {
+    return (
+      <div className='w-full h-full flex justify-center items-center'>
+        <p className='text-xl'>No properties yet!</p>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full p-4 bg-white">
       <header className="w-full border-b flex justify-between items-center mb-4">

@@ -91,6 +91,7 @@ export default function PaginationComponent({collectionName, columns, jointTable
       </div>
     );
   }
+
   
   return (
     //Pagination Buttons
