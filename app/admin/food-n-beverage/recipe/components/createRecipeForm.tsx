@@ -32,6 +32,8 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess?: 
   const onSubmit: SubmitHandler<RecipeValidationType> = async (data) => {
     try {
       const response = await createRecipe({
+        propertyId: propertyId as Id<'properties'>,
+        menuItemId: data.menuItemId as Id<'fnbMenuItems'>,
         name: data.name,
         servings: data.servings,
         instructions: data.instructions,
