@@ -29,7 +29,7 @@ export function CreateRecipeLineForm({
   recipeId: string;
   propertyId: string;
 }) {
-  const createRecipeLine = useMutation(api.recipes.createRecipeLine);
+  const createRecipeLine = useMutation(api.recipeLines.createRecipeLine);
   const inventoryItemsResponse = useQuery(api.inventoryItems.getAllInventoryItems, propertyId ? { propertyId: propertyId as Id<'properties'> } : null);
   const inventoryItems = inventoryItemsResponse?.data || [];
 
@@ -46,6 +46,7 @@ export function CreateRecipeLineForm({
   const onSubmit: SubmitHandler<FormData> = async (data) => {
     try {
       const response = await createRecipeLine({
+        propertyId: propertyId as Id<'properties'>,
         recipeId: recipeId as Id<'recipes'>,
         inventoryItemId: data.inventoryItemId as Id<'inventoryItems'>,
         quantity: data.quantity,

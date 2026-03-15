@@ -30,13 +30,15 @@ interface RecipeLineData {
 export function EditRecipeLineForm({ 
   onSuccess, 
   onClose, 
-  recipeLine 
+  recipeLine,
+  propertyId
 }: { 
   onSuccess?: () => void; 
   onClose?: () => void; 
   recipeLine: RecipeLineData 
+  propertyId: Id<'properties'>;
 }) {
-  const updateRecipeLine = useMutation(api.recipes.updateRecipeLine);
+  const updateRecipeLine = useMutation(api.recipeLines.updateRecipeLine);
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: yupResolver(RecipeLineValidationSchema) as any,
@@ -50,6 +52,7 @@ export function EditRecipeLineForm({
   const onSubmit: SubmitHandler<FormData> = async (data) => {
     try {
       const response = await updateRecipeLine({
+        propertyId: propertyId as Id<'properties'>,
         recipeLineId: recipeLine._id as Id<'recipeLines'>,
         quantity: data.quantity,
         unit: data.unit,
