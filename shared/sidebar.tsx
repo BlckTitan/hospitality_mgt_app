@@ -52,7 +52,7 @@ export default function Sidebar() {
         >
           {/* main link */}
           {subLink ? (
-            <button className="flex items-center gap-2">
+            <button className="w-full h-12 flex justify-between items-center px-3">
               <span>{label}</span>
               <i className="icon">{icon}</i>
             </button>
