@@ -7,8 +7,9 @@ import { toast } from 'sonner';
 import { api } from '../../../../../convex/_generated/api';
 import InputComponent from '../../../../../shared/input';
 import { Button, Modal } from 'react-bootstrap';
+import { Id } from '../../../../../convex/_generated/dataModel';
 
-export function EditFormComponent({ recipe, onSuccess, onClose }: { recipe: any; onSuccess?: () => void; onClose?: () => void }) {
+export function EditFormComponent({ recipe, onSuccess, onClose, propertyId }: { recipe: any; onSuccess?: () => void; onClose?: () => void; propertyId?: string }) {
   const updateRecipe = useMutation(api.recipes.updateRecipe);
 
   const {
@@ -28,6 +29,7 @@ export function EditFormComponent({ recipe, onSuccess, onClose }: { recipe: any;
   const onSubmit: SubmitHandler<RecipeValidationType> = async (data) => {
     try {
       const response = await updateRecipe({
+        propertyId: propertyId as Id<'properties'>,
         recipeId: recipe._id,
         name: data.name,
         servings: data.servings,

@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { api } from '../../../../../convex/_generated/api';
 import InputComponent from '../../../../../shared/input';
 import { Button, Modal } from 'react-bootstrap';
+import { Id } from '../../../../../convex/_generated/dataModel';
 
 export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess?: () => void; onClose?: () => void; propertyId?: string }) {
   const createRecipe = useMutation(api.recipes.createRecipe);
@@ -31,7 +32,6 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess?: 
   const onSubmit: SubmitHandler<RecipeValidationType> = async (data) => {
     try {
       const response = await createRecipe({
-        menuItemId: data.menuItemId as any,
         name: data.name,
         servings: data.servings,
         instructions: data.instructions,
