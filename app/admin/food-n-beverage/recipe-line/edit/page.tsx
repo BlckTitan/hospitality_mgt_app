@@ -23,16 +23,18 @@ export default function RecipeLineEditPage() {
   const searchParams = useSearchParams();
   const recipeLineId = searchParams.get('recipe_line_id');
   const recipeId = searchParams.get('recipe_id');
+  const propertyId = searchParams.get('property_id');
   const [modalShow, setModalShow] = useState(true);
 
   const recipeLineResponse = useQuery(
-    api.recipes.getRecipeLine,
-    recipeLineId ? { recipeLineId: recipeLineId as Id<'recipeLines'> } : 'skip'
+    api.recipeLines.getRecipeLine,
+    propertyId ? { propertyId: propertyId as Id<'properties'>, recipeLineId: recipeLineId as Id<'recipeLines'> } : 'skip',
+    // recipeLineId ? { recipeLineId: recipeLineId as Id<'recipeLines'> } : 'skip'
   );
 
   const recipeLine = recipeLineResponse?.data;
 
-  if (!recipeLineId || !recipeId) {
+  if (!recipeLineId || !recipeId || !propertyId) {
     return (
       <div className="w-full p-4 bg-white">
         <div className="text-center py-8">
@@ -78,6 +80,7 @@ export default function RecipeLineEditPage() {
         setModalShow={setModalShow}
         recipeLine={recipeLine}
         recipeId={recipeId}
+        propertyId={propertyId}
       />
     </>
   );
@@ -88,6 +91,8 @@ function ModalComponent(props: {
   setModalShow: (show: boolean) => void;
   recipeLine: RecipeLineData;
   recipeId: string;
+  propertyId: string;
+
 }) {
   return (
     <BootstrapModal
@@ -105,6 +110,7 @@ function ModalComponent(props: {
             window.history.back();
           }}
           recipeLine={props.recipeLine}
+          propertyId={props.propertyId as Id<'properties'>}
         />
       }
     />
