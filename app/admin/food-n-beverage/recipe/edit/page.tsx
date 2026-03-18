@@ -6,14 +6,19 @@ import { useQuery } from 'convex/react';
 import Link from 'next/link';
 import { api } from '../../../../../convex/_generated/api';
 import { EditFormComponent } from '../components/editRecipeForm';
+import { Id } from '../../../../../convex/_generated/dataModel';
 
 export default function RecipeEditPage() {
   const searchParams = useSearchParams();
   const recipeId = searchParams.get('recipe_id');
-
+  const propertyId = searchParams.get('property_id');
+  
   const recipeResponse = useQuery(
     api.recipes.getRecipe,
-    recipeId ? { recipeId: recipeId as any } : 'skip'
+    { 
+      propertyId: propertyId as Id<'properties'>,
+      recipeId: recipeId as any 
+    }
   );
 
   if (!recipeId) {

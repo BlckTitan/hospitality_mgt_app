@@ -33,7 +33,7 @@ export default function RecipeLinePage() {
     return (
       <div className="w-full p-4 bg-white">
         <div className="text-center py-8">
-          <h3 className="text-red-600">Recipe not found</h3>
+          <h3 className="text-red-600">Recipe Line not found</h3>
           <a href="/admin/food-n-beverage/recipe" className="text-blue-600 hover:underline">
             Go back to Recipes
           </a>
