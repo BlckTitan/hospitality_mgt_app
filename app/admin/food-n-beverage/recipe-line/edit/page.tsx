@@ -28,8 +28,10 @@ export default function RecipeLineEditPage() {
 
   const recipeLineResponse = useQuery(
     api.recipeLines.getRecipeLine,
-    // propertyId ? { propertyId: propertyId as Id<'properties'>, recipeLineId: recipeLineId as Id<'recipeLines'> } : 'skip',
-    recipeLineId ? {  propertyId: propertyId as Id<'properties'>, recipeLineId: recipeLineId as Id<'recipeLines'> } : 'skip'
+    {  
+      propertyId: propertyId as Id<'properties'>, 
+      recipeLineId: recipeLineId as Id<'recipeLines'>
+    }
   );
 
   const recipeLine = recipeLineResponse?.data;
