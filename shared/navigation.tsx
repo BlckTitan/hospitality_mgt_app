@@ -1,11 +1,12 @@
 'use client'
-import { SignedIn, UserButton } from '@clerk/nextjs'
+import { SignedIn, SignOutButton, UserButton, useUser } from '@clerk/nextjs'
+import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import React from 'react'
 import { Accordion, Card, Nav, Navbar, NavbarBrand, NavbarCollapse, NavbarToggle, NavLink, useAccordionButton } from 'react-bootstrap'
 import { FcPhone, FcSalesPerformance , FcConferenceCall, FcMoneyTransfer , FcList, FcCurrencyExchange, FcDepartment, FcManager } from "react-icons/fc";
 import { IoFastFoodOutline } from "react-icons/io5";
-import { MdOutlineBedroomChild } from 'react-icons/md';
+import { MdLogout, MdOutlineBedroomChild } from 'react-icons/md';
 import { RxDashboard, RxCaretDown } from "react-icons/rx";
 
 interface CustomToggleProps {
@@ -47,7 +48,10 @@ const navItems = [
 export default function Navigation() {
 
   const path = usePathname()
-    
+  const { user, isLoaded } = useUser();
+
+  if (!isLoaded) return null;
+  console.log(user);
   return (
     <nav className="w-full h-14 flex items-center fixed top-0 main_nav z-10 shadow-blue-100 shadow-sm">
       <Navbar expand="lg" className='w-full h-full flex items-center px-4 lg:px-16 bg-white rounded-none'>
@@ -61,7 +65,27 @@ export default function Navigation() {
           <NavbarCollapse id="basic-navbar-nav" className='right-0 top-14 w-full lg:w-auto h-fit absolute lg:static border-b border-t lg:border-0 bg-white overflow-y-scroll lg:!overflow-hidden'>
             <Nav className="w-full lg:w-fit h-screen lg:h-fit flex flex-col items-start lg:flex-row lg:items-center lg:justify-evenly me-auto">
 
-              <NavLink href="/#" className='py-2 px-4'>
+              <header className='w-full px-3  h-16 flex items-center gap-3 lg:hidden mt-8 pb-4'>
+                <SignedIn>
+                  <div className='w-full h-fit flex items-start gap-3'>
+                    <img  
+                      src={user?.imageUrl} 
+                      alt="Profile Image" 
+                      width={40} 
+                      height={40} 
+                      className='rounded-full object-cover' 
+                    />
+
+                    <div className='w-full h-fit flex flex-col items-start gap-1'>
+                      <span className='text-black text-sm lg:!text-white'>{user?.fullName?.toLocaleUpperCase()}</span>
+                      <span className='text-black text-sm lg:!text-white'>{user?.primaryEmailAddress?.emailAddress}</span>
+                      <Link href="/account" className='hover:!text-blue-500 text-sm !text-gray-500 p-0'>Manage Account</Link>
+                    </div>
+                  </div>
+                </SignedIn>
+              </header>
+
+              <NavLink href="/#" className='py-2 px-4 !hidden lg:!inline-flex'>
                 <SignedIn>
                   <UserButton />
                 </SignedIn>
@@ -128,11 +152,23 @@ export default function Navigation() {
 
                   </Card>
                 ))}
+                
+                <div className='w-full h-fit py-2 px-3 mt-12 lg:hidden'>
+                  <SignOutButton redirectUrl="/">
+                    <button className='w-full flex !text-[#333]'>
+                      <i className='icon mr-2'><MdLogout /></i>
+                      <span>Log Out</span>
+                    </button>
+                  </SignOutButton>
+                </div>
+
               </Accordion>
+
             </Nav>
           </NavbarCollapse>
-
+                  
         </div>
+        
       </Navbar >
     </nav>
   )
