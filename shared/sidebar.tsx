@@ -49,9 +49,9 @@ export default function Sidebar() {
   return (
     <aside className='w-[300px] max-w-[300px] h-full fixed left-0 hidden pt-14 xl:inline-block z-10'>
 
-      <header className='w-full px-3  h-16 flex items-center gap-3'>
+      <header className='w-full px-3 h-16 flex items-center gap-3'>
         <SignedIn>
-          <div className='w-full h-fit flex items-start gap-3'>
+          <div className='w-full h-fit flex items-start justify-between gap-3'>
             <img  
               src={user?.imageUrl} 
               alt="Profile Image" 

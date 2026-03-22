@@ -1,0 +1,219 @@
+@startuml Bar_Management_Convex_ERD
+title Bar Management System — Convex Document ERD
+
+!define CONVEX_TABLE(name) class name << (D, #6C8EBF) Document >>
+!define SYSTEM_FIELD(x) <color:gray><i>x</i></color>
+!define REF(x) <color:#B85450><u>x</u></color>
+!define OPT(x) <color:#6C8EBF>x?</color>
+
+hide methods
+hide stereotypes
+
+skinparam class {
+    BackgroundColor #DDEEFF
+    BorderColor #336699
+    HeaderBackgroundColor #336699
+    HeaderFontColor White
+    FontName Arial
+    FontSize 12
+    ArrowColor #555555
+}
+skinparam note {
+    BackgroundColor #FFFACD
+    BorderColor #CCBB55
+    FontName Arial
+    FontSize 11
+}
+skinparam linetype ortho
+skinparam nodesep 50
+skinparam ranksep 70
+
+' ─────────────────────────────────────────────────────────────
+' LEGEND NOTE
+' ─────────────────────────────────────────────────────────────
+note as N1
+  <b>Convex Conventions</b>
+  <color:gray><i>_id</i></color>            Auto-generated Id<"table">
+  <color:gray><i>_creationTime</i></color>  Auto epoch ms (Convex)
+  <color:#B85450><u>field</u></color>       v.id("table") reference
+  <color:#6C8EBF>field?</color>            v.optional(...)
+  All timestamps = number (epoch ms)
+  Dates stored as ISO 8601 strings
+end note
+
+' ─────────────────────────────────────────────────────────────
+' TABLES / DOCUMENTS
+' ─────────────────────────────────────────────────────────────
+
+entity bars {
+    SYSTEM_FIELD(_id)            : Id<"bars">
+    SYSTEM_FIELD(_creationTime)  : number
+    --
+    name          : v.string()
+    location      : v.string()
+    barType       : v.string()
+    isActive      : v.boolean()
+    ==Indexes==
+    by_isActive   [isActive]
+}
+
+entity beverages {
+    SYSTEM_FIELD(_id)            : Id<"beverages">
+    SYSTEM_FIELD(_creationTime)  : number
+    --
+    name            : v.string()
+    category        : v.string()
+    unitOfMeasure   : v.string()
+    unitPrice       : v.number()
+    reorderLevel    : v.number()
+    isActive        : v.boolean()
+    ==Indexes==
+    by_category   [category]
+    by_isActive   [isActive]
+}
+
+entity users {
+    SYSTEM_FIELD(_id)            : Id<"users">
+    SYSTEM_FIELD(_creationTime)  : number
+    --
+    externalId    : v.string()
+    email         : v.string()
+    name          : v.string()
+    OPT(phone)    : v.optional(v.string())
+    isActive      : v.boolean()
+    OPT(lastLoginAt) : v.optional(v.number())
+    updatedAt     : v.number()
+    ==Indexes==
+    by_externalId   [externalId]
+    by_email        [email]
+    by_isActive     [isActive]
+}
+
+entity shifts {
+    SYSTEM_FIELD(_id)            : Id<"shifts">
+    SYSTEM_FIELD(_creationTime)  : number
+    --
+    REF(userId)      : v.id("users")
+    REF(barId)       : v.id("bars")
+    shiftDate        : v.string()
+    startTime        : v.string()
+    OPT(endTime)     : v.optional(v.string())
+    isFinalized      : v.boolean()
+    ==Indexes==
+    by_userId        [userId]
+    by_barId         [barId]
+    by_barId_date    [barId, shiftDate]
+    by_userId_date   [userId, shiftDate]
+}
+
+entity userStockLogs {
+    SYSTEM_FIELD(_id)            : Id<"userStockLogs">
+    SYSTEM_FIELD(_creationTime)  : number
+    --
+    REF(shiftId)         : v.id("shifts")
+    REF(beverageId)      : v.id("beverages")
+    openingStock         : v.number()
+    newStockReceived     : v.number()
+    totalStock           : v.number()   ' persisted
+    closingStock         : v.number()
+    salesQuantity        : v.number()   ' persisted
+    salesValue           : v.number()   ' persisted
+    recordedAt           : v.number()
+    ==Indexes==
+    by_shiftId           [shiftId]
+    by_shiftId_beverage  [shiftId, beverageId]
+    by_beverageId        [beverageId]
+}
+
+entity storeInventory {
+    SYSTEM_FIELD(_id)            : Id<"storeInventory">
+    SYSTEM_FIELD(_creationTime)  : number
+    --
+    REF(beverageId)     : v.id("beverages")
+    qtyInStore          : v.number()
+    reorderThreshold    : v.number()
+    lastUpdated         : v.number()
+    ==Indexes==
+    by_beverageId   [beverageId]
+}
+
+entity storeTransactions {
+    SYSTEM_FIELD(_id)            : Id<"storeTransactions">
+    SYSTEM_FIELD(_creationTime)  : number
+    --
+    REF(beverageId)   : v.id("beverages")
+    OPT(barId)        : v.optional(v.id("bars"))
+    OPT(userId)       : v.optional(v.id("users"))
+    txnType           : v.literal("receive"|"issue")
+    qty               : v.number()
+    txnDate           : v.number()
+    OPT(notes)        : v.optional(v.string())
+    ==Indexes==
+    by_beverageId        [beverageId]
+    by_barId             [barId]
+    by_userId            [userId]
+    by_txnType           [txnType]
+    by_beverageId_date   [beverageId, txnDate]
+}
+
+entity reorderAlerts {
+    SYSTEM_FIELD(_id)            : Id<"reorderAlerts">
+    SYSTEM_FIELD(_creationTime)  : number
+    --
+    REF(beverageId)   : v.id("beverages")
+    qtyAtAlert        : v.number()
+    reorderLevel      : v.number()
+    alertedAt         : v.number()
+    status            : v.literal("open"|"acknowledged"|"resolved")
+    ==Indexes==
+    by_beverageId          [beverageId]
+    by_status              [status]
+    by_beverageId_status   [beverageId, status]
+}
+
+entity salesSummaries {
+    SYSTEM_FIELD(_id)            : Id<"salesSummaries">
+    SYSTEM_FIELD(_creationTime)  : number
+    --
+    REF(barId)          : v.id("bars")
+    OPT(userId)         : v.optional(v.id("users"))
+    REF(beverageId)     : v.id("beverages")
+    periodType          : v.literal("daily"|"weekly"|"monthly"|"yearly")
+    periodKey           : v.string()
+    year                : v.number()
+    OPT(month)          : v.optional(v.number())
+    OPT(weekNumber)     : v.optional(v.number())
+    totalQtySold        : v.number()
+    totalRevenue        : v.number()
+    ==Indexes==
+    by_barId_period           [barId, periodType, periodKey]
+    by_userId_period          [userId, periodType, periodKey]
+    by_beverageId_period      [beverageId, periodType, periodKey]
+    by_barId_beverage_period  [barId, beverageId, periodType, periodKey]
+    by_year_periodType        [year, periodType]
+}
+
+' ─────────────────────────────────────────────────────────────
+' RELATIONSHIPS
+' All are v.id() references; no DB-level FK constraints in Convex
+' ─────────────────────────────────────────────────────────────
+
+bars             ||--o{   shifts              : "hosts (barId)"
+bars             ||--o{   storeTransactions   : "receives (barId)"
+bars             ||--o{   salesSummaries      : "aggregates (barId)"
+
+users            ||--o{   shifts              : "works (userId)"
+users            ||--o{   storeTransactions   : "collects (userId)"
+users            ||--o{   salesSummaries      : "contributes (userId)"
+
+shifts           ||--o{   userStockLogs       : "tracks (shiftId)"
+
+beverages        ||--||   storeInventory      : "stored as (beverageId)"
+beverages        ||--o{   userStockLogs       : "logged in (beverageId)"
+beverages        ||--o{   storeTransactions   : "transacted (beverageId)"
+beverages        ||--o{   reorderAlerts       : "triggers (beverageId)"
+beverages        ||--o{   salesSummaries      : "summarised in (beverageId)"
+
+storeInventory   ||--o{   reorderAlerts       : "generates when low"
+
+@enduml
