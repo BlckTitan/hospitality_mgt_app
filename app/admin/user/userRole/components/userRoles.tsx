@@ -1,12 +1,12 @@
 import { FcDocument, FcEmptyTrash } from "react-icons/fc";
-import { TableColumn } from "../../../../shared/table";
+import { TableColumn } from "../../../../../shared/table";
 import { MdEditDocument } from "react-icons/md";
 import { Button } from "react-bootstrap";
-import PaginationComponent from "../../../../shared/pagination";
+import PaginationComponent from "../../../../../shared/pagination";
 import { Suspense } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { api } from "../../../../convex/_generated/api";
-import { Id } from "../../../../convex/_generated/dataModel";
+import { api } from "../../../../../convex/_generated/api";
+import { Id } from "../../../../../convex/_generated/dataModel";
 import { toast } from "sonner";
 
 interface UserRoleProps {

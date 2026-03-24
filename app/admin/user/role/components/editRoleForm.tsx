@@ -1,32 +1,51 @@
+'use client'
+
 import { useMutation } from "convex/react";
-import { api } from "../../../../convex/_generated/api";
+import { api } from "../../../../../convex/_generated/api";
 import { SubmitHandler, useForm } from "react-hook-form";
 import { formSchema } from "./validation";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { toast } from "sonner";
-import InputComponent from "../../../../shared/input";
+import InputComponent from "../../../../../shared/input";
 import { Button } from "react-bootstrap";
+import { Id } from "../../../../../convex/_generated/dataModel";
 import { useState, useEffect } from "react";
-import { PERMISSION_GROUPS } from "../../../../lib/data";
+import { PERMISSION_GROUPS } from "../../../../../lib/data";
 
 type FormData = {
+  id: Id<'roles'>;
   name: string;
   description?: string;
   isSystemRole: boolean;
   permissions: Record<string, boolean>;
 };
 
-export function FormComponent({ onSuccess, onClose }: { onSuccess: () => void; onClose: () => void }) {
-  const createRole = useMutation(api.roles.createRole);
-  const [permissions, setPermissions] = useState<Record<string, boolean>>({});
+export function FormComponent({
+  id, name, description, permissions: initialPermissions, isSystemRole
+}: {
+  id: Id<'roles'>;
+  name: string;
+  description?: string;
+  permissions: any;
+  isSystemRole: boolean;
+}) {
+  const updateRole = useMutation(api.roles.updateRole);
+  const [permissions, setPermissions] = useState<Record<string, boolean>>(
+    initialPermissions || {}
+  );
+
+  // Update permissions state when initialPermissions change
+  useEffect(() => {
+    setPermissions(initialPermissions || {});
+  }, [initialPermissions]);
 
   const { register, handleSubmit, formState: { errors }, reset } = useForm<FormData>({
     resolver: yupResolver(formSchema) as any,
     defaultValues: {
-      name: '',
-      description: '',
-      isSystemRole: false,
-      permissions: {},
+      name: name,
+      description: description || '',
+      isSystemRole: isSystemRole,
+      permissions: initialPermissions || {},
     },
   });
 
@@ -40,7 +59,8 @@ export function FormComponent({ onSuccess, onClose }: { onSuccess: () => void; o
   const onSubmit: SubmitHandler<FormData> = async (data) => {
     try {
       // Use the permissions state instead of form data
-      const response = await createRole({
+      const response = await updateRole({
+        role_id: id,
         name: data.name,
         description: data.description,
         permissions: permissions,
@@ -50,22 +70,20 @@ export function FormComponent({ onSuccess, onClose }: { onSuccess: () => void; o
       if (response.success === false) {
         toast.error(response.message);
       } else {
-        toast.success('Role created successfully!');
+        toast.success('Role updated successfully!');
         reset();
-        setPermissions({});
         setTimeout(() => {
-          onSuccess();
           window.location.href = '/admin/role';
         }, 1500);
       }
     } catch (error: any) {
-      console.error('Add new role failed:', error);
-      toast.error('Failed to add new role. Please try again.');
+      console.error('Update role failed:', error);
+      toast.error('Failed to update role. Please try again.');
     }
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="createRoleForm">
+    <form onSubmit={handleSubmit(onSubmit)} className="editRoleForm">
       <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-1 [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4">
         <InputComponent
           id="name"
@@ -92,16 +110,19 @@ export function FormComponent({ onSuccess, onClose }: { onSuccess: () => void; o
       </div>
 
       <div className="w-full h-fit flex flex-col lg:flex-row lg:items-center gap-4 mb-4">
-        <label className="flex !items-center gap-2 cursor-pointer">
+        <label className="flex items-center gap-2 cursor-pointer">
           <input
             type="checkbox"
             {...register('isSystemRole')}
-            defaultChecked={false}
+            defaultChecked={isSystemRole}
+            disabled={isSystemRole}
             className="mr-2 !w-4 !h-3"
           />
           <span className='p-1 ml-2'>System Role</span>
         </label>
-        <span className="text-sm text-gray-500">System roles are protected and cannot be deleted</span>
+        {isSystemRole && (
+          <span className="text-sm text-gray-500">System roles cannot be modified or deleted</span>
+        )}
       </div>
 
       <div className="w-full mb-4">
@@ -116,7 +137,7 @@ export function FormComponent({ onSuccess, onClose }: { onSuccess: () => void; o
                 {group.permissions.map((permission) => (
                   <label
                     key={permission.key}
-                    className="flex !items-center gap-2 cursor-pointer hover:bg-gray-50 p-2 rounded"
+                    className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-2 rounded"
                   >
                     <input
                       type="checkbox"
@@ -135,11 +156,11 @@ export function FormComponent({ onSuccess, onClose }: { onSuccess: () => void; o
       </div>
 
       <div className="flex gap-2 justify-end">
-        <Button variant="secondary" onClick={onClose}>
+        <Button variant="secondary" onClick={() => window.location.href = '/admin/role'}>
           Cancel
         </Button>
         <Button variant="dark" type="submit">
-          Create Role
+          Update Role
         </Button>
       </div>
     </form>

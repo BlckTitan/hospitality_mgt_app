@@ -18,13 +18,18 @@ interface CustomToggleProps {
 const navItems = [
   { id: 1, href: "/admin/dashboard", label: "Dashboard", icon: <RxDashboard className='text-blue-500'/> },
   { id: 2, href: "/admin/property", label: "Properties", icon: <FcDepartment /> },
-  { id: 3, href: "/admin/user", label: "Users", icon: <FcManager />, subLink: [{href: '/admin/role', label: 'Role'}, {href: '/admin/userRole', label: 'User role'}] },
-  { id: 4, href: "/admin/food-n-beverage", label: "Food and Beverage", icon: <IoFastFoodOutline className='!text-brown-600'/>,  subLink: [
-    { id: 401, href: '/admin/food-n-beverage/fnb-menu-item', label: 'Food and Beverage Menu Item'}, 
-    { id: 402, href: '/admin/food-n-beverage/recipe', label: 'Recipe'}, 
-    { id: 403, href: '/admin/food-n-beverage/recipe-line', label: 'Recipe Line'},
-    { id: 404, href: '/admin/food-n-beverage/table', label: 'Table'},
+  { id: 3, href: "/admin/user", label: "Users", icon: <FcManager />, subLink: [
+    {id: 301, href: '/admin/user/role', label: 'Role'}, 
+    {id: 302, href: '/admin/user/userRole', label: 'User role'}
   ]},
+  { id: 4, href: "/admin/bar-management", label: "Bar Management", icon: <IoFastFoodOutline className='!text-brown-600'/>,  
+    // subLink: [
+    //   { id: 401, href: '/admin/food-n-beverage/fnb-menu-item', label: 'Food and Beverage Menu Item'}, 
+    //   { id: 402, href: '/admin/food-n-beverage/recipe', label: 'Recipe'}, 
+    //   { id: 403, href: '/admin/food-n-beverage/recipe-line', label: 'Recipe Line'},
+    //   { id: 404, href: '/admin/food-n-beverage/table', label: 'Table'},
+    // ]
+  },
   { id: 5, href: "/#", label: "Expense Tracker", icon: <FcMoneyTransfer /> },
   { id: 6, href: "/#", label: "Report and Analytics", icon: <FcSalesPerformance /> },
   {id: 7, href: "/admin/staff", label: "Staff", icon: <FcConferenceCall /> },

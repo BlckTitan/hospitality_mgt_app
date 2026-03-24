@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { Button } from 'react-bootstrap';
 import { FcPlus } from 'react-icons/fc';
-import BootstrapModal from '../../../shared/modal';
+import BootstrapModal from '../../../../shared/modal';
 import UserRoles from './components/userRoles';
 import { FormComponent } from './components/createUserRoleForm';
 
