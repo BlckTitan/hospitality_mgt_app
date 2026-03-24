@@ -20,7 +20,7 @@ const navLinks = [
   {id: 4, href: "/admin/bar-management", label: "Bar Management", icon: <IoFastFoodOutline className='!text-green-600'/>,  
     subLink: [
       {id: 401, href: '/admin/bar-management/bar', label: 'Bars'}, 
-      // { id: 402, href: '/admin/food-n-beverage/recipe', label: 'Recipe'}, 
+      { id: 402, href: '/admin/bar-management/beverages', label: 'Beverages'}, 
       // { id: 403, href: '/admin/food-n-beverage/recipe-line', label: 'Recipe Line'},
       // { id: 404, href: '/admin/food-n-beverage/table', label: 'Table'},
     ]
