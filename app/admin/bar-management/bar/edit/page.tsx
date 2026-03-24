@@ -4,34 +4,34 @@ import React, { useState } from 'react';
 import { Button } from 'react-bootstrap';
 import { useSearchParams } from 'next/navigation';
 import { useQuery } from 'convex/react';
-import { EditFnbMenuItemForm } from '../components/editFnbMenuItemForm';
+import { EditBarForm } from '../components/editBarForm';
 import { api } from '../../../../../convex/_generated/api';
 import { Id } from '../../../../../convex/_generated/dataModel';
 import BootstrapModal from '../../../../../shared/modal';
 
-export default function EditFnbMenuItemPage() {
+export default function EditBarPage() {
   const searchParams = useSearchParams();
-  const menuItemId = searchParams.get('menu_item_id');
+  const barId = searchParams.get('bar_id');
   const [modalShow, setModalShow] = useState(true);
 
-  const menuItemResponse = useQuery(
-    api.fnbMenuItems.getFnbMenuItem, menuItemId ? { menuItemId: menuItemId as Id<'fnbMenuItems'> } : null
+  const barResponse = useQuery(
+    api.bars.getBar, barId ? { barId: barId as Id<'bars'> } : null
   );
 
-  if (!menuItemId) {
+  if (!barId) {
     return (
       <div className="w-full p-4 bg-white">
         <div className="text-center py-8">
-          <h3 className="text-red-600">Menu item not found</h3>
-          <a href="/admin/food-n-beverage/fnb-menu-item" className="text-blue-600 hover:underline">
-            Go back to Menu Items
+          <h3 className="text-red-600">Bar not found</h3>
+          <a href="/admin/bar-management/bar" className="text-blue-600 hover:underline">
+            Go back to Bars
           </a>
         </div>
       </div>
     );
   }
 
-  if (!menuItemResponse?.success || !menuItemResponse.data) {
+  if (!barResponse?.success || !barResponse.data) {
     return (
       <div className="w-full p-4 bg-white">
         <div className="text-center py-8">
@@ -41,35 +41,35 @@ export default function EditFnbMenuItemPage() {
     );
   }
 
-  const menuItem = menuItemResponse.data;
+  const bar = barResponse.data;
 
   return (
     <div className="w-full p-4 bg-white">
       <header className="w-full border-b flex justify-between items-center mb-4">
-        <h3>Edit Menu Item</h3>
-        <a href="/admin/food-n-beverage/fnb-menu-item" className="text-blue-600 hover:underline">
-          Back to Menu Items
+        <h3>Edit Bar</h3>
+        <a href="/admin/bar-management/bar" className="text-blue-600 hover:underline">
+          ← Back
         </a>
       </header>
 
-      <div className="max-w-2xl">
-        <ModalComponent
-          modalShow={modalShow}
-          setModalShow={setModalShow}
-          menuItem={menuItem}
-          onSuccess={() => {
-            setModalShow(false);
-          }}
-        />
-      </div>
+      <ModalComponent
+        barData={bar}
+        barId={barId}
+        modalShow={modalShow}
+        setModalShow={setModalShow}
+        onSuccess={() => {
+          setModalShow(false);
+        }}
+      />
     </div>
   );
 }
 
 function ModalComponent(props: {
+  barData: any;
+  barId: string;
   modalShow: boolean;
   setModalShow: (show: boolean) => void;
-  menuItem: any;
   onSuccess: () => void;
 }) {
   return (
@@ -78,10 +78,11 @@ function ModalComponent(props: {
       onHide={() => props.setModalShow(false)}
       backdrop="static"
       keyboard={false}
-      heading="Edit Menu Item"
+      heading="Edit Bar"
       body={
-        <EditFnbMenuItemForm
-          menuItem={props.menuItem}
+        <EditBarForm
+          barData={props.barData}
+          barId={props.barId}
           onSuccess={props.onSuccess}
           onClose={() => props.setModalShow(false)}
         />

@@ -22,6 +22,7 @@ export const getPaginatedData = query({
       v.literal('inventoryItems'),
       v.literal('inventoryTransactions'),
       v.literal('purchaseOrders'),
+      v.literal('purchaseOrderLines'),
       v.literal('purchaseOrderLines')
     ),
     limit: v.number(), //items per page

@@ -407,4 +407,30 @@ export default defineSchema({
     .index("by_propertyId_status", ["propertyId", "status"])
     .index("by_propertyId_priority", ["propertyId", "priority"]),
 
+  // Bars table for bar outlets
+  bars: defineTable({
+    propertyId: v.id("properties"),
+    name: v.string(),
+    location: v.string(),
+    barType: v.string(),
+    isActive: v.boolean(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_isActive", ["isActive"]),
+
+  // Beverages table for drink products
+  beverages: defineTable({
+    propertyId: v.id("properties"),
+    name: v.string(),
+    category: v.string(),
+    unitOfMeasure: v.string(),
+    unitPrice: v.number(),
+    reorderLevel: v.number(),
+    isActive: v.boolean(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_category", ["category"])
+    .index("by_isActive", ["isActive"]),
+});
+
   

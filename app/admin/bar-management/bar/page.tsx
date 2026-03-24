@@ -1,15 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Button } from 'react-bootstrap';
-import { FormComponent } from './components/createRecipeForm';
+import { FcPlus } from 'react-icons/fc';
+import Bars from './components/bars';
+import { FormComponent } from './components/createBarForm';
 import { useQuery } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 import BootstrapModal from '../../../../shared/modal';
-import { FcPlus } from 'react-icons/fc';
-import { Recipes } from './components/recipes';
 
-export default function RecipePage() {
+export default function BarPage() {
   const [modalShow, setModalShow] = useState(false);
   const [propertyId, setPropertyId] = useState<string>('');
 
@@ -17,7 +17,7 @@ export default function RecipePage() {
   const propertiesResponse = useQuery(api.property.getAllProperties);
   const properties = propertiesResponse?.data || [];
   const currentPropertyId = propertyId || properties?.[0]?._id || '';
-  
+
   // check if property is loading
   if (!propertiesResponse?.data) {
     return (
@@ -36,20 +36,20 @@ export default function RecipePage() {
   }
 
   return (
-    <div className='w-full p-4 bg-white'>
-      <header className='w-full border-b flex justify-between items-center'>
-        <h3>Recipes</h3>
+    <div className="w-full p-4 bg-white">
+      <header className="w-full border-b flex justify-between items-center mb-4">
+        <h3>Bars</h3>
         <Button
-          variant='light'
-          className='cursor-pointer'
+          variant="light"
+          className="cursor-pointer"
           style={{ width: 'fit', height: 'fit', padding: '0', borderRadius: '100%' }}
           onClick={() => setModalShow(true)}
         >
-          <FcPlus className='w-8 h-8' />
+          <FcPlus className="w-8 h-8" />
         </Button>
       </header>
 
-      <Recipes currentPropertyId={currentPropertyId}/>
+      <Bars currentPropertyId={currentPropertyId}/>
 
       <ModalComponent
         modalShow={modalShow}
@@ -59,28 +59,30 @@ export default function RecipePage() {
         }}
         propertyId={currentPropertyId}
       />
-
     </div>
   );
 }
 
-function ModalComponent(props: any) {
+function ModalComponent(props: {
+  modalShow: boolean;
+  setModalShow: (show: boolean) => void;
+  onSuccess: () => void;
+  propertyId: string;
+}) {
   return (
-    <>
-      <BootstrapModal
-        show={props.modalShow}
-        onHide={() => props.setModalShow(false)}
-        backdrop='static'
-        keyboard={false}
-        heading='Add New Recipe'
-        body={
-          <FormComponent
-            onSuccess={props.onSuccess}
-            onClose={() => props.setModalShow(false)}
-            propertyId={props.propertyId}
-          />
-        }
-      />
-    </>
+    <BootstrapModal
+      show={props.modalShow}
+      onHide={() => props.setModalShow(false)}
+      backdrop="static"
+      keyboard={false}
+      heading="Add New Bar"
+      body={
+        <FormComponent
+          onSuccess={props.onSuccess}
+          onClose={() => props.setModalShow(false)}
+          propertyId={props.propertyId}
+        />
+      }
+    />
   );
 }

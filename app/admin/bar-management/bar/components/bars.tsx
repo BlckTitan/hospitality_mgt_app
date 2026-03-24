@@ -11,43 +11,37 @@ import { TableColumn } from "../../../../../shared/table";
 import PaginationComponent from "../../../../../shared/pagination";
 import { Id } from "../../../../../convex/_generated/dataModel";
 
-interface FnbMenuItemProps {
+interface BarProps {
   _id: string;
   propertyId: string;
   name: string;
-  description?: string;
-  category: string;
-  subcategory?: string;
-  price: number;
-  cost?: number;
-  isAvailable: boolean;
-  imageUrl?: string;
-  preparationTime?: number;
+  location: string;
+  barType: string;
   isActive: boolean;
-  createdAt: number;
-  updatedAt: number;
+  _creationTime: number;
 }
 
-const FnbMenuItems = ({ currentPropertyId }: { currentPropertyId: Id<"properties"> }) => {
-  const menuItemData = useQuery(api.fnbMenuItems.getAllFnbMenuItems, { propertyId: currentPropertyId });
-  const removeMenuItem = useMutation(api.fnbMenuItems.deleteFnbMenuItem);
+const Bars = ({ currentPropertyId }: { currentPropertyId: Id<"properties"> }) => {
+  const barData = useQuery(api.bars.getBars, { propertyId: currentPropertyId }); //data from bars
+  const removeBar = useMutation(api.bars.deleteBar);
 
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm('Are you sure you want to delete menu item: ' + name + '?')) return;
+    if (!confirm('Are you sure you want to delete bar: ' + name + '?')) return;
     try {
-      const response = await removeMenuItem({ menuItemId: id as Id<'fnbMenuItems'> });
+      const response = await removeBar({ barId: id as Id<'bars'> });
 
       if (response.success === true) {
         toast.success(response.message);
+        // Reload page after deletion
         setTimeout(() => {
-          window.location.href = "/admin/food-n-beverage/fnb-menu-item";
+          window.location.href = "/admin/bar-management/bar";
         }, 2000);
       } else {
         return toast.error(response.message);
       }
     } catch (error) {
-      console.log(`Failed to delete menu item! ${error}`);
-      toast.error("Failed to delete menu item. Please try again.");
+      console.log(`Failed to delete bar! ${error}`);
+      toast.error("Failed to delete bar. Please try again.");
     }
   };
 
@@ -55,48 +49,31 @@ const FnbMenuItems = ({ currentPropertyId }: { currentPropertyId: Id<"properties
     return new Date(timestamp).toLocaleString();
   };
 
-  const getAvailabilityBadge = (isAvailable: boolean) => {
+  const getBarTypeBadge = (barType: string) => {
+    const typeConfig: Record<string, { bg: string; text: string }> = {
+      'Main': { bg: 'bg-blue-600', text: 'Main' },
+      'Lounge': { bg: 'bg-purple-600', text: 'Lounge' },
+      'Seat Out': { bg: 'bg-cyan-600', text: 'Seat Out' },
+    };
+
+    const config = typeConfig[barType] || { bg: 'bg-gray-400', text: barType };
     return (
-      <p
-        className={`w-fit h-fit px-2 py-1 text-white rounded-sm ${
-          isAvailable ? 'bg-green-600' : 'bg-red-600'
-        }`}
-      >
-        {isAvailable ? 'Available' : 'Unavailable'}
+      <p className={`w-fit h-fit px-2 py-1 text-white rounded-sm ${config.bg}`}>
+        {config.text}
       </p>
     );
   };
 
-  const tableColumns: TableColumn<FnbMenuItemProps>[] = [
+  const tableColumns: TableColumn<BarProps>[] = [
     { label: 'Name', key: 'name' },
+    { label: 'Location', key: 'location' },
     {
-      label: 'Category',
-      key: 'category',
-      render: (value, row) => (
-        <span>{row.category}</span>
-      )
+      label: 'Type',
+      key: 'barType',
+      render: (value, row) => getBarTypeBadge(row.barType)
     },
     {
-      label: 'Price',
-      key: 'price',
-      render: (value, row) => (
-        <span>${row.price.toFixed(2)}</span>
-      )
-    },
-    {
-      label: 'Cost',
-      key: 'cost',
-      render: (value, row) => (
-        <span>{row.cost ? `$${row.cost.toFixed(2)}` : 'N/A'}</span>
-      )
-    },
-    {
-      label: 'Availability',
-      key: 'isAvailable',
-      render: (value, row) => getAvailabilityBadge(row.isAvailable)
-    },
-    {
-      label: 'Status',
+      label: 'Active',
       key: 'isActive',
       render: (value, row) => (
         <p
@@ -108,9 +85,9 @@ const FnbMenuItems = ({ currentPropertyId }: { currentPropertyId: Id<"properties
     },
     {
       label: 'Created At',
-      key: 'createdAt',
+      key: '_creationTime',
       render: (value, row) => (
-        <span>{formatDate(row.createdAt)}</span>
+        <span>{formatDate(row._creationTime)}</span>
       )
     },
     {
@@ -119,7 +96,7 @@ const FnbMenuItems = ({ currentPropertyId }: { currentPropertyId: Id<"properties
       render: (value, row) => (
         <div className='flex justify-evenly lg:justify-start items-center gap-1'>
           <a
-            href={`/admin/food-n-beverage/fnb-menu-item/edit?menu_item_id=${row._id}`}
+            href={`/admin/bar-management/bar/edit?bar_id=${row._id}`}
             className='!mr-2 !no-underline !text-amber-400'
           >
             <i className='icon'><MdEditDocument /></i>
@@ -128,7 +105,7 @@ const FnbMenuItems = ({ currentPropertyId }: { currentPropertyId: Id<"properties
           <Button
             variant='white'
             onClick={() => handleDelete(row._id, row.name)}
-            title='Delete menu item'
+            title='Delete bar'
           >
             <i className='icon'>
               <FcEmptyTrash />
@@ -142,14 +119,14 @@ const FnbMenuItems = ({ currentPropertyId }: { currentPropertyId: Id<"properties
   return (
     <div className='w-full h-full overflow-x-scroll lg:!overflow-x-hidden'>
       <Suspense>
-        <PaginationComponent 
-          collectionName='fnbMenuItems' 
+        <PaginationComponent
+          collectionName='bars'
           columns={tableColumns}
-          jointTableData={(menuItemData?.success === true) && menuItemData?.data}  
+          jointTableData={(barData?.success === true) && barData?.data}
         />
       </Suspense>
     </div>
   );
 };
 
-export default FnbMenuItems;
+export default Bars;
