@@ -48,6 +48,9 @@ const navItems = [
     {id: 905, href: '/admin/room-management/housekeeping-task', label: 'Housekeeping Task'}
   ]},
   { id: 10, href: "/#", label: "Billing", icon: <FcPhone /> },
+  {id: 11, href: "/admin/shift-management", label: "Shift Management", icon: <MdOutlineBedroomChild />,  subLink: [
+    {id: 1101, href: '/admin/shift-management/shift', label: 'Shift'},
+  ]},
 ];
 
 export default function Navigation() {

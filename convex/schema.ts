@@ -431,6 +431,22 @@ export default defineSchema({
     .index("by_propertyId", ["propertyId"])
     .index("by_category", ["category"])
     .index("by_isActive", ["isActive"]),
+
+  // Shifts table for working sessions
+  shifts: defineTable({
+    propertyId: v.id("properties"),
+    userId: v.id("users"),
+    barId: v.id("bars"),
+    shiftDate: v.string(),
+    startTime: v.string(),
+    endTime: v.optional(v.string()),
+    isFinalized: v.boolean(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_userId", ["userId"])
+    .index("by_barId", ["barId"])
+    .index("by_barId_date", ["barId", "shiftDate"])
+    .index("by_userId_date", ["userId", "shiftDate"]),
 });
 
   
