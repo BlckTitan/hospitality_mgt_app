@@ -5,9 +5,9 @@ import { Button } from 'react-bootstrap';
 import { useSearchParams } from 'next/navigation';
 import { useQuery } from 'convex/react';
 import { EditUserStockLogForm } from '../components/editUserStockLogForm';
-import { api } from '../../../../convex/_generated/api';
-import { Id } from '../../../../convex/_generated/dataModel';
-import BootstrapModal from '../../../../shared/modal';
+import { Id } from '../../../../../convex/_generated/dataModel';
+import { api } from '../../../../../convex/_generated/api';
+import BootstrapModal from '../../../../../shared/modal';
 
 export default function EditUserStockLogPage() {
   const searchParams = useSearchParams();

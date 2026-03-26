@@ -6,9 +6,9 @@ import { formSchema } from "./validation";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { toast } from "sonner";
 import { Button } from "react-bootstrap";
-import { api } from "../../../../convex/_generated/api";
-import { Id } from "../../../../convex/_generated/dataModel";
-import InputComponent from "../../../../shared/input";
+import { api } from "../../../../../convex/_generated/api";
+import { Id } from "../../../../../convex/_generated/dataModel";
+import InputComponent from "../../../../../shared/input";
 
 type FormData = {
   shiftId: string;

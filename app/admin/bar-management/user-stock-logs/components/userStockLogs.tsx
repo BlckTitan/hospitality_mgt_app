@@ -6,10 +6,10 @@ import { Button } from "react-bootstrap";
 import { Suspense } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";
-import { Id } from "../../../../convex/_generated/dataModel";
-import { api } from "../../../../convex/_generated/api";
-import { TableColumn } from "../../../../shared/table";
-import PaginationComponent from "../../../../shared/pagination";
+import { api } from "../../../../../convex/_generated/api";
+import { Id } from "../../../../../convex/_generated/dataModel";
+import { TableColumn } from "../../../../../shared/table";
+import PaginationComponent from "../../../../../shared/pagination";
 
 interface UserStockLogProps {
   _id: string;

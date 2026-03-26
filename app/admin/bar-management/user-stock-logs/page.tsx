@@ -6,8 +6,8 @@ import { FcPlus } from 'react-icons/fc';
 import UserStockLogs from './components/userStockLogs';
 import { FormComponent } from './components/createUserStockLogForm';
 import { useQuery } from 'convex/react';
-import { api } from '../../../convex/_generated/api';
-import BootstrapModal from '../../../shared/modal';
+import { api } from '../../../../convex/_generated/api';
+import BootstrapModal from '../../../../shared/modal';
 
 export default function UserStockLogPage() {
   const [modalShow, setModalShow] = useState(false);
