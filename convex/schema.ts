@@ -447,6 +447,24 @@ export default defineSchema({
     .index("by_barId", ["barId"])
     .index("by_barId_date", ["barId", "shiftDate"])
     .index("by_userId_date", ["userId", "shiftDate"]),
+
+  // User Stock Logs table for per-shift, per-beverage stock and sales reconciliation
+  userStockLogs: defineTable({
+    propertyId: v.id("properties"),
+    shiftId: v.id("shifts"),
+    beverageId: v.id("beverages"),
+    openingStock: v.number(),
+    newStockReceived: v.number(),
+    totalStock: v.number(),
+    closingStock: v.number(),
+    salesQuantity: v.number(),
+    salesValue: v.number(),
+    recordedAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_shiftId", ["shiftId"])
+    .index("by_shiftId_beverage", ["shiftId", "beverageId"])
+    .index("by_beverageId", ["beverageId"]),
 });
 
   

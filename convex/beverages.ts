@@ -18,6 +18,23 @@ export const getBeverages = query({
   },
 });
 
+export const getAllBeverages = query({
+  args: { propertyId: v.id('properties') },
+  handler: async (ctx, args) => {
+    try {
+      const beverages = await ctx.db
+        .query('beverages')
+        .withIndex('by_propertyId', (q) => q.eq('propertyId', args.propertyId))
+        .collect();
+      
+      return { success: true, data: beverages };
+    } catch (error) {
+      console.log(`Failed to fetch beverages: ${error}`);
+      return { success: false, data: [], message: 'Failed to fetch beverages' };
+    }
+  },
+});
+
 export const getBeverage = query({
   args: { beverageId: v.id('beverages'), propertyId: v.optional(v.id('properties')) },
   handler: async (ctx, args) => {

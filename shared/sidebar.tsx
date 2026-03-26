@@ -21,7 +21,7 @@ const navLinks = [
     subLink: [
       {id: 401, href: '/admin/bar-management/bar', label: 'Bars'}, 
       { id: 402, href: '/admin/bar-management/beverages', label: 'Beverages'}, 
-      // { id: 403, href: '/admin/food-n-beverage/recipe-line', label: 'Recipe Line'},
+      { id: 403, href: '/admin/bar-management/user-stock-logs', label: 'User Stock Logs'},
       // { id: 404, href: '/admin/food-n-beverage/table', label: 'Table'},
     ]
   },

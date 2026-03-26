@@ -29,6 +29,7 @@ import type * as staff from "../staff.js";
 import type * as suppliers from "../suppliers.js";
 import type * as user from "../user.js";
 import type * as userRoles from "../userRoles.js";
+import type * as userStockLogs from "../userStockLogs.js";
 import type * as users from "../users.js";
 
 import type {
@@ -59,6 +60,7 @@ declare const fullApi: ApiFromModules<{
   suppliers: typeof suppliers;
   user: typeof user;
   userRoles: typeof userRoles;
+  userStockLogs: typeof userStockLogs;
   users: typeof users;
 }>;
 
