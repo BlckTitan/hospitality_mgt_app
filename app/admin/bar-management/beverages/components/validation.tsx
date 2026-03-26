@@ -1,5 +1,11 @@
 import * as yup from "yup";
 
+export const beverageCategories = [
+  "spirits", "wine", "Lager beer", "cocktails", "non-alcoholic", 
+  "liqueurs", "whiskey", "vodka", "rum", "gin", "tequila", 
+  "brandy", "cognac", "champagne", "other"
+] as const;
+
 export const formSchema = yup.object().shape({
   name: yup
     .string()
@@ -11,8 +17,7 @@ export const formSchema = yup.object().shape({
   category: yup
     .string()
     .trim()
-    .min(1, "Category is required")
-    .max(60, "Category must not exceed 60 characters")
+    .oneOf(beverageCategories, "Please select a valid category")
     .required("Category is required"),
 
   unitOfMeasure: yup

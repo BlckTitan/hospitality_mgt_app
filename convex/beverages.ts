@@ -41,7 +41,7 @@ export const createBeverage = mutation({
   args: {
     propertyId: v.id('properties'),
     name: v.string(),
-    category: v.string(),
+    category: v.union(v.literal("spirits"), v.literal("wine"), v.literal("Lager beer"), v.literal("cocktails"), v.literal("non-alcoholic"), v.literal("liqueurs"), v.literal("whiskey"), v.literal("vodka"), v.literal("rum"), v.literal("gin"), v.literal("tequila"), v.literal("brandy"), v.literal("cognac"), v.literal("champagne"), v.literal("other")),
     unitOfMeasure: v.string(),
     unitPrice: v.number(),
     reorderLevel: v.number(),
@@ -74,7 +74,7 @@ export const updateBeverage = mutation({
     beverageId: v.id('beverages'),
     propertyId: v.optional(v.id('properties')),
     name: v.optional(v.string()),
-    category: v.optional(v.string()),
+    category: v.optional(v.union(v.literal("spirits"), v.literal("wine"), v.literal("Lager beer"), v.literal("cocktails"), v.literal("non-alcoholic"), v.literal("liqueurs"), v.literal("whiskey"), v.literal("vodka"), v.literal("rum"), v.literal("gin"), v.literal("tequila"), v.literal("brandy"), v.literal("cognac"), v.literal("champagne"), v.literal("other"))),
     unitOfMeasure: v.optional(v.string()),
     unitPrice: v.optional(v.number()),
     reorderLevel: v.optional(v.number()),
@@ -88,6 +88,22 @@ export const updateBeverage = mutation({
     } catch (error) {
       console.log(`Failed to update beverage: ${error}`);
       return { success: false, message: 'Failed to update beverage' };
+    }
+  },
+});
+
+export const getPropertyWithCurrency = query({
+  args: { propertyId: v.id('properties') },
+  handler: async (ctx, args) => {
+    try {
+      const property = await ctx.db.get(args.propertyId);
+      if (!property) {
+        return { success: false, data: null, message: 'Property not found' };
+      }
+      return { success: true, data: property };
+    } catch (error) {
+      console.log(`Failed to fetch property: ${error}`);
+      return { success: false, data: null, message: 'Failed to fetch property' };
     }
   },
 });

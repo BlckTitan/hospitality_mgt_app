@@ -25,7 +25,19 @@ interface BeverageProps {
 
 const Beverages = ({ currentPropertyId }: { currentPropertyId: Id<"properties"> }) => {
   const beverageData = useQuery(api.beverages.getBeverages, { propertyId: currentPropertyId });
+  const propertyData = useQuery(api.beverages.getPropertyWithCurrency, { propertyId: currentPropertyId });
   const removeBeverage = useMutation(api.beverages.deleteBeverage);
+
+  const getCurrencySymbol = (currency?: string) => {
+    switch (currency?.toUpperCase()) {
+      case 'USD': return '$';
+      case 'EUR': return '€';
+      case 'GBP': return '£';
+      case 'JPY': return '¥';
+      case 'NGN': return '₦';
+      default: return '$';
+    }
+  };
 
   const handleDelete = async (id: string, name: string) => {
     if (!confirm('Are you sure you want to delete beverage: ' + name + '?')) return;
@@ -55,7 +67,11 @@ const Beverages = ({ currentPropertyId }: { currentPropertyId: Id<"properties"> 
     {
       label: 'Unit Price',
       key: 'unitPrice',
-      render: (value) => <span>${Number(value).toFixed(2)}</span>
+      render: (value) => {
+        const currency = propertyData?.success ? propertyData.data?.currency : 'USD';
+        const symbol = getCurrencySymbol(currency);
+        return <span>{symbol}{Number(value).toFixed(2)}</span>;
+      }
     },
     {
       label: 'Reorder Level',
@@ -105,3 +121,7 @@ const Beverages = ({ currentPropertyId }: { currentPropertyId: Id<"properties"> 
 };
 
 export default Beverages;
+
+// Use the currency specified in the property table for the unit price. The category  should be a predifined option list, of union(literal). The category change should also be effected in the schema and database function.
+
+// @file:beverages @file:convex/beverages  

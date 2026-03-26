@@ -422,7 +422,7 @@ export default defineSchema({
   beverages: defineTable({
     propertyId: v.id("properties"),
     name: v.string(),
-    category: v.string(),
+    category: v.union(v.literal("spirits"), v.literal("wine"), v.literal("Lager beer"), v.literal("cocktails"), v.literal("non-alcoholic"), v.literal("liqueurs"), v.literal("whiskey"), v.literal("vodka"), v.literal("rum"), v.literal("gin"), v.literal("tequila"), v.literal("brandy"), v.literal("cognac"), v.literal("champagne"), v.literal("other")),
     unitOfMeasure: v.string(),
     unitPrice: v.number(),
     reorderLevel: v.number(),

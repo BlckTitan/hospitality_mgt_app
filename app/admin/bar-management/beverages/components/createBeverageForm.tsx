@@ -2,7 +2,7 @@
 
 import { useMutation } from "convex/react";
 import { SubmitHandler, useForm } from "react-hook-form";
-import { formSchema } from "./validation";
+import { formSchema, beverageCategories } from "./validation";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { toast } from "sonner";
 import { Button } from "react-bootstrap";
@@ -10,9 +10,11 @@ import InputComponent from "../../../../../shared/input";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { api } from "../../../../../convex/_generated/api";
 
+type BeverageCategory = "spirits" | "wine" | "Lager beer" | "cocktails" | "non-alcoholic" | "liqueurs" | "whiskey" | "vodka" | "rum" | "gin" | "tequila" | "brandy" | "cognac" | "champagne" | "other";
+
 type FormData = {
   name: string;
-  category: string;
+  category: BeverageCategory;
   unitOfMeasure: string;
   unitPrice: number;
   reorderLevel: number;
@@ -26,7 +28,7 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
     resolver: yupResolver(formSchema) as any,
     defaultValues: {
       name: '',
-      category: '',
+      category: 'other',
       unitOfMeasure: '',
       unitPrice: 0,
       reorderLevel: 0,
@@ -69,7 +71,24 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
       </div>
 
       <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-1 mb-4">
-        <InputComponent id="category" label="Category *" type="text" inputWidth="w-full" register={register('category', { required: true })} error={errors.category} />
+        <label className="w-full">
+          <span className="block text-sm font-medium text-gray-700 mb-1">Category *</span>
+          <select
+            id="category"
+            {...register('category', { required: true })}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          >
+            <option value="">Select a category</option>
+            {beverageCategories.map((category) => (
+              <option key={category} value={category}>
+                {category.charAt(0).toUpperCase() + category.slice(1).replace('-', ' ')}
+              </option>
+            ))}
+          </select>
+          {errors.category && (
+            <p className="text-red-500 text-sm mt-1">{errors.category.message}</p>
+          )}
+        </label>
       </div>
 
       <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-1 mb-4">
