@@ -64,7 +64,7 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
         reset();
         setTimeout(() => {
           onSuccess();
-          window.location.href = '/admin/user-stock-logs';
+          window.location.href = '/admin/bar-management/user-stock-logs';
         }, 1500);
       }
     } catch (error: any) {

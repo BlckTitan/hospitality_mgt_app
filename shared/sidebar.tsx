@@ -6,23 +6,23 @@ import { FcConferenceCall, FcDepartment, FcList, FcManager, FcMoneyTransfer, FcP
 import { IoFastFoodOutline } from "react-icons/io5";
 import { MdLogout, MdOutlineBedroomChild } from 'react-icons/md';
 import { RxDashboard } from "react-icons/rx";
-import { SignedIn, SignedOut, SignOutButton, UserButton, UserProfile, useUser } from '@clerk/nextjs'
+import { SignedIn, SignOutButton, useUser } from '@clerk/nextjs'
 import Link from 'next/link';
-import Image from 'next/image';
 
 const navLinks = [
   {id: 1, href: "/admin/dashboard", label: "Dashboard", icon: <RxDashboard className='text-blue-500'/> },
   {id: 2, href: "/admin/property", label: "Properties", icon: <FcDepartment /> },
   {id: 3, href: "/admin/user", label: "Users", icon: <FcManager />, subLink: [
     {id: 301, href: '/admin/user/role', label: 'Role'}, 
-    {id: 302, href: '/admin/user/userRole', label: 'User role'}
+    {id: 302, href: '/admin/user/userRole', label: 'User role'},
+    {id: 303, href: '/admin/user', label: 'Users'}, 
   ]},
   {id: 4, href: "/admin/bar-management", label: "Bar Management", icon: <IoFastFoodOutline className='!text-green-600'/>,  
     subLink: [
       {id: 401, href: '/admin/bar-management/bar', label: 'Bars'}, 
       { id: 402, href: '/admin/bar-management/beverages', label: 'Beverages'}, 
       { id: 403, href: '/admin/bar-management/user-stock-logs', label: 'User Stock Logs'},
-      // { id: 404, href: '/admin/food-n-beverage/table', label: 'Table'},
+      { id: 404, href: '/admin/bar-management/store-inventory', label: 'Store Inventory'},
     ]
   },
   {id: 5, href: "/#", label: "Expenditure", icon: <FcMoneyTransfer /> },
@@ -53,7 +53,7 @@ export default function Sidebar() {
   const { user, isLoaded } = useUser();
 
   if (!isLoaded) return null;
-  console.log(user);
+  
   return (
     <aside className='w-[300px] max-w-[300px] h-full fixed left-0 hidden pt-14 xl:inline-block z-10'>
 

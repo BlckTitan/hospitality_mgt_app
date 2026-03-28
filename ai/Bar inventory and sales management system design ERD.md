@@ -1,4 +1,4 @@
-# Entity-Relationship Document — Bar Management System
+ # Entity-Relationship Document — Bar Management System
 ## Target: Convex Database
 
 | Field         | Detail                          |

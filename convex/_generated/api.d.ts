@@ -26,6 +26,7 @@ import type * as roomTypes from "../roomTypes.js";
 import type * as rooms from "../rooms.js";
 import type * as shifts from "../shifts.js";
 import type * as staff from "../staff.js";
+import type * as storeInventories from "../storeInventories.js";
 import type * as suppliers from "../suppliers.js";
 import type * as user from "../user.js";
 import type * as userRoles from "../userRoles.js";
@@ -57,6 +58,7 @@ declare const fullApi: ApiFromModules<{
   rooms: typeof rooms;
   shifts: typeof shifts;
   staff: typeof staff;
+  storeInventories: typeof storeInventories;
   suppliers: typeof suppliers;
   user: typeof user;
   userRoles: typeof userRoles;

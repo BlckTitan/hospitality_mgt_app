@@ -465,6 +465,18 @@ export default defineSchema({
     .index("by_shiftId", ["shiftId"])
     .index("by_shiftId_beverage", ["shiftId", "beverageId"])
     .index("by_beverageId", ["beverageId"]),
+
+  // Store Inventory table for live stock balance per beverage
+  storeInventories: defineTable({
+    propertyId: v.id("properties"),
+    beverageId: v.id("beverages"),
+    qtyInStore: v.number(),
+    reorderThreshold: v.number(),
+    lastUpdated: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_beverageId", ["beverageId"])
+    .index("by_propertyId_beverageId", ["propertyId", "beverageId"]),
 });
 
   

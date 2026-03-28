@@ -27,6 +27,7 @@ export const getPaginatedData = query({
       v.literal('beverages'),
       v.literal('shifts'),
       v.literal('userStockLogs'),
+      v.literal('storeInventories'),
     ),
     limit: v.number(), //items per page
     cursor: v.optional(v.string()), //current page cursor
