@@ -477,6 +477,25 @@ export default defineSchema({
     .index("by_propertyId", ["propertyId"])
     .index("by_beverageId", ["beverageId"])
     .index("by_propertyId_beverageId", ["propertyId", "beverageId"]),
-});
 
+  // Store Transactions table for logging stock movements
+  storeTransactions: defineTable({
+    propertyId: v.id("properties"),
+    beverageId: v.id("beverages"),
+    barId: v.optional(v.id("bars")),
+    userId: v.optional(v.id("users")),
+    txnType: v.union(v.literal("receive"), v.literal("issue")),
+    qty: v.number(),
+    txnDate: v.number(),
+    notes: v.optional(v.string()),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_beverageId", ["beverageId"])
+    .index("by_barId", ["barId"])
+    .index("by_userId", ["userId"])
+    .index("by_txnType", ["txnType"])
+    .index("by_beverageId_date", ["beverageId", "txnDate"])
+    .index("by_propertyId_txnDate", ["propertyId", "txnDate"]),
+
+})
   

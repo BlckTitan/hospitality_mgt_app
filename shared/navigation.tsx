@@ -29,6 +29,7 @@ const navItems = [
       { id: 402, href: '/admin/bar-management/beverages', label: 'Beverages'}, 
       { id: 403, href: '/admin/bar-management/user-stock-logs', label: 'User Stock Logs'},
       { id: 404, href: '/admin/bar-management/store-inventory', label: 'Store Inventory'},
+      { id: 405, href: '/admin/bar-management/store-transactions', label: 'Store Transactions'},
     ]
   },
   { id: 5, href: "/#", label: "Expense Tracker", icon: <FcMoneyTransfer /> },
@@ -60,7 +61,7 @@ export default function Navigation() {
   const { user, isLoaded } = useUser();
 
   if (!isLoaded) return null;
-  console.log(user);
+  
   return (
     <nav className="w-full h-14 flex items-center fixed top-0 main_nav z-10 shadow-blue-100 shadow-sm">
       <Navbar expand="lg" className='w-full h-full flex items-center px-4 lg:px-16 bg-white rounded-none'>

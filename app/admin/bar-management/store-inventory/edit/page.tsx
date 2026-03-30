@@ -1,44 +1,38 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Button } from 'react-bootstrap';
-import { FcPlus } from 'react-icons/fc';
-import { useQuery } from 'convex/react';
-import { api } from '../../../../../convex/_generated/api';
-import BootstrapModal from '../../../../../shared/modal';
+import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
-import StoreInventory from '../components/storeInventory';
+import { EditFormComponent } from '../components/editStoreInventoryForm';
+import BootstrapModal from '../../../../../shared/modal';
 
 export default function EditStoreInventoryPage() {
-  const [modalShow, setModalShow] = useState(false);
-  const [propertyId, setPropertyId] = useState<string>('');
+  const [modalShow, setModalShow] = useState(true);
+  const [inventoryId, setInventoryId] = useState<string>('');
   const searchParams = useSearchParams();
-  const inventoryId = searchParams.get('inventory_id');
 
-  // Fetch properties to get the current property
-  const propertiesResponse = useQuery(api.property.getAllProperties);
-  const properties = propertiesResponse?.data || [];
-  const currentPropertyId = propertyId || properties?.[0]?._id || '';
-
-  // Get the inventory data to pre-fill the form
-  const inventoryResponse = useQuery(api.storeInventories.getStoreInventory, {
-    inventoryId: inventoryId as any
-  });
-
-  const finalPropertyId = inventoryResponse?.data?.propertyId || currentPropertyId;
+  useEffect(() => {
+    const inventory_id = searchParams.get('inventory_id');
+    if (inventory_id) {
+      setInventoryId(inventory_id);
+    } else {
+      // Redirect back if no inventory_id is provided
+      window.location.href = '/admin/bar-management/store-inventory';
+    }
+  }, [searchParams]);
 
   const handleSuccess = () => {
     setModalShow(false);
-    window.location.href = '/admin/bar-management/store-inventories';
+    // Redirect back to store inventory list
+    window.location.href = '/admin/bar-management/store-inventory';
   };
 
   const handleClose = () => {
     setModalShow(false);
-    window.location.href = '/admin/bar-management/store-inventories';
+    // Redirect back to store inventory list
+    window.location.href = '/admin/bar-management/store-inventory';
   };
 
-  // check if property is loading
-  if (!propertiesResponse?.data) {
+  if (!inventoryId) {
     return (
       <div className='w-full h-full flex justify-center items-center'>
         Loading...
@@ -46,53 +40,21 @@ export default function EditStoreInventoryPage() {
     );
   }
 
-  if (propertiesResponse.data?.length === 0) {
-    return (
-      <div className='w-full h-full flex justify-center items-center'>
-        <p className='text-xl'>No properties yet!</p>
-      </div>
-    );
-  }
-
-  if (!inventoryId) {
-    return (
-      <div className='w-full h-full flex justify-center items-center'>
-        <p className='text-xl text-red-600'>Invalid inventory ID</p>
-      </div>
-    );
-  }
-
-  if (inventoryResponse?.success === false) {
-    return (
-      <div className='w-full h-full flex justify-center items-center'>
-        <p className='text-xl text-red-600'>{inventoryResponse.message}</p>
-      </div>
-    );
-  }
-
   return (
     <div className="w-full p-4 bg-white">
-      <header className="w-full border-b flex justify-between items-center mb-4">
-        <h3>Store Inventory</h3>
-        <Button
-          variant="light"
-          className="cursor-pointer"
-          style={{ width: 'fit', height: 'fit', padding: '0', borderRadius: '100%' }}
-          onClick={() => setModalShow(true)}
-        >
-          <FcPlus className="w-8 h-8" />
-        </Button>
-      </header>
-
-      <StoreInventory currentPropertyId={finalPropertyId} />
-
       <BootstrapModal
         show={modalShow}
-        onHide={() => setModalShow(false)}
-        onSuccess={() => {
-          setModalShow(false);
-        }}
-        propertyId={finalPropertyId}
+        onHide={handleClose}
+        backdrop="static"
+        keyboard={false}
+        heading="Edit Store Inventory"
+        body={
+          <EditFormComponent
+            onSuccess={handleSuccess}
+            onClose={handleClose}
+            inventoryId={inventoryId}
+          />
+        }
       />
     </div>
   );

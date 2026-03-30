@@ -23,6 +23,7 @@ const navLinks = [
       { id: 402, href: '/admin/bar-management/beverages', label: 'Beverages'}, 
       { id: 403, href: '/admin/bar-management/user-stock-logs', label: 'User Stock Logs'},
       { id: 404, href: '/admin/bar-management/store-inventory', label: 'Store Inventory'},
+      { id: 405, href: '/admin/bar-management/store-transactions', label: 'Store Transactions'},
     ]
   },
   {id: 5, href: "/#", label: "Expenditure", icon: <FcMoneyTransfer /> },

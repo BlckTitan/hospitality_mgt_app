@@ -192,7 +192,7 @@ const UserStockLogs = ({ currentPropertyId }: { currentPropertyId: Id<"propertie
       render: (value, row) => (
         <div className='flex justify-evenly lg:justify-start items-center gap-1'>
           <a
-            href={`/admin/user-stock-logs/edit?stock_log_id=${row._id}`}
+            href={`/admin/bar-management/user-stock-logs/edit?stock_log_id=${row._id}`}
             className='!mr-2 !no-underline !text-amber-400'
             title={row.shift?.isFinalized ? 'Cannot edit - shift is finalized' : 'Edit stock log'}
           >

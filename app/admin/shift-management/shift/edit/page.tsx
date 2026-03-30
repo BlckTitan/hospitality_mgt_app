@@ -10,7 +10,6 @@ import EditShiftForm from '../components/editShiftForm';
 export default function EditShiftPage() {
   const [modalShow, setModalShow] = useState(true);
   const [shiftId, setShiftId] = useState<string>('');
-  const [shiftData, setShiftData] = useState<any>(null);
   const [propertyId, setPropertyId] = useState<string>('');
 
   // Get shift ID from URL
@@ -28,11 +27,10 @@ export default function EditShiftPage() {
   const currentPropertyId = propertyId || properties?.[0]?._id || '';
 
   // Fetch shift data
-  const shiftResponse = useQuery(api.shifts.getShift, { shiftId: shiftId as any });
+  const shiftResponse = useQuery(api.shifts.getShift, shiftId ? { shiftId: shiftId as any } : "skip");
 
   useEffect(() => {
     if (shiftResponse?.success && shiftResponse?.data) {
-      setShiftData(shiftResponse.data);
       setPropertyId(shiftResponse.data.propertyId);
     }
   }, [shiftResponse]);
@@ -83,7 +81,7 @@ export default function EditShiftPage() {
           setModalShow(false);
         }}
         propertyId={currentPropertyId}
-        shiftData={shiftData}
+        shiftData={shiftResponse?.data}
         shiftId={shiftId}
       />
     </div>

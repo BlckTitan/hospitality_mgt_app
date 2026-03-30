@@ -4,6 +4,23 @@ import { v, Validator } from "convex/values";
 
 const now = Date.now();
 
+export const getAllUsers = query({
+  args: { propertyId: v.optional(v.id('properties')) },
+  handler: async (ctx, args) => {
+    try {
+      let usersQuery = ctx.db.query('users');
+      if (args.propertyId) {
+        usersQuery = usersQuery.filter((q: any) => q.eq(q.field('propertyId'), args.propertyId));
+      }
+      const users = await usersQuery.collect();
+      return { success: true, data: users };
+    } catch (error) {
+      console.log(`Failed to fetch users: ${error}`);
+      return { success: false, data: [], message: 'Failed to fetch users' };
+    }
+  },
+});
+
 export const current = query({
   args: {},
   handler: async (ctx) => {

@@ -1,6 +1,23 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
 
+export const getAllBars = query({
+  args: { propertyId: v.optional(v.id('properties')) },
+  handler: async (ctx, args) => {
+    try {
+      let barsQuery = ctx.db.query('bars');
+      if (args.propertyId) {
+        barsQuery = barsQuery.filter((q: any) => q.eq(q.field('propertyId'), args.propertyId));
+      }
+      const bars = await barsQuery.collect();
+      return { success: true, data: bars };
+    } catch (error) {
+      console.log(`Failed to fetch bars: ${error}`);
+      return { success: false, data: [], message: 'Failed to fetch bars' };
+    }
+  },
+});
+
 export const getBars = query({
   args: { propertyId: v.optional(v.id('properties')) },
   handler: async (ctx, args) => {

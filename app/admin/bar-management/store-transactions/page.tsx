@@ -3,13 +3,13 @@
 import React, { useState } from 'react';
 import { Button } from 'react-bootstrap';
 import { FcPlus } from 'react-icons/fc';
-import StoreInventories from './components/storeInventories';
-import { FormComponent } from './components/createStoreInventoryForm';
+import StoreTransactions from './components/storeTransactions';
+import { FormComponent } from './components/createStoreTransactionForm';
 import { useQuery } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 import BootstrapModal from '../../../../shared/modal';
 
-export default function StoreInventoryPage() {
+export default function StoreTransactionsPage() {
   const [modalShow, setModalShow] = useState(false);
   const [propertyId, setPropertyId] = useState<string>('');
 
@@ -38,7 +38,7 @@ export default function StoreInventoryPage() {
   return (
     <div className="w-full p-4 bg-white">
       <header className="w-full border-b flex justify-between items-center mb-4">
-        <h3>Store Inventory</h3>
+        <h3>Store Transactions</h3>
         <Button
           variant="light"
           className="cursor-pointer"
@@ -49,7 +49,7 @@ export default function StoreInventoryPage() {
         </Button>
       </header>
 
-      <StoreInventories currentPropertyId={currentPropertyId}/>
+      <StoreTransactions currentPropertyId={currentPropertyId}/>
 
       <ModalComponent
         modalShow={modalShow}
@@ -75,7 +75,7 @@ function ModalComponent(props: {
       onHide={() => props.setModalShow(false)}
       backdrop="static"
       keyboard={false}
-      heading="Add New Store Inventory"
+      heading="Add New Store Transaction"
       body={
         <FormComponent
           onSuccess={props.onSuccess}

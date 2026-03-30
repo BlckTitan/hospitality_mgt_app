@@ -29,31 +29,27 @@ interface StoreInventoryProps {
   };
 }
 
-const StoreInventory = ({ currentPropertyId, inventoryData }: { 
-  currentPropertyId: Id<"properties">; 
-  inventoryData?: any;
-}) => {
-
-
-  const removeInventory = useMutation(api.storeInventories.deleteStoreInventory);
+const StoreInventories = ({ currentPropertyId }: { currentPropertyId: Id<"properties"> }) => {
+  const storeInventoryData = useQuery(api.storeInventories.getAllStoreInventories, { propertyId: currentPropertyId });
+  const removeStoreInventory = useMutation(api.storeInventories.deleteStoreInventory);
 
   const handleDelete = async (id: string, beverageName: string) => {
-    if (!confirm('Are you sure you want to delete inventory for: ' + beverageName + '?')) return;
+    if (!confirm('Are you sure you want to delete store inventory for: ' + beverageName + '?')) return;
     try {
-      const response = await removeInventory({ inventoryId: id as Id<'storeInventories'> });
+      const response = await removeStoreInventory({ id: id as Id<'storeInventories'> });
 
       if (response.success === true) {
         toast.success(response.message);
         // Reload page after deletion
         setTimeout(() => {
-          window.location.href = "/admin/bar-management/store-inventories";
+          window.location.href = "/admin/bar-management/store-inventory";
         }, 2000);
       } else {
         return toast.error(response.message);
       }
     } catch (error) {
-      console.log(`Failed to delete inventory! ${error}`);
-      toast.error("Failed to delete inventory. Please try again.");
+      console.log(`Failed to delete store inventory! ${error}`);
+      toast.error("Failed to delete store inventory. Please try again.");
     }
   };
 
@@ -64,20 +60,20 @@ const StoreInventory = ({ currentPropertyId, inventoryData }: {
   const getStockStatusBadge = (qtyInStore: number, reorderThreshold: number) => {
     if (qtyInStore <= reorderThreshold) {
       return (
-        <p className="w-fit h-fit px-2 py-1 text-white rounded-sm bg-red-600">
+        <p className={`w-fit h-fit px-2 py-1 text-white rounded-sm bg-red-600`}>
           Low Stock
         </p>
       );
-    } else if (qtyInStore <= reorderThreshold * 1.5) {
+    } else if (qtyInStore <= reorderThreshold * 2) {
       return (
-        <p className="w-fit h-fit px-2 py-1 text-white rounded-sm bg-yellow-600">
-          Reorder Soon
+        <p className={`w-fit h-fit px-2 py-1 text-white rounded-sm bg-yellow-600`}>
+          Medium Stock
         </p>
       );
     } else {
       return (
-        <p className="w-fit h-fit px-2 py-1 text-white rounded-sm bg-green-600">
-          In Stock
+        <p className={`w-fit h-fit px-2 py-1 text-white rounded-sm bg-green-600`}>
+          Good Stock
         </p>
       );
     }
@@ -85,7 +81,7 @@ const StoreInventory = ({ currentPropertyId, inventoryData }: {
 
   const tableColumns: TableColumn<StoreInventoryProps>[] = [
     {
-      label: 'Beverage Name',
+      label: 'Beverage',
       key: 'beverage',
       render: (value, row) => (
         <span>{row.beverage?.name || 'N/A'}</span>
@@ -109,27 +105,20 @@ const StoreInventory = ({ currentPropertyId, inventoryData }: {
       label: 'Quantity in Store',
       key: 'qtyInStore',
       render: (value, row) => (
-        <span className="font-semibold">{row.qtyInStore}</span>
+        <span className="font-semibold">{row.qtyInStore} {row.beverage?.unitOfMeasure || ''}</span>
       )
     },
     {
       label: 'Reorder Threshold',
       key: 'reorderThreshold',
       render: (value, row) => (
-        <span>{row.reorderThreshold}</span>
+        <span>{row.reorderThreshold} {row.beverage?.unitOfMeasure || ''}</span>
       )
     },
     {
       label: 'Stock Status',
       key: 'qtyInStore',
       render: (value, row) => getStockStatusBadge(row.qtyInStore, row.reorderThreshold)
-    },
-    {
-      label: 'Unit Price',
-      key: 'beverage',
-      render: (value, row) => (
-        <span>${row.beverage?.unitPrice?.toFixed(2) || '0.00'}</span>
-      )
     },
     {
       label: 'Last Updated',
@@ -144,7 +133,7 @@ const StoreInventory = ({ currentPropertyId, inventoryData }: {
       render: (value, row) => (
         <div className='flex justify-evenly lg:justify-start items-center gap-1'>
           <a
-            href={`/admin/bar-management/store-inventories/edit?inventory_id=${row._id}`}
+            href={`/admin/bar-management/store-inventory/edit?inventory_id=${row._id}`}
             className='!mr-2 !no-underline !text-amber-400'
           >
             <i className='icon'><MdEditDocument /></i>
@@ -153,7 +142,7 @@ const StoreInventory = ({ currentPropertyId, inventoryData }: {
           <Button
             variant='white'
             onClick={() => handleDelete(row._id, row.beverage?.name || 'Unknown')}
-            title='Delete inventory'
+            title='Delete store inventory'
           >
             <i className='icon'>
               <FcEmptyTrash />
@@ -170,11 +159,11 @@ const StoreInventory = ({ currentPropertyId, inventoryData }: {
         <PaginationComponent 
           collectionName='storeInventories' 
           columns={tableColumns}
-          jointTableData={(inventoryData?.success === true) && inventoryData?.data}  
+          jointTableData={(storeInventoryData?.success === true) && storeInventoryData?.data}  
         />
       </Suspense>
     </div>
   );
 };
 
-export default StoreInventory;
+export default StoreInventories;
