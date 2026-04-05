@@ -4,6 +4,7 @@ import { useQuery } from 'convex/react';
 import { api } from '../../../convex/_generated/api';
 import { Id } from '../../../convex/_generated/dataModel';
 import ReorderAlertsTable from './components/reorder-alerts';
+import SalesSummaryCharts from './components/sales-summary-charts';
 
 export default function BarManagement() {
     const [propertyId, setPropertyId] = useState<string>('');
@@ -75,6 +76,29 @@ export default function BarManagement() {
                 </div>
                 
                 <ReorderAlertsTable currentPropertyId={currentPropertyId as Id<"properties">} />
+            </div>
+
+            {/* Sales Summary Section */}
+            <div className="mb-8">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                    <div className="flex items-center">
+                        <div className="flex-shrink-0">
+                            <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                                <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
+                            </svg>
+                        </div>
+                        <div className="ml-3">
+                            <h3 className="text-sm font-medium text-blue-800">
+                                Sales Analytics
+                            </h3>
+                            <p className="text-sm text-blue-700">
+                                Pre-aggregated sales data with multi-dimensional reporting
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                <SalesSummaryCharts currentPropertyId={currentPropertyId as Id<"properties">} />
             </div>
 
             {/* Quick Actions */}

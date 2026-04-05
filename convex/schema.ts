@@ -530,4 +530,32 @@ export default defineSchema({
     .index("by_status", ["status"])
     .index("by_beverageId_status", ["beverageId", "status"])
     .index("by_propertyId_status", ["propertyId", "status"]),
+
+  // Sales Summaries table for pre-aggregated sales data
+  salesSummaries: defineTable({
+    propertyId: v.id("properties"),
+    barId: v.id("bars"),
+    userId: v.optional(v.id("users")),
+    beverageId: v.id("beverages"),
+    periodType: v.union(
+      v.literal("daily"),
+      v.literal("weekly"),
+      v.literal("monthly"),
+      v.literal("yearly")
+    ),
+    periodKey: v.string(),
+    year: v.number(),
+    month: v.optional(v.number()),
+    weekNumber: v.optional(v.number()),
+    totalQtySold: v.number(),
+    totalRevenue: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_barId_period", ["barId", "periodType", "periodKey"])
+    .index("by_userId_period", ["userId", "periodType", "periodKey"])
+    .index("by_beverageId_period", ["beverageId", "periodType", "periodKey"])
+    .index("by_barId_beverage_period", ["barId", "beverageId", "periodType", "periodKey"])
+    .index("by_year_periodType", ["year", "periodType"])
+    .index("by_propertyId_periodType", ["propertyId", "periodType"])
+    .index("by_propertyId_barId_period", ["propertyId", "barId", "periodType", "periodKey"]),
 })
