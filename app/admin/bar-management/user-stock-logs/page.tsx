@@ -5,13 +5,16 @@ import { Button } from 'react-bootstrap';
 import { FcPlus } from 'react-icons/fc';
 import UserStockLogs from './components/userStockLogs';
 import { FormComponent } from './components/createUserStockLogForm';
+import { FilterComponent } from './components/filterComponent';
 import { useQuery } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
+import { Id } from '../../../../convex/_generated/dataModel';
 import BootstrapModal from '../../../../shared/modal';
 
 export default function UserStockLogPage() {
   const [modalShow, setModalShow] = useState(false);
   const [propertyId, setPropertyId] = useState<string>('');
+  const [activeFilters, setActiveFilters] = useState<any>(null);
 
   // Fetch properties to get the current property
   const propertiesResponse = useQuery(api.property.getAllProperties);
@@ -35,6 +38,14 @@ export default function UserStockLogPage() {
     );
   }
 
+  const handleFilter = (filters: any) => {
+    setActiveFilters(filters);
+  };
+
+  const handleClearFilter = () => {
+    setActiveFilters(null);
+  };
+
   return (
     <div className="w-full p-4 bg-white">
       <header className="w-full border-b flex justify-between items-center mb-4">
@@ -49,7 +60,16 @@ export default function UserStockLogPage() {
         </Button>
       </header>
 
-      <UserStockLogs currentPropertyId={currentPropertyId}/>
+      <FilterComponent
+        propertyId={currentPropertyId as Id<'properties'>}
+        onFilter={handleFilter}
+        onClear={handleClearFilter}
+      />
+
+      <UserStockLogs 
+        currentPropertyId={currentPropertyId as Id<'properties'>}
+        filters={activeFilters}
+      />
 
       <ModalComponent
         modalShow={modalShow}

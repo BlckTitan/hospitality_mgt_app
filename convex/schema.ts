@@ -449,22 +449,33 @@ export default defineSchema({
     .index("by_userId_date", ["userId", "shiftDate"]),
 
   // User Stock Logs table for per-shift, per-beverage stock and sales reconciliation
+  // v2.1: barId, userId, logDate, isFinalized added; recordedAt → lastUpdatedAt
+  // Natural unique key: (userId, barId, beverageId, logDate)
   userStockLogs: defineTable({
     propertyId: v.id("properties"),
-    shiftId: v.id("shifts"),
+    shiftId: v.id("shifts"),     // back-reference to the shift that opened this day
+    userId: v.id("users"),      // denormalized for direct day-scoped lookups
+    barId: v.optional(v.id("bars")),       // denormalized for direct day-scoped lookups
     beverageId: v.id("beverages"),
-    openingStock: v.number(),
-    newStockReceived: v.number(),
-    totalStock: v.number(),
-    closingStock: v.number(),
-    salesQuantity: v.number(),
-    salesValue: v.number(),
-    recordedAt: v.number(),
+    logDate: v.string(),         // ISO 8601 e.g. "2026-03-26"
+    openingStock: v.number(),         // carried over from previous day's closingStock
+    newStockReceived: v.number(),         // cumulative qty issued today via storeTransactions
+    totalStock: v.number(),         // openingStock + newStockReceived (persisted)
+    closingStock: v.number(),         // physical count at end of day
+    salesQuantity: v.number(),         // totalStock − closingStock (persisted)
+    salesValue: v.number(),         // salesQuantity × unitPrice (persisted)
+    isFinalized: v.boolean(),        // true after end-of-day reconciliation
+    lastUpdatedAt: v.number(),         // epoch ms of last mutation
   })
     .index("by_propertyId", ["propertyId"])
     .index("by_shiftId", ["shiftId"])
-    .index("by_shiftId_beverage", ["shiftId", "beverageId"])
-    .index("by_beverageId", ["beverageId"]),
+    .index("by_userId_date", ["userId", "logDate"])
+    .index("by_userId_barId_date", ["userId", "barId", "logDate"])
+    .index("by_userId_barId_bev_date", ["userId", "barId", "beverageId", "logDate"])
+    .index("by_userId_beverage_date", ["userId", "beverageId", "logDate"])
+    .index("by_beverageId", ["beverageId"])
+    .index("by_barId_date", ["barId", "logDate"])
+    .index("by_barId_beverage_date", ["barId", "beverageId", "logDate"]),
 
   // Store Inventory table for live stock balance per beverage
   storeInventories: defineTable({
@@ -479,6 +490,7 @@ export default defineSchema({
     .index("by_propertyId_beverageId", ["propertyId", "beverageId"]),
 
   // Store Transactions table for logging stock movements
+  // v2.1: txnDateKey (ISO string) added for day-scoped userStockLogs lookups
   storeTransactions: defineTable({
     propertyId: v.id("properties"),
     beverageId: v.id("beverages"),
@@ -486,7 +498,8 @@ export default defineSchema({
     userId: v.optional(v.id("users")),
     txnType: v.union(v.literal("receive"), v.literal("issue")),
     qty: v.number(),
-    txnDate: v.number(),
+    txnDate: v.number(),       // epoch ms — for ordering
+    txnDateKey: v.string(),       // ISO 8601 e.g. "2026-03-26" — for day-scoped lookups
     notes: v.optional(v.string()),
   })
     .index("by_propertyId", ["propertyId"])
@@ -494,8 +507,8 @@ export default defineSchema({
     .index("by_barId", ["barId"])
     .index("by_userId", ["userId"])
     .index("by_txnType", ["txnType"])
-    .index("by_beverageId_date", ["beverageId", "txnDate"])
+    .index("by_beverageId_date", ["beverageId", "txnDateKey"])
+    .index("by_userId_beverage_date", ["userId", "beverageId", "txnDateKey"])
+    .index("by_barId_beverage_date", ["barId", "beverageId", "txnDateKey"])
     .index("by_propertyId_txnDate", ["propertyId", "txnDate"]),
-
 })
-  

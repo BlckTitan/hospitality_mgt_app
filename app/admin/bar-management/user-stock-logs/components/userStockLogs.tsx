@@ -15,14 +15,18 @@ interface UserStockLogProps {
   _id: string;
   propertyId: string;
   shiftId: string;
+  userId: string;
+  barId: string;
   beverageId: string;
+  logDate: string;
   openingStock: number;
   newStockReceived: number;
   totalStock: number;
   closingStock: number;
   salesQuantity: number;
   salesValue: number;
-  recordedAt: number;
+  isFinalized: boolean;
+  lastUpdatedAt: number;
   shift?: {
     _id: string;
     userId: string;
@@ -54,9 +58,42 @@ interface UserStockLogProps {
   };
 }
 
-const UserStockLogs = ({ currentPropertyId }: { currentPropertyId: Id<"properties"> }) => {
-  const stockLogData = useQuery(api.userStockLogs.getAllUserStockLogs, { propertyId: currentPropertyId });
+const UserStockLogs = ({ 
+  currentPropertyId, 
+  filters 
+}: { 
+  currentPropertyId: Id<"properties">;
+  filters?: any;
+}) => {
+  // Use different queries based on active filters
+  let stockLogData;
+  
+  if (filters?.userId && filters?.barId && filters?.logDate) {
+    // Use daily stock logs query for specific user/bar/date
+    stockLogData = useQuery(api.userStockLogs.getDailyStockLogs, {
+      userId: filters.userId as Id<'users'>,
+      barId: filters.barId as Id<'bars'>,
+      logDate: filters.logDate,
+    });
+  } else if (filters?.userId && filters?.logDate) {
+    // Use user daily stock logs query
+    stockLogData = useQuery(api.userStockLogs.getUserDailyStockLogs, {
+      userId: filters.userId as Id<'users'>,
+      logDate: filters.logDate,
+    });
+  } else if (filters?.barId && filters?.logDate) {
+    // Use bar daily stock logs query
+    stockLogData = useQuery(api.userStockLogs.getBarDailyStockLogs, {
+      barId: filters.barId as Id<'bars'>,
+      logDate: filters.logDate,
+    });
+  } else {
+    // Use default query for all stock logs
+    stockLogData = useQuery(api.userStockLogs.getAllUserStockLogs, { propertyId: currentPropertyId });
+  }
+  
   const removeUserStockLog = useMutation(api.userStockLogs.deleteUserStockLog);
+  const finalizeUserStockLog = useMutation(api.userStockLogs.finalizeUserStockLog);
 
   const handleDelete = async (id: string, beverageName: string) => {
     if (!confirm('Are you sure you want to delete stock log for: ' + beverageName + '?')) return;
@@ -67,7 +104,7 @@ const UserStockLogs = ({ currentPropertyId }: { currentPropertyId: Id<"propertie
         toast.success(response.message);
         // Reload page after deletion
         setTimeout(() => {
-          window.location.href = "/admin/user-stock-logs";
+          window.location.href = "/admin/bar-management/user-stock-logs";
         }, 2000);
       } else {
         return toast.error(response.message);
@@ -75,6 +112,26 @@ const UserStockLogs = ({ currentPropertyId }: { currentPropertyId: Id<"propertie
     } catch (error) {
       console.log(`Failed to delete user stock log! ${error}`);
       toast.error("Failed to delete user stock log. Please try again.");
+    }
+  };
+
+  const handleFinalize = async (id: string, beverageName: string) => {
+    if (!confirm('Are you sure you want to finalize this stock log for: ' + beverageName + '? This action cannot be undone.')) return;
+    try {
+      const response = await finalizeUserStockLog({ stockLogId: id as Id<'userStockLogs'> });
+
+      if (response.success === true) {
+        toast.success(response.message);
+        // Reload page after finalization
+        setTimeout(() => {
+          window.location.href = "/admin/bar-management/user-stock-logs";
+        }, 2000);
+      } else {
+        return toast.error(response.message);
+      }
+    } catch (error) {
+      console.log(`Failed to finalize user stock log! ${error}`);
+      toast.error("Failed to finalize user stock log. Please try again.");
     }
   };
 
@@ -89,7 +146,7 @@ const UserStockLogs = ({ currentPropertyId }: { currentPropertyId: Id<"propertie
     }).format(amount);
   };
 
-  const getShiftStatusBadge = (isFinalized: boolean) => {
+  const getStockLogStatusBadge = (isFinalized: boolean) => {
     return (
       <p className={`w-fit h-fit px-2 py-1 text-white rounded-sm ${isFinalized ? 'bg-green-600' : 'bg-yellow-600'}`}>
         {isFinalized ? 'Finalized' : 'Active'}
@@ -100,9 +157,9 @@ const UserStockLogs = ({ currentPropertyId }: { currentPropertyId: Id<"propertie
   const tableColumns: TableColumn<UserStockLogProps>[] = [
     {
       label: 'Date',
-      key: 'shift',
+      key: 'logDate',
       render: (value, row) => (
-        <span>{row.shift?.shiftDate || 'N/A'}</span>
+        <span>{row.logDate || 'N/A'}</span>
       )
     },
     {
@@ -137,7 +194,7 @@ const UserStockLogs = ({ currentPropertyId }: { currentPropertyId: Id<"propertie
       label: 'New Stock',
       key: 'newStockReceived',
       render: (value, row) => (
-        <span>{row.newStockReceived} {row.beverage?.unitOfMeasure || 'units'}</span>
+        <span className="text-blue-600">{row.newStockReceived} {row.beverage?.unitOfMeasure || 'units'}</span>
       )
     },
     {
@@ -173,17 +230,17 @@ const UserStockLogs = ({ currentPropertyId }: { currentPropertyId: Id<"propertie
       )
     },
     {
-      label: 'Shift Status',
-      key: 'shift',
+      label: 'Status',
+      key: 'isFinalized',
       render: (value, row) => (
-        <span>{row.shift ? getShiftStatusBadge(row.shift.isFinalized) : 'N/A'}</span>
+        <span>{getStockLogStatusBadge(row.isFinalized)}</span>
       )
     },
     {
-      label: 'Recorded At',
-      key: 'recordedAt',
+      label: 'Last Updated',
+      key: 'lastUpdatedAt',
       render: (value, row) => (
-        <span>{formatDate(row.recordedAt)}</span>
+        <span>{formatDate(row.lastUpdatedAt)}</span>
       )
     },
     {
@@ -194,20 +251,34 @@ const UserStockLogs = ({ currentPropertyId }: { currentPropertyId: Id<"propertie
           <a
             href={`/admin/bar-management/user-stock-logs/edit?stock_log_id=${row._id}`}
             className='!mr-2 !no-underline !text-amber-400'
-            title={row.shift?.isFinalized ? 'Cannot edit - shift is finalized' : 'Edit stock log'}
+            title={row.isFinalized ? 'Cannot edit - record is finalized' : 'Edit stock log'}
           >
-            <i className={`icon ${row.shift?.isFinalized ? 'opacity-50 cursor-not-allowed' : ''}`}>
+            <i className={`icon ${row.isFinalized ? 'opacity-50 cursor-not-allowed' : ''}`}>
               <MdEditDocument />
             </i>
           </a>
 
+          {!row.isFinalized && (
+            <Button
+              variant='success'
+              size='sm'
+              onClick={() => handleFinalize(row._id, row.beverage?.name || 'Unknown')}
+              title='Finalize stock log'
+              className='!text-white'
+            >
+              <i className='icon'>
+                <FcDocument />
+              </i>
+            </Button>
+          )}
+
           <Button
             variant='white'
             onClick={() => handleDelete(row._id, row.beverage?.name || 'Unknown')}
-            title={row.shift?.isFinalized ? 'Cannot delete - shift is finalized' : 'Delete stock log'}
-            disabled={row.shift?.isFinalized}
+            title={row.isFinalized ? 'Cannot delete - record is finalized' : 'Delete stock log'}
+            disabled={row.isFinalized}
           >
-            <i className={`icon ${row.shift?.isFinalized ? 'opacity-50 cursor-not-allowed' : ''}`}>
+            <i className={`icon ${row.isFinalized ? 'opacity-50 cursor-not-allowed' : ''}`}>
               <FcEmptyTrash />
             </i>
           </Button>

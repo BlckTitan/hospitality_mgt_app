@@ -101,6 +101,9 @@ export const createStoreTransaction = mutation({
         return { success: false, message: 'Quantity must be greater than 0' };
       }
 
+      // Generate ISO date key from txnDate
+      const txnDateKey = new Date(args.txnDate).toISOString().split('T')[0];
+
       const transactionId = await ctx.db.insert('storeTransactions', {
         propertyId: args.propertyId,
         beverageId: args.beverageId,
@@ -109,6 +112,7 @@ export const createStoreTransaction = mutation({
         txnType: args.txnType,
         qty: args.qty,
         txnDate: args.txnDate,
+        txnDateKey,
         notes: args.notes,
       });
 
@@ -144,6 +148,119 @@ export const createStoreTransaction = mutation({
           reorderThreshold: beverage.reorderLevel || 10,
           lastUpdated: Date.now(),
         });
+      }
+
+      // If this is an issue transaction, update userStockLogs
+      if (args.txnType === 'issue' && args.barId && args.userId) {
+        // Create the stock log update inline to avoid circular imports
+        const beverage = await ctx.db.get(args.beverageId);
+        if (!beverage) {
+          // Rollback transaction if beverage not found
+          await ctx.db.delete(transactionId);
+          return { success: false, message: 'Beverage does not exist' };
+        }
+
+        // Look for existing stock log for today
+        const existingLog = await ctx.db
+          .query('userStockLogs')
+          .withIndex('by_userId_barId_bev_date', (q) =>
+            q.eq('userId', args.userId!)
+             .eq('barId', args.barId!)
+             .eq('beverageId', args.beverageId)
+             .eq('logDate', txnDateKey)
+          )
+          .first();
+
+        if (existingLog) {
+          // Check if finalized
+          if (existingLog.isFinalized) {
+            // Rollback transaction
+            await ctx.db.delete(transactionId);
+            return { success: false, message: 'Cannot issue stock to finalized day' };
+          }
+
+          // Update existing log
+          const newStockReceived = existingLog.newStockReceived + args.qty;
+          const totalStock = existingLog.openingStock + newStockReceived;
+          const salesQuantity = totalStock - existingLog.closingStock;
+          
+          if (salesQuantity < 0) {
+            // Rollback transaction
+            await ctx.db.delete(transactionId);
+            return { success: false, message: 'Stock issue would result in negative sales' };
+          }
+
+          const salesValue = salesQuantity * beverage.unitPrice;
+
+          await ctx.db.patch(existingLog._id, {
+            newStockReceived,
+            totalStock,
+            salesQuantity,
+            salesValue,
+            lastUpdatedAt: Date.now(),
+          });
+        } else {
+          // Create new stock log for today
+          // Get opening stock from previous day's closing stock
+          const yesterday = new Date(txnDateKey);
+          yesterday.setDate(yesterday.getDate() - 1);
+          const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+          const previousLog = await ctx.db
+            .query('userStockLogs')
+            .withIndex('by_userId_barId_bev_date', (q) =>
+              q.eq('userId', args.userId!)
+               .eq('barId', args.barId!)
+               .eq('beverageId', args.beverageId)
+               .eq('logDate', yesterdayStr)
+            )
+            .first();
+
+          const openingStock = previousLog?.closingStock || 0;
+          const newStockReceived = args.qty;
+          const totalStock = openingStock + newStockReceived;
+          const closingStock = totalStock; // Assume no sales yet
+          const salesQuantity = 0;
+          const salesValue = 0;
+
+          // Find or create a shift for today
+          let shift = await ctx.db
+            .query('shifts')
+            .withIndex('by_userId_date', (q) =>
+              q.eq('userId', args.userId!).eq('shiftDate', txnDateKey)
+            )
+            .first();
+
+          if (!shift) {
+            // Create a new shift for today
+            const shiftId = await ctx.db.insert('shifts', {
+              propertyId: args.propertyId,
+              userId: args.userId,
+              barId: args.barId,
+              shiftDate: txnDateKey,
+              startTime: new Date().toTimeString().split(' ')[0].substring(0, 5),
+              isFinalized: false,
+            });
+            shift = await ctx.db.get(shiftId);
+          }
+
+          await ctx.db.insert('userStockLogs', {
+            propertyId: args.propertyId,
+            shiftId: shift!._id,
+            userId: args.userId!,
+            barId: args.barId!,
+            beverageId: args.beverageId,
+            logDate: txnDateKey,
+            openingStock,
+            newStockReceived,
+            totalStock,
+            closingStock,
+            salesQuantity,
+            salesValue,
+            isFinalized: false,
+            lastUpdatedAt: Date.now(),
+          });
+        }
       }
 
       return { success: true, message: 'Store transaction created successfully', id: transactionId };
@@ -198,6 +315,9 @@ export const updateStoreTransaction = mutation({
       if (args.qty <= 0) {
         return { success: false, message: 'Quantity must be greater than 0' };
       }
+
+      // Generate ISO date key from txnDate
+      const txnDateKey = new Date(args.txnDate).toISOString().split('T')[0];
 
       // Update store inventory - reverse old transaction first
       const storeInventory = await ctx.db
@@ -277,6 +397,7 @@ export const updateStoreTransaction = mutation({
         txnType: args.txnType,
         qty: args.qty,
         txnDate: args.txnDate,
+        txnDateKey,
         notes: args.notes,
       });
 

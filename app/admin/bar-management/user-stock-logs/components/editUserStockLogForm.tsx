@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery } from "convex/react";
 import { SubmitHandler, useForm } from "react-hook-form";
-import { formSchema } from "./validation";
+import { editFormSchema } from "./validation";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { toast } from "sonner";
 import { Button } from "react-bootstrap";
@@ -11,10 +11,7 @@ import { Id } from "../../../../../convex/_generated/dataModel";
 import InputComponent from "../../../../../shared/input";
 
 type FormData = {
-  shiftId: string;
-  beverageId: string;
   openingStock: number;
-  newStockReceived: number;
   closingStock: number;
 };
 
@@ -29,20 +26,17 @@ export function EditUserStockLogForm({ stockLogData, stockLogId, onSuccess, onCl
   const updateUserStockLog = useMutation(api.userStockLogs.updateUserStockLog);
 
   const { register, handleSubmit, formState: { errors }, watch } = useForm<FormData>({
-    resolver: yupResolver(formSchema) as any,
+    resolver: yupResolver(editFormSchema) as any,
     defaultValues: {
-      shiftId: stockLogData.shiftId || '',
-      beverageId: stockLogData.beverageId || '',
       openingStock: stockLogData.openingStock || 0,
-      newStockReceived: stockLogData.newStockReceived || 0,
       closingStock: stockLogData.closingStock || 0,
     },
   });
 
   const watchedValues = watch();
   
-  // Calculate total stock and sales quantity for display
-  const totalStock = (watchedValues.openingStock || 0) + (watchedValues.newStockReceived || 0);
+  // Calculate current totals for display
+  const totalStock = (watchedValues.openingStock || 0) + (stockLogData.newStockReceived || 0);
   const salesQuantity = totalStock - (watchedValues.closingStock || 0);
 
   const onSubmit: SubmitHandler<FormData> = async (data) => {
@@ -50,7 +44,6 @@ export function EditUserStockLogForm({ stockLogData, stockLogId, onSuccess, onCl
       const response = await updateUserStockLog({
         stockLogId: stockLogId as Id<'userStockLogs'>,
         openingStock: data.openingStock,
-        newStockReceived: data.newStockReceived,
         closingStock: data.closingStock,
       });
 
@@ -73,19 +66,19 @@ export function EditUserStockLogForm({ stockLogData, stockLogId, onSuccess, onCl
     <form onSubmit={handleSubmit(onSubmit)} className="editUserStockLogForm">
       <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-start gap-2 mb-2 lg:mb-4">
         <div className="flex-1">
-          <label className="block mb-2">Shift</label>
+          <label className="block mb-2">User & Bar</label>
           <input
             type="text"
-            value={`${stockLogData.user?.name || 'Unknown User'} - ${stockLogData.bar?.name || 'Unknown Bar'} - ${stockLogData.shift?.shiftDate} (${stockLogData.shift?.startTime})`}
+            value={`${stockLogData.user?.name || 'Unknown User'} - ${stockLogData.bar?.name || 'Unknown Bar'}`}
             disabled
             className="w-full border rounded p-2 bg-gray-100"
           />
         </div>
         <div className="flex-1">
-          <label className="block mb-2">Beverage</label>
+          <label className="block mb-2">Date & Beverage</label>
           <input
             type="text"
-            value={`${stockLogData.beverage?.name || 'Unknown'} - $${stockLogData.beverage?.unitPrice || 0}/${stockLogData.beverage?.unitOfMeasure || 'unit'}`}
+            value={`${stockLogData.logDate || 'Unknown'} - ${stockLogData.beverage?.name || 'Unknown'}`}
             disabled
             className="w-full border rounded p-2 bg-gray-100"
           />
@@ -105,19 +98,6 @@ export function EditUserStockLogForm({ stockLogData, stockLogId, onSuccess, onCl
         </div>
         <div className="flex-1">
           <InputComponent
-            id="newStockReceived"
-            label="New Stock Received *"
-            type="number"
-            inputWidth="w-full"
-            register={register('newStockReceived', { valueAsNumber: true, min: 0 })}
-            error={errors.newStockReceived}
-          />
-        </div>
-      </div>
-
-      <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-start gap-2 mb-2 lg:mb-4">
-        <div className="flex-1">
-          <InputComponent
             id="closingStock"
             label="Closing Stock *"
             type="number"
@@ -126,20 +106,40 @@ export function EditUserStockLogForm({ stockLogData, stockLogId, onSuccess, onCl
             error={errors.closingStock}
           />
         </div>
+      </div>
+
+      <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-start gap-2 mb-2 lg:mb-4">
         <div className="flex-1">
           <div className="bg-gray-100 p-3 rounded">
-            <p className="text-sm font-semibold mb-2">Calculated Values:</p>
+            <p className="text-sm font-semibold mb-2">Current Values:</p>
+            <p className="text-sm">Opening Stock: <span className="font-bold">{watchedValues.openingStock || 0}</span></p>
+            <p className="text-sm">New Stock Received: <span className="font-bold">{stockLogData.newStockReceived || 0}</span></p>
             <p className="text-sm">Total Stock: <span className="font-bold">{totalStock}</span></p>
             <p className="text-sm">Sales Quantity: <span className="font-bold">{salesQuantity}</span></p>
             <p className="text-sm">Sales Value: <span className="font-bold">${salesQuantity * (stockLogData.beverage?.unitPrice || 0)}</span></p>
             {salesQuantity < 0 && <p className="text-red-500 text-sm">Warning: Closing stock exceeds total stock!</p>}
           </div>
         </div>
+        <div className="flex-1">
+          <div className="bg-blue-50 p-3 rounded">
+            <p className="text-sm font-semibold mb-2">Status:</p>
+            <p className="text-sm">Finalized: <span className={`font-bold ${stockLogData.isFinalized ? 'text-green-600' : 'text-orange-600'}`}>
+              {stockLogData.isFinalized ? 'Yes' : 'No'}
+            </span></p>
+            <p className="text-sm">Last Updated: <span className="font-bold">
+              {stockLogData.lastUpdatedAt ? new Date(stockLogData.lastUpdatedAt).toLocaleString() : 'Unknown'}
+            </span></p>
+            {stockLogData.isFinalized && (
+              <p className="text-red-600 text-sm mt-2">This record is finalized and cannot be edited.</p>
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="bg-blue-50 p-3 rounded mb-4">
         <p className="text-sm text-blue-800">
-          <strong>Note:</strong> This stock log can only be edited if the associated shift is not finalized.
+          <strong>Note:</strong> This stock log can only be edited if it's not finalized. 
+          New stock received is automatically managed when stock is issued from the store.
         </p>
       </div>
 
@@ -147,7 +147,7 @@ export function EditUserStockLogForm({ stockLogData, stockLogId, onSuccess, onCl
         <Button variant="secondary" onClick={onClose}>
           Cancel
         </Button>
-        <Button variant="dark" type="submit" disabled={salesQuantity < 0}>
+        <Button variant="dark" type="submit" disabled={salesQuantity < 0 || stockLogData.isFinalized}>
           Update Stock Log
         </Button>
       </div>

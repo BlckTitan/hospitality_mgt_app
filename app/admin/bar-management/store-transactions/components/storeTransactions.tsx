@@ -20,6 +20,7 @@ interface StoreTransactionProps {
   txnType: 'receive' | 'issue';
   qty: number;
   txnDate: number;
+  txnDateKey: string;
   notes?: string;
   beverage?: {
     _id: string;
@@ -88,7 +89,10 @@ const StoreTransactions = ({ currentPropertyId }: { currentPropertyId: Id<"prope
       label: 'Date',
       key: 'txnDate',
       render: (value, row) => (
-        <span>{formatDate(row.txnDate)}</span>
+        <div>
+          <div className="font-semibold">{row.txnDateKey || 'N/A'}</div>
+          <div className="text-xs text-gray-500">{formatDate(row.txnDate)}</div>
+        </div>
       )
     },
     {
@@ -107,21 +111,23 @@ const StoreTransactions = ({ currentPropertyId }: { currentPropertyId: Id<"prope
       label: 'Quantity',
       key: 'qty',
       render: (value, row) => (
-        <span>{row.qty} {row.beverage?.unitOfMeasure || 'units'}</span>
+        <span className={row.txnType === 'issue' ? 'text-blue-600 font-semibold' : 'text-green-600'}>
+          {row.txnType === 'issue' ? '-' : '+'}{row.qty} {row.beverage?.unitOfMeasure || 'units'}
+        </span>
       )
     },
     {
       label: 'Bar',
       key: 'bar',
       render: (value, row) => (
-        <span>{row.bar?.name || 'N/A'}</span>
+        <span>{row.bar?.name || (row.txnType === 'receive' ? 'Store' : 'N/A')}</span>
       )
     },
     {
       label: 'User',
       key: 'user',
       render: (value, row) => (
-        <span>{row.user?.name || 'N/A'}</span>
+        <span>{row.user?.name || (row.txnType === 'receive' ? 'System' : 'N/A')}</span>
       )
     },
     {
@@ -141,6 +147,7 @@ const StoreTransactions = ({ currentPropertyId }: { currentPropertyId: Id<"prope
           <a
             href={`/admin/bar-management/store-transactions/edit?transaction_id=${row._id}`}
             className='!mr-2 !no-underline !text-amber-400'
+            title='Edit transaction'
           >
             <i className='icon'><MdEditDocument /></i>
           </a>
