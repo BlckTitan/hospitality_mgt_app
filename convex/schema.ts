@@ -511,4 +511,23 @@ export default defineSchema({
     .index("by_userId_beverage_date", ["userId", "beverageId", "txnDateKey"])
     .index("by_barId_beverage_date", ["barId", "beverageId", "txnDateKey"])
     .index("by_propertyId_txnDate", ["propertyId", "txnDate"]),
+
+  // Reorder Alerts table for low stock notifications
+  reorderAlerts: defineTable({
+    propertyId: v.id("properties"),
+    beverageId: v.id("beverages"),
+    qtyAtAlert: v.number(),
+    reorderLevel: v.number(),
+    alertedAt: v.number(),
+    status: v.union(
+      v.literal("open"),
+      v.literal("acknowledged"),
+      v.literal("resolved")
+    ),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_beverageId", ["beverageId"])
+    .index("by_status", ["status"])
+    .index("by_beverageId_status", ["beverageId", "status"])
+    .index("by_propertyId_status", ["propertyId", "status"]),
 })

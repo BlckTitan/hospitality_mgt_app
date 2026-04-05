@@ -139,6 +139,29 @@ export const createStoreTransaction = mutation({
           qtyInStore: newQty,
           lastUpdated: Date.now(),
         });
+
+        // Check if stock fell below threshold and create reorder alert if needed
+        if (args.txnType === 'issue' && newQty <= storeInventory.reorderThreshold) {
+          // Check if there's already an open alert for this beverage
+          const existingOpenAlert = await ctx.db
+            .query('reorderAlerts')
+            .withIndex('by_beverageId_status', (q) => 
+              q.eq('beverageId', args.beverageId).eq('status', 'open')
+            )
+            .first();
+
+          if (!existingOpenAlert) {
+            // Create new reorder alert
+            await ctx.db.insert('reorderAlerts', {
+              propertyId: args.propertyId,
+              beverageId: args.beverageId,
+              qtyAtAlert: newQty,
+              reorderLevel: storeInventory.reorderThreshold,
+              alertedAt: Date.now(),
+              status: 'open',
+            });
+          }
+        }
       } else {
         // Create store inventory record if it doesn't exist
         await ctx.db.insert('storeInventories', {
