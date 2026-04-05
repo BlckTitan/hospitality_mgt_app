@@ -14,6 +14,7 @@ type FormData = {
   userId: string;
   barId: string;
   beverageId: string;
+  shiftId: string;
   logDate: string;
   openingStock: number;
   closingStock: number;
@@ -33,6 +34,10 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
   // Fetch beverages for this property
   const beveragesResponse = useQuery(api.beverages.getAllBeverages, { propertyId: propertyId as Id<'properties'> });
   const beverages = beveragesResponse?.data || [];
+  
+  // Fetch shifts for this property
+  const shiftsResponse = useQuery(api.shifts.getAllShifts, { propertyId: propertyId as Id<'properties'> });
+  const shifts = shiftsResponse?.data || [];
 
   const { register, handleSubmit, formState: { errors }, reset, watch } = useForm<FormData>({
     resolver: yupResolver(formSchema) as any,
@@ -40,6 +45,7 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
       userId: '',
       barId: '',
       beverageId: '',
+      shiftId: '',
       logDate: new Date().toISOString().split('T')[0], // Today's date
       openingStock: 0,
       closingStock: 0,
@@ -57,6 +63,7 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
         propertyId: propertyId as Id<'properties'>,
         userId: data.userId as Id<'users'>,
         barId: data.barId as Id<'bars'>,
+        shiftId: data.shiftId as Id<'shifts'>,
         beverageId: data.beverageId as Id<'beverages'>,
         logDate: data.logDate,
         openingStock: data.openingStock,
@@ -98,6 +105,13 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
     .map((beverage: any) => ({
       value: beverage._id,
       label: `${beverage.name} - $${beverage.unitPrice}/${beverage.unitOfMeasure}`,
+    }));
+
+  const shiftOptions = shifts
+    .filter((shift: any) => !shift.isFinalized)
+    .map((shift: any) => ({
+      value: shift._id,
+      label: `${shift.user?.name || 'Unknown'} - ${shift.bar?.name || 'Unknown'} (${shift.shiftDate})`,
     }));
 
   return (
@@ -152,6 +166,26 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
           {errors.logDate && <span className="text-red-500 text-sm">{errors.logDate.message}</span>}
         </div>
         <div className="flex-1">
+          <label htmlFor="shiftId" className="block mb-2">Shift *</label>
+          <select
+            id="shiftId"
+            {...register('shiftId', { required: true })}
+            className="w-full border rounded p-2"
+            defaultValue=""
+          >
+            <option disabled value="">Select a shift</option>
+            {shiftOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          {errors.shiftId && <span className="text-red-500 text-sm">{errors.shiftId.message}</span>}
+        </div>
+      </div>
+
+      <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-start gap-2 mb-2 lg:mb-4">
+        <div className="flex-1">
           <label htmlFor="beverageId" className="block mb-2">Beverage *</label>
           <select
             id="beverageId"
@@ -168,6 +202,7 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
           </select>
           {errors.beverageId && <span className="text-red-500 text-sm">{errors.beverageId.message}</span>}
         </div>
+        <div className="flex-1"></div>
       </div>
 
       <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-start gap-2 mb-2 lg:mb-4">

@@ -13,6 +13,10 @@ export const formSchema = yup.object().shape({
     .string()
     .required("Beverage is required"),
 
+  shiftId: yup
+    .string()
+    .required("Shift is required"),
+
   logDate: yup
     .string()
     .required("Date is required"),
