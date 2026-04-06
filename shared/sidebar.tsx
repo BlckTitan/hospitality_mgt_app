@@ -6,8 +6,8 @@ import { FcConferenceCall, FcDepartment, FcList, FcManager, FcMoneyTransfer, FcP
 import { IoFastFoodOutline } from "react-icons/io5";
 import { MdLogout, MdOutlineBedroomChild } from 'react-icons/md';
 import { RxDashboard } from "react-icons/rx";
-import { SignedIn, SignOutButton, useUser } from '@clerk/nextjs'
 import Link from 'next/link';
+import { SignedIn, SignOutButton, useUser } from '@clerk/nextjs';
 
 const navLinks = [
   {id: 1, href: "/admin/dashboard", label: "Dashboard", icon: <RxDashboard className='text-blue-500'/> },
