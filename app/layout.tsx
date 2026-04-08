@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import './globals.css';
 import 'bootstrap/dist/css/bootstrap.min.css';
 
-import { ClerkProvider } from '@clerk/nextjs'
+import ClerkProvider from '../components/ClerkProviderWrapper'
 import DashboardLayout from "../shared/dashboard-layout";
 import ConvexClientProvider from '../components/ConvexClientProvider'
 import { Suspense } from "react";
@@ -23,10 +23,6 @@ export default function RootLayout({
 
   const publishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
-  if (!publishableKey) {
-    throw new Error('Missing NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY');
-  }
-  
   return (
     <html lang="en">
       <body><ClerkProvider publishableKey={publishableKey}>

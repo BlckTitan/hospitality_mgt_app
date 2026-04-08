@@ -10,6 +10,7 @@
 
 import type * as bars from "../bars.js";
 import type * as beverages from "../beverages.js";
+import type * as cron from "../cron.js";
 import type * as functions_paginated from "../functions/paginated.js";
 import type * as guests from "../guests.js";
 import type * as housekeepingTasks from "../housekeepingTasks.js";
@@ -25,6 +26,7 @@ import type * as reservations from "../reservations.js";
 import type * as roles from "../roles.js";
 import type * as roomTypes from "../roomTypes.js";
 import type * as rooms from "../rooms.js";
+import type * as salesSummaries from "../salesSummaries.js";
 import type * as shifts from "../shifts.js";
 import type * as staff from "../staff.js";
 import type * as storeInventories from "../storeInventories.js";
@@ -44,6 +46,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   bars: typeof bars;
   beverages: typeof beverages;
+  cron: typeof cron;
   "functions/paginated": typeof functions_paginated;
   guests: typeof guests;
   housekeepingTasks: typeof housekeepingTasks;
@@ -59,6 +62,7 @@ declare const fullApi: ApiFromModules<{
   roles: typeof roles;
   roomTypes: typeof roomTypes;
   rooms: typeof rooms;
+  salesSummaries: typeof salesSummaries;
   shifts: typeof shifts;
   staff: typeof staff;
   storeInventories: typeof storeInventories;
