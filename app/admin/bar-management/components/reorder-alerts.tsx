@@ -28,7 +28,7 @@ interface ReorderAlertsProps {
 }
 
 const ReorderAlertsTable: React.FC<ReorderAlertsProps> = ({ currentPropertyId }) => {
-  const alertsData = useQuery(api.reorderAlerts.getAllReorderAlerts, { propertyId: currentPropertyId });
+  const alertsData = useQuery (api.reorderAlerts.getAllReorderAlerts, { propertyId: currentPropertyId });
   const acknowledgeAlert = useMutation(api.reorderAlerts.acknowledgeReorderAlert);
   const resolveAlert = useMutation(api.reorderAlerts.resolveReorderAlert);
 

@@ -1,5 +1,5 @@
 'use client'
-import { SignedIn, SignOutButton, UserButton, useUser } from '@clerk/nextjs'
+import { Show, SignOutButton, UserButton, useUser } from '@clerk/nextjs'
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import React from 'react'
@@ -76,7 +76,7 @@ export default function Navigation() {
             <Nav className="w-full lg:w-fit h-screen lg:h-fit flex flex-col items-start lg:flex-row lg:items-center lg:justify-evenly me-auto">
 
               <header className='w-full px-3  h-16 flex items-center gap-3 lg:hidden mt-8 pb-4'>
-                <SignedIn>
+                <Show when="signed-in">
                   <div className='w-full h-fit flex items-start gap-3'>
                     <img  
                       src={user?.imageUrl} 
@@ -92,13 +92,13 @@ export default function Navigation() {
                       <Link href="/account" className='hover:!text-blue-500 text-sm !text-gray-500 p-0'>Manage Account</Link>
                     </div>
                   </div>
-                </SignedIn>
+                </Show>
               </header>
 
               <NavLink href="/#" className='py-2 px-4 !hidden lg:!inline-flex'>
-                <SignedIn>
+                <Show when="signed-in">
                   <UserButton />
-                </SignedIn>
+                </Show>
               </NavLink>
               
               <Accordion 
@@ -181,7 +181,7 @@ export default function Navigation() {
         
       </Navbar >
     </nav>
-  )
+  );
 }
 
 const CustomToggle: React.FC<CustomToggleProps> = ({ children, eventKey, className }: CustomToggleProps) => {

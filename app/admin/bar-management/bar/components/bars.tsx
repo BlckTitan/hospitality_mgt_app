@@ -84,13 +84,6 @@ const Bars = ({ currentPropertyId }: { currentPropertyId: Id<"properties"> }) =>
       )
     },
     {
-      label: 'Created At',
-      key: '_creationTime',
-      render: (value, row) => (
-        <span>{formatDate(row._creationTime)}</span>
-      )
-    },
-    {
       label: 'Action',
       key: '_id',
       render: (value, row) => (

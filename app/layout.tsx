@@ -28,9 +28,8 @@ export default function RootLayout({
   }
   
   return (
-   <ClerkProvider publishableKey={publishableKey}> 
-      <html lang="en">
-        <body>
+    <html lang="en">
+      <body><ClerkProvider publishableKey={publishableKey}>
           <Suspense 
             fallback={
               <div className="w-full h-screen flex justify-center items-center">
@@ -45,8 +44,7 @@ export default function RootLayout({
             </DashboardLayout>
             <Toaster position="bottom-right"/>
           </Suspense>
-        </body>
-      </html>
-  </ClerkProvider>
+        </ClerkProvider></body>
+    </html>
   );
 }

@@ -14,10 +14,7 @@ export default function  Page() {
 
   return (
     <div className='w-full h-screen flex justify-center items-center'>
-      <SignIn
-        redirectUrl="/admin/dashboard"
-        afterSignInUrl="/admin/dashboard"
-      />
+      <SignIn fallbackRedirectUrl="/admin/dashboard" />
     </div>
-  )
+  );
 }

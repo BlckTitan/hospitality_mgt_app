@@ -6,8 +6,8 @@ import { FcConferenceCall, FcDepartment, FcList, FcManager, FcMoneyTransfer, FcP
 import { IoFastFoodOutline } from "react-icons/io5";
 import { MdLogout, MdOutlineBedroomChild } from 'react-icons/md';
 import { RxDashboard } from "react-icons/rx";
-import { SignedIn, SignOutButton, useUser } from '@clerk/nextjs'
 import Link from 'next/link';
+import { Show, SignOutButton, useAuth, useUser } from '@clerk/nextjs';
 
 const navLinks = [
   {id: 1, href: "/admin/dashboard", label: "Dashboard", icon: <RxDashboard className='text-blue-500'/> },
@@ -51,15 +51,14 @@ const navLinks = [
 export default function Sidebar() {
   
   const path = usePathname()
-  const { user, isLoaded } = useUser();
+  const { isSignedIn, user, isLoaded } = useUser();
 
   if (!isLoaded) return null;
   
   return (
     <aside className='w-[300px] max-w-[300px] h-full fixed left-0 hidden pt-14 xl:inline-block z-10'>
-
       <header className='w-full px-3 h-16 flex items-center gap-3'>
-        <SignedIn>
+        <Show when="signed-in">
           <div className='w-full h-fit flex items-start justify-between gap-3'>
             <img  
               src={user?.imageUrl} 
@@ -75,9 +74,8 @@ export default function Sidebar() {
               <Link href="/account" className='hover:!text-blue-500 text-sm !text-gray-500 p-0'>Manage Account</Link>
             </div>
           </div>
-        </SignedIn>
+        </Show>
       </header>
-      
       <div className='w-full h-full pt-16 text-white !px-0 glass'>
 
         {navLinks.map(({ id, href, label, icon, subLink }, index) => (
@@ -146,7 +144,6 @@ export default function Sidebar() {
         </div>
         
       </div>
-
     </aside>
-  )
+  );
 }
