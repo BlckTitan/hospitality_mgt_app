@@ -22,10 +22,14 @@ export default function RootLayout({
 }>) {
 
   const publishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+  
+  // const CheckUserRole = require('../utils/checkUserRole').default;
+  // const UserRoleComponent = <CheckUserRole/>;
 
   return (
     <html lang="en">
-      <body><ClerkProvider publishableKey={publishableKey}>
+      <body>
+        <ClerkProvider publishableKey={publishableKey}>
           <Suspense 
             fallback={
               <div className="w-full h-screen flex justify-center items-center">
@@ -35,12 +39,14 @@ export default function RootLayout({
           >
             <DashboardLayout>
               <ConvexClientProvider>
+                {/* {UserRoleComponent} */}
                 {children}
               </ConvexClientProvider>
             </DashboardLayout>
             <Toaster position="bottom-right"/>
           </Suspense>
-        </ClerkProvider></body>
+        </ClerkProvider>
+      </body>
     </html>
   );
 }

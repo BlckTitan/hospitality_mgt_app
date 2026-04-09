@@ -142,3 +142,24 @@ export const deleteRole = mutation({
   },
 });
 
+export const getRoleByName = query({
+  args: { name: v.string() },
+  handler: async (ctx, args) => {
+    try {
+      const role = await ctx.db
+        .query('roles')
+        .filter((q: any) => q.eq(q.field('name'), args.name))
+        .first();
+
+      if (!role) {
+        return { success: false, data: null, message: 'Role not found' };
+      }
+
+      return { success: true, data: role };
+    } catch (error) {
+      console.log(`Failed to fetch role by name: ${error}`);
+      return { success: false, data: null, message: 'Failed to fetch role' };
+    }
+  },
+});
+

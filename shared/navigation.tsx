@@ -8,6 +8,7 @@ import { FcPhone, FcSalesPerformance , FcConferenceCall, FcMoneyTransfer , FcLis
 import { IoFastFoodOutline } from "react-icons/io5";
 import { MdLogout, MdOutlineBedroomChild } from 'react-icons/md';
 import { RxDashboard, RxCaretDown } from "react-icons/rx";
+import { usePermissions } from '../hooks/usePermissions';
 
 interface CustomToggleProps {
   eventKey: string
@@ -59,8 +60,23 @@ export default function Navigation() {
 
   const path = usePathname()
   const { user, isLoaded } = useUser();
+  const { canAccessRoute, isLoading } = usePermissions();
 
-  if (!isLoaded) return null;
+  if (!isLoaded || isLoading) return null;
+  
+  // Filter navigation items based on permissions
+  const filteredNavItems = navItems.filter(({ href }) => {
+    // Skip placeholder links (#)
+    if (href === "/#") return true;
+    return canAccessRoute(href);
+  }).map(({ subLink, ...rest }) => ({
+    ...rest,
+    subLink: subLink ? subLink.filter(link => {
+      // Skip placeholder links (#)
+      if (link.href === "/#") return true;
+      return canAccessRoute(link.href);
+    }) : undefined
+  }));
   
   return (
     <nav className="w-full h-14 flex items-center fixed top-0 main_nav z-10 shadow-blue-100 shadow-sm">
@@ -105,7 +121,7 @@ export default function Navigation() {
                 defaultActiveKey="0" 
                 className='w-full h-12 inline-block lg:hidden'
               >
-                {navItems.map(({ id, href, label, icon, subLink }, index) => (
+                {filteredNavItems.map(({ id, href, label, icon, subLink }, index) => (
 
                   <Card className='border-0' key={id}>
                     

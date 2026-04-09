@@ -224,3 +224,36 @@ export const deleteUserRole = mutation({
   },
 });
 
+export const getUserRolesByUserId = query({
+  args: { userId: v.string() },
+  handler: async (ctx, args) => {
+    try {
+      // Find user roles by userId (string)
+      const userRoles = await ctx.db
+        .query('userRoles')
+        .filter((q: any) => q.eq(q.field('userId'), args.userId))
+        .collect();
+
+      // Populate related data
+      const populatedUserRoles = await Promise.all(
+        userRoles.map(async (userRole) => {
+          const role = await ctx.db.get(userRole.roleId);
+          const property = await ctx.db.get(userRole.propertyId);
+          
+          return {
+            ...userRole,
+            roleName: role?.name || 'Unknown',
+            propertyName: property?.name || 'Unknown',
+            propertyId: property?._id || userRole.propertyId,
+          };
+        })
+      );
+
+      return { success: true, data: populatedUserRoles };
+    } catch (error) {
+      console.log(`Failed to fetch user roles by userId: ${error}`);
+      return { success: false, data: [], message: 'Failed to fetch user roles' };
+    }
+  },
+});
+

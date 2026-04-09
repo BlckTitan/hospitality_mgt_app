@@ -84,3 +84,24 @@ async function userByExternalId(ctx: QueryCtx, externalId: string) {
     .withIndex("byExternalId", (q) => q.eq("externalId", externalId))
     .unique();
 }
+
+export const getUserByExternalId = query({
+  args: { externalId: v.string() },
+  handler: async (ctx, args) => {
+    try {
+      const user = await ctx.db
+        .query("users")
+        .withIndex("byExternalId", (q: any) => q.eq("externalId", args.externalId))
+        .unique();
+      
+      if (!user) {
+        return { success: false, data: null, message: 'User not found' };
+      }
+      
+      return { success: true, data: user };
+    } catch (error) {
+      console.log(`Failed to fetch user by external ID: ${error}`);
+      return { success: false, data: null, message: 'Failed to fetch user' };
+    }
+  },
+});

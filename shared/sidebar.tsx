@@ -8,6 +8,7 @@ import { MdLogout, MdOutlineBedroomChild } from 'react-icons/md';
 import { RxDashboard } from "react-icons/rx";
 import Link from 'next/link';
 import { Show, SignOutButton, useAuth, useUser } from '@clerk/nextjs';
+import { usePermissions } from '../hooks/usePermissions';
 
 const navLinks = [
   {id: 1, href: "/admin/dashboard", label: "Dashboard", icon: <RxDashboard className='text-blue-500'/> },
@@ -52,8 +53,23 @@ export default function Sidebar() {
   
   const path = usePathname()
   const { isSignedIn, user, isLoaded } = useUser();
+  const { canAccessRoute, isLoading } = usePermissions();
 
-  if (!isLoaded) return null;
+  if (!isLoaded || isLoading) return null;
+  
+  // Filter navigation links based on permissions
+  const filteredNavLinks = navLinks.filter(({ href }) => {
+    // Skip placeholder links (#)
+    if (href === "/#") return true;
+    return canAccessRoute(href);
+  }).map(({ subLink, ...rest }) => ({
+    ...rest,
+    subLink: subLink ? subLink.filter(link => {
+      // Skip placeholder links (#)
+      if (link.href === "/#") return true;
+      return canAccessRoute(link.href);
+    }) : undefined
+  }));
   
   return (
     <aside className='w-[300px] max-w-[300px] h-full fixed left-0 hidden pt-14 xl:inline-block z-10'>
@@ -78,7 +94,7 @@ export default function Sidebar() {
       </header>
       <div className='w-full h-full pt-16 text-white !px-0 glass'>
 
-        {navLinks.map(({ id, href, label, icon, subLink }, index) => (
+        {filteredNavLinks.map(({ id, href, label, icon, subLink }, index) => (
           <div             
             className={`w-full h-12 flex items-center justify-center my-2 hover:!bg-white/10 ${(href === path) ? "!bg-[#333] text-white " : "bg-transparent"}`}
             key={id}
@@ -90,10 +106,10 @@ export default function Sidebar() {
                 <i className="icon">{icon}</i>
               </button>
             ) : (
-              <a href={href}>
+              <Link href={href}>
                 <span>{label}</span>
                 <i className="icon">{icon}</i>
-              </a>
+              </Link>
             )}
 
             {/* dropdown if sublink exists */}
@@ -118,6 +134,7 @@ export default function Sidebar() {
                     {
                       subLink && subLink.map((link, subIndex) => (
                         <Dropdown.Item 
+                          as={Link}
                           href={link.href} 
                           key={link.id}
                           className='w-full h-10 !flex !items-center text-white my-2 hover:!bg-white/10'
