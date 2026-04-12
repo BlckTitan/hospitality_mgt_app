@@ -9,104 +9,102 @@ import { convex, api } from '../lib/convex-client';
 
 // Route permission mapping (same as middleware)
 interface RoutePermission {
-  module: Module;
-  action: Action;
-  granular?: string;
+  granular: string;
 }
 
 const ROUTE_PERMISSIONS: Record<string, RoutePermission> = {
   // Admin Dashboard
-  '/admin/dashboard': { module: 'reports', action: 'read' },
+  '/admin/dashboard': { granular: 'reports.read' },
 
   // Users & Roles
-  '/admin/user': { module: 'users', action: 'read' },
-  '/admin/user/role': { module: 'users', action: 'read' },
-  '/admin/user/userRole': { module: 'users', action: 'read' },
+  '/admin/user': { granular: 'users.read' },
+  '/admin/user/role': { granular: 'roles.read' },
+  '/admin/user/userRole': { granular: 'users.read' },
 
   // Properties
-  '/admin/property': { module: 'properties', action: 'read' },
+  '/admin/property': { granular: 'properties.read' },
 
   // Staff Management
-  '/admin/staff': { module: 'staff', action: 'read' },
+  '/admin/staff': { granular: 'staff.read' },
 
   // Bar Management (Food & Beverage)
-  '/admin/bar-management': { module: 'fnb', action: 'read' },
-  '/admin/bar-management/bar': { module: 'fnb', action: 'read' },
-  '/admin/bar-management/beverages': { module: 'fnb', action: 'read' },
-  '/admin/bar-management/user-stock-logs': { module: 'fnb', action: 'read' },
-  '/admin/bar-management/store-inventory': { module: 'inventory', action: 'read' },
-  '/admin/bar-management/store-transactions': { module: 'inventory', action: 'read' },
+  '/admin/bar-management': { granular: 'fnb.read' },
+  '/admin/bar-management/bar': { granular: 'fnb.read' },
+  '/admin/bar-management/beverages': { granular: 'fnb.read' },
+  '/admin/bar-management/user-stock-logs': { granular: 'fnb.read' },
+  '/admin/bar-management/store-inventory': { granular: 'inventory.read' },
+  '/admin/bar-management/store-transactions': { granular: 'inventory.read' },
 
   // Inventory Management
-  '/admin/inventory-management': { module: 'inventory', action: 'read' },
-  '/admin/inventory-management/inventory-item': { module: 'inventory', action: 'read' },
-  '/admin/inventory-management/inventory-transaction': { module: 'inventory', action: 'read' },
-  '/admin/inventory-management/supplier': { module: 'inventory', action: 'read' },
-  '/admin/inventory-management/purchase-order': { module: 'inventory', action: 'read' },
-  '/admin/inventory-management/purchase-order-line': { module: 'inventory', action: 'read' },
+  '/admin/inventory-management': { granular: 'inventory.read' },
+  '/admin/inventory-management/inventory-item': { granular: 'inventory.read' },
+  '/admin/inventory-management/inventory-transaction': { granular: 'inventory.read' },
+  '/admin/inventory-management/supplier': { granular: 'inventory.read' },
+  '/admin/inventory-management/purchase-order': { granular: 'inventory.read' },
+  '/admin/inventory-management/purchase-order-line': { granular: 'inventory.read' },
 
   // Room Management & Reservations
-  '/admin/room-management': { module: 'reservations', action: 'read' },
-  '/admin/room-management/room-type': { module: 'reservations', action: 'read' },
-  '/admin/room-management/room': { module: 'reservations', action: 'read' },
-  '/admin/room-management/reservation': { module: 'reservations', action: 'read' },
-  '/admin/room-management/guest': { module: 'reservations', action: 'read' },
-  '/admin/room-management/housekeeping-task': { module: 'maintenance', action: 'read' },
+  '/admin/room-management': { granular: 'reservations.read' },
+  '/admin/room-management/room-type': { granular: 'rooms.read' },
+  '/admin/room-management/room': { granular: 'rooms.read' },
+  '/admin/room-management/reservation': { granular: 'reservations.read' },
+  '/admin/room-management/guest': { granular: 'reservations.read' },
+  '/admin/room-management/housekeeping-task': { granular: 'system.admin' },
 
   // Shift Management
-  '/admin/shift-management': { module: 'staff', action: 'read' },
-  '/admin/shift-management/shift': { module: 'staff', action: 'read' },
+  '/admin/shift-management': { granular: 'staff.read' },
+  '/admin/shift-management/shift': { granular: 'staff.read' },
 
   // Additional admin routes for specific actions
-  '/admin/user/create': { module: 'users', action: 'create' },
-  '/admin/user/[id]/edit': { module: 'users', action: 'update' },
-  '/admin/user/[id]': { module: 'users', action: 'read' },
-  '/admin/user/role/create': { module: 'users', action: 'create' },
-  '/admin/user/role/[id]/edit': { module: 'users', action: 'update' },
-  '/admin/user/userRole/create': { module: 'users', action: 'create' },
-  '/admin/user/userRole/[id]/edit': { module: 'users', action: 'update' },
+  '/admin/user/create': { granular: 'users.create' },
+  '/admin/user/[id]/edit': { granular: 'users.update' },
+  '/admin/user/[id]': { granular: 'users.read' },
+  '/admin/user/role/create': { granular: 'roles.create' },
+  '/admin/user/role/[id]/edit': { granular: 'roles.update' },
+  '/admin/user/userRole/create': { granular: 'users.create' },
+  '/admin/user/userRole/[id]/edit': { granular: 'users.update' },
 
   // Properties
-  '/admin/property/create': { module: 'properties', action: 'create' },
-  '/admin/property/[id]/edit': { module: 'properties', action: 'update' },
+  '/admin/property/create': { granular: 'properties.create' },
+  '/admin/property/[id]/edit': { granular: 'properties.update' },
 
   // Staff Management
-  '/admin/staff/create': { module: 'staff', action: 'create' },
-  '/admin/staff/[id]/edit': { module: 'staff', action: 'update' },
-  '/admin/shift-management/shift/create': { module: 'staff', action: 'create' },
-  '/admin/shift-management/shift/[id]/edit': { module: 'staff', action: 'update' },
+  '/admin/staff/create': { granular: 'staff.create' },
+  '/admin/staff/[id]/edit': { granular: 'staff.update' },
+  '/admin/shift-management/shift/create': { granular: 'staff.create' },
+  '/admin/shift-management/shift/[id]/edit': { granular: 'staff.update' },
 
   // Reservations & Rooms
-  '/admin/room-management/reservation/create': { module: 'reservations', action: 'create' },
-  '/admin/room-management/reservation/[id]/edit': { module: 'reservations', action: 'update' },
-  '/admin/room-management/reservation/[id]/checkin': { module: 'reservations', action: 'update', granular: 'reservations.checkin' },
-  '/admin/room-management/reservation/[id]/checkout': { module: 'reservations', action: 'update', granular: 'reservations.checkout' },
-  '/admin/room-management/room/create': { module: 'reservations', action: 'create' },
-  '/admin/room-management/room/[id]/edit': { module: 'reservations', action: 'update' },
-  '/admin/room-management/room-type/create': { module: 'reservations', action: 'create' },
-  '/admin/room-management/room-type/[id]/edit': { module: 'reservations', action: 'update' },
-  '/admin/room-management/guest/create': { module: 'reservations', action: 'create' },
-  '/admin/room-management/guest/[id]/edit': { module: 'reservations', action: 'update' },
-  '/admin/room-management/housekeeping-task/create': { module: 'maintenance', action: 'create' },
-  '/admin/room-management/housekeeping-task/[id]/edit': { module: 'maintenance', action: 'update' },
+  '/admin/room-management/reservation/create': { granular: 'reservations.create' },
+  '/admin/room-management/reservation/[id]/edit': { granular: 'reservations.update' },
+  '/admin/room-management/reservation/[id]/checkin': { granular: 'reservations.update' },
+  '/admin/room-management/reservation/[id]/checkout': { granular: 'reservations.update' },
+  '/admin/room-management/room/create': { granular: 'rooms.update' },
+  '/admin/room-management/room/[id]/edit': { granular: 'rooms.update' },
+  '/admin/room-management/room-type/create': { granular: 'rooms.update' },
+  '/admin/room-management/room-type/[id]/edit': { granular: 'rooms.update' },
+  '/admin/room-management/guest/create': { granular: 'reservations.create' },
+  '/admin/room-management/guest/[id]/edit': { granular: 'reservations.update' },
+  '/admin/room-management/housekeeping-task/create': { granular: 'system.admin' },
+  '/admin/room-management/housekeeping-task/[id]/edit': { granular: 'system.admin' },
 
   // Food & Beverage
-  '/admin/bar-management/bar/create': { module: 'fnb', action: 'create' },
-  '/admin/bar-management/bar/[id]/edit': { module: 'fnb', action: 'update' },
-  '/admin/bar-management/beverages/create': { module: 'fnb', action: 'create' },
-  '/admin/bar-management/beverages/[id]/edit': { module: 'fnb', action: 'update' },
+  '/admin/bar-management/bar/create': { granular: 'fnb.create' },
+  '/admin/bar-management/bar/[id]/edit': { granular: 'fnb.update' },
+  '/admin/bar-management/beverages/create': { granular: 'fnb.create' },
+  '/admin/bar-management/beverages/[id]/edit': { granular: 'fnb.update' },
 
   // Inventory Management
-  '/admin/inventory-management/inventory-item/create': { module: 'inventory', action: 'create' },
-  '/admin/inventory-management/inventory-item/[id]/edit': { module: 'inventory', action: 'update' },
-  '/admin/inventory-management/inventory-transaction/create': { module: 'inventory', action: 'create' },
-  '/admin/inventory-management/inventory-transaction/[id]/edit': { module: 'inventory', action: 'update' },
-  '/admin/inventory-management/supplier/create': { module: 'inventory', action: 'create' },
-  '/admin/inventory-management/supplier/[id]/edit': { module: 'inventory', action: 'update' },
-  '/admin/inventory-management/purchase-order/create': { module: 'inventory', action: 'create' },
-  '/admin/inventory-management/purchase-order/[id]/edit': { module: 'inventory', action: 'update' },
-  '/admin/inventory-management/purchase-order-line/create': { module: 'inventory', action: 'create' },
-  '/admin/inventory-management/purchase-order-line/[id]/edit': { module: 'inventory', action: 'update' },
+  '/admin/inventory-management/inventory-item/create': { granular: 'inventory.create' },
+  '/admin/inventory-management/inventory-item/[id]/edit': { granular: 'inventory.update' },
+  '/admin/inventory-management/inventory-transaction/create': { granular: 'inventory.create' },
+  '/admin/inventory-management/inventory-transaction/[id]/edit': { granular: 'inventory.update' },
+  '/admin/inventory-management/supplier/create': { granular: 'inventory.create' },
+  '/admin/inventory-management/supplier/[id]/edit': { granular: 'inventory.update' },
+  '/admin/inventory-management/purchase-order/create': { granular: 'inventory.create' },
+  '/admin/inventory-management/purchase-order/[id]/edit': { granular: 'inventory.update' },
+  '/admin/inventory-management/purchase-order-line/create': { granular: 'inventory.create' },
+  '/admin/inventory-management/purchase-order-line/[id]/edit': { granular: 'inventory.update' },
 };
 
 // Helper function to match dynamic routes (same as middleware)
@@ -145,7 +143,7 @@ interface UsePermissionsReturn {
 }
 
 export function usePermissions(options: UsePermissionsOptions = {}): UsePermissionsReturn {
-  const { userId, isLoaded, isSignedIn } = useAuth();
+  const { userId, isLoaded, isSignedIn, sessionClaims } = useAuth();
   const [permissionChecker, setPermissionChecker] = useState<PermissionChecker | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -185,10 +183,15 @@ export function usePermissions(options: UsePermissionsOptions = {}): UsePermissi
           })
         );
 
-        // Merge permissions from all roles
+        // Merge permissions from all roles using OR logic
         const mergedPermissions = rolePermissions.reduce((acc, permissions) => {
-          return { ...acc, ...permissions };
-        }, {});
+          Object.entries(permissions).forEach(([key, value]) => {
+            if (value) {
+              acc[key] = true;
+            }
+          });
+          return acc;
+        }, {} as Record<string, boolean>);
         
         const userContext: UserContext = {
           userId,
@@ -232,28 +235,20 @@ export function usePermissions(options: UsePermissionsOptions = {}): UsePermissi
   };
 
   const canAccessRoute = (pathname: string): boolean => {
+    // Check if user has admin role - admins can access everything
+    if (userId && isSignedIn && sessionClaims?.metadata?.role === 'admin') {
+      return true;
+    }
+
     if (!permissionChecker) return false;
-    
+
     // Check if route requires specific permissions
     const matchedRoute = matchRoute(pathname);
-    
+
     if (matchedRoute) {
       const routePermission = ROUTE_PERMISSIONS[matchedRoute];
 
-      let hasRequiredPermission = false;
-
-      // Check granular permission first
-      if (routePermission.granular) {
-        hasRequiredPermission = permissionChecker.hasGranularPermission(routePermission.granular);
-      } else {
-        // Check module-level permission
-        hasRequiredPermission = permissionChecker.hasPermission(
-          routePermission.module, 
-          routePermission.action
-        );
-      }
-
-      return hasRequiredPermission;
+      return permissionChecker.hasGranularPermission(routePermission.granular);
     }
 
     // If no specific permission required, allow access

@@ -1,19 +1,45 @@
-import { 
-  Module, 
-  Action, 
-  PermissionLevel, 
-  UserPermissions, 
-  GranularPermission,
-  ROLE_PERMISSION_MATRIX, 
+import {
+  Module,
+  Action,
+  PermissionLevel,
+  UserPermissions,
+  UserPermissionSet,
+  ROLE_PERMISSION_MATRIX,
   levelToActions,
-  GRANULAR_PERMISSIONS 
+  GRANULAR_PERMISSIONS
 } from './permissions';
 
 export interface UserContext {
   userId: string;
   roles: string[];
   propertyId?: string;
-  customPermissions?: UserPermissions;
+  customPermissions?: UserPermissionSet;
+}
+
+function isPermissionLevel(value: unknown): value is PermissionLevel {
+  return value === 'FULL' || value === 'LIMITED' || value === 'VIEW' || value === 'NONE';
+}
+
+function isModule(value: string): value is Module {
+  return [
+    'users', 'roles', 'properties', 'staff', 'reservations', 'rooms', 'fnb',
+    'inventory', 'financial', 'reports', 'system', 'maintenance', 'security', 'expenses'
+  ].includes(value);
+}
+
+function isAction(value: string): value is Action {
+  return [
+    'create', 'read', 'update', 'delete', 'approve', 'export', 'admin', 'settings', 'audit'
+  ].includes(value);
+}
+
+function parseGranularPermission(granularPerm: string): { module: Module; action: Action } | null {
+  const [modulePart, actionPart] = granularPerm.split('.');
+  if (!modulePart || !actionPart) return null;
+  if (isModule(modulePart) && isAction(actionPart)) {
+    return { module: modulePart, action: actionPart };
+  }
+  return null;
 }
 
 export class PermissionChecker {
@@ -23,26 +49,38 @@ export class PermissionChecker {
     this.userContext = userContext;
   }
 
+  private hasCustomPermission(module: Module, action: Action): boolean {
+    const customPermissions = this.userContext.customPermissions;
+    if (!customPermissions) return false;
+
+    const modulePermission = (customPermissions as UserPermissions)[module];
+    if (isPermissionLevel(modulePermission) && levelToActions[modulePermission].includes(action)) {
+      return true;
+    }
+
+    return Boolean((customPermissions as Record<string, boolean>)[`${module}.${action}`]);
+  }
+
   /**
    * Check if user has permission for a specific action on a module
    */
   hasPermission(module: Module, action: Action): boolean {
-    // Check custom permissions first (if any)
-    if (this.userContext.customPermissions) {
-      const userLevel = this.userContext.customPermissions[module];
-      if (userLevel && levelToActions[userLevel].includes(action)) {
-        return true;
-      }
+    if (this.hasCustomPermission(module, action)) {
+      return true;
     }
 
     // Check role-based permissions
     for (const role of this.userContext.roles) {
       const rolePermissions = ROLE_PERMISSION_MATRIX[role];
-      if (rolePermissions) {
-        const permissionLevel = rolePermissions[module];
-        if (permissionLevel && levelToActions[permissionLevel].includes(action)) {
-          return true;
-        }
+      if (!rolePermissions) continue;
+
+      const permissionLevel = rolePermissions[module];
+      if (permissionLevel && levelToActions[permissionLevel].includes(action)) {
+        return true;
+      }
+
+      if ((rolePermissions as Record<string, boolean>)[`${module}.${action}`]) {
+        return true;
       }
     }
 
@@ -63,12 +101,10 @@ export class PermissionChecker {
    * Check if user has full access to a module
    */
   hasFullAccess(module: Module): boolean {
-    // Check custom permissions first
-    if (this.userContext.customPermissions?.[module] === 'FULL') {
+    if ((this.userContext.customPermissions as UserPermissions)?.[module] === 'FULL') {
       return true;
     }
 
-    // Check role-based permissions
     for (const role of this.userContext.roles) {
       const rolePermissions = ROLE_PERMISSION_MATRIX[role];
       if (rolePermissions?.[module] === 'FULL') {
@@ -83,38 +119,81 @@ export class PermissionChecker {
    * Check granular permission (e.g., reservations.checkin)
    */
   hasGranularPermission(granularPerm: string): boolean {
-    // Find the module and action for this granular permission
-    for (const [module, permissions] of Object.entries(GRANULAR_PERMISSIONS)) {
-      if (permissions[granularPerm as keyof typeof permissions]) {
-        const action = permissions[granularPerm as keyof typeof permissions] as `${Module}.${Action}`;
-        const [modName, act] = action.split('.');
-        return this.hasPermission(modName as Module, act as Action);
+    const customPermissions = this.userContext.customPermissions;
+    if (customPermissions && (customPermissions as Record<string, boolean>)[granularPerm]) {
+      return true;
+    }
+
+    const parsed = parseGranularPermission(granularPerm);
+    if (parsed && this.hasPermission(parsed.module, parsed.action)) {
+      return true;
+    }
+
+    for (const permissions of Object.values(GRANULAR_PERMISSIONS)) {
+      const mapped = permissions[granularPerm as keyof typeof permissions];
+      if (mapped) {
+        const nested = parseGranularPermission(mapped);
+        if (nested && this.hasPermission(nested.module, nested.action)) {
+          return true;
+        }
       }
     }
 
     return false;
   }
 
+  private getGranularPermissionLevel(module: Module): PermissionLevel {
+    const customPermissions = this.userContext.customPermissions;
+    if (!customPermissions) return 'NONE';
+
+    const grantedActions = new Set<Action>();
+    for (const [key, value] of Object.entries(customPermissions)) {
+      if (value !== true) continue;
+      const parsed = parseGranularPermission(key);
+      if (parsed?.module === module) {
+        grantedActions.add(parsed.action);
+      }
+    }
+
+    if (grantedActions.has('create') && grantedActions.has('read') && grantedActions.has('update') && grantedActions.has('delete')) {
+      return 'FULL';
+    }
+    if (grantedActions.has('create') && grantedActions.has('read') && grantedActions.has('update')) {
+      return 'LIMITED';
+    }
+    if (grantedActions.has('read')) {
+      return 'VIEW';
+    }
+
+    return 'NONE';
+  }
+
   /**
    * Get user's permission level for a module
    */
   getPermissionLevel(module: Module): PermissionLevel {
-    // Check custom permissions first
-    if (this.userContext.customPermissions?.[module]) {
-      return this.userContext.customPermissions[module];
+    const customPermissions = this.userContext.customPermissions;
+    if (customPermissions) {
+      const modulePermission = (customPermissions as UserPermissions)[module];
+      if (isPermissionLevel(modulePermission)) {
+        return modulePermission;
+      }
+
+      const granularLevel = this.getGranularPermissionLevel(module);
+      if (granularLevel !== 'NONE') {
+        return granularLevel;
+      }
     }
 
-    // Get highest permission level from all roles
     let highestLevel: PermissionLevel = 'NONE';
-    const levelHierarchy = ['NONE', 'VIEW', 'LIMITED', 'FULL'];
+    const levelHierarchy: PermissionLevel[] = ['NONE', 'VIEW', 'LIMITED', 'FULL'];
 
     for (const role of this.userContext.roles) {
       const rolePermissions = ROLE_PERMISSION_MATRIX[role];
-      if (rolePermissions?.[module]) {
-        const roleLevel = rolePermissions[module];
-        if (levelHierarchy.indexOf(roleLevel) > levelHierarchy.indexOf(highestLevel)) {
-          highestLevel = roleLevel;
-        }
+      if (!rolePermissions) continue;
+      const roleLevel = rolePermissions[module];
+      if (roleLevel && levelHierarchy.indexOf(roleLevel) > levelHierarchy.indexOf(highestLevel)) {
+        highestLevel = roleLevel;
       }
     }
 
@@ -126,8 +205,9 @@ export class PermissionChecker {
    */
   getAccessibleModules(): Module[] {
     const modules: Module[] = [
-      'users', 'properties', 'staff', 'reservations', 'fnb', 
-      'inventory', 'finance', 'reports', 'system', 'maintenance', 'security'
+      'users', 'roles', 'properties', 'staff', 'reservations', 'rooms',
+      'fnb', 'inventory', 'financial', 'reports', 'system', 'maintenance',
+      'security', 'expenses'
     ];
 
     return modules.filter(module => this.hasAnyPermission(module));
@@ -137,12 +217,10 @@ export class PermissionChecker {
    * Check property-scoped access
    */
   hasPropertyAccess(propertyId: string): boolean {
-    // If no propertyId specified in user context, assume full access
     if (!this.userContext.propertyId) {
       return true;
     }
 
-    // Check if user has access to the specific property
     return this.userContext.propertyId === propertyId;
   }
 }

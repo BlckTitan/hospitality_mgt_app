@@ -2,28 +2,40 @@
 
 export type PermissionLevel = 'FULL' | 'LIMITED' | 'VIEW' | 'NONE';
 
-export type Module = 
+export type Module =
   | 'users'
+  | 'roles'
   | 'properties'
   | 'staff'
   | 'reservations'
+  | 'rooms'
   | 'fnb'
   | 'inventory'
   | 'finance'
+  | 'financial'
   | 'reports'
   | 'system'
   | 'maintenance'
-  | 'security';
+  | 'security'
+  | 'expenses';
 
-export type Action = 'create' | 'read' | 'update' | 'delete';
+export type Action =
+  | 'create'
+  | 'read'
+  | 'update'
+  | 'delete'
+  | 'approve'
+  | 'export'
+  | 'admin'
+  | 'settings'
+  | 'audit';
 
 export interface RolePermissions {
   [key: string]: PermissionLevel;
 }
 
-export type UserPermissions = {
-  [module in Module]: PermissionLevel;
-};
+export type UserPermissions = Partial<Record<Module, PermissionLevel>>;
+export type UserPermissionSet = UserPermissions | Record<string, boolean>;
 
 // Granular permissions
 export interface GranularPermission {
@@ -34,8 +46,8 @@ export interface GranularPermission {
 
 // Permission mapping from level to actions
 export const levelToActions: Record<PermissionLevel, Action[]> = {
-  'FULL': ['create', 'read', 'update', 'delete'],
-  'LIMITED': ['create', 'read', 'update'], // No delete for limited
+  'FULL': ['create', 'read', 'update', 'delete', 'approve', 'export', 'admin', 'settings', 'audit'],
+  'LIMITED': ['create', 'read', 'update'], // No delete, approve, export, or system-level actions for limited
   'VIEW': ['read'],
   'NONE': []
 };
@@ -306,6 +318,12 @@ export const GRANULAR_PERMISSIONS = {
     'finance.charge': 'finance.create',
     'finance.refund': 'finance.update',
     'finance.reports': 'finance.read'
+  },
+  financial: {
+    'financial.view': 'financial.read',
+    'financial.charge': 'financial.create',
+    'financial.refund': 'financial.update',
+    'financial.reports': 'financial.read'
   },
   fnb: {
     'fnb.order.create': 'fnb.create',
