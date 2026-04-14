@@ -28,7 +28,7 @@ export default function PaginationComponent({collectionName, columns, jointTable
 
   // Keeps the cursor history in order: [null, "cursor_1", "cursor_2", ...]
   const [cursorHistory, setCursorHistory] = useState<(string | null)[]>([null]);
-  const [currentPage, setCurrentPage] = useState(1);    ` `
+  const [currentPage, setCurrentPage] = useState(1);
   const [pageCache, setPageCache] = useState<Record<number, any[]>>({});
   const [searchQuery, setSearchQuery] = useState<string>('')
   const [query] = useDebounce(searchQuery, 300);

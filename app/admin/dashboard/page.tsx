@@ -1,24 +1,36 @@
 'use client'
 
-import React, { useState } from 'react';
+import React, { useState, Suspense } from 'react';
 import { useQuery } from 'convex/react';
 import { api } from '../../../convex/_generated/api';
 import { Id } from '../../../convex/_generated/dataModel';
 import CheckRole from '../../../utils/checkUserRole';
-// import DashboardSalesCharts from './components/sales-summary-charts';
+import Spinner from '../../../shared/spinner';
 
 export default function Dashboard() {
   const [propertyId, setPropertyId] = useState<string>('');
 
+  return (
+    <Suspense fallback={
+      <div className='w-full h-full flex justify-center items-center'>
+        <Spinner size="lg" />
+      </div>
+    }>
+      <DashboardContent propertyId={propertyId} setPropertyId={setPropertyId} />
+    </Suspense>
+  );
+}
+
+function DashboardContent({ propertyId, setPropertyId }: { propertyId: string; setPropertyId: (id: string) => void }) {
+function DashboardContent({ propertyId, setPropertyId }: { propertyId: string; setPropertyId: (id: string) => void }) {
   const propertiesResponse = useQuery(api.property.getAllProperties);
   const properties = propertiesResponse?.data || [];
   const currentPropertyId = propertyId || properties?.[0]?._id || '';
 
-
   if (!propertiesResponse?.data) {
     return (
       <div className='w-full h-full flex justify-center items-center'>
-        Loading...
+        <Spinner size="lg" />
       </div>
     );
   }

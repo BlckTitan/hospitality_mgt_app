@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Button } from 'react-bootstrap';
+import Button from '../../../shared/button';
 import { FcPlus } from 'react-icons/fc';
 import BootstrapModal from '../../../shared/modal';
 import Users from './components/users';
@@ -16,8 +16,7 @@ export default function UserPage() {
         <h3>Users</h3>
         <Button
           variant="light"
-          className="cursor-pointer"
-          style={{ width: 'fit', height: 'fit', padding: '0', borderRadius: '100%' }}
+          className="cursor-pointer w-fit h-fit p-0 rounded-full border border-gray-300 hover:bg-gray-50"
           onClick={() => setModalShow(true)}
         >
           <FcPlus className="w-8 h-8" />
