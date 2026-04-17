@@ -4,11 +4,11 @@ import { useMutation, useQuery } from "convex/react";
 import { SubmitHandler, useForm } from "react-hook-form";
 import { formSchema } from "./validation";
 import { yupResolver } from "@hookform/resolvers/yup";
-import { toast } from "sonner";
 import { Button } from "react-bootstrap";
 import { api } from "../../../../../convex/_generated/api";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import InputComponent from "../../../../../shared/input";
+import { toast } from "sonner";
 
 type FormData = {
   userId: string;
@@ -75,10 +75,7 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
       } else {
         toast.success('User stock log created successfully!');
         reset();
-        setTimeout(() => {
-          onSuccess();
-          window.location.href = '/admin/bar-management/user-stock-logs';
-        }, 1500);
+        onSuccess();
       }
     } catch (error: any) {
       console.error('Add new user stock log failed:', error);

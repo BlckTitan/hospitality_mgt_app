@@ -22,7 +22,6 @@ export default function Dashboard() {
 }
 
 function DashboardContent({ propertyId, setPropertyId }: { propertyId: string; setPropertyId: (id: string) => void }) {
-function DashboardContent({ propertyId, setPropertyId }: { propertyId: string; setPropertyId: (id: string) => void }) {
   const propertiesResponse = useQuery(api.property.getAllProperties);
   const properties = propertiesResponse?.data || [];
   const currentPropertyId = propertyId || properties?.[0]?._id || '';
