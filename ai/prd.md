@@ -8,7 +8,7 @@
 - **Primary value props**: real-time financial visibility, user-friendly cross-platform experience, automated compliance-ready records, and streamlined integrations with POS, payroll, and booking channels.
 
 ## Problem Statement
-
+ 
 Hospitality operators juggle siloed systems for reservations, POS, payroll, procurement, and accounting. Manual reconciliation leads to delayed insights, inaccurate cash-flow forecasting, compliance risk, and lost revenue opportunities. Existing suites tend to prioritize front-desk workflows rather than end-to-end financial stewardship.
 
 ## Goals & Success Metrics

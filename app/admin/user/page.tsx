@@ -1,11 +1,11 @@
 'use client';
 
 import React, { useState } from 'react';
-import Button from '../../../shared/button';
 import { FcPlus } from 'react-icons/fc';
 import BootstrapModal from '../../../shared/modal';
 import Users from './components/users';
 import { FormComponent } from './components/createUserForm';
+import { Button } from 'react-bootstrap';
 
 export default function UserPage() {
   const [modalShow, setModalShow] = useState(false);
