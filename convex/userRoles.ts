@@ -1,9 +1,11 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
 import { Id } from './_generated/dataModel';
+import { requirePermission } from './lib/rbac';
 
 export const getAllUserRoles = query({
   handler: async (ctx) => {
+    await requirePermission(ctx, 'users.read');
     try {
       const userRoles = await ctx.db.query('userRoles').collect();
       
@@ -46,12 +48,14 @@ export const getAllUserRoles = query({
 export const getUserRole = query({
   args: { userRole_id: v.id('userRoles') },
   handler: async (ctx, args) => {
-    try {
-      const userRole = await ctx.db.get(args.userRole_id);
-      if (!userRole) {
-        return { success: false, data: null, message: 'User role not found' };
-      }
+    const userRole = await ctx.db.get(args.userRole_id);
+    if (!userRole) {
+      return { success: false, data: null, message: 'User role not found' };
+    }
 
+    await requirePermission(ctx, 'users.read', userRole.propertyId);
+
+    try {
       // Populate related data
       const user = await ctx.db.get(userRole.userId);
       const role = await ctx.db.get(userRole.roleId);
@@ -93,8 +97,8 @@ export const createUserRole = mutation({
     assignedBy: v.string(), // User ID who assigned the role
   },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'users.create', args.propertyId);
     try {
-      // Check if this exact combination already exists
       const existingUserRole = await ctx.db
         .query('userRoles')
         .filter((q: any) => 
@@ -150,13 +154,15 @@ export const updateUserRole = mutation({
     assignedBy: v.string(),
   },
   handler: async (ctx, args) => {
+    const existingUserRole = await ctx.db.get(args.userRole_id);
+
+    if (!existingUserRole) {
+      return { success: false, message: 'User role does not exist' };
+    }
+
+    await requirePermission(ctx, 'users.update', args.propertyId);
+
     try {
-      const existingUserRole = await ctx.db.get(args.userRole_id);
-
-      if (!existingUserRole) {
-        return { success: false, message: 'User role does not exist' };
-      }
-
       // Check if the new combination already exists (excluding current record)
       const duplicateUserRole = await ctx.db
         .query('userRoles')
@@ -208,13 +214,15 @@ export const updateUserRole = mutation({
 export const deleteUserRole = mutation({
   args: { userRole_id: v.id('userRoles') },
   handler: async (ctx, args) => {
+    const userRole = await ctx.db.get(args.userRole_id);
+
+    if (!userRole) {
+      return { success: false, message: 'User role does not exist' };
+    }
+
+    await requirePermission(ctx, 'users.update', userRole.propertyId);
+
     try {
-      const userRole = await ctx.db.get(args.userRole_id);
-
-      if (!userRole) {
-        return { success: false, message: 'User role does not exist' };
-      }
-
       await ctx.db.delete(args.userRole_id);
       return { success: true, message: 'User role removed successfully' };
     } catch (error) {
@@ -225,13 +233,28 @@ export const deleteUserRole = mutation({
 });
 
 export const getUserRolesByUserId = query({
-  args: { userId: v.string() },
+  args: { userId: v.union(v.id('users'), v.string()) },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'users.read');
+
     try {
-      // Find user roles by userId (string)
+      let resolvedUserId: Id<'users'>;
+      if (typeof args.userId === 'string' && args.userId.startsWith('user_')) {
+        const user = await ctx.db
+          .query('users')
+          .withIndex('byExternalId', (q) => q.eq('externalId', args.userId as string))
+          .unique();
+        if (!user) {
+          return { success: false, data: [], message: 'User not found' };
+        }
+        resolvedUserId = user._id;
+      } else {
+        resolvedUserId = args.userId as Id<'users'>;
+      }
+
       const userRoles = await ctx.db
         .query('userRoles')
-        .filter((q: any) => q.eq(q.field('userId'), args.userId))
+        .withIndex('by_userId', (q) => q.eq('userId', resolvedUserId))
         .collect();
 
       // Populate related data

@@ -1,9 +1,11 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
+import { requirePermission } from './lib/rbac';
 
 export const getBeverages = query({
   args: { propertyId: v.optional(v.id('properties')) },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'fnb.read', args.propertyId);
     try {
       let beveragesQuery = ctx.db.query('beverages');
       if (args.propertyId) {
@@ -21,6 +23,7 @@ export const getBeverages = query({
 export const getAllBeverages = query({
   args: { propertyId: v.id('properties') },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'fnb.read', args.propertyId);
     try {
       const beverages = await ctx.db
         .query('beverages')
@@ -38,11 +41,12 @@ export const getAllBeverages = query({
 export const getBeverage = query({
   args: { beverageId: v.id('beverages'), propertyId: v.optional(v.id('properties')) },
   handler: async (ctx, args) => {
+    const beverage = await ctx.db.get(args.beverageId);
+    if (!beverage) {
+      return { success: false, data: null, message: 'Beverage not found' };
+    }
+    await requirePermission(ctx, 'fnb.read', args.propertyId ?? beverage.propertyId);
     try {
-      const beverage = await ctx.db.get(args.beverageId);
-      if (!beverage) {
-        return { success: false, data: null, message: 'Beverage not found' };
-      }
       if (args.propertyId && beverage.propertyId !== args.propertyId) {
         return { success: false, data: null, message: 'Beverage does not belong to the specified property' };
       }
@@ -65,6 +69,7 @@ export const createBeverage = mutation({
     isActive: v.boolean(),
   },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'fnb.create', args.propertyId);
     try {
       // Check if beverage with same name already exists for this property
       const existingBeverage = await ctx.db
@@ -98,6 +103,11 @@ export const updateBeverage = mutation({
     isActive: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
+    const beverage = await ctx.db.get(args.beverageId);
+    if (!beverage) {
+      return { success: false, message: 'Beverage not found' };
+    }
+    await requirePermission(ctx, 'fnb.update', args.propertyId ?? beverage.propertyId);
     try {
       const { beverageId, ...updates } = args;
       await ctx.db.patch(beverageId, updates);
@@ -112,6 +122,7 @@ export const updateBeverage = mutation({
 export const getPropertyWithCurrency = query({
   args: { propertyId: v.id('properties') },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'fnb.read', args.propertyId);
     try {
       const property = await ctx.db.get(args.propertyId);
       if (!property) {
@@ -128,6 +139,11 @@ export const getPropertyWithCurrency = query({
 export const deleteBeverage = mutation({
   args: { beverageId: v.id('beverages') },
   handler: async (ctx, args) => {
+    const beverage = await ctx.db.get(args.beverageId);
+    if (!beverage) {
+      return { success: false, message: 'Beverage not found' };
+    }
+    await requirePermission(ctx, 'fnb.delete', beverage.propertyId);
     try {
       // Soft delete by setting isActive to false
       await ctx.db.patch(args.beverageId, { isActive: false });

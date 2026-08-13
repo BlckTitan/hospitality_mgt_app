@@ -1,5 +1,6 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
+import { requirePermission } from './lib/rbac';
 
 export const getAllInventoryTransactions = query({
   args: { 
@@ -7,6 +8,18 @@ export const getAllInventoryTransactions = query({
     inventoryItemId: v.optional(v.id('inventoryItems')),
   },
   handler: async (ctx, args) => {
+    if (args.propertyId) {
+      await requirePermission(ctx, 'inventory.read', args.propertyId);
+    } else if (args.inventoryItemId) {
+      const inventoryItem = await ctx.db.get(args.inventoryItemId);
+      if (!inventoryItem) {
+        return { success: false, data: [], message: 'Inventory item not found' };
+      }
+      await requirePermission(ctx, 'inventory.read', inventoryItem.propertyId);
+    } else {
+      return { success: false, data: [], message: 'Either propertyId or inventoryItemId must be provided' };
+    }
+
     try {
       let transactions;
       
@@ -70,14 +83,16 @@ export const getAllInventoryTransactions = query({
 export const getInventoryTransaction = query({
   args: { transactionId: v.id('inventoryTransactions') },
   handler: async (ctx, args) => {
+    const transaction = await ctx.db.get(args.transactionId);
+    if (!transaction) {
+      return { success: false, data: null, message: 'Inventory transaction not found' };
+    }
+    const inventoryItem = await ctx.db.get(transaction.inventoryItemId);
+    if (!inventoryItem) {
+      return { success: false, data: null, message: 'Inventory item not found' };
+    }
+    await requirePermission(ctx, 'inventory.read', inventoryItem.propertyId);
     try {
-      const transaction = await ctx.db.get(args.transactionId);
-      if (!transaction) {
-        return { success: false, data: null, message: 'Inventory transaction not found' };
-      }
-      
-      // Fetch related data
-      const inventoryItem = await ctx.db.get(transaction.inventoryItemId);
       const performedByStaff = transaction.performedBy ? await ctx.db.get(transaction.performedBy) : null;
       
       return { success: true, data: { ...transaction, inventoryItem, performedByStaff } };
@@ -107,12 +122,13 @@ export const createInventoryTransaction = mutation({
     transactionDate: v.number(),
   },
   handler: async (ctx, args) => {
-    try {
-      const inventoryItem = await ctx.db.get(args.inventoryItemId);
-      if (!inventoryItem) {
-        return { success: false, message: 'Inventory item does not exist' };
-      }
+    const inventoryItem = await ctx.db.get(args.inventoryItemId);
+    if (!inventoryItem) {
+      return { success: false, message: 'Inventory item does not exist' };
+    }
+    await requirePermission(ctx, 'inventory.create', inventoryItem.propertyId);
 
+    try {
       // Calculate total cost
       const totalCost = args.unitCost !== undefined && args.unitCost !== null
         ? args.unitCost * Math.abs(args.quantity)
@@ -204,17 +220,18 @@ export const updateInventoryTransaction = mutation({
     transactionDate: v.number(),
   },
   handler: async (ctx, args) => {
+    const existingTransaction = await ctx.db.get(args.transactionId);
+    if (!existingTransaction) {
+      return { success: false, message: 'Inventory transaction does not exist' };
+    }
+
+    const inventoryItem = await ctx.db.get(existingTransaction.inventoryItemId);
+    if (!inventoryItem) {
+      return { success: false, message: 'Inventory item does not exist' };
+    }
+    await requirePermission(ctx, 'inventory.update', inventoryItem.propertyId);
+
     try {
-      const existingTransaction = await ctx.db.get(args.transactionId);
-      if (!existingTransaction) {
-        return { success: false, message: 'Inventory transaction does not exist' };
-      }
-
-      const inventoryItem = await ctx.db.get(existingTransaction.inventoryItemId);
-      if (!inventoryItem) {
-        return { success: false, message: 'Inventory item does not exist' };
-      }
-
       // Revert the old transaction's effect on quantity
       let oldQuantityChange = 0;
       switch (existingTransaction.transactionType) {
@@ -302,17 +319,18 @@ export const updateInventoryTransaction = mutation({
 export const deleteInventoryTransaction = mutation({
   args: { transactionId: v.id('inventoryTransactions') },
   handler: async (ctx, args) => {
+    const existingTransaction = await ctx.db.get(args.transactionId);
+    if (!existingTransaction) {
+      return { success: false, message: 'Inventory transaction does not exist' };
+    }
+
+    const inventoryItem = await ctx.db.get(existingTransaction.inventoryItemId);
+    if (!inventoryItem) {
+      return { success: false, message: 'Inventory item does not exist' };
+    }
+    await requirePermission(ctx, 'inventory.delete', inventoryItem.propertyId);
+
     try {
-      const existingTransaction = await ctx.db.get(args.transactionId);
-      if (!existingTransaction) {
-        return { success: false, message: 'Inventory transaction does not exist' };
-      }
-
-      const inventoryItem = await ctx.db.get(existingTransaction.inventoryItemId);
-      if (!inventoryItem) {
-        return { success: false, message: 'Inventory item does not exist' };
-      }
-
       // Revert the transaction's effect on quantity
       let quantityChange = 0;
       switch (existingTransaction.transactionType) {

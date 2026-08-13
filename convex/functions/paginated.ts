@@ -2,6 +2,30 @@
 
 import { query } from "../_generated/server";
 import { v } from "convex/values";
+import { requirePermission } from "../lib/rbac";
+
+const TABLE_READ_PERMISSIONS = {
+  staffs: "staff.read",
+  users: "users.read",
+  properties: "properties.read",
+  roles: "roles.read",
+  userRoles: "users.read",
+  roomTypes: "rooms.read",
+  rooms: "rooms.read",
+  reservations: "reservations.read",
+  guests: "reservations.read",
+  suppliers: "inventory.read",
+  inventoryItems: "inventory.read",
+  inventoryTransactions: "inventory.read",
+  purchaseOrders: "inventory.read",
+  purchaseOrderLines: "inventory.read",
+  bars: "fnb.read",
+  beverages: "fnb.read",
+  shifts: "staff.read",
+  userStockLogs: "fnb.read",
+  storeInventories: "inventory.read",
+  storeTransactions: "inventory.read",
+} as const;
 
 export const getPaginatedData = query({
 
@@ -35,13 +59,14 @@ export const getPaginatedData = query({
     sortOrder: v.optional(v.union(v.literal("asc"), v.literal("desc"))), // optional
   },
 
-  handler: async ({ db }, { table, limit, cursor, sortOrder, searchTerm}) => {
-    
+  handler: async (ctx, { table, limit, cursor, sortOrder, searchTerm}) => {
+    await requirePermission(ctx, TABLE_READ_PERMISSIONS[table]);
+
     try {
       //if we have a searchTerm and a request comes for the staffs document, 
       // search the staffs record for firstname, lastName, employmentStatus, role data, if found, return it
       if ( table === 'staffs' && searchTerm ) {
-        const items = await db
+        const items = await ctx.db
           .query('staffs')
           .withSearchIndex('search_staff', (idx) => 
             idx.search('firstName', searchTerm)
@@ -63,7 +88,7 @@ export const getPaginatedData = query({
 
       } else {
         // if there is no search request, just return all the data in the database
-        const items = await db
+        const items = await ctx.db
           .query(table)
           .order(sortOrder ?? "desc")// respect sortOrder if provided, default to "desc"
           .paginate({ numItems: limit, cursor: cursor  ?? null});// Use convex pagination pattern

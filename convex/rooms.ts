@@ -1,9 +1,11 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
+import { requirePermission } from './lib/rbac';
 
 export const getAllRooms = query({
   args: { propertyId: v.id('properties') },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'rooms.read', args.propertyId);
     try {
       const rooms = await ctx.db
         .query('rooms')
@@ -32,13 +34,12 @@ export const getAllRooms = query({
 export const getRoom = query({
   args: { roomId: v.id('rooms') },
   handler: async (ctx, args) => {
+    const room = await ctx.db.get(args.roomId);
+    if (!room) {
+      return { success: false, data: null, message: 'Room not found' };
+    }
+    await requirePermission(ctx, 'rooms.read', room.propertyId);
     try {
-      const room = await ctx.db.get(args.roomId);
-      if (!room) {
-        return { success: false, data: null, message: 'Room not found' };
-      }
-      
-      // Fetch related data
       const roomType = await ctx.db.get(room.roomTypeId);
       
       return { success: true, data: { ...room, roomType } };
@@ -60,6 +61,7 @@ export const createRoom = mutation({
     isActive: v.boolean(),
   },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'rooms.update', args.propertyId);
     try {
       // Check if room number already exists for this property
       const existingRoom = await ctx.db
@@ -111,13 +113,15 @@ export const updateRoom = mutation({
     isActive: v.boolean(),
   },
   handler: async (ctx, args) => {
+    const existingRoom = await ctx.db.get(args.roomId);
+
+    if (!existingRoom) {
+      return { success: false, message: 'Room does not exist' };
+    }
+
+    await requirePermission(ctx, 'rooms.update', existingRoom.propertyId);
+
     try {
-      const existingRoom = await ctx.db.get(args.roomId);
-
-      if (!existingRoom) {
-        return { success: false, message: 'Room does not exist' };
-      }
-
       // Check if room number is being changed and if new number already exists
       if (args.roomNumber !== existingRoom.roomNumber) {
         const duplicateRoom = await ctx.db
@@ -160,13 +164,15 @@ export const updateRoom = mutation({
 export const deleteRoom = mutation({
   args: { roomId: v.id('rooms') },
   handler: async (ctx, args) => {
+    const existingRoom = await ctx.db.get(args.roomId);
+
+    if (!existingRoom) {
+      return { success: false, message: 'Room does not exist' };
+    }
+
+    await requirePermission(ctx, 'rooms.delete', existingRoom.propertyId);
+
     try {
-      const existingRoom = await ctx.db.get(args.roomId);
-
-      if (!existingRoom) {
-        return { success: false, message: 'Room does not exist' };
-      }
-
       // Check if room has active reservations
       const activeReservation = await ctx.db
         .query('reservations')

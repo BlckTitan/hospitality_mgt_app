@@ -20,7 +20,7 @@ interface UserProps {
 }
 
 const Users = () => {
-  const removeUser = useMutation(api.user.deleteUser);
+  const removeUser = useMutation(api.users.deleteUser);
 
   const handleDelete = async (id: string, name: string) => {
     if (!confirm('Are you sure you want to delete user: ' + name)) return;

@@ -46,7 +46,6 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermission> = {
   '/admin/shift-management/shift': { granular: 'staff.read' },
 
   // Additional admin routes for specific actions
-  '/admin/user/create': { granular: 'users.create' },
   '/admin/user/[id]/edit': { granular: 'users.update' },
   '/admin/user/[id]': { granular: 'users.read' },
   '/admin/user/role/create': { granular: 'roles.create' },
@@ -95,4 +94,29 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermission> = {
   '/admin/inventory-management/purchase-order/[id]/edit': { granular: 'inventory.update' },
   '/admin/inventory-management/purchase-order-line/create': { granular: 'inventory.create' },
   '/admin/inventory-management/purchase-order-line/[id]/edit': { granular: 'inventory.update' },
+
+  // Edit pages (query-param based routes used in the app)
+  '/admin/user/edit': { granular: 'users.update' },
+  '/admin/user/role/edit': { granular: 'roles.update' },
+  '/admin/userRole/edit': { granular: 'users.update' },
+  '/admin/property/edit': { granular: 'properties.update' },
+  '/admin/staff/edit': { granular: 'staff.update' },
+  '/admin/staff/view': { granular: 'staff.read' },
+  '/admin/shift-management/shift/edit': { granular: 'staff.update' },
+  '/admin/bar-management/bar/edit': { granular: 'fnb.update' },
+  '/admin/bar-management/beverages/edit': { granular: 'fnb.update' },
+  '/admin/bar-management/user-stock-logs/edit': { granular: 'fnb.update' },
+  '/admin/bar-management/store-inventory/edit': { granular: 'inventory.update' },
+  '/admin/bar-management/store-transactions/edit': { granular: 'inventory.update' },
+  '/admin/inventory-management/inventory-item/edit': { granular: 'inventory.update' },
+  '/admin/inventory-management/inventory-transaction/edit': { granular: 'inventory.update' },
+  '/admin/inventory-management/supplier/edit': { granular: 'inventory.update' },
+  '/admin/inventory-management/purchase-order/edit': { granular: 'inventory.update' },
+  '/admin/inventory-management/purchase-order-line/edit': { granular: 'inventory.update' },
+  '/admin/room-management/room/edit': { granular: 'rooms.update' },
+  '/admin/room-management/room-type/edit': { granular: 'rooms.update' },
+  '/admin/room-management/reservation/edit': { granular: 'reservations.update' },
+  '/admin/room-management/reservation/guest/edit': { granular: 'reservations.update' },
+  '/admin/room-management/guest/edit': { granular: 'reservations.update' },
+  '/admin/room-management/housekeeping-task/edit': { granular: 'system.admin' },
 };

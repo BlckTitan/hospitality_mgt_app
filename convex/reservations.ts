@@ -1,5 +1,6 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
+import { requirePermission } from './lib/rbac';
 
 // Generate unique confirmation number
 function generateConfirmationNumber(propertyId: string, timestamp: number): string {
@@ -14,6 +15,7 @@ function generateConfirmationNumber(propertyId: string, timestamp: number): stri
 export const getAllReservations = query({
   args: { propertyId: v.id('properties') },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'reservations.read', args.propertyId);
     try {
       const reservations = await ctx.db
         .query('reservations')
@@ -46,13 +48,12 @@ export const getAllReservations = query({
 export const getReservation = query({
   args: { reservationId: v.id('reservations') },
   handler: async (ctx, args) => {
+    const reservation = await ctx.db.get(args.reservationId);
+    if (!reservation) {
+      return { success: false, data: null, message: 'Reservation not found' };
+    }
+    await requirePermission(ctx, 'reservations.read', reservation.propertyId);
     try {
-      const reservation = await ctx.db.get(args.reservationId);
-      if (!reservation) {
-        return { success: false, data: null, message: 'Reservation not found' };
-      }
-      
-      // Fetch related data
       const guest = await ctx.db.get(reservation.guestId);
       const room = await ctx.db.get(reservation.roomId);
       const roomType = room ? await ctx.db.get(room.roomTypeId) : null;
@@ -90,6 +91,7 @@ export const createReservation = mutation({
     specialRequests: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'reservations.create', args.propertyId);
     try {
       // Validate dates
       if (args.checkOutDate <= args.checkInDate) {
@@ -196,13 +198,15 @@ export const updateReservation = mutation({
     specialRequests: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    const existingReservation = await ctx.db.get(args.reservationId);
+
+    if (!existingReservation) {
+      return { success: false, message: 'Reservation does not exist' };
+    }
+
+    await requirePermission(ctx, 'reservations.update', existingReservation.propertyId);
+
     try {
-      const existingReservation = await ctx.db.get(args.reservationId);
-
-      if (!existingReservation) {
-        return { success: false, message: 'Reservation does not exist' };
-      }
-
       // Validate dates
       if (args.checkOutDate <= args.checkInDate) {
         return { success: false, message: 'Check-out date must be after check-in date' };
@@ -298,13 +302,15 @@ export const updateReservation = mutation({
 export const deleteReservation = mutation({
   args: { reservationId: v.id('reservations') },
   handler: async (ctx, args) => {
+    const existingReservation = await ctx.db.get(args.reservationId);
+
+    if (!existingReservation) {
+      return { success: false, message: 'Reservation does not exist' };
+    }
+
+    await requirePermission(ctx, 'reservations.delete', existingReservation.propertyId);
+
     try {
-      const existingReservation = await ctx.db.get(args.reservationId);
-
-      if (!existingReservation) {
-        return { success: false, message: 'Reservation does not exist' };
-      }
-
       // Prevent deletion of checked-in or checked-out reservations
       if (existingReservation.status === 'checked-in' || existingReservation.status === 'checked-out') {
         return { success: false, message: 'Cannot delete checked-in or checked-out reservations' };

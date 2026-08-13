@@ -1,8 +1,10 @@
-import { mutation, query } from './_generated/server';
+import { mutation, query, internalMutation } from './_generated/server';
 import { v } from 'convex/values';
-
+import { requirePermission } from './lib/rbac';
+import { ensureAdministratorRole } from './lib/systemRoles';
 export const getAllRoles = query({
   handler: async (ctx) => {
+    await requirePermission(ctx, 'roles.read');
     try {
       const roles = await ctx.db.query('roles').collect();
       return { success: true, data: roles };
@@ -16,6 +18,7 @@ export const getAllRoles = query({
 export const getRole = query({
   args: { role_id: v.id('roles') },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'roles.read');
     try {
       const role = await ctx.db.get(args.role_id);
       if (!role) {
@@ -37,6 +40,7 @@ export const createRole = mutation({
     isSystemRole: v.boolean(),
   },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'roles.create');
     try {
       // Check if role with same name already exists
       const existingRole = await ctx.db
@@ -75,13 +79,15 @@ export const updateRole = mutation({
     isSystemRole: v.boolean(),
   },
   handler: async (ctx, args) => {
+    const existingRole = await ctx.db.get(args.role_id);
+
+    if (!existingRole) {
+      return { success: false, message: 'Role does not exist' };
+    }
+
+    await requirePermission(ctx, 'roles.update');
+
     try {
-      const existingRole = await ctx.db.get(args.role_id);
-
-      if (!existingRole) {
-        return { success: false, message: 'Role does not exist' };
-      }
-
       // Prevent modification of system roles (optional safety check)
       if (existingRole.isSystemRole && !args.isSystemRole) {
         return { success: false, message: 'Cannot change system role status' };
@@ -118,13 +124,15 @@ export const updateRole = mutation({
 export const deleteRole = mutation({
   args: { role_id: v.id('roles') },
   handler: async (ctx, args) => {
+    const role = await ctx.db.get(args.role_id);
+
+    if (!role) {
+      return { success: false, message: 'Role does not exist' };
+    }
+
+    await requirePermission(ctx, 'roles.delete');
+
     try {
-      const role = await ctx.db.get(args.role_id);
-
-      if (!role) {
-        return { success: false, message: 'Role does not exist' };
-      }
-
       // Prevent deletion of system roles
       if (role.isSystemRole) {
         return { success: false, message: 'Cannot delete system roles' };
@@ -145,6 +153,7 @@ export const deleteRole = mutation({
 export const getRoleByName = query({
   args: { name: v.string() },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'roles.read');
     try {
       const role = await ctx.db
         .query('roles')
@@ -163,3 +172,14 @@ export const getRoleByName = query({
   },
 });
 
+export const ensureSystemRoles = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const administratorRoleId = await ensureAdministratorRole(ctx);
+    return {
+      success: true,
+      administratorRoleId,
+      message: 'System roles ensured',
+    };
+  },
+});

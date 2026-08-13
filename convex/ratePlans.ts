@@ -1,9 +1,11 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
+import { requirePermission } from './lib/rbac';
 
 export const getAllRatePlans = query({
   args: { propertyId: v.id('properties') },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'reservations.read', args.propertyId);
     try {
       const ratePlans = await ctx.db
         .query('ratePlans')
@@ -32,13 +34,12 @@ export const getAllRatePlans = query({
 export const getRatePlan = query({
   args: { ratePlanId: v.id('ratePlans') },
   handler: async (ctx, args) => {
+    const ratePlan = await ctx.db.get(args.ratePlanId);
+    if (!ratePlan) {
+      return { success: false, data: null, message: 'Rate plan not found' };
+    }
+    await requirePermission(ctx, 'reservations.read', ratePlan.propertyId);
     try {
-      const ratePlan = await ctx.db.get(args.ratePlanId);
-      if (!ratePlan) {
-        return { success: false, data: null, message: 'Rate plan not found' };
-      }
-      
-      // Fetch related room type
       const roomType = await ctx.db.get(ratePlan.roomTypeId);
       
       return { 
@@ -68,6 +69,7 @@ export const createRatePlan = mutation({
     isActive: v.boolean(),
   },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'reservations.create', args.propertyId);
     try {
       // Validate dates
       if (args.validTo <= args.validFrom) {
@@ -142,12 +144,13 @@ export const updateRatePlan = mutation({
     isActive: v.boolean(),
   },
   handler: async (ctx, args) => {
-    try {
-      const existingRatePlan = await ctx.db.get(args.ratePlanId);
-      if (!existingRatePlan) {
-        return { success: false, message: 'Rate plan not found' };
-      }
+    const existingRatePlan = await ctx.db.get(args.ratePlanId);
+    if (!existingRatePlan) {
+      return { success: false, message: 'Rate plan not found' };
+    }
+    await requirePermission(ctx, 'reservations.update', existingRatePlan.propertyId);
 
+    try {
       // Validate dates
       if (args.validTo <= args.validFrom) {
         return { success: false, message: 'Valid to date must be after valid from date' };
@@ -212,12 +215,13 @@ export const updateRatePlan = mutation({
 export const deleteRatePlan = mutation({
   args: { ratePlanId: v.id('ratePlans') },
   handler: async (ctx, args) => {
-    try {
-      const existingRatePlan = await ctx.db.get(args.ratePlanId);
-      if (!existingRatePlan) {
-        return { success: false, message: 'Rate plan not found' };
-      }
+    const existingRatePlan = await ctx.db.get(args.ratePlanId);
+    if (!existingRatePlan) {
+      return { success: false, message: 'Rate plan not found' };
+    }
+    await requirePermission(ctx, 'reservations.delete', existingRatePlan.propertyId);
 
+    try {
       await ctx.db.delete(args.ratePlanId);
       return { success: true, message: 'Rate plan deleted successfully' };
     } catch (error) {

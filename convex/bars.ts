@@ -1,9 +1,11 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
+import { requirePermission } from './lib/rbac';
 
 export const getAllBars = query({
   args: { propertyId: v.optional(v.id('properties')) },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'fnb.read', args.propertyId);
     try {
       let barsQuery = ctx.db.query('bars');
       if (args.propertyId) {
@@ -21,6 +23,7 @@ export const getAllBars = query({
 export const getBars = query({
   args: { propertyId: v.optional(v.id('properties')) },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'fnb.read', args.propertyId);
     try {
       let barsQuery = ctx.db.query('bars');
       if (args.propertyId) {
@@ -38,11 +41,12 @@ export const getBars = query({
 export const getBar = query({
   args: { barId: v.id('bars'), propertyId: v.optional(v.id('properties')) },
   handler: async (ctx, args) => {
+    const bar = await ctx.db.get(args.barId);
+    if (!bar) {
+      return { success: false, data: null, message: 'Bar not found' };
+    }
+    await requirePermission(ctx, 'fnb.read', args.propertyId ?? bar.propertyId);
     try {
-      const bar = await ctx.db.get(args.barId);
-      if (!bar) {
-        return { success: false, data: null, message: 'Bar not found' };
-      }
       if (args.propertyId && bar.propertyId !== args.propertyId) {
         return { success: false, data: null, message: 'Bar does not belong to the specified property' };
       }
@@ -63,6 +67,7 @@ export const createBar = mutation({
     isActive: v.boolean(),
   },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'fnb.create', args.propertyId);
     try {
       // Check if bar with same name already exists for this property
       const existingBar = await ctx.db
@@ -94,6 +99,11 @@ export const updateBar = mutation({
     isActive: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
+    const bar = await ctx.db.get(args.barId);
+    if (!bar) {
+      return { success: false, message: 'Bar not found' };
+    }
+    await requirePermission(ctx, 'fnb.update', args.propertyId ?? bar.propertyId);
     try {
       const { barId, ...updates } = args;
       await ctx.db.patch(barId, updates);
@@ -108,6 +118,11 @@ export const updateBar = mutation({
 export const deleteBar = mutation({
   args: { barId: v.id('bars') },
   handler: async (ctx, args) => {
+    const bar = await ctx.db.get(args.barId);
+    if (!bar) {
+      return { success: false, message: 'Bar not found' };
+    }
+    await requirePermission(ctx, 'fnb.delete', bar.propertyId);
     try {
       // Soft delete by setting isActive to false
       await ctx.db.patch(args.barId, { isActive: false });

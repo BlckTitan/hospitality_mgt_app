@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as authContext from "../authContext.js";
 import type * as bars from "../bars.js";
 import type * as beverages from "../beverages.js";
 import type * as cron from "../cron.js";
@@ -17,6 +18,10 @@ import type * as housekeepingTasks from "../housekeepingTasks.js";
 import type * as http from "../http.js";
 import type * as inventoryItems from "../inventoryItems.js";
 import type * as inventoryTransactions from "../inventoryTransactions.js";
+import type * as lib_permissionsData from "../lib/permissionsData.js";
+import type * as lib_rbac from "../lib/rbac.js";
+import type * as lib_systemRoles from "../lib/systemRoles.js";
+import type * as lib_userIdentity from "../lib/userIdentity.js";
 import type * as property from "../property.js";
 import type * as purchaseOrderLines from "../purchaseOrderLines.js";
 import type * as purchaseOrders from "../purchaseOrders.js";
@@ -32,7 +37,6 @@ import type * as staff from "../staff.js";
 import type * as storeInventories from "../storeInventories.js";
 import type * as storeTransactions from "../storeTransactions.js";
 import type * as suppliers from "../suppliers.js";
-import type * as user from "../user.js";
 import type * as userRoles from "../userRoles.js";
 import type * as userStockLogs from "../userStockLogs.js";
 import type * as users from "../users.js";
@@ -44,6 +48,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  authContext: typeof authContext;
   bars: typeof bars;
   beverages: typeof beverages;
   cron: typeof cron;
@@ -53,6 +58,10 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   inventoryItems: typeof inventoryItems;
   inventoryTransactions: typeof inventoryTransactions;
+  "lib/permissionsData": typeof lib_permissionsData;
+  "lib/rbac": typeof lib_rbac;
+  "lib/systemRoles": typeof lib_systemRoles;
+  "lib/userIdentity": typeof lib_userIdentity;
   property: typeof property;
   purchaseOrderLines: typeof purchaseOrderLines;
   purchaseOrders: typeof purchaseOrders;
@@ -68,7 +77,6 @@ declare const fullApi: ApiFromModules<{
   storeInventories: typeof storeInventories;
   storeTransactions: typeof storeTransactions;
   suppliers: typeof suppliers;
-  user: typeof user;
   userRoles: typeof userRoles;
   userStockLogs: typeof userStockLogs;
   users: typeof users;

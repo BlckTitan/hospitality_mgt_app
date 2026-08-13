@@ -1,5 +1,6 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
+import { requirePermission } from './lib/rbac';
 
 // Get all purchase order lines for a property
 export const getAllPurchaseOrderLines = query({
@@ -7,6 +8,7 @@ export const getAllPurchaseOrderLines = query({
     propertyId: v.id('properties')
   },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'inventory.read', args.propertyId);
     try {
       // First get all purchase orders for this property
       const purchaseOrders = await ctx.db
@@ -46,6 +48,11 @@ export const getAllPurchaseOrderLines = query({
 export const getPurchaseOrderLines = query({
   args: { purchaseOrderId: v.id('purchaseOrders') },
   handler: async (ctx, args) => {
+    const purchaseOrder = await ctx.db.get(args.purchaseOrderId);
+    if (!purchaseOrder) {
+      return { success: false, data: [], message: 'Purchase order not found' };
+    }
+    await requirePermission(ctx, 'inventory.read', purchaseOrder.propertyId);
     try {
       const lines = await ctx.db
         .query('purchaseOrderLines')
@@ -69,12 +76,12 @@ export const getPurchaseOrderLines = query({
 export const getPurchaseOrderLine = query({
   args: { purchaseOrderLineId: v.id('purchaseOrderLines') },
   handler: async (ctx, args) => {
+    const purchaseOrderLine = await ctx.db.get(args.purchaseOrderLineId);
+    if (!purchaseOrderLine) {
+      return { success: false, data: null, message: 'Purchase order line not found' };
+    }
+    await requirePermission(ctx, 'inventory.read', purchaseOrderLine.propertyId);
     try {
-      const purchaseOrderLine = await ctx.db.get(args.purchaseOrderLineId);
-      if (!purchaseOrderLine) {
-        return { success: false, data: null, message: 'Purchase order line not found' };
-      }
-      
       const inventoryItem = await ctx.db.get(purchaseOrderLine.inventoryItemId);
       const purchaseOrder = await ctx.db.get(purchaseOrderLine.purchaseOrderId);
       
@@ -96,6 +103,7 @@ export const createPurchaseOrderLine = mutation({
     totalPrice: v.number(),
   },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'inventory.create', args.propertyId);
     try {
       const purchaseOrderLineId = await ctx.db.insert('purchaseOrderLines', {
         propertyId: args.propertyId,
@@ -125,13 +133,15 @@ export const updatePurchaseOrderLine = mutation({
     receivedQuantity: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    const existingLine = await ctx.db.get(args.purchaseOrderLineId);
+
+    if (!existingLine) {
+      return { success: false, message: 'Purchase order line does not exist' };
+    }
+
+    await requirePermission(ctx, 'inventory.update', existingLine.propertyId);
+
     try {
-      const existingLine = await ctx.db.get(args.purchaseOrderLineId);
-
-      if (!existingLine) {
-        return { success: false, message: 'Purchase order line does not exist' };
-      }
-
       await ctx.db.patch(args.purchaseOrderLineId, {
         quantity: args.quantity,
         unitPrice: args.unitPrice,
@@ -151,13 +161,15 @@ export const updatePurchaseOrderLine = mutation({
 export const deletePurchaseOrderLine = mutation({
   args: { purchaseOrderLineId: v.id('purchaseOrderLines') },
   handler: async (ctx, args) => {
+    const existingLine = await ctx.db.get(args.purchaseOrderLineId);
+
+    if (!existingLine) {
+      return { success: false, message: 'Purchase order line does not exist' };
+    }
+
+    await requirePermission(ctx, 'inventory.delete', existingLine.propertyId);
+
     try {
-      const existingLine = await ctx.db.get(args.purchaseOrderLineId);
-
-      if (!existingLine) {
-        return { success: false, message: 'Purchase order line does not exist' };
-      }
-
       await ctx.db.delete(args.purchaseOrderLineId);
       return { success: true, message: 'Purchase order line deleted successfully' };
     } catch (error) {

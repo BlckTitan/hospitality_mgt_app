@@ -1,9 +1,11 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
+import { requirePermission } from './lib/rbac';
 
 export const getAllGuests = query({
   args: { propertyId: v.id('properties') },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'reservations.read', args.propertyId);
     try {
       const guests = await ctx.db
         .query('guests')
@@ -21,11 +23,12 @@ export const getAllGuests = query({
 export const getGuest = query({
   args: { guestId: v.id('guests') },
   handler: async (ctx, args) => {
+    const guest = await ctx.db.get(args.guestId);
+    if (!guest) {
+      return { success: false, data: null, message: 'Guest not found' };
+    }
+    await requirePermission(ctx, 'reservations.read', guest.propertyId);
     try {
-      const guest = await ctx.db.get(args.guestId);
-      if (!guest) {
-        return { success: false, data: null, message: 'Guest not found' };
-      }
       return { success: true, data: guest };
     } catch (error) {
       console.log(`Failed to fetch guest: ${error}`);
@@ -47,6 +50,7 @@ export const createGuest = mutation({
     preferences: v.optional(v.any()),
   },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'reservations.create', args.propertyId);
     try {
       const now = Date.now();
       const guestId = await ctx.db.insert('guests', {
@@ -84,12 +88,13 @@ export const updateGuest = mutation({
     preferences: v.optional(v.any()),
   },
   handler: async (ctx, args) => {
-    try {
-      const existingGuest = await ctx.db.get(args.guestId);
-      if (!existingGuest) {
-        return { success: false, message: 'Guest not found' };
-      }
+    const existingGuest = await ctx.db.get(args.guestId);
+    if (!existingGuest) {
+      return { success: false, message: 'Guest not found' };
+    }
+    await requirePermission(ctx, 'reservations.update', existingGuest.propertyId);
 
+    try {
       const now = Date.now();
       await ctx.db.patch(args.guestId, {
         firstName: args.firstName,
@@ -114,12 +119,13 @@ export const updateGuest = mutation({
 export const deleteGuest = mutation({
   args: { guestId: v.id('guests') },
   handler: async (ctx, args) => {
-    try {
-      const existingGuest = await ctx.db.get(args.guestId);
-      if (!existingGuest) {
-        return { success: false, message: 'Guest not found' };
-      }
+    const existingGuest = await ctx.db.get(args.guestId);
+    if (!existingGuest) {
+      return { success: false, message: 'Guest not found' };
+    }
+    await requirePermission(ctx, 'reservations.delete', existingGuest.propertyId);
 
+    try {
       // Check if guest has any reservations
       const reservations = await ctx.db
         .query('reservations')

@@ -34,7 +34,7 @@ export function FormComponent({
   isActive: boolean;
   lastLoginAt?: number;
 }) {
-  const updateUser = useMutation(api.user.updateUser);
+  const updateUser = useMutation(api.users.updateUser);
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: yupResolver(formSchema) as any,

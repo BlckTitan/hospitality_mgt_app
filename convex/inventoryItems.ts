@@ -1,9 +1,11 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
+import { requirePermission } from './lib/rbac';
 
 export const getAllInventoryItems = query({
   args: { propertyId: v.id('properties') },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'inventory.read', args.propertyId);
     try {
       const inventoryItems = await ctx.db
         .query('inventoryItems')
@@ -32,12 +34,12 @@ export const getAllInventoryItems = query({
 export const getInventoryItem = query({
   args: { inventoryItemId: v.id('inventoryItems') },
   handler: async (ctx, args) => {
+    const inventoryItem = await ctx.db.get(args.inventoryItemId);
+    if (!inventoryItem) {
+      return { success: false, data: null, message: 'Inventory item not found' };
+    }
+    await requirePermission(ctx, 'inventory.read', inventoryItem.propertyId);
     try {
-      const inventoryItem = await ctx.db.get(args.inventoryItemId);
-      if (!inventoryItem) {
-        return { success: false, data: null, message: 'Inventory item not found' };
-      }
-      
       // Fetch related data
       const supplier = inventoryItem.supplierId ? await ctx.db.get(inventoryItem.supplierId) : null;
       
@@ -65,6 +67,7 @@ export const createInventoryItem = mutation({
     isActive: v.boolean(),
   },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'inventory.create', args.propertyId);
     try {
       // Check if SKU already exists for this property
       const existingItem = await ctx.db
@@ -128,13 +131,15 @@ export const updateInventoryItem = mutation({
     isActive: v.boolean(),
   },
   handler: async (ctx, args) => {
+    const existingItem = await ctx.db.get(args.inventoryItemId);
+
+    if (!existingItem) {
+      return { success: false, message: 'Inventory item does not exist' };
+    }
+
+    await requirePermission(ctx, 'inventory.update', existingItem.propertyId);
+
     try {
-      const existingItem = await ctx.db.get(args.inventoryItemId);
-
-      if (!existingItem) {
-        return { success: false, message: 'Inventory item does not exist' };
-      }
-
       // Check if SKU is being changed and if new SKU already exists
       if (args.sku !== existingItem.sku) {
         const duplicateItem = await ctx.db
@@ -190,13 +195,15 @@ export const updateInventoryItem = mutation({
 export const deleteInventoryItem = mutation({
   args: { inventoryItemId: v.id('inventoryItems') },
   handler: async (ctx, args) => {
+    const existingItem = await ctx.db.get(args.inventoryItemId);
+
+    if (!existingItem) {
+      return { success: false, message: 'Inventory item does not exist' };
+    }
+
+    await requirePermission(ctx, 'inventory.delete', existingItem.propertyId);
+
     try {
-      const existingItem = await ctx.db.get(args.inventoryItemId);
-
-      if (!existingItem) {
-        return { success: false, message: 'Inventory item does not exist' };
-      }
-
       // Check if inventory item has transactions
       const hasTransactions = await ctx.db
         .query('inventoryTransactions')

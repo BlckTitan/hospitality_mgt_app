@@ -1,9 +1,11 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
+import { requirePermission } from './lib/rbac';
 
 export const getAllRoomTypes = query({
   args: { propertyId: v.id('properties') },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'rooms.read', args.propertyId);
     try {
       const roomTypes = await ctx.db
         .query('roomTypes')
@@ -20,11 +22,12 @@ export const getAllRoomTypes = query({
 export const getRoomType = query({
   args: { roomTypeId: v.id('roomTypes') },
   handler: async (ctx, args) => {
+    const roomType = await ctx.db.get(args.roomTypeId);
+    if (!roomType) {
+      return { success: false, data: null, message: 'Room type not found' };
+    }
+    await requirePermission(ctx, 'rooms.read', roomType.propertyId);
     try {
-      const roomType = await ctx.db.get(args.roomTypeId);
-      if (!roomType) {
-        return { success: false, data: null, message: 'Room type not found' };
-      }
       return { success: true, data: roomType };
     } catch (error) {
       console.log(`Failed to fetch room type: ${error}`);
@@ -44,6 +47,7 @@ export const createRoomType = mutation({
     isActive: v.boolean(),
   },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'rooms.update', args.propertyId);
     try {
       // Check if room type with same name already exists for this property
       const existingRoomType = await ctx.db
@@ -92,13 +96,15 @@ export const updateRoomType = mutation({
     isActive: v.boolean(),
   },
   handler: async (ctx, args) => {
+    const existingRoomType = await ctx.db.get(args.roomTypeId);
+
+    if (!existingRoomType) {
+      return { success: false, message: 'Room type does not exist' };
+    }
+
+    await requirePermission(ctx, 'rooms.update', existingRoomType.propertyId);
+
     try {
-      const existingRoomType = await ctx.db.get(args.roomTypeId);
-
-      if (!existingRoomType) {
-        return { success: false, message: 'Room type does not exist' };
-      }
-
       // Check if name is being changed and if new name already exists
       if (args.name !== existingRoomType.name) {
         const duplicateName = await ctx.db
@@ -138,13 +144,15 @@ export const updateRoomType = mutation({
 export const deleteRoomType = mutation({
   args: { roomTypeId: v.id('roomTypes') },
   handler: async (ctx, args) => {
+    const existingRoomType = await ctx.db.get(args.roomTypeId);
+
+    if (!existingRoomType) {
+      return { success: false, message: 'Room type does not exist' };
+    }
+
+    await requirePermission(ctx, 'rooms.delete', existingRoomType.propertyId);
+
     try {
-      const existingRoomType = await ctx.db.get(args.roomTypeId);
-
-      if (!existingRoomType) {
-        return { success: false, message: 'Room type does not exist' };
-      }
-
       // Check if any rooms use this room type
       const roomsUsingType = await ctx.db
         .query('rooms')

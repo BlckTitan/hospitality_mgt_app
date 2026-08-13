@@ -1,9 +1,11 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
+import { requirePermission } from './lib/rbac';
 
 export const getAllStoreTransactions = query({
   args: { propertyId: v.id('properties') },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'inventory.read', args.propertyId);
     try {
       const transactions = await ctx.db
         .query('storeTransactions')
@@ -42,13 +44,12 @@ export const getAllStoreTransactions = query({
 export const getStoreTransaction = query({
   args: { transactionId: v.id('storeTransactions') },
   handler: async (ctx, args) => {
+    const transaction = await ctx.db.get(args.transactionId);
+    if (!transaction) {
+      return { success: false, data: null, message: 'Store transaction not found' };
+    }
+    await requirePermission(ctx, 'inventory.read', transaction.propertyId);
     try {
-      const transaction = await ctx.db.get(args.transactionId);
-      if (!transaction) {
-        return { success: false, data: null, message: 'Store transaction not found' };
-      }
-      
-      // Fetch related data
       const beverage = await ctx.db.get(transaction.beverageId);
       const bar = transaction.barId ? await ctx.db.get(transaction.barId) : null;
       const user = transaction.userId ? await ctx.db.get(transaction.userId) : null;
@@ -73,6 +74,7 @@ export const createStoreTransaction = mutation({
     notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'inventory.create', args.propertyId);
     try {
       // Verify beverage exists and belongs to the property
       const beverage = await ctx.db.get(args.beverageId);
@@ -306,12 +308,13 @@ export const updateStoreTransaction = mutation({
     notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    try {
-      const existingTransaction = await ctx.db.get(args.transactionId);
-      if (!existingTransaction) {
-        return { success: false, message: 'Store transaction does not exist' };
-      }
+    const existingTransaction = await ctx.db.get(args.transactionId);
+    if (!existingTransaction) {
+      return { success: false, message: 'Store transaction does not exist' };
+    }
+    await requirePermission(ctx, 'inventory.update', existingTransaction.propertyId);
 
+    try {
       // Verify beverage exists and belongs to the property
       const beverage = await ctx.db.get(args.beverageId);
       if (!beverage || beverage.propertyId !== existingTransaction.propertyId) {
@@ -435,12 +438,13 @@ export const updateStoreTransaction = mutation({
 export const deleteStoreTransaction = mutation({
   args: { transactionId: v.id('storeTransactions') },
   handler: async (ctx, args) => {
-    try {
-      const existingTransaction = await ctx.db.get(args.transactionId);
-      if (!existingTransaction) {
-        return { success: false, message: 'Store transaction does not exist' };
-      }
+    const existingTransaction = await ctx.db.get(args.transactionId);
+    if (!existingTransaction) {
+      return { success: false, message: 'Store transaction does not exist' };
+    }
+    await requirePermission(ctx, 'inventory.delete', existingTransaction.propertyId);
 
+    try {
       // Update store inventory - reverse the transaction
       const storeInventory = await ctx.db
         .query('storeInventories')

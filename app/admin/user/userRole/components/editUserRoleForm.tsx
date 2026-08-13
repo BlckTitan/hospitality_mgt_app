@@ -27,7 +27,7 @@ export function FormComponent({
   assignedBy: string;
 }) {
   const updateUserRole = useMutation(api.userRoles.updateUserRole);
-  const usersResult = useQuery(api.user.getAllUsers);
+  const usersResult = useQuery(api.users.getAllUsers, {});
   const rolesResult = useQuery(api.roles.getAllRoles);
   const propertiesResult = useQuery(api.property.getAllProperties);
 

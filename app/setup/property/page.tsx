@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
-import { useMutation } from 'convex/react';
+import { useMutation, useQuery } from 'convex/react';
 import { toast } from 'sonner';
 import { Spinner } from 'react-bootstrap';
 import { api } from '../../../convex/_generated/api';
@@ -27,8 +27,12 @@ interface PropertyFormData {
 export default function PropertySetupPage() {
   const { isLoaded, userId } = useAuth();
   const router = useRouter();
+  const ensureCurrentUser = useMutation(api.users.ensureCurrentUser);
   const createProperty = useMutation(api.property.createProperty);
+  const userContext = useQuery(api.authContext.getCurrentUserContext);
   const [loading, setLoading] = useState(false);
+  const [userReady, setUserReady] = useState(false);
+  const [ensureError, setEnsureError] = useState<string | null>(null);
 
   const {
     register,
@@ -47,7 +51,49 @@ export default function PropertySetupPage() {
     },
   });
 
-  if (!isLoaded) {
+  useEffect(() => {
+    if (!isLoaded || !userId) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function prepareUser() {
+      try {
+        await ensureCurrentUser({});
+        if (!cancelled) {
+          setUserReady(true);
+        }
+      } catch (error) {
+        console.error('Failed to ensure current user:', error);
+        if (!cancelled) {
+          setEnsureError('Failed to prepare your account. Please refresh and try again.');
+        }
+      }
+    }
+
+    prepareUser();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoaded, userId, ensureCurrentUser]);
+
+  useEffect(() => {
+    if (!userReady || userContext === undefined) {
+      return;
+    }
+
+    if (userContext && userContext.roles.length > 0) {
+      router.replace('/admin/dashboard');
+    }
+  }, [userReady, userContext, router]);
+
+  if (!isLoaded || !userId) {
+    if (isLoaded && !userId) {
+      router.push('/sign-up');
+    }
+
     return (
       <div className="w-full h-screen flex items-center justify-center">
         <Spinner size="sm" variant="dark" />
@@ -55,8 +101,20 @@ export default function PropertySetupPage() {
     );
   }
 
-  if (!userId) {
-    return router.push('/sign-up');
+  if (!userReady || userContext === undefined) {
+    return (
+      <div className="w-full h-screen flex items-center justify-center">
+        <Spinner size="sm" variant="dark" />
+      </div>
+    );
+  }
+
+  if (ensureError) {
+    return (
+      <div className="w-full h-screen flex items-center justify-center">
+        <p className="text-red-600">{ensureError}</p>
+      </div>
+    );
   }
 
   const onSubmit: SubmitHandler<PropertyFormData> = async (data) => {
@@ -208,23 +266,6 @@ export default function PropertySetupPage() {
             ) : (
               'Create Property & Continue'
             )}
-          </button>
-
-          {/* Divider */}
-          <div className="w-full flex items-center gap-1 my-2">
-            <div className="flex-1 h-px bg-gray-300"></div>
-            <span className="text-gray-500 text-sm">or</span>
-            <div className="flex-1 h-px bg-gray-300"></div>
-          </div>
-
-          {/* Skip Option */}
-          <button
-            type="button"
-            onClick={() => router.push('/admin/dashboard')}
-            disabled={loading}
-            className="w-full border border-gray-300 hover:bg-gray-50 disabled:bg-gray-100 text-gray-700 font-medium py-2 !rounded-sm transition duration-200"
-          >
-            Skip for Now
           </button>
         </form>
 

@@ -1,8 +1,20 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
+import { requirePermission, requirePermissionOrInitialSetup, getAuthContext } from './lib/rbac';
+import { assignAdministratorRoleForProperty } from './lib/systemRoles';
 
 export const getAllProperties = query({
   handler: async (ctx) => {
+    const authContext = await getAuthContext(ctx);
+    if (!authContext) {
+      return { success: false, data: [], message: 'Not authenticated' };
+    }
+
+    if (authContext.roles.length === 0) {
+      return { success: true, data: [] };
+    }
+
+    await requirePermission(ctx, 'properties.read');
     try {
       const properties = await ctx.db.query('properties').collect();
       return { success: true, data: properties };
@@ -16,6 +28,7 @@ export const getAllProperties = query({
 export const getProperty = query({
   args: { property_id: v.id('properties') },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'properties.read', args.property_id);
     try {
       const property = await ctx.db.get(args.property_id);
       if (!property) {
@@ -41,6 +54,7 @@ export const createProperty = mutation({
     isActive: v.boolean(),
   },
   handler: async (ctx, args) => {
+    const authContext = await requirePermissionOrInitialSetup(ctx, 'properties.create');
     try {
       // Check if property with same name already exists
       const existingProperty = await ctx.db
@@ -75,6 +89,8 @@ export const createProperty = mutation({
         isActive: args.isActive,
       });
 
+      await assignAdministratorRoleForProperty(ctx, authContext.user._id, property_id);
+
       return { success: true, message: 'Property created successfully', id: property_id };
     } catch (error) {
       console.log(`Failed to create property: ${error}`);
@@ -96,6 +112,7 @@ export const updateProperty = mutation({
     isActive: v.boolean(),
   },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'properties.update', args.property_id);
     try {
       const existingProperty = await ctx.db.get(args.property_id);
 
@@ -149,13 +166,15 @@ export const updateProperty = mutation({
 export const deleteProperty = mutation({
   args: { property_id: v.id('properties') },
   handler: async (ctx, args) => {
+    const property = await ctx.db.get(args.property_id);
+
+    if (!property) {
+      return { success: false, message: 'Property does not exist' };
+    }
+
+    await requirePermission(ctx, 'properties.delete', args.property_id);
+
     try {
-      const property = await ctx.db.get(args.property_id);
-
-      if (!property) {
-        return { success: false, message: 'Property does not exist' };
-      }
-
       await ctx.db.delete(args.property_id);
       return { success: true, message: 'Property deleted successfully' };
     } catch (error) {

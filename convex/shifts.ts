@@ -1,9 +1,11 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
+import { requirePermission } from './lib/rbac';
 
 export const getAllShifts = query({
   args: { propertyId: v.id('properties') },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'staff.read', args.propertyId);
     try {
       const shifts = await ctx.db
         .query('shifts')
@@ -34,13 +36,12 @@ export const getAllShifts = query({
 export const getShift = query({
   args: { shiftId: v.id('shifts') },
   handler: async (ctx, args) => {
+    const shift = await ctx.db.get(args.shiftId);
+    if (!shift) {
+      return { success: false, data: null, message: 'Shift not found' };
+    }
+    await requirePermission(ctx, 'staff.read', shift.propertyId);
     try {
-      const shift = await ctx.db.get(args.shiftId);
-      if (!shift) {
-        return { success: false, data: null, message: 'Shift not found' };
-      }
-      
-      // Fetch related data
       const user = await ctx.db.get(shift.userId);
       const bar = await ctx.db.get(shift.barId);
       
@@ -63,6 +64,7 @@ export const createShift = mutation({
     isFinalized: v.boolean(),
   },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'staff.create', args.propertyId);
     try {
       // Validate that the user exists and is active
       const user = await ctx.db.get(args.userId);
@@ -110,12 +112,13 @@ export const updateShift = mutation({
     isFinalized: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    try {
-      const existingShift = await ctx.db.get(args.shiftId);
-      if (!existingShift) {
-        return { success: false, message: 'Shift not found' };
-      }
+    const existingShift = await ctx.db.get(args.shiftId);
+    if (!existingShift) {
+      return { success: false, message: 'Shift not found' };
+    }
+    await requirePermission(ctx, 'staff.update', existingShift.propertyId);
 
+    try {
       // Don't allow updating finalized shifts
       if (existingShift.isFinalized) {
         return { success: false, message: 'Cannot update finalized shift' };
@@ -151,13 +154,15 @@ export const updateShift = mutation({
 export const deleteShift = mutation({
   args: { shiftId: v.id('shifts') },
   handler: async (ctx, args) => {
-    try {
-      const shift = await ctx.db.get(args.shiftId);
-      
-      if (!shift) {
-        return { success: false, message: 'Shift not found' };
-      }
+    const shift = await ctx.db.get(args.shiftId);
+    
+    if (!shift) {
+      return { success: false, message: 'Shift not found' };
+    }
 
+    await requirePermission(ctx, 'staff.delete', shift.propertyId);
+
+    try {
       // Don't allow deleting finalized shifts
       if (shift.isFinalized) {
         return { success: false, message: 'Cannot delete finalized shift' };
@@ -175,13 +180,15 @@ export const deleteShift = mutation({
 export const finalizeShift = mutation({
   args: { shiftId: v.id('shifts') },
   handler: async (ctx, args) => {
-    try {
-      const shift = await ctx.db.get(args.shiftId);
-      
-      if (!shift) {
-        return { success: false, message: 'Shift not found' };
-      }
+    const shift = await ctx.db.get(args.shiftId);
+    
+    if (!shift) {
+      return { success: false, message: 'Shift not found' };
+    }
 
+    await requirePermission(ctx, 'staff.update', shift.propertyId);
+
+    try {
       if (shift.isFinalized) {
         return { success: false, message: 'Shift is already finalized' };
       }
@@ -205,6 +212,7 @@ export const finalizeShift = mutation({
 export const getActiveUsers = query({
   args: { propertyId: v.id('properties') },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'staff.read', args.propertyId);
     try {
       const users = await ctx.db
         .query('users')
@@ -222,6 +230,7 @@ export const getActiveUsers = query({
 export const getActiveBars = query({
   args: { propertyId: v.id('properties') },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'staff.read', args.propertyId);
     try {
       const bars = await ctx.db
         .query('bars')

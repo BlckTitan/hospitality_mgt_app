@@ -1,9 +1,11 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
+import { requirePermission } from './lib/rbac';
 
 export const getStaff = query({
   args: {staff_id: v.id('staffs')},
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'staff.read');
     const staff = await ctx.db.get(args.staff_id)
     return staff;
   }
@@ -11,6 +13,7 @@ export const getStaff = query({
 
 export const getAllStaffs = query({
   handler: async (ctx) => {
+    await requirePermission(ctx, 'staff.read');
     try {
       const staffs = await ctx.db.query('staffs').collect();
       return staffs;
@@ -38,6 +41,7 @@ export const createStaff = mutation({
     role: v.string(),
   },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'staff.create');
 
     try {
       
@@ -79,33 +83,29 @@ export const updateStaff = mutation({
   },
 
   handler: async (ctx, args) => {
+    const existingStaff = await ctx.db.get(args.id);
+    if (!existingStaff) {
+      return { success: false, message: "Staff does not exist!" };
+    }
+    await requirePermission(ctx, 'staff.update');
     
     try {
 
-      const existingStaff = await ctx.db.query('staffs')
-      .filter(q => q.eq(q.field('_id'), args.id))
-      .first()
+      await ctx.db.patch(existingStaff._id, {
+        email: args.email,
+        firstName: args.firstName,
+        lastName: args.lastName,
+        salary: args.salary,
+        employmentStatus: args.employmentStatus,
+        phone: args.phone,
+        DoB: args.DoB,
+        stateOfOrigin: args.stateOfOrigin,
+        address: args.address,
+        LGA: args.LGA,
+        dateTerminated: args.dateTerminated,
+      });
 
-      if (existingStaff) {
-        await ctx.db.patch(existingStaff._id, {
-          email: args.email,
-          firstName: args.firstName,
-          lastName: args.lastName,
-          salary: args.salary,
-          employmentStatus: args.employmentStatus,
-          phone: args.phone,
-          DoB: args.DoB,
-          stateOfOrigin: args.stateOfOrigin,
-          address: args.address,
-          LGA: args.LGA,
-          dateTerminated: args.dateTerminated,
-        });
-
-        return { success: true, message: "Staff updated successfully" };
-
-      }else{
-        return { success: false, message: "Staff does not exist!" };
-      }
+      return { success: true, message: "Staff updated successfully" };
 
     } catch (error) {
       console.log(`Update failed ${error}`)
@@ -121,22 +121,16 @@ export const removeStaff = mutation({
   args: {id: v.id('staffs')},
 
   handler: async (ctx, args) => {
+    const existingStaff = await ctx.db.get(args.id);
+    if (!existingStaff) {
+      return { success: false, message: "Staff does not exist" };
+    }
+    await requirePermission(ctx, 'staff.delete');
+
     try {
-      
-      const existingStaff = await ctx.db.query('staffs')
-      .filter(q => q.eq(q.field('_id'), args.id))
-      .first()
 
-      if (existingStaff) {
-
-        await ctx.db.delete(existingStaff._id);
-        return { success: true, message: "Staff removed successfully!" };
-
-      }else{
-
-        return { success: false, message: "Staff does not exist" };
-
-      }
+      await ctx.db.delete(existingStaff._id);
+      return { success: true, message: "Staff removed successfully!" };
 
     } catch (error) {
 

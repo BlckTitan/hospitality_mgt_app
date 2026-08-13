@@ -16,7 +16,7 @@ type FormData = {
 
 export function FormComponent({ onSuccess, onClose }: { onSuccess: () => void; onClose: () => void }) {
   const createUserRole = useMutation(api.userRoles.createUserRole);
-  const usersResult = useQuery(api.user.getAllUsers);
+  const usersResult = useQuery(api.users.getAllUsers, {});
   const rolesResult = useQuery(api.roles.getAllRoles);
   const propertiesResult = useQuery(api.property.getAllProperties);
 

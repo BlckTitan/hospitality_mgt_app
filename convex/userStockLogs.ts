@@ -1,9 +1,11 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
+import { requirePermission } from './lib/rbac';
 
 export const getAllUserStockLogs = query({
   args: { propertyId: v.id('properties') },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'fnb.read', args.propertyId);
     try {
       const userStockLogs = await ctx.db
         .query('userStockLogs')
@@ -41,12 +43,12 @@ export const getAllUserStockLogs = query({
 export const getUserStockLog = query({
   args: { stockLogId: v.id('userStockLogs') },
   handler: async (ctx, args) => {
+    const stockLog = await ctx.db.get(args.stockLogId);
+    if (!stockLog) {
+      return { success: false, data: null, message: 'User stock log not found' };
+    }
+    await requirePermission(ctx, 'fnb.read', stockLog.propertyId);
     try {
-      const stockLog = await ctx.db.get(args.stockLogId);
-      if (!stockLog) {
-        return { success: false, data: null, message: 'User stock log not found' };
-      }
-      
       // Fetch related data using denormalized fields
       const [shift, beverage, user, bar] = await Promise.all([
         ctx.db.get(stockLog.shiftId),
@@ -72,6 +74,11 @@ export const getDailyStockLogs = query({
     logDate: v.string(), // ISO 8601 date string
   },
   handler: async (ctx, args) => {
+    const bar = await ctx.db.get(args.barId);
+    if (!bar) {
+      return { success: false, data: [], message: 'Bar not found' };
+    }
+    await requirePermission(ctx, 'fnb.read', bar.propertyId);
     try {
       const stockLogs = await ctx.db
         .query('userStockLogs')
@@ -114,6 +121,11 @@ export const getBarDailyStockLogs = query({
     logDate: v.string(), // ISO 8601 date string
   },
   handler: async (ctx, args) => {
+    const bar = await ctx.db.get(args.barId);
+    if (!bar) {
+      return { success: false, data: [], message: 'Bar not found' };
+    }
+    await requirePermission(ctx, 'fnb.read', bar.propertyId);
     try {
       const stockLogs = await ctx.db
         .query('userStockLogs')
@@ -156,6 +168,17 @@ export const getUserDailyStockLogs = query({
     logDate: v.string(), // ISO 8601 date string
   },
   handler: async (ctx, args) => {
+    const sampleLog = await ctx.db
+      .query('userStockLogs')
+      .withIndex('by_userId_date', (q) =>
+        q.eq('userId', args.userId).eq('logDate', args.logDate)
+      )
+      .first();
+    if (!sampleLog) {
+      await requirePermission(ctx, 'fnb.read');
+    } else {
+      await requirePermission(ctx, 'fnb.read', sampleLog.propertyId);
+    }
     try {
       const stockLogs = await ctx.db
         .query('userStockLogs')
@@ -200,6 +223,19 @@ export const getBeverageStockHistory = query({
     endDate: v.string(),   // ISO 8601 date string
   },
   handler: async (ctx, args) => {
+    const beverage = await ctx.db.get(args.beverageId);
+    if (!beverage) {
+      return { success: false, data: [], message: 'Beverage not found' };
+    }
+    if (args.barId) {
+      const bar = await ctx.db.get(args.barId);
+      if (!bar) {
+        return { success: false, data: [], message: 'Bar not found' };
+      }
+      await requirePermission(ctx, 'fnb.read', bar.propertyId);
+    } else {
+      await requirePermission(ctx, 'fnb.read', beverage.propertyId);
+    }
     try {
       let stockLogs;
       
@@ -252,6 +288,11 @@ export const getBeverageStockHistory = query({
 export const getUserStockLogsByShift = query({
   args: { shiftId: v.id('shifts') },
   handler: async (ctx, args) => {
+    const shift = await ctx.db.get(args.shiftId);
+    if (!shift) {
+      return { success: false, data: [], message: 'Shift not found' };
+    }
+    await requirePermission(ctx, 'fnb.read', shift.propertyId);
     try {
       const stockLogs = await ctx.db
         .query('userStockLogs')
@@ -297,6 +338,7 @@ export const createUserStockLog = mutation({
     closingStock: v.number(),
   },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'fnb.create', args.propertyId);
     try {
       // Verify shift exists and is not finalized
       const shift = await ctx.db.get(args.shiftId);
@@ -373,12 +415,13 @@ export const updateUserStockLog = mutation({
     closingStock: v.number(),
   },
   handler: async (ctx, args) => {
-    try {
-      const existingLog = await ctx.db.get(args.stockLogId);
-      if (!existingLog) {
-        return { success: false, message: 'User stock log does not exist' };
-      }
+    const existingLog = await ctx.db.get(args.stockLogId);
+    if (!existingLog) {
+      return { success: false, message: 'User stock log does not exist' };
+    }
+    await requirePermission(ctx, 'fnb.update', existingLog.propertyId);
 
+    try {
       // Check if log is finalized
       if (existingLog.isFinalized) {
         return { success: false, message: 'Cannot update finalized stock log' };
@@ -420,13 +463,13 @@ export const updateUserStockLog = mutation({
 export const deleteUserStockLog = mutation({
   args: { stockLogId: v.id('userStockLogs') },
   handler: async (ctx, args) => {
-    try {
-      const existingLog = await ctx.db.get(args.stockLogId);
-      if (!existingLog) {
-        return { success: false, message: 'User stock log does not exist' };
-      }
+    const existingLog = await ctx.db.get(args.stockLogId);
+    if (!existingLog) {
+      return { success: false, message: 'User stock log does not exist' };
+    }
+    await requirePermission(ctx, 'fnb.delete', existingLog.propertyId);
 
-      // Check if log is finalized
+    try {
       if (existingLog.isFinalized) {
         return { success: false, message: 'Cannot delete finalized stock log' };
       }
@@ -444,12 +487,13 @@ export const deleteUserStockLog = mutation({
 export const finalizeUserStockLog = mutation({
   args: { stockLogId: v.id('userStockLogs') },
   handler: async (ctx, args) => {
-    try {
-      const existingLog = await ctx.db.get(args.stockLogId);
-      if (!existingLog) {
-        return { success: false, message: 'User stock log does not exist' };
-      }
+    const existingLog = await ctx.db.get(args.stockLogId);
+    if (!existingLog) {
+      return { success: false, message: 'User stock log does not exist' };
+    }
+    await requirePermission(ctx, 'fnb.update', existingLog.propertyId);
 
+    try {
       // Check if already finalized
       if (existingLog.isFinalized) {
         return { success: false, message: 'Stock log is already finalized' };
@@ -479,6 +523,7 @@ export const updateStockFromIssue = mutation({
     propertyId: v.id('properties'),
   },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'fnb.update', args.propertyId);
     try {
       // Get beverage for unit price
       const beverage = await ctx.db.get(args.beverageId);

@@ -1,10 +1,12 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
+import { requirePermission } from './lib/rbac';
 
 // Queries for reorder alerts
 export const getOpenReorderAlerts = query({
   args: { propertyId: v.id('properties') },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'inventory.read', args.propertyId);
     try {
       const alerts = await ctx.db
         .query('reorderAlerts')
@@ -38,6 +40,7 @@ export const getAllReorderAlerts = query({
     status: v.optional(v.union(v.literal("open"), v.literal("acknowledged"), v.literal("resolved")))
   },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'inventory.read', args.propertyId);
     try {
       let alertsQuery;
       
@@ -77,12 +80,12 @@ export const getAllReorderAlerts = query({
 export const getReorderAlert = query({
   args: { alertId: v.id('reorderAlerts') },
   handler: async (ctx, args) => {
+    const alert = await ctx.db.get(args.alertId);
+    if (!alert) {
+      return { success: false, data: null, message: 'Reorder alert not found' };
+    }
+    await requirePermission(ctx, 'inventory.read', alert.propertyId);
     try {
-      const alert = await ctx.db.get(args.alertId);
-      if (!alert) {
-        return { success: false, data: null, message: 'Reorder alert not found' };
-      }
-
       const beverage = await ctx.db.get(alert.beverageId);
       
       return { success: true, data: { ...alert, beverage } };
@@ -99,6 +102,7 @@ export const getReorderAlertsByBeverage = query({
     propertyId: v.id('properties')
   },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'inventory.read', args.propertyId);
     try {
       const alerts = await ctx.db
         .query('reorderAlerts')
@@ -125,6 +129,7 @@ export const createReorderAlert = mutation({
     reorderLevel: v.number(),
   },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'inventory.create', args.propertyId);
     try {
       // Check if there's already an open alert for this beverage
       const existingOpenAlert = await ctx.db
@@ -155,12 +160,13 @@ export const createReorderAlert = mutation({
 export const acknowledgeReorderAlert = mutation({
   args: { alertId: v.id('reorderAlerts') },
   handler: async (ctx, args) => {
-    try {
-      const alert = await ctx.db.get(args.alertId);
-      if (!alert) {
-        return { success: false, message: 'Reorder alert not found' };
-      }
+    const alert = await ctx.db.get(args.alertId);
+    if (!alert) {
+      return { success: false, message: 'Reorder alert not found' };
+    }
+    await requirePermission(ctx, 'inventory.create', alert.propertyId);
 
+    try {
       if (alert.status !== 'open') {
         return { success: false, message: 'Only open alerts can be acknowledged' };
       }
@@ -177,12 +183,13 @@ export const acknowledgeReorderAlert = mutation({
 export const resolveReorderAlert = mutation({
   args: { alertId: v.id('reorderAlerts') },
   handler: async (ctx, args) => {
-    try {
-      const alert = await ctx.db.get(args.alertId);
-      if (!alert) {
-        return { success: false, message: 'Reorder alert not found' };
-      }
+    const alert = await ctx.db.get(args.alertId);
+    if (!alert) {
+      return { success: false, message: 'Reorder alert not found' };
+    }
+    await requirePermission(ctx, 'inventory.create', alert.propertyId);
 
+    try {
       if (alert.status === 'resolved') {
         return { success: false, message: 'Alert is already resolved' };
       }
@@ -205,6 +212,7 @@ export const checkAndCreateReorderAlert = mutation({
     reorderThreshold: v.number(),
   },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'inventory.create', args.propertyId);
     try {
       // Only create alert if quantity is at or below threshold
       if (args.currentQty > args.reorderThreshold) {

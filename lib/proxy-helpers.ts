@@ -1,90 +1,77 @@
 import { ConvexHttpClient } from 'convex/browser';
 import { api } from '../convex/_generated/api';
-import { UserContext } from './permission-utils';
-import { ROUTE_PERMISSIONS } from './proxy-permissions';
+import { createPermissionChecker, UserContext } from './permission-utils';
 
 export const PUBLIC_ROUTES = [
   '/',
   '/sign-in',
   '/sign-up',
+  '/auth/clerk-setup',
   '/api/webhook/clerk',
   '/api/auth',
 ];
 
-export function matchRoute(pathname: string): string | null {
-  // Exact match first
-  if (ROUTE_PERMISSIONS[pathname]) {
-    return pathname;
-  }
-
-  for (const route of Object.keys(ROUTE_PERMISSIONS)) {
-    if (route.includes('[id]')) {
-      const regex = route.replace(/\[id\]/g, '[^/]+');
-      if (new RegExp(`^${regex}$`).test(pathname)) {
-        return route;
-      }
-    }
-  }
-
-  return null;
+export function needsPropertySetup(userContext: UserContext): boolean {
+  return userContext.roles.length === 0;
 }
 
-export async function getUserContext(userId: string): Promise<UserContext | null> {
+async function fetchUserContext(authToken: string): Promise<UserContext | null> {
+  const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+  convex.setAuth(authToken);
+
+  const context = await convex.query(api.authContext.getCurrentUserContext, {});
+
+  if (!context) {
+    return null;
+  }
+
+  return {
+    userId: context.userId,
+    roles: context.roles,
+    propertyId: context.propertyId,
+    customPermissions: context.customPermissions,
+  };
+}
+
+export async function getUserContext(
+  authToken: string | null,
+): Promise<UserContext | null> {
+  if (!authToken) {
+    return null;
+  }
+
   try {
-    const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
-
-    const user = await convex.query(api.users.getUserByExternalId, {
-      externalId: userId,
-    });
-
-    if (!user.success || !user.data) {
-      console.warn('User not found in database:', userId);
-      return null;
-    }
-
-    const userRoles = await convex.query(api.userRoles.getUserRolesByUserId, {
-      userId: user.data._id,
-    });
-
-    if (!userRoles.success) {
-      console.error('Failed to fetch user roles:', userRoles.message);
-      return null;
-    }
-
-    const roles = userRoles.data.map((userRole) => userRole.roleName);
-    const propertyIds = [...new Set(userRoles.data.map((userRole) => userRole.propertyId))];
-
-    const rolePermissionResults = await Promise.all(
-      roles.map(async (roleName) => {
-        const roleResponse = await convex.query(api.roles.getRoleByName, { name: roleName });
-        return roleResponse.success && roleResponse.data?.permissions ? roleResponse.data.permissions : {};
-      })
-    );
-
-    const mergedPermissions = rolePermissionResults.reduce((acc, permissions) => {
-      Object.entries(permissions).forEach(([key, value]) => {
-        if (value) {
-          acc[key] = true;
-        }
-      });
-      return acc;
-    }, {} as Record<string, boolean>);
-
-    console.log('User context loaded with merged role permissions:', {
-      userId,
-      roles,
-      propertyIds,
-      permissionsCount: Object.keys(mergedPermissions).length,
-    });
-
-    return {
-      userId,
-      roles,
-      propertyId: propertyIds[0],
-      customPermissions: mergedPermissions,
-    };
+    return await fetchUserContext(authToken);
   } catch (error) {
     console.error('Error getting user context:', error);
     return null;
   }
+}
+
+export async function ensureUserAndGetContext(
+  authToken: string | null,
+): Promise<UserContext | null> {
+  if (!authToken) {
+    return null;
+  }
+
+  try {
+    const existingContext = await fetchUserContext(authToken);
+    if (existingContext) {
+      return existingContext;
+    }
+
+    const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+    convex.setAuth(authToken);
+    await convex.mutation(api.users.ensureCurrentUser, {});
+
+    return await fetchUserContext(authToken);
+  } catch (error) {
+    console.error('Error ensuring user and getting context:', error);
+    return null;
+  }
+}
+
+export function createUserPermissionChecker(userContext: UserContext) {
+  return createPermissionChecker(userContext);
 }

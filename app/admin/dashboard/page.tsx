@@ -4,7 +4,6 @@ import React, { useState, Suspense } from 'react';
 import { useQuery } from 'convex/react';
 import { api } from '../../../convex/_generated/api';
 import { Id } from '../../../convex/_generated/dataModel';
-import CheckRole from '../../../utils/checkUserRole';
 import Spinner from '../../../shared/spinner';
 
 export default function Dashboard() {

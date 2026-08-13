@@ -1,9 +1,11 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
+import { requirePermission } from './lib/rbac';
 
 export const getAllHousekeepingTasks = query({
   args: { propertyId: v.id('properties') },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'system.admin', args.propertyId);
     try {
       const tasks = await ctx.db
         .query('housekeepingTasks')
@@ -36,13 +38,12 @@ export const getAllHousekeepingTasks = query({
 export const getHousekeepingTask = query({
   args: { taskId: v.id('housekeepingTasks') },
   handler: async (ctx, args) => {
+    const task = await ctx.db.get(args.taskId);
+    if (!task) {
+      return { success: false, data: null, message: 'Housekeeping task not found' };
+    }
+    await requirePermission(ctx, 'system.admin', task.propertyId);
     try {
-      const task = await ctx.db.get(args.taskId);
-      if (!task) {
-        return { success: false, data: null, message: 'Housekeeping task not found' };
-      }
-      
-      // Fetch related data
       const room = await ctx.db.get(task.roomId);
       const roomType = room ? await ctx.db.get(room.roomTypeId) : null;
       const assignedTo = task.assignedTo ? await ctx.db.get(task.assignedTo) : null;
@@ -76,6 +77,7 @@ export const createHousekeepingTask = mutation({
     checklist: v.optional(v.any()),
   },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'system.admin', args.propertyId);
     try {
       // Verify room exists and belongs to property
       const room = await ctx.db.get(args.roomId);
@@ -136,12 +138,13 @@ export const updateHousekeepingTask = mutation({
     checklist: v.optional(v.any()),
   },
   handler: async (ctx, args) => {
-    try {
-      const existingTask = await ctx.db.get(args.taskId);
-      if (!existingTask) {
-        return { success: false, message: 'Housekeeping task not found' };
-      }
+    const existingTask = await ctx.db.get(args.taskId);
+    if (!existingTask) {
+      return { success: false, message: 'Housekeeping task not found' };
+    }
+    await requirePermission(ctx, 'system.admin', existingTask.propertyId);
 
+    try {
       // Verify room exists
       const room = await ctx.db.get(args.roomId);
       if (!room) {
@@ -210,12 +213,13 @@ export const updateHousekeepingTask = mutation({
 export const deleteHousekeepingTask = mutation({
   args: { taskId: v.id('housekeepingTasks') },
   handler: async (ctx, args) => {
-    try {
-      const existingTask = await ctx.db.get(args.taskId);
-      if (!existingTask) {
-        return { success: false, message: 'Housekeeping task not found' };
-      }
+    const existingTask = await ctx.db.get(args.taskId);
+    if (!existingTask) {
+      return { success: false, message: 'Housekeeping task not found' };
+    }
+    await requirePermission(ctx, 'system.admin', existingTask.propertyId);
 
+    try {
       // Prevent deletion of in-progress or completed tasks
       if (existingTask.status === 'in-progress' || existingTask.status === 'completed') {
         return { success: false, message: 'Cannot delete in-progress or completed tasks' };

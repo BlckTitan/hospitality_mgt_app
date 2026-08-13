@@ -1,5 +1,6 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
+import { requirePermission } from './lib/rbac';
 
 // Helper functions for date calculations
 const getISODateString = (date: Date) => date.toISOString().split('T')[0];
@@ -37,6 +38,7 @@ export const getSalesSummaries = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'reports.read', args.propertyId);
     try {
       let query = ctx.db.query('salesSummaries')
         .withIndex('by_propertyId_periodType', (q) => 
@@ -129,6 +131,7 @@ export const getSalesByBarPeriod = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'reports.read', args.propertyId);
     try {
       let query = ctx.db.query('salesSummaries')
         .withIndex('by_propertyId_periodType', (q) => 
@@ -197,6 +200,7 @@ export const getSalesByUserPeriod = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'reports.read', args.propertyId);
     try {
       let summaries = await ctx.db.query('salesSummaries')
         .withIndex('by_propertyId_periodType', (q) => 
@@ -267,6 +271,7 @@ export const getBeverageTrend = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'reports.read', args.propertyId);
     try {
       const summaries = await ctx.db.query('salesSummaries')
         .withIndex('by_beverageId_period', (q) =>
@@ -298,6 +303,7 @@ export const getYearOnYearComparison = query({
     year2: v.number(),
   },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'reports.read', args.propertyId);
     try {
       const summaries1 = await ctx.db.query('salesSummaries')
         .withIndex('by_year_periodType', (q) =>
@@ -370,6 +376,7 @@ export const upsertSalesSummary = mutation({
     totalRevenue: v.number(),
   },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'reports.create', args.propertyId);
     try {
       // Check if a summary already exists for this combination
       const existing = await ctx.db.query('salesSummaries')

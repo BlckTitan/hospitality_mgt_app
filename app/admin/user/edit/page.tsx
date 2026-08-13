@@ -11,7 +11,7 @@ import { FormComponent } from '../components/editUserForm';
 export default function Page() {
   const searchParams = useSearchParams();
   const id = searchParams.get("user_id") ?? null;
-  const response = useQuery(api.user.getUser, { userId: id as Id<'users'> });
+  const response = useQuery(api.users.getUser, { userId: id as Id<'users'> });
 
   // Check response for data
   if (response === undefined) return <div className='w-full h-screen flex items-center justify-center'><Spinner animation="border" size='sm' variant="dark" /></div>;

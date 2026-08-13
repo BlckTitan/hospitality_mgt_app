@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { requirePermission } from "./lib/rbac";
 
 export const createStoreInventory = mutation({
   args: {
@@ -9,6 +10,7 @@ export const createStoreInventory = mutation({
     reorderThreshold: v.number(),
   },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, "inventory.create", args.propertyId);
     // Check if store inventory already exists for this beverage in this property
     const existingInventory = await ctx.db
       .query("storeInventories")
@@ -54,6 +56,7 @@ export const getAllStoreInventories = query({
     propertyId: v.id("properties"),
   },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, "inventory.read", args.propertyId);
     const storeInventories = await ctx.db
       .query("storeInventories")
       .withIndex("by_propertyId", (q) => q.eq("propertyId", args.propertyId))
@@ -91,6 +94,8 @@ export const getStoreInventoryById = query({
       };
     }
 
+    await requirePermission(ctx, "inventory.read", storeInventory.propertyId);
+
     // Fetch related beverage information
     const beverage = await ctx.db.get(storeInventory.beverageId);
 
@@ -119,6 +124,8 @@ export const updateStoreInventory = mutation({
         message: "Store inventory not found",
       };
     }
+
+    await requirePermission(ctx, "inventory.update", storeInventory.propertyId);
 
     const updateData: any = {
       lastUpdated: Date.now(),
@@ -155,6 +162,8 @@ export const deleteStoreInventory = mutation({
       };
     }
 
+    await requirePermission(ctx, "inventory.delete", storeInventory.propertyId);
+
     await ctx.db.delete(args.id);
 
     return {
@@ -172,6 +181,7 @@ export const adjustStoreInventory = mutation({
     reason: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, "inventory.update", args.propertyId);
     // Find existing store inventory
     const existingInventory = await ctx.db
       .query("storeInventories")

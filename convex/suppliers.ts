@@ -1,5 +1,6 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
+import { requirePermission } from './lib/rbac';
 
 export const getAllSuppliers = query({
   args: { 
@@ -7,6 +8,7 @@ export const getAllSuppliers = query({
     activeOnly: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'inventory.read', args.propertyId);
     try {
       let query = ctx.db
         .query('suppliers')
@@ -30,11 +32,12 @@ export const getAllSuppliers = query({
 export const getSupplier = query({
   args: { supplierId: v.id('suppliers') },
   handler: async (ctx, args) => {
+    const supplier = await ctx.db.get(args.supplierId);
+    if (!supplier) {
+      return { success: false, data: null, message: 'Supplier not found' };
+    }
+    await requirePermission(ctx, 'inventory.read', supplier.propertyId);
     try {
-      const supplier = await ctx.db.get(args.supplierId);
-      if (!supplier) {
-        return { success: false, data: null, message: 'Supplier not found' };
-      }
       
       return { success: true, data: supplier };
     } catch (error) {
@@ -57,6 +60,7 @@ export const createSupplier = mutation({
     isActive: v.boolean(),
   },
   handler: async (ctx, args) => {
+    await requirePermission(ctx, 'inventory.create', args.propertyId);
     try {
       // Check if supplier name already exists for this property
       const existingSupplier = await ctx.db
@@ -118,13 +122,15 @@ export const updateSupplier = mutation({
     isActive: v.boolean(),
   },
   handler: async (ctx, args) => {
+    const existingSupplier = await ctx.db.get(args.supplierId);
+
+    if (!existingSupplier) {
+      return { success: false, message: 'Supplier does not exist' };
+    }
+
+    await requirePermission(ctx, 'inventory.update', existingSupplier.propertyId);
+
     try {
-      const existingSupplier = await ctx.db.get(args.supplierId);
-
-      if (!existingSupplier) {
-        return { success: false, message: 'Supplier does not exist' };
-      }
-
       // Check if name is being changed and if new name already exists
       if (args.name !== existingSupplier.name) {
         const duplicateSupplier = await ctx.db
@@ -175,13 +181,15 @@ export const updateSupplier = mutation({
 export const deleteSupplier = mutation({
   args: { supplierId: v.id('suppliers') },
   handler: async (ctx, args) => {
+    const existingSupplier = await ctx.db.get(args.supplierId);
+
+    if (!existingSupplier) {
+      return { success: false, message: 'Supplier does not exist' };
+    }
+
+    await requirePermission(ctx, 'inventory.delete', existingSupplier.propertyId);
+
     try {
-      const existingSupplier = await ctx.db.get(args.supplierId);
-
-      if (!existingSupplier) {
-        return { success: false, message: 'Supplier does not exist' };
-      }
-
       // Check if supplier is used in inventory items
       const hasInventoryItems = await ctx.db
         .query('inventoryItems')

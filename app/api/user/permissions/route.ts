@@ -1,68 +1,58 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
+import {
+  getClerkConvexAuthToken,
+  isMissingClerkConvexJwtTemplate,
+  logMissingClerkConvexJwtTemplate,
+  MISSING_CLERK_CONVEX_JWT_TEMPLATE_ERROR,
+} from '../../../../lib/clerk-convex-auth';
 import { convex, api } from '../../../../lib/convex-client';
 
 export async function GET(req: NextRequest) {
   try {
-    const { userId } = await auth();
+    const { userId, getToken } = await auth();
 
     if (!userId) {
       return NextResponse.json(
         { error: 'Unauthorized' },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
-    // Fetch user roles from Convex
-    const userRolesResult = await convex.query(api.userRoles.getUserRolesByUserId, {
-      userId
-    });
+    const token = await getClerkConvexAuthToken(getToken);
+    if (isMissingClerkConvexJwtTemplate(userId, token)) {
+      logMissingClerkConvexJwtTemplate('permissions-api');
+      return NextResponse.json(
+        { error: MISSING_CLERK_CONVEX_JWT_TEMPLATE_ERROR },
+        { status: 503 },
+      );
+    }
 
-    if (!userRolesResult.success) {
-      console.error('Failed to fetch user roles:', userRolesResult.message);
+    convex.setAuth(token);
+    const context = await convex.query(api.authContext.getCurrentUserContext, {});
+
+    if (!context) {
       return NextResponse.json(
         { error: 'Failed to fetch user permissions' },
-        { status: 500 }
+        { status: 500 },
       );
     }
-
-    const userRoles = userRolesResult.data;
-    
-    // Extract role names and property IDs
-    const roles = userRoles.map(userRole => userRole.roleName);
-    const propertyIds = [...new Set(userRoles.map(userRole => userRole.propertyId))];
-    
-    // Get role permissions for all user roles
-    const rolePermissions = await Promise.all(
-      roles.map(async (roleName) => {
-        const role = await convex.query(api.roles.getRoleByName, {
-          name: roleName
-        });
-        return role?.data?.permissions || {};
-      })
-    );
-
-    // Merge permissions from all roles
-    const mergedPermissions = rolePermissions.reduce((acc, permissions) => {
-      return { ...acc, ...permissions };
-    }, {});
 
     return NextResponse.json({
       success: true,
       data: {
-        userId,
-        roles,
-        propertyIds,
-        permissions: mergedPermissions,
-        customPermissions: mergedPermissions
-      }
+        userId: context.userId,
+        roles: context.roles,
+        propertyIds: context.propertyIds,
+        permissions: context.customPermissions,
+        customPermissions: context.customPermissions,
+      },
     });
-
   } catch (error) {
     console.error('Error fetching user permissions:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
