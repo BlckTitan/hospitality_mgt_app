@@ -2,21 +2,23 @@
 
 import { useAuth } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
+import { useQuery } from 'convex/react';
 import { useEffect } from 'react';
+import { api } from '../convex/_generated/api';
 
 export default function Home() {
   const { isLoaded, isSignedIn } = useAuth();
   const router = useRouter();
+  const userContext = useQuery(api.authContext.getCurrentUserContext);
 
   useEffect(() => {
-    if (!isLoaded) return;
+    if (!isLoaded || !isSignedIn || userContext === undefined) return;
 
-    if (isSignedIn) {
-      router.replace('/admin/dashboard');
-    }
-  }, [isLoaded, isSignedIn, router]);
+    const destination = userContext && userContext.roles?.length > 0 ? '/admin/dashboard' : '/setup/property';
+    router.replace(destination);
+  }, [isLoaded, isSignedIn, userContext, router]);
 
-  if (!isLoaded) {
+  if (!isLoaded || (isSignedIn && userContext === undefined)) {
     return (
       <section className="w-full h-screen bg-white flex justify-center items-center p-4 lg:p-0">
         <div className="text-gray-500">Loading...</div>
