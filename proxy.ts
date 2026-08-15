@@ -18,6 +18,7 @@ const isAdminRoute = createRouteMatcher(['/admin(.*)']);
 const isSetupRoute = createRouteMatcher(['/setup(.*)']);
 const isSignUpRoute = createRouteMatcher(['/sign-up(.*)']);
 const isSignInRoute = createRouteMatcher(['/sign-in(.*)']);
+const isHomeRoute = createRouteMatcher(['/']);
 const isPublicRoute = createRouteMatcher(PUBLIC_ROUTES.map((route) => `${route}(.*)`));
 export default clerkMiddleware(async (auth, req) => {
   const { userId, getToken } = await auth();
@@ -25,6 +26,26 @@ export default clerkMiddleware(async (auth, req) => {
 
   if (pathname.startsWith('/_next/') || pathname.includes('.')) {
     return NextResponse.next();
+  }
+
+  if (userId && isHomeRoute(req)) {
+    const authToken = await getClerkConvexAuthToken(getToken);
+
+    if (isMissingClerkConvexJwtTemplate(userId, authToken)) {
+      logMissingClerkConvexJwtTemplate('middleware');
+      const setupUrl = new URL('/auth/clerk-setup', req.url);
+      return NextResponse.redirect(setupUrl);
+    }
+
+    const userContext = await ensureUserAndGetContext(authToken);
+
+    if (!userContext || needsPropertySetup(userContext)) {
+      const setupUrl = new URL('/setup/property', req.url);
+      return NextResponse.redirect(setupUrl);
+    }
+
+    const dashboardUrl = new URL('/admin/dashboard', req.url);
+    return NextResponse.redirect(dashboardUrl);
   }
 
   if (!userId && (isAdminRoute(req) || isSetupRoute(req))) {

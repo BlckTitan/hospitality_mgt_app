@@ -7,7 +7,15 @@ import React from 'react'
 
 export default function DashboardLayout({children}: {children: React.ReactNode}) {
     const path = usePathname()
-    const noLayoutRoutes = ["/", "/sign-in", "/account", "/sign-up", '/setup/property'];
+    const noLayoutRoutes = [
+        "/",
+        "/sign-in",
+        "/account",
+        "/sign-up",
+        "/setup/property",
+        "/auth/clerk-setup",
+        "/unauthorized",
+    ];
 
     if (noLayoutRoutes.includes(path)) {
         return <>{children}</>;
