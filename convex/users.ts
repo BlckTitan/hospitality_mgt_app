@@ -1,4 +1,5 @@
 import { internalMutation, mutation, query, QueryCtx } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { UserJSON } from "@clerk/backend";
 import { v, Validator } from "convex/values";
 import { requireAuthenticated, requirePermission } from "./lib/rbac";
@@ -163,11 +164,20 @@ export const upsertFromClerk = internalMutation({
     const user = await userByExternalId(ctx, data.id);
     const now = Date.now();
     if (user === null) {
-      await createUserIfAbsent(ctx, {
+      const newUser = await createUserIfAbsent(ctx, {
         ...syncedFields,
         createdAt: now,
         updatedAt: now,
       });
+
+      // Check for pending invites and fulfill them
+      const email = data.email_addresses[0]?.email_address ?? "";
+      if (email) {
+        await ctx.runMutation(internal.users.fulfillPendingInvite, {
+          email,
+          userId: newUser._id,
+        });
+      }
     } else {
       await ctx.db.patch(user._id, {
         ...syncedFields,
@@ -225,6 +235,141 @@ export const getUserByExternalId = query({
     } catch (error) {
       console.log(`Failed to fetch user by external ID: ${error}`);
       return { success: false, data: null, message: "Failed to fetch user" };
+    }
+  },
+});
+
+// Pending invite management mutations
+export const createPendingInvite = mutation({
+  args: {
+    email: v.string(),
+    roleId: v.id("roles"),
+    propertyId: v.id("properties"),
+    clerkInvitationId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const authContext = await requirePermission(ctx, "users.create", args.propertyId);
+
+    // Check if there's already a pending invite for this email
+    const existingInvite = await ctx.db
+      .query("pendingInvites")
+      .withIndex("by_email", (q) => q.eq("email", args.email))
+      .first();
+
+    if (existingInvite && existingInvite.status === "pending") {
+      return { success: false, message: "Pending invite already exists for this email" };
+    }
+
+    try {
+      const inviteId = await ctx.db.insert("pendingInvites", {
+        email: args.email,
+        roleId: args.roleId,
+        propertyId: args.propertyId,
+        invitedBy: authContext.user._id,
+        clerkInvitationId: args.clerkInvitationId,
+        status: "pending",
+        createdAt: Date.now(),
+      });
+
+      return { success: true, inviteId, message: "Pending invite created successfully" };
+    } catch (error) {
+      console.log(`Failed to create pending invite: ${error}`);
+      return { success: false, message: "Failed to create pending invite" };
+    }
+  },
+});
+
+export const getPendingInvites = query({
+  args: { propertyId: v.optional(v.id("properties")) },
+  handler: async (ctx, args) => {
+    console.log('getPendingInvites called with args:', args);
+    await requirePermission(ctx, "users.read", args.propertyId);
+
+    try {
+      console.log('Fetching pending invites from database...');
+      let invites;
+      if (args.propertyId) {
+        console.log('Filtering by propertyId:', args.propertyId);
+        invites = await ctx.db
+          .query("pendingInvites")
+          .withIndex("by_propertyId", (q) => q.eq("propertyId", args.propertyId!))
+          .collect();
+      } else {
+        console.log('Fetching all pending invites (no property filter)');
+        invites = await ctx.db.query("pendingInvites").collect();
+      }
+
+      console.log('Found raw invites:', invites.length, invites);
+
+      // Enrich with role and inviter information
+      const enrichedInvites = await Promise.all(
+        invites.map(async (invite) => {
+          const role = await ctx.db.get(invite.roleId);
+          const inviter = await ctx.db.get(invite.invitedBy);
+          return {
+            ...invite,
+            roleName: role?.name || "Unknown",
+            inviterName: inviter?.name || "Unknown",
+          };
+        })
+      );
+
+      console.log('Enriched invites:', enrichedInvites.length, enrichedInvites);
+      return { success: true, data: enrichedInvites };
+    } catch (error) {
+      console.error('Failed to fetch pending invites:', error);
+      return { success: false, data: [], message: "Failed to fetch pending invites" };
+    }
+  },
+});
+
+export const updateInviteStatus = mutation({
+  args: {
+    inviteId: v.id("pendingInvites"),
+    status: v.union(v.literal("pending"), v.literal("accepted"), v.literal("revoked")),
+  },
+  handler: async (ctx, args) => {
+    await requirePermission(ctx, "users.update");
+
+    try {
+      await ctx.db.patch(args.inviteId, { status: args.status });
+      return { success: true, message: "Invite status updated successfully" };
+    } catch (error) {
+      console.log(`Failed to update invite status: ${error}`);
+      return { success: false, message: "Failed to update invite status" };
+    }
+  },
+});
+
+export const fulfillPendingInvite = internalMutation({
+  args: { email: v.string(), userId: v.id("users") },
+  handler: async (ctx, args) => {
+    const pendingInvite = await ctx.db
+      .query("pendingInvites")
+      .withIndex("by_email", (q) => q.eq("email", args.email))
+      .first();
+
+    if (!pendingInvite || pendingInvite.status !== "pending") {
+      return { success: false, message: "No pending invite found" };
+    }
+
+    try {
+      // Create the user role assignment
+      await ctx.db.insert("userRoles", {
+        userId: args.userId,
+        roleId: pendingInvite.roleId,
+        propertyId: pendingInvite.propertyId,
+        assignedAt: Date.now(),
+        assignedBy: pendingInvite.invitedBy,
+      });
+
+      // Update the invite status
+      await ctx.db.patch(pendingInvite._id, { status: "accepted" });
+
+      return { success: true, message: "Pending invite fulfilled successfully" };
+    } catch (error) {
+      console.log(`Failed to fulfill pending invite: ${error}`);
+      return { success: false, message: "Failed to fulfill pending invite" };
     }
   },
 });

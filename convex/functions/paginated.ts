@@ -25,11 +25,12 @@ const TABLE_READ_PERMISSIONS = {
   userStockLogs: "fnb.read",
   storeInventories: "inventory.read",
   storeTransactions: "inventory.read",
+  pendingInvites: "users.read",
 } as const;
 
 export const getPaginatedData = query({
 
-  args: { 
+  args: {
     //collection name
     searchTerm: v.optional(v.string()),
     table: v.union(
@@ -52,7 +53,8 @@ export const getPaginatedData = query({
       v.literal('shifts'),
       v.literal('userStockLogs'),
       v.literal('storeInventories'),
-      v.literal('storeTransactions')
+      v.literal('storeTransactions'),
+      v.literal('pendingInvites')
     ),
     limit: v.number(), //items per page
     cursor: v.optional(v.string()), //current page cursor
@@ -63,15 +65,15 @@ export const getPaginatedData = query({
     await requirePermission(ctx, TABLE_READ_PERMISSIONS[table]);
 
     try {
-      //if we have a searchTerm and a request comes for the staffs document, 
+      //if we have a searchTerm and a request comes for the staffs document,
       // search the staffs record for firstname, lastName, employmentStatus, role data, if found, return it
       if ( table === 'staffs' && searchTerm ) {
         const items = await ctx.db
           .query('staffs')
-          .withSearchIndex('search_staff', (idx) => 
+          .withSearchIndex('search_staff', (idx) =>
             idx.search('firstName', searchTerm)
           )
-          // .filter(q => 
+          // .filter(q =>
           //   q.or(
           //     // q.eq(q.field('lastName'), searchTerm),
           //     q.eq(q.field('employmentStatus'), searchTerm),
@@ -85,6 +87,36 @@ export const getPaginatedData = query({
           }else{
             return items;
           }
+
+      } else if (table === 'pendingInvites') {
+        // Special handling for pendingInvites to enrich with role and inviter data
+        console.log('Paginated query for pendingInvites called with limit:', limit, 'cursor:', cursor);
+        const items = await ctx.db
+          .query('pendingInvites')
+          .withIndex('by_status', (q) => q.eq('status', 'pending'))
+          .order('desc')
+          .paginate({ numItems: limit, cursor: cursor  ?? null});
+
+        console.log('Paginated pendingInvites result:', items.page.length, 'items, isDone:', items.isDone, 'continueCursor:', items.continueCursor);
+
+        // Enrich with role and inviter information
+        const enrichedPage = await Promise.all(
+          items.page.map(async (invite) => {
+            const role = await ctx.db.get(invite.roleId);
+            const inviter = await ctx.db.get(invite.invitedBy);
+            return {
+              ...invite,
+              roleName: role?.name || "Unknown",
+              inviterName: inviter?.name || "Unknown",
+            };
+          })
+        );
+
+        console.log('Enriched pendingInvites page:', enrichedPage.length, 'items');
+        return {
+          ...items,
+          page: enrichedPage,
+        };
 
       } else {
         // if there is no search request, just return all the data in the database
@@ -107,7 +139,7 @@ export const getPaginatedData = query({
       return { success: false, message: "Failed to fetch paginated data", page: null, isDone: null, continueCursor: null};
 
     }
-    
+
   },
     
 });

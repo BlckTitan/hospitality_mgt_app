@@ -42,6 +42,20 @@ export default defineSchema({
     .index("by_roleId", ["roleId"])
     .index("by_userId_propertyId", ["userId", "propertyId"]),
 
+  // PendingInvites table for tracking Clerk invitations before user signup
+  pendingInvites: defineTable({
+    email: v.string(),
+    roleId: v.id("roles"),
+    propertyId: v.id("properties"),
+    invitedBy: v.id("users"),
+    clerkInvitationId: v.optional(v.string()),
+    status: v.union(v.literal("pending"), v.literal("accepted"), v.literal("revoked")),
+    createdAt: v.number(),
+  })
+    .index("by_email", ["email"])
+    .index("by_status", ["status"])
+    .index("by_propertyId", ["propertyId"]),
+
   staffs: defineTable({
     firstName: v.string(),
     lastName: v.string(),
