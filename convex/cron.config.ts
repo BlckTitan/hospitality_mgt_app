@@ -23,4 +23,5 @@ export const cronJobs = {
     schedule: "0 4 1 1 *", // January 1st at 04:00 UTC
     handler: "cron.aggregateYearlySummaries",
   },
+  // Invite expiry is scheduled in convex/crons.ts (internal.users.expirePendingInvites).
 };

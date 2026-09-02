@@ -27,6 +27,11 @@ http.route({
         await ctx.runMutation(internal.users.deleteFromClerk, { clerkUserId });
         break;
       }
+      case "session.created": {
+        const clerkUserId = event.data.user_id;
+        await ctx.runMutation(internal.users.handleSessionCreated, { clerkUserId });
+        break;
+      }
       default:
         console.log("Ignored Clerk webhook event", event.type);
     }

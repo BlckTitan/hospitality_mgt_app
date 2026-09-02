@@ -89,17 +89,13 @@ export const getPaginatedData = query({
           }
 
       } else if (table === 'pendingInvites') {
-        // Special handling for pendingInvites to enrich with role and inviter data
-        console.log('Paginated query for pendingInvites called with limit:', limit, 'cursor:', cursor);
+        // Include pending, expired, and revoked so the admin UI can re-invite.
+        // Accepted rows stay visible as history ("User accepted").
         const items = await ctx.db
           .query('pendingInvites')
-          .withIndex('by_status', (q) => q.eq('status', 'pending'))
           .order('desc')
           .paginate({ numItems: limit, cursor: cursor  ?? null});
 
-        console.log('Paginated pendingInvites result:', items.page.length, 'items, isDone:', items.isDone, 'continueCursor:', items.continueCursor);
-
-        // Enrich with role and inviter information
         const enrichedPage = await Promise.all(
           items.page.map(async (invite) => {
             const role = await ctx.db.get(invite.roleId);
@@ -112,7 +108,6 @@ export const getPaginatedData = query({
           })
         );
 
-        console.log('Enriched pendingInvites page:', enrichedPage.length, 'items');
         return {
           ...items,
           page: enrichedPage,

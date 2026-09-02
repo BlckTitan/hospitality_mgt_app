@@ -73,6 +73,9 @@ export default function Sidebar() {
   
   return (
     <aside className='w-[300px] max-w-[300px] h-full fixed left-0 hidden pt-14 xl:inline-block z-10'>
+      <div  className='w-full px-3 h-16 flex items-center gap-3'>
+        <h3 className="hidden xl:inline-block text-lg font-bold text-white site_sub_title">Hospitality Manager</h3>
+      </div>
       <header className='w-full px-3 h-16 flex items-center gap-3'>
         <Show when="signed-in">
           <div className='w-full h-fit flex items-start justify-between gap-3'>

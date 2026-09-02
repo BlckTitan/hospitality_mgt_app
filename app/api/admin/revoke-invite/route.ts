@@ -29,45 +29,53 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { clerkInvitationId } = body;
+    const { inviteId } = body;
 
-    if (!clerkInvitationId) {
+    if (!inviteId) {
       return NextResponse.json(
-        { error: 'Missing required field: clerkInvitationId' },
+        { error: 'Missing required field: inviteId' },
         { status: 400 },
       );
     }
 
     convex.setAuth(token);
 
-    // Verify user is authenticated
-    try {
-      const currentUser = await convex.query(api.users.current, {});
-      if (!currentUser) {
-        return NextResponse.json(
-          { error: 'User not authenticated' },
-          { status: 401 },
-        );
-      }
-    } catch (error) {
+    const inviteResult = await convex.query(api.users.getPendingInvite, {
+      inviteId: inviteId as any,
+    });
+
+    if (!inviteResult.success || !inviteResult.data) {
       return NextResponse.json(
-        { error: 'Authentication failed' },
-        { status: 401 },
+        { error: inviteResult.message || 'Invite not found' },
+        { status: 404 },
       );
     }
 
-    // Revoke the Clerk invitation
-    const client = await clerkClient();
-    try {
-      await client.invitations.revokeInvitation(clerkInvitationId);
-    } catch (error) {
-      console.error('Error revoking Clerk invitation:', error);
-      // Continue even if Clerk revocation fails - local status update will handle it
+    const clerkInvitationId = inviteResult.data.clerkInvitationId;
+    if (clerkInvitationId) {
+      const client = await clerkClient();
+      try {
+        await client.invitations.revokeInvitation(clerkInvitationId);
+      } catch (error) {
+        console.error('Error revoking Clerk invitation:', error);
+      }
+    }
+
+    const updateResult = await convex.mutation(api.users.updateInviteStatus, {
+      inviteId: inviteId as any,
+      status: 'revoked',
+    });
+
+    if (!updateResult.success) {
+      return NextResponse.json(
+        { error: updateResult.message },
+        { status: 400 },
+      );
     }
 
     return NextResponse.json({
       success: true,
-      message: 'Clerk invitation revoked successfully',
+      message: 'Invitation revoked successfully',
     });
   } catch (error) {
     console.error('Error revoking invitation:', error);

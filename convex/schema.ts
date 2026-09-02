@@ -49,11 +49,14 @@ export default defineSchema({
     propertyId: v.id("properties"),
     invitedBy: v.id("users"),
     clerkInvitationId: v.optional(v.string()),
-    status: v.union(v.literal("pending"), v.literal("accepted"), v.literal("revoked")),
+    status: v.union(v.literal("pending"), v.literal("accepted"), v.literal("revoked"), v.literal("expired")),
     createdAt: v.number(),
+    expiresAt: v.number(),
+    lastReminderSentAt: v.optional(v.number()),
   })
     .index("by_email", ["email"])
     .index("by_status", ["status"])
+    .index("by_expiresAt", ["expiresAt"])
     .index("by_propertyId", ["propertyId"]),
 
   staffs: defineTable({
