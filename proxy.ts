@@ -55,6 +55,23 @@ export default clerkMiddleware(async (auth, req) => {
   }
 
   if (userId && isSignUpRoute(req)) {
+    const authToken = await getClerkConvexAuthToken(getToken);
+
+    if (isMissingClerkConvexJwtTemplate(userId, authToken)) {
+      logMissingClerkConvexJwtTemplate('middleware-signup');
+      const setupUrl = new URL('/auth/clerk-setup', req.url);
+      return NextResponse.redirect(setupUrl);
+    }
+
+    const userContext = await ensureUserAndGetContext(authToken);
+
+    // If user has roles (e.g., from an accepted invite), skip property setup
+    if (userContext && !needsPropertySetup(userContext)) {
+      const dashboardUrl = new URL('/admin/dashboard', req.url);
+      return NextResponse.redirect(dashboardUrl);
+    }
+
+    // Otherwise, proceed with property setup
     const url = new URL('/setup/property', req.url);
     return NextResponse.redirect(url);
   }

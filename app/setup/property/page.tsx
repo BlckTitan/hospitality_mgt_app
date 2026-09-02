@@ -27,11 +27,11 @@ interface PropertyFormData {
 export default function PropertySetupPage() {
   const { isLoaded, userId } = useAuth();
   const router = useRouter();
-  const ensureCurrentUser = useMutation(api.users.ensureCurrentUser);
+  const trackLogin = useMutation(api.users.trackLogin);
   const createProperty = useMutation(api.property.createProperty);
   const userContext = useQuery(api.authContext.getCurrentUserContext);
   const [loading, setLoading] = useState(false);
-  const [userReady, setUserReady] = useState(false);
+  const [loginTracked, setLoginTracked] = useState(false);
   const [ensureError, setEnsureError] = useState<string | null>(null);
 
   const {
@@ -52,42 +52,33 @@ export default function PropertySetupPage() {
   });
 
   useEffect(() => {
-    if (!isLoaded || !userId) {
+    if (!isLoaded || !userId || loginTracked) {
       return;
     }
 
-    let cancelled = false;
-
-    async function prepareUser() {
+    const trackUserLogin = async () => {
       try {
-        await ensureCurrentUser({});
-        if (!cancelled) {
-          setUserReady(true);
-        }
+        await trackLogin();
+        setLoginTracked(true);
       } catch (error) {
-        console.error('Failed to ensure current user:', error);
-        if (!cancelled) {
-          setEnsureError('Failed to prepare your account. Please refresh and try again.');
-        }
+        console.error('Failed to track login:', error);
+        setEnsureError('Failed to track login');
+        setLoginTracked(true); // Don't block on errors
       }
-    }
-
-    prepareUser();
-
-    return () => {
-      cancelled = true;
     };
-  }, [isLoaded, userId, ensureCurrentUser]);
+
+    trackUserLogin();
+  }, [isLoaded, userId, trackLogin, loginTracked]);
 
   useEffect(() => {
-    if (!userReady || userContext === undefined) {
+    if (!loginTracked || userContext === undefined) {
       return;
     }
 
     if (userContext && userContext.roles.length > 0) {
       router.replace('/admin/dashboard');
     }
-  }, [userReady, userContext, router]);
+  }, [loginTracked, userContext, router]);
 
   if (!isLoaded || !userId) {
     if (isLoaded && !userId) {
@@ -101,7 +92,15 @@ export default function PropertySetupPage() {
     );
   }
 
-  if (!userReady || userContext === undefined) {
+  if (!loginTracked) {
+    return (
+      <div className="w-full h-screen flex items-center justify-center">
+        <Spinner size="sm" variant="dark" />
+      </div>
+    );
+  }
+
+  if (userContext === undefined) {
     return (
       <div className="w-full h-screen flex items-center justify-center">
         <Spinner size="sm" variant="dark" />
