@@ -23,6 +23,21 @@ export async function userByExternalId(ctx: QueryCtx, externalId: string) {
   return pickCanonicalUser(users);
 }
 
+export async function patchLastLoginAtIfActive(
+  ctx: MutationCtx,
+  user: Doc<"users">,
+  timestamp: number,
+): Promise<boolean> {
+  if (!user.isActive) {
+    return false;
+  }
+  await ctx.db.patch(user._id, {
+    lastLoginAt: timestamp,
+    updatedAt: timestamp,
+  });
+  return true;
+}
+
 async function dedupeUsers(
   ctx: MutationCtx,
   users: Doc<"users">[],
@@ -102,7 +117,6 @@ export async function ensureUserFromIdentity(
   
   if (existingUser) {
     await ctx.db.patch(existingUser._id, {
-      lastLoginAt: timestamp,
       updatedAt: timestamp,
       email: identity.email ?? existingUser.email,
       name: identity.name ?? identity.nickname ?? existingUser.name,
@@ -125,6 +139,5 @@ export async function ensureUserFromIdentity(
     isActive: true,
     createdAt: timestamp,
     updatedAt: timestamp,
-    lastLoginAt: timestamp,
   });
 }

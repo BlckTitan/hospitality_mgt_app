@@ -134,6 +134,13 @@ export function FormComponent({
             </select>
             {errors.isActive && <span className='text-red-500 text-sm'>This field is required</span>}
           </div>
+          <div className='w-full lg:w-1/2 mb-4 p-3 bg-gray-50 rounded border'>
+            <label className='block text-sm font-medium text-gray-700 mb-1'>Last Login</label>
+            <div className='text-sm text-gray-600'>
+              {lastLoginAt ? new Date(lastLoginAt).toLocaleString() : '-'}
+            </div>
+            <p className='text-xs text-gray-500 mt-1'>Updated automatically when the user signs in. This field cannot be edited.</p>
+          </div>
         </div>
 
         <Button type="submit" variant='dark'>Submit</Button>
