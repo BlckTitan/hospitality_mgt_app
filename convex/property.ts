@@ -16,7 +16,11 @@ export const getAllProperties = query({
 
     await requirePermission(ctx, 'properties.read');
     try {
-      const properties = await ctx.db.query('properties').collect();
+      const properties = (
+        await Promise.all(
+          authContext.propertyIds.map((propertyId) => ctx.db.get(propertyId)),
+        )
+      ).filter((property): property is NonNullable<typeof property> => property !== null);
       return { success: true, data: properties };
     } catch (error) {
       console.log(`Failed to fetch properties: ${error}`);

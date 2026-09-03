@@ -34,7 +34,10 @@ interface ShiftProps {
 }
 
 const Shifts = ({ currentPropertyId }: { currentPropertyId: Id<"properties"> }) => {
-  const shiftData = useQuery(api.shifts.getAllShifts, { propertyId: currentPropertyId });
+  const shiftData = useQuery(
+    api.shifts.getAllShifts,
+    currentPropertyId ? { propertyId: currentPropertyId } : 'skip',
+  );
   const removeShift = useMutation(api.shifts.deleteShift);
 
   const handleDelete = async (id: string, shiftDate: string) => {
