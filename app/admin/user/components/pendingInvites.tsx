@@ -167,9 +167,6 @@ const PendingInvites = () => {
               title="Re-send invitation"
               className="bg-blue-600 hover:bg-blue-700 text-white text-sm flex items-center gap-1"
             >
-              <i className='icon'>
-                <MdRefresh />
-              </i>
               Re-invite
             </Button>
           )}

@@ -1,4 +1,5 @@
 import { internalMutation, mutation, query, QueryCtx } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { UserJSON } from "@clerk/backend";
 import { v, Validator } from "convex/values";
 import { requireAuthenticated, requirePermission } from "./lib/rbac";
@@ -9,6 +10,7 @@ import {
 import {
   createUserIfAbsent,
   ensureUserFromIdentity,
+  patchLastLoginAtIfActive,
   userByExternalId,
 } from "./lib/userIdentity";
 
@@ -91,17 +93,19 @@ export const trackLogin = mutation({
 
     const user = await userByExternalId(ctx, identity.subject);
     const now = Date.now();
-    
+
     if (user) {
-      await ctx.db.patch(user._id, {
-        lastLoginAt: now,
-        updatedAt: now,
-      });
+      const lastLoginUpdated = await patchLastLoginAtIfActive(ctx, user, now);
       await fulfillPendingInviteForUser(ctx, {
         email: identity.email ?? user.email,
         userId: user._id,
       });
-      return { success: true, userId: user._id, isNew: false };
+      return {
+        success: true,
+        userId: user._id,
+        isNew: false,
+        lastLoginUpdated,
+      };
     }
 
     const newUser = await createUserIfAbsent(ctx, {
@@ -111,9 +115,14 @@ export const trackLogin = mutation({
       isActive: true,
       createdAt: now,
       updatedAt: now,
-      lastLoginAt: now,
     });
-    return { success: true, userId: newUser._id, isNew: true };
+    const lastLoginUpdated = await patchLastLoginAtIfActive(ctx, newUser, now);
+    return {
+      success: true,
+      userId: newUser._id,
+      isNew: true,
+      lastLoginUpdated,
+    };
   },
 });
 
@@ -124,7 +133,6 @@ export const updateUser = mutation({
     name: v.optional(v.string()),
     phone: v.optional(v.string()),
     isActive: v.optional(v.boolean()),
-    lastLoginAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const existingUser = await ctx.db.get(args.userId);
@@ -153,7 +161,6 @@ export const updateUser = mutation({
         name?: string;
         phone?: string;
         isActive?: boolean;
-        lastLoginAt?: number;
       } = {
         updatedAt: Date.now(),
       };
@@ -162,9 +169,6 @@ export const updateUser = mutation({
       if (args.name !== undefined) updateData.name = args.name;
       if (args.phone !== undefined) updateData.phone = args.phone;
       if (args.isActive !== undefined) updateData.isActive = args.isActive;
-      if (args.lastLoginAt !== undefined) {
-        updateData.lastLoginAt = args.lastLoginAt;
-      }
 
       await ctx.db.patch(args.userId, updateData);
 
@@ -209,19 +213,27 @@ export const upsertFromClerk = internalMutation({
 
     const user = await userByExternalId(ctx, data.id);
     const now = Date.now();
+    const clerkLastSignInAt = data.last_sign_in_at
+      ? Number(data.last_sign_in_at)
+      : undefined;
+
     if (user === null) {
       await createUserIfAbsent(ctx, {
         ...syncedFields,
         createdAt: now,
         updatedAt: now,
-        lastLoginAt: data.last_sign_in_at ? Number(data.last_sign_in_at) : now,
+        ...(clerkLastSignInAt !== undefined
+          ? { lastLoginAt: clerkLastSignInAt }
+          : {}),
       });
     } else {
       await ctx.db.patch(user._id, {
         ...syncedFields,
         updatedAt: now,
-        lastLoginAt: data.last_sign_in_at ? Number(data.last_sign_in_at) : user.lastLoginAt,
       });
+      if (clerkLastSignInAt !== undefined) {
+        await patchLastLoginAtIfActive(ctx, user, clerkLastSignInAt);
+      }
       await fulfillPendingInviteForUser(ctx, {
         email: syncedFields.email,
         userId: user._id,
@@ -246,21 +258,31 @@ export const deleteFromClerk = internalMutation({
 });
 
 export const handleSessionCreated = internalMutation({
-  args: { clerkUserId: v.string() },
-  async handler(ctx, { clerkUserId }) {
+  args: {
+    clerkUserId: v.string(),
+    attempt: v.optional(v.number()),
+  },
+  async handler(ctx, { clerkUserId, attempt }) {
     const user = await userByExternalId(ctx, clerkUserId);
+    const retryAttempt = attempt ?? 0;
 
     if (user !== null) {
-      const now = Date.now();
-      await ctx.db.patch(user._id, {
-        lastLoginAt: now,
-        updatedAt: now,
-      });
-    } else {
-      console.warn(
-        `Can't update lastLoginAt, there is no user for Clerk user ID: ${clerkUserId}`,
-      );
+      await patchLastLoginAtIfActive(ctx, user, Date.now());
+      return;
     }
+
+    if (retryAttempt < 3) {
+      await ctx.scheduler.runAfter(
+        2000 * (retryAttempt + 1),
+        internal.users.handleSessionCreated,
+        { clerkUserId, attempt: retryAttempt + 1 },
+      );
+      return;
+    }
+
+    console.warn(
+      `Can't update lastLoginAt after retries for Clerk user ID: ${clerkUserId}`,
+    );
   },
 });
 
