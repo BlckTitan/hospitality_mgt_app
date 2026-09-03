@@ -171,6 +171,18 @@ export async function requirePermission(
   return authContext;
 }
 
+export async function tryRequirePermission(
+  ctx: Ctx,
+  granularPermission: string,
+  propertyId?: Id<"properties">,
+): Promise<AuthContext | null> {
+  const authContext = await getAuthContext(ctx);
+  if (!authContext) return null;
+  if (propertyId && !authContext.propertyIds.includes(propertyId)) return null;
+  if (!hasGranularPermission(authContext, granularPermission)) return null;
+  return authContext;
+}
+
 export async function requireAuthenticated(ctx: Ctx): Promise<AuthContext> {
   return await requireAuthContext(ctx);
 }

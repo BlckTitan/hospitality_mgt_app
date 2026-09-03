@@ -2,7 +2,7 @@
 
 import { query } from "../_generated/server";
 import { v } from "convex/values";
-import { requirePermission } from "../lib/rbac";
+import { tryRequirePermission } from "../lib/rbac";
 
 const TABLE_READ_PERMISSIONS = {
   staffs: "staff.read",
@@ -62,7 +62,10 @@ export const getPaginatedData = query({
   },
 
   handler: async (ctx, { table, limit, cursor, sortOrder, searchTerm}) => {
-    await requirePermission(ctx, TABLE_READ_PERMISSIONS[table]);
+    const auth = await tryRequirePermission(ctx, TABLE_READ_PERMISSIONS[table]);
+    if (!auth) {
+      return { page: [], isDone: true, continueCursor: "" };
+    }
 
     try {
       //if we have a searchTerm and a request comes for the staffs document,
