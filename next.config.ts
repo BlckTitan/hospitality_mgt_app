@@ -7,7 +7,6 @@ const nextConfig: NextConfig = {
     optimizeCss: true,
   },
   turbopack: {},
-  swcMinify: true,
   images: {
     formats: ['image/webp', 'image/avif'],
   },

@@ -43,22 +43,42 @@ export default function PaginationComponent({collectionName, columns, jointTable
     searchTerm: query
   });
 
+  // New search or table: start over from page 1
+  useEffect(() => {
+    setCursorHistory([null]);
+    setCurrentPage(1);
+    setPageCache({});
+  }, [query, collectionName]);
+
   // Update local cache + cursor list when a new page is loaded
   useEffect(() => {
-    if (response?.page) {
-      setPageCache((prev) => ({
-        ...prev,
-        [currentPage]: response.page,
-      }));
+    if (!response?.page) return;
 
-      // Store next cursor if not already known
-      if (response.continueCursor && !cursorHistory.includes(response.continueCursor)) {
-        setCursorHistory((prev) => [...prev, response.continueCursor]);
+    setPageCache((prev) => ({
+      ...prev,
+      [currentPage]: response.page,
+    }));
+
+    // Convex always returns continueCursor, even when isDone is true.
+    // Only record a next-page cursor when there is actually another page.
+    setCursorHistory((prev) => {
+      const knownPages = prev.slice(0, currentPage);
+      if (response.isDone || !response.continueCursor) {
+        return knownPages;
       }
-    }
-  }, [response]);
+      if (knownPages[currentPage] === response.continueCursor) {
+        return prev;
+      }
+      return [...knownPages, response.continueCursor];
+    });
+  }, [response, currentPage]);
 
-  // Handle direct page number click
+  const hasNextPage =
+    Boolean(response) &&
+    !response.isDone &&
+    Boolean(response.continueCursor) &&
+    cursorHistory.length > currentPage;
+
   const handlePageClick = (page: number) => {
     setCurrentPage(page);
   };
@@ -68,9 +88,8 @@ export default function PaginationComponent({collectionName, columns, jointTable
   };
 
   const handleNext = () => {
-    // Only move forward if not done
-    if (!response?.isDone && cursorHistory.length >= currentPage) {
-      setCurrentPage((prev) => prev  + 1);
+    if (hasNextPage) {
+      setCurrentPage((prev) => prev + 1);
     }
   };
 
@@ -124,7 +143,7 @@ export default function PaginationComponent({collectionName, columns, jointTable
 
         <Pagination.Next
           onClick={handleNext}
-          disabled={response?.isDone || !response?.continueCursor}
+          disabled={!hasNextPage}
         />
 
       </Pagination>

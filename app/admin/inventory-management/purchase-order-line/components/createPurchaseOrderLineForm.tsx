@@ -10,8 +10,8 @@ import { Id } from "../../../../../convex/_generated/dataModel";
 import InputComponent from "../../../../../shared/input";
 
 type FormData = {
-  purchaseOrderId: Id<'purchaseOrders'>;
-  inventoryItemId: Id<'inventoryItems'>;
+  purchaseOrderId: string;
+  inventoryItemId: string;
   quantity: number;
   unitPrice: number;
   totalPrice: number;
