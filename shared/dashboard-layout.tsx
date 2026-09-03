@@ -2,22 +2,14 @@
 
 import Navigation from '../shared/navigation'
 import Sidebar from '../shared/sidebar'
+import { isNoDashboardLayoutPath } from '../lib/auth-routes'
 import { usePathname } from 'next/navigation'
 import React from 'react'
 
 export default function DashboardLayout({children}: {children: React.ReactNode}) {
     const path = usePathname()
-    const noLayoutRoutes = [
-        "/",
-        "/sign-in",
-        "/account",
-        "/sign-up",
-        "/setup/property",
-        "/auth/clerk-setup",
-        "/unauthorized",
-    ];
 
-    if (noLayoutRoutes.includes(path)) {
+    if (isNoDashboardLayoutPath(path)) {
         return <>{children}</>;
     }
 

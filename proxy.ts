@@ -12,12 +12,11 @@ import {
   needsPropertySetup,
   PUBLIC_ROUTES,
 } from './lib/proxy-helpers';
+import { isSignInEntryPath, isSignUpEntryPath } from './lib/auth-routes';
 import { matchRoute } from './lib/route-matching';
 
 const isAdminRoute = createRouteMatcher(['/admin(.*)']);
 const isSetupRoute = createRouteMatcher(['/setup(.*)']);
-const isSignUpRoute = createRouteMatcher(['/sign-up(.*)']);
-const isSignInRoute = createRouteMatcher(['/sign-in(.*)']);
 const isHomeRoute = createRouteMatcher(['/']);
 const isPublicRoute = createRouteMatcher(PUBLIC_ROUTES.map((route) => `${route}(.*)`));
 export default clerkMiddleware(async (auth, req) => {
@@ -54,7 +53,7 @@ export default clerkMiddleware(async (auth, req) => {
     return NextResponse.redirect(url);
   }
 
-  if (userId && isSignUpRoute(req)) {
+  if (userId && isSignUpEntryPath(pathname)) {
     const authToken = await getClerkConvexAuthToken(getToken);
 
     if (isMissingClerkConvexJwtTemplate(userId, authToken)) {
@@ -76,7 +75,7 @@ export default clerkMiddleware(async (auth, req) => {
     return NextResponse.redirect(url);
   }
 
-  if (userId && isSignInRoute(req)) {
+  if (userId && isSignInEntryPath(pathname)) {
     const redirectUrl = req.nextUrl.searchParams.get('redirect_url') || '/admin/dashboard';
     const url = new URL(redirectUrl, req.url);
     return NextResponse.redirect(url);
