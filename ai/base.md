@@ -430,7 +430,7 @@ interface Employee {
   employmentStatus: 'active' | 'terminated' | 'on-leave';
   department: Department;
   position: string;
-  payType: PayType; // denormalized from current EmployeeCompensation
+  payType: PayType; // denormalized from current Pay history (EmployeeCompensation)
   baseSalary?: number;
   hourlyRate?: number;
   payScheduleId?: string;
@@ -445,7 +445,8 @@ interface Employee {
 }
 ```
 
-### PropertyPayrollSettings
+### Payroll settings
+UI: **Payroll settings**. Schema table: `propertyPayrollSettings`. Interface: `PropertyPayrollSettings`.
 ```typescript
 interface PropertyPayrollSettings {
   propertyPayrollSettingsId: string;
@@ -454,7 +455,7 @@ interface PropertyPayrollSettings {
   jurisdictionPack: string; // e.g. NG, US, generic
   regularHoursLimitDaily?: number;
   regularHoursLimitWeekly?: number;
-  overtimeMultiplier: number; // fallback daily OT if no PremiumRule
+  overtimeMultiplier: number; // fallback daily OT if no extra pay rule
   defaultPayScheduleId?: string;
   bankExportFormat: 'generic_csv';
   createdAt: Date;
@@ -462,7 +463,8 @@ interface PropertyPayrollSettings {
 }
 ```
 
-### PayComponent
+### Pay item type
+UI: **Pay item type**. Schema table: `payComponents`. Interface: `PayComponent`.
 ```typescript
 interface PayComponent {
   payComponentId: string;
@@ -483,7 +485,8 @@ interface PayComponent {
 }
 ```
 
-### EmployeePayComponent
+### This person's pay items
+UI: **This person’s pay items**. Schema table: `employeePayComponents`. Interface: `EmployeePayComponent`.
 ```typescript
 interface EmployeePayComponent {
   employeePayComponentId: string;
@@ -497,7 +500,8 @@ interface EmployeePayComponent {
 }
 ```
 
-### EmployeeCompensation
+### Pay history
+UI: **Pay rate** / **Pay history**. Schema table: `employeeCompensations`. Interface: `EmployeeCompensation`.
 ```typescript
 interface EmployeeCompensation {
   employeeCompensationId: string;
@@ -514,7 +518,8 @@ interface EmployeeCompensation {
 }
 ```
 
-### PaySchedule
+### Pay cycle
+UI: **Pay cycle**. Schema table: `paySchedules`. Interface: `PaySchedule`.
 ```typescript
 interface PaySchedule {
   payScheduleId: string;
@@ -530,7 +535,8 @@ interface PaySchedule {
 }
 ```
 
-### LeaveType
+### Time-off type
+UI: **Time-off type**. Schema table: `leaveTypes`. Interface: `LeaveType`.
 ```typescript
 interface LeaveType {
   leaveTypeId: string;
@@ -545,7 +551,8 @@ interface LeaveType {
 }
 ```
 
-### LeaveEntry
+### Time off
+UI: **Time off**. Schema table: `leaveEntries`. Interface: `LeaveEntry`.
 ```typescript
 interface LeaveEntry {
   leaveEntryId: string;
@@ -564,7 +571,8 @@ interface LeaveEntry {
 }
 ```
 
-### HolidayCalendar
+### Holidays
+UI: **Holidays**. Schema table: `holidayCalendars`. Interface: `HolidayCalendar`.
 ```typescript
 interface HolidayCalendar {
   holidayCalendarId: string;
@@ -588,7 +596,8 @@ interface Holiday {
 }
 ```
 
-### PremiumRule
+### Extra pay rules
+UI: **Extra pay rules**. Schema table: `premiumRules`. Interface: `PremiumRule`.
 ```typescript
 interface PremiumRule {
   premiumRuleId: string;
@@ -603,7 +612,8 @@ interface PremiumRule {
 }
 ```
 
-### Timesheet
+### Hours
+UI: **Hours**. Schema table: `timesheets`. Interface: `Timesheet`.
 ```typescript
 interface Timesheet {
   timesheetId: string;
@@ -629,7 +639,8 @@ interface Timesheet {
 }
 ```
 
-### PayrollRun
+### Payroll
+UI: **Payroll**. Schema table: `payrollRuns`. Interface: `PayrollRun`.
 ```typescript
 interface PayrollRun {
   payrollRunId: string;
@@ -655,7 +666,8 @@ interface PayrollRun {
 }
 ```
 
-### PayrollRunLine
+### Staff pay
+UI: **Staff pay**. Schema table: `payrollRunLines`. Interface: `PayrollRunLine`.
 ```typescript
 interface PayrollRunLine {
   payrollRunLineId: string;
@@ -679,7 +691,8 @@ interface PayrollRunLine {
 }
 ```
 
-### PayrollLineItem
+### Pay item
+UI: **Pay item**. Schema table: `payrollLineItems`. Interface: `PayrollLineItem`.
 ```typescript
 interface PayrollLineItem {
   payrollLineItemId: string;
@@ -695,6 +708,7 @@ interface PayrollLineItem {
 ```
 
 ### Payslip
+UI: **Payslip**. Schema table: `payslips`. Interface: `Payslip`.
 ```typescript
 interface Payslip {
   payslipId: string;
@@ -708,7 +722,8 @@ interface Payslip {
 }
 ```
 
-### PayrollExport
+### Payment file
+UI: **Payment file**. Schema table: `payrollExports`. Interface: `PayrollExport`.
 ```typescript
 interface PayrollExport {
   payrollExportId: string;
@@ -1327,7 +1342,7 @@ interface SearchQuery {
 2. Sensitive fields (bankAccount, configuration in Integration, password) should be encrypted at rest.
 3. Foreign key fields use string IDs and should reference the actual entity by its primary key.
 4. Optional fields are marked with `?` in the interface definitions.
-5. Complex objects (permissions, configuration, ocrData, payslip snapshot) use `Record<string, any>` for flexibility. Payroll deductions are `PayrollLineItem` rows, not a JSON blob.
+5. Complex objects (permissions, configuration, ocrData, payslip snapshot) use `Record<string, any>` for flexibility. Payroll deductions are Pay item rows, not a JSON blob.
 6. Enums provide type safety for status and category fields.
 7. Union types enable polymorphic relationships for flexible referencing.
 8. Document linking supports multiple entity types through referenceType/referenceId pattern.

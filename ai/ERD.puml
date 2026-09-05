@@ -355,7 +355,7 @@ package "Payroll Management" {
         + updatedAt : Timestamp
     }
 
-    class Timesheet {
+    class Timesheet as "Hours" {
         + timesheetId : PK
         + employeeId : FK
         + propertyId : FK
@@ -373,7 +373,7 @@ package "Payroll Management" {
         + updatedAt : Timestamp
     }
 
-    class PayrollRun {
+    class PayrollRun as "Payroll" {
         + payrollRunId : PK
         + propertyId : FK
         + payPeriodStart : Date
@@ -391,7 +391,7 @@ package "Payroll Management" {
         + updatedAt : Timestamp
     }
 
-    class PayrollRunLine {
+    class PayrollRunLine as "Staff pay" {
         + payrollRunLineId : PK
         + payrollRunId : FK
         + employeeId : FK

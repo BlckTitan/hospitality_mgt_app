@@ -79,17 +79,17 @@ export default function Navigation() {
   }));
   
   return (
-    <nav className="w-full h-14 flex items-center fixed top-0 main_nav z-10 shadow-blue-100 shadow-sm">
-      <Navbar expand="lg" className='w-full h-full flex items-center px-4 lg:px-16 bg-white rounded-none'>
-        <div className='w-full h-full flex justify-between items-center'>
+    <nav className="w-full h-14 flex items-center fixed top-0 main_nav z-10 shadow-blue-100 shadow-sm overflow-visible">
+      <Navbar expand="lg" className='w-full h-full flex items-center px-4 lg:px-16 bg-white rounded-none overflow-visible'>
+        <div className='w-full h-full flex justify-between items-center overflow-visible'>
           
           <div className='w-full flex justify-between '>
             <NavbarBrand className='site_sub_title' href='/'>Hospitality Manager</NavbarBrand>
             <NavbarToggle aria-controls="basic-navbar-nav relative" />
           </div>
           
-          <NavbarCollapse id="basic-navbar-nav" className='right-0 top-14 w-full lg:w-auto h-fit absolute lg:static border-b border-t lg:border-0 bg-white overflow-y-scroll lg:!overflow-hidden'>
-            <Nav className="w-full lg:w-fit h-screen lg:h-fit flex flex-col items-start lg:flex-row lg:items-center lg:justify-evenly me-auto">
+          <NavbarCollapse id="basic-navbar-nav" className='left-0 right-0 top-14 w-full lg:w-auto max-h-[calc(100dvh-3.5rem)] h-auto absolute lg:static lg:max-h-none border-b border-t lg:border-0 bg-white overflow-y-auto overscroll-contain lg:!overflow-visible'>
+            <Nav className="w-full lg:w-fit h-auto flex flex-col items-start lg:flex-row lg:items-center lg:justify-evenly me-auto">
 
               <header className='w-full px-3  h-16 flex items-center gap-3 lg:hidden mt-8 pb-4'>
                 <Show when="signed-in">
@@ -119,7 +119,7 @@ export default function Navigation() {
               
               <Accordion 
                 defaultActiveKey="0" 
-                className='w-full h-12 inline-block lg:hidden'
+                className='w-full h-auto block lg:hidden'
               >
                 {filteredNavItems.map(({ id, href, label, icon, subLink }, index) => (
 
@@ -179,7 +179,7 @@ export default function Navigation() {
                   </Card>
                 ))}
                 
-                <div className='w-full h-fit py-2 px-3 mt-12 lg:hidden'>
+                <div className='w-full h-fit py-2 px-3 mt-8 mb-6 lg:hidden'>
                   <SignOutButton redirectUrl="/">
                     <button className='w-full flex !text-[#333]'>
                       <i className='icon mr-2'><MdLogout /></i>

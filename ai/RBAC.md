@@ -103,6 +103,7 @@ Legend:
 - finance.reports
 
 ### Payroll
+Permission keys stay technical. Screens use Hours, Time off, Payroll, Payslip, and Payroll settings (see `ai/payroll-implementation.md` User-facing names).
 - payroll.employee.read
 - payroll.employee.create
 - payroll.employee.update
@@ -124,8 +125,8 @@ Legend:
 
 **Role mapping (see `ai/payroll-implementation.md`):**
 - HR Manager, Finance Manager, Administrator, Director, General Manager: full payroll. Approve mutation still requires a **different user** than creator/calculator (maker ≠ checker).
-- Supervisor / Assistant Manager: `payroll.timesheet.read` + `approve` and `payroll.leave.read` + `approve` for their team
-- Employees with a User login: own timesheet/leave create and own `payroll.payslip.read`
+- Supervisor / Assistant Manager: Hours (`payroll.timesheet.read` + `approve`) and Time off (`payroll.leave.read` + `approve`) for their team
+- Employees with a User login: own Hours / Time off create and own Payslip (`payroll.payslip.read`)
 - Other operational staff: none on runs or other employees' pay
 
 ### Food & Beverage

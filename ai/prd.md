@@ -50,8 +50,8 @@ Hospitality operators juggle siloed systems for reservations, POS, payroll, proc
    - Inventory counts, reorder points, supplier management, restocking workflows.
    - Document management for inventory purchases: supplier invoices, delivery receipts, and payment confirmations must be uploaded and linked to purchase orders.
 3. **Payroll Management**
-   - Staff profiles, roles, pay types (hourly / salary / mixed), pay rates, timesheets, configurable allowances and deductions.
-   - Native payroll runs: calculate, approve, generate payslips, export bank/CSV files, post GL, mark paid.
+   - Staff profiles, roles, pay types (hourly / salary / mixed), pay rates, Hours, configurable allowances and deductions.
+   - Native Payroll: Prepare pay, Approve payroll, generate Payslips, Download payment files, post GL, Mark as paid.
    - Implementation decisions and target model: `ai/payroll-implementation.md`.
 4. **Maintenance Management**
    - Asset registry, preventive schedules, work orders, cost tracking.
@@ -127,17 +127,17 @@ Hospitality operators juggle siloed systems for reservations, POS, payroll, proc
 ### Payroll
 
 - Staff master (`staffs` table only — no separate `employees` table): property-scoped profiles; optional User login; `paymentMethod` (`bank` | `cash` | `mobile_money` | `check`); compensation **history**; soft delete only. Existing `/admin/staff` and `Id<"staffs">` FKs stay.
-- **PaySchedule**: runs are created from a schedule (period, cutoff, pay date). Timesheets/leave approved after cutoff are excluded.
-- Time tracking: manual entry, CSV import, and draft timesheets created when a bar shift is finalized. Only **unlocked, approved** timesheets are paid. Calculate **locks** included sheets.
-- **Leave**: `LeaveType` + `LeaveEntry`. Approved unpaid leave prorates salary. Paid leave counts as regular hours (not OT) unless the type allows OT.
-- **Holidays + premiums**: country pack seeds a holiday calendar and `PremiumRule`s (daily/weekly OT, night, weekend, public holiday). Single overtime multiplier is fallback daily OT only.
-- **Jurisdiction from property setup**: admin must select `Property.country`. Seeds statutory components, default schedule, holidays, and premium rules. Unsupported countries use generic fallback.
-- Optional **manual** gratuity amount on a pay line. Tip pooling is out of scope.
-- Payroll run lifecycle: draft → calculated → approved → processed → paid. **Maker ≠ checker**: approver must not be the creator or last calculator.
-- Immutable rate snapshots (`compensationIdUsed`) on each pay line; line items instead of a deductions JSON blob.
-- On approve: generate payslips and post one balanced journal entry (`referenceType = PayrollRun`).
-- On process: export bank/CSV for bank payees and a cash/mobile worksheet. On paid: record a `Payment` and optional bank confirmation document.
-- Labor cost % uses approved/processed/paid runs only (see ERD reporting notes).
+- **Pay cycle**: payrolls are created from a cycle (period, cutoff, pay date). Hours and Time off approved after cutoff are excluded.
+- Time tracking: manual entry, CSV import, and draft Hours created when a bar shift is finalized. Only **unlocked, approved** Hours are paid. Prepare pay **locks** included Hours.
+- **Time off**: Time-off types + Time off. Approved unpaid Time off prorates salary. Paid Time off counts as regular hours (not OT) unless the type allows OT.
+- **Holidays + extra pay rules**: country pack seeds Holidays and extra pay rules (daily/weekly OT, night, weekend, public holiday). Single overtime multiplier is fallback daily OT only.
+- **Jurisdiction from property setup**: admin must select `Property.country`. Seeds statutory Pay item types, default Pay cycle, Holidays, and extra pay rules. Unsupported countries use generic fallback.
+- Optional **manual** gratuity amount on a Pay item. Tip pooling is out of scope.
+- Payroll lifecycle: Draft → Ready to review → Approved → Payment files ready → Paid. **Maker ≠ checker**: approver must not be the creator or last calculator.
+- Immutable rate snapshots (`compensationIdUsed`) on each Staff pay; Pay items instead of a deductions JSON blob.
+- On Approve payroll: generate Payslips and post one balanced journal entry (`referenceType = PayrollRun`).
+- On Download payment files: export bank/CSV for bank payees and a cash/mobile worksheet. On Mark as paid: record a `Payment` and optional bank confirmation document.
+- Labor cost % uses approved / payment-files-ready / paid payrolls only (see ERD reporting notes).
 - Full rules, uniqueness, GL template, and `staffs` migration: `ai/payroll-implementation.md`.
 
 ### Maintenance
@@ -192,7 +192,7 @@ Hospitality operators juggle siloed systems for reservations, POS, payroll, proc
   - All utility bills must have original bill documents and payment confirmations.
   - All maintenance work orders must include vendor invoices and work completion certificates.
   - All payments must have payment receipts or bank confirmations linked.
-  - Payroll runs should have generated payslips and, when marked paid, a bank confirmation or export file linked (`Payslip`, `PayrollRun`, `PayrollExport`).
+  - Payrolls should have generated Payslips and, when marked paid, a bank confirmation or Payment file linked (`Payslip`, `PayrollRun`, `PayrollExport` as stored `referenceType` values).
 - **Document Upload Methods**:
   - Direct file upload (drag-and-drop, file picker)
   - Mobile camera capture
@@ -202,7 +202,7 @@ Hospitality operators juggle siloed systems for reservations, POS, payroll, proc
   - OCR (Optical Character Recognition) for automatic data extraction from invoices and receipts (vendor name, amount, date, invoice number, tax amount).
   - Automatic document type detection (invoice, receipt, contract, etc.).
   - Document verification workflow with reviewer assignment and verification status tracking.
-- **Document Linking**: Documents can be linked to multiple entity types (Expense, PurchaseOrder, UtilityBill, Payment, MaintenanceOrder, PayrollRun, Payslip, PayrollExport) using flexible reference system.
+- **Document Linking**: Documents can be linked to multiple entity types (Expense, PurchaseOrder, UtilityBill, Payment, MaintenanceOrder, Payroll, Payslip, Payment file). Stored `referenceType` values stay `PayrollRun`, `Payslip`, `PayrollExport`.
 - **Document Security**:
   - Role-based access control for document viewing and downloading.
   - Encryption at rest and in transit.
@@ -228,13 +228,13 @@ Hospitality operators juggle siloed systems for reservations, POS, payroll, proc
 
 ## Data & ERD Considerations
 
-- Core entities: `Property` (includes required `country` for payroll jurisdiction), `User`, `Role`, `Room`, `Reservation`, `HousekeepingTask`, `FnbMenuItem`, `InventoryItem`, `Supplier`, `PurchaseOrder`, `Employee`, `EmployeeCompensation`, `PaySchedule`, `LeaveType`, `LeaveEntry`, `HolidayCalendar`, `Holiday`, `PremiumRule`, `Timesheet`, `PropertyPayrollSettings`, `PayComponent`, `PayrollRun`, `PayrollRunLine`, `PayrollLineItem`, `Payslip`, `PayrollExport`, `MaintenanceOrder`, `Asset`, `Expense`, `UtilityBill`, `JournalEntry`, `Report`.
+- Core entities: `Property` (includes required `country` for payroll jurisdiction), `User`, `Role`, `Room`, `Reservation`, `HousekeepingTask`, `FnbMenuItem`, `InventoryItem`, `Supplier`, `PurchaseOrder`, `Employee`, Pay history, Pay cycle, Time-off type, Time off, Holidays, Extra pay rules, Hours, Payroll settings, Pay item type, Payroll, Staff pay, Pay item, Payslip, Payment file, `MaintenanceOrder`, `Asset`, `Expense`, `UtilityBill`, `JournalEntry`, `Report`. Schema table names stay `employeeCompensations`, `paySchedules`, `leaveTypes`, `leaveEntries`, `holidayCalendars`, `premiumRules`, `timesheets`, `propertyPayrollSettings`, `payComponents`, `payrollRuns`, `payrollRunLines`, `payrollLineItems`, `payslips`, `payrollExports`.
 - Relationships:
   - `Property` 1:N `Room`, `Employee`, `InventoryItem`, `Asset`.
   - `Reservation` links `Room`, `Guest`, and yields `JournalEntries`.
   - `HousekeepingTask` + `MaintenanceOrder` reference rooms/assets, produce expenses.
   - `FnbMenuItem` consumes `InventoryItems` via recipe lines.
-  - `PayrollRun` is created from a `PaySchedule`, aggregates approved/unlocked `Timesheet`s, `LeaveEntry`s, compensation history, and `PayComponent`s for `staffs` into `PayrollRunLine` / `PayrollLineItem`, then posts `JournalEntry` and produces `Payslip` + `PayrollExport`.
+  - A Payroll is created from a Pay cycle, aggregates approved/unlocked Hours, Time off, Pay history, and Pay item types for `staffs` into Staff pay / Pay items, then posts a `JournalEntry` and produces Payslips + Payment files.
   - `Report` entities store configuration + cached snapshots for analytics.
 - ERD deliverable: diagram showing above entities, primary keys, and cardinalities to be hosted in `docs/erd/` (format TBD—likely Draw.io or Mermaid).
 

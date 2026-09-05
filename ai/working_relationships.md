@@ -47,9 +47,9 @@ When Sarah logs in, the system checks her **UserRole** entries to determine whic
 - **UserRole** record: Property 1, Role "Housekeeping Supervisor"
 
 Mike's **User** account links to his **Employee** record, which means:
-- He can clock in/out (creates **Timesheet** records)
+- He can clock in/out (creates **Hours** records)
 - He can be assigned **HousekeepingTask** records
-- His hours are tracked for **PayrollRun** calculations
+- His hours are tracked for **Payroll** calculations
 - He can upload **Document** records (e.g., maintenance photos)
 
 **Not all Users are Employees**: An external auditor might have a **User** account with "Auditor" role but no **Employee** record, since they're not on payroll.
@@ -460,7 +460,7 @@ If inventory is damaged or expires:
 **Clock-In/Clock-Out**
 
 Maria Garcia (housekeeper, `employeeId: 203`) arrives at 7:00 AM:
-1. System creates **Timesheet** record:
+1. System creates **Hours** record:
    - `timesheetId: 5001`
    - `employeeId: 203`
    - `propertyId: 1`
@@ -475,42 +475,42 @@ Maria Garcia (housekeeper, `employeeId: 203`) arrives at 7:00 AM:
    - `overtimeHours: 0`
    - `status: "submitted"`
 
-3. Supervisor (Mike, a `User` with timesheet approve permission) approves:
+3. Supervisor (Mike, a `User` with Hours approve permission) approves:
    - `status: "approved"`
    - `approvedBy`: Mike's user id
    - `approvedAt: 2024-07-18 15:30:00`
 
-Bar staff: when a bar **Shift** is finalized, the system creates a **draft** Timesheet (`source: "shift"`) if none exists for that employee and work date. Supervisors still approve before the hours can be paid. Locked timesheets (already in a calculated run) are not overwritten.
+Bar staff: when a bar **Shift** is finalized, the system creates a **draft** Hours row (`source: "shift"`) if none exists for that employee and work date. Supervisors still approve before the hours can be paid. Locked Hours (already in a payroll that is Ready to review) are not overwritten.
 
 ### Payroll Processing
 
-**Bi-Weekly Payroll Run**
+**Bi-Weekly Payroll**
 
 Every two weeks, the Finance Manager processes payroll:
 
-**Step 1: Create PayrollRun from PaySchedule**
+**Step 1: Start payroll from a Pay cycle**
 
-- Created from the property’s bi-weekly default schedule (period, cutoff, pay date copied)
+- Created from the property’s bi-weekly default Pay cycle (period, cutoff, pay date copied)
 - `payrollRunId: 6001`, `status: "draft"`
 - `createdBy`: Finance Manager **User** id (need not be an Employee)
 
-**Step 2: Calculate Employee Pay**
+**Step 2: Prepare pay**
 
-Pull **unlocked, approved** timesheets and **approved** leave on or before cutoff. Rates come from `EmployeeCompensation` effective in the period. Hours are classified with `PremiumRule`s (holiday / night / weekend / OT).
+Pull **unlocked, approved** Hours and **approved** Time off on or before cutoff. Rates come from Pay history effective in the period. Hours are classified with extra pay rules (holiday / night / weekend / OT).
 
 For Maria Garcia (`employeeId: 203`, `paymentMethod: bank`, `payType: hourly`):
 - Approved regular hours: 75; overtime: 5 (1.5× premium rule)
 - Hourly rate from current compensation: $18/hour
 - Regular pay: $1,350; overtime: $135; housing $50; insurance deduction $50
 - Gross: $1,535; net: $1,485
-- Included timesheets get `payrollRunLineId: 7001`, `lockedByRunId: 6001`
+- Included Hours get `payrollRunLineId: 7001`, `lockedByRunId: 6001`
 - Line snapshots `compensationIdUsed`
 
 **Step 3: Approve and Process (maker ≠ checker)**
 
 1. A **different** User from creator/calculator approves. Self-approve is rejected.
-2. Status `approved`; **Payslip** per line; one balanced **JournalEntry**. Timesheets stay locked.
-3. Process: `PayrollExport` `generic_csv` for bank payees + `cash_sheet` for cash/mobile.
+2. Status `approved`; **Payslip** per Staff pay; one balanced **JournalEntry**. Hours stay locked.
+3. Download payment files: Payment file `generic_csv` for bank payees + `cash_sheet` for cash/mobile.
 4. Mark paid: **Payment** + optional bank-confirmation **Document**.
 
 **Step 4: Payment and Financial Posting**
@@ -794,7 +794,7 @@ The report aggregates:
 - **Reservation** revenue: Room sales
 - **Order** revenue: F&B sales
 - **Expense** records: All expenses
-- **PayrollRun** records: Labor costs
+- **Payroll** records: Labor costs
 
 **ReportSnapshot** stores the results for historical comparison.
 
@@ -834,7 +834,7 @@ The report aggregates:
 
 **End of Month:**
 - All transactions aggregated in **Report** (monthly statement)
-- **PayrollRun** processes all employee hours
+- **Payroll** processes all employee Hours
 - **UtilityBill** records processed
 - Complete financial picture in **ChartOfAccounts**
 
@@ -848,7 +848,7 @@ The report aggregates:
 
 3. **Complete Audit Trail**: **InventoryTransaction**, **JournalEntry**, **AuditLog**, and **Document** entities provide full traceability.
 
-4. **Workflow Integration**: Approval workflows (Expense, PurchaseOrder, PayrollRun) ensure proper authorization before processing.
+4. **Workflow Integration**: Approval workflows (Expense, PurchaseOrder, Payroll) ensure proper authorization before processing.
 
 5. **Cost Tracking**: Recipe costing, inventory costing, and labor costing provide comprehensive cost analysis.
 

@@ -72,11 +72,11 @@ export default function Sidebar() {
   }));
   
   return (
-    <aside className='w-[300px] max-w-[300px] h-full fixed left-0 hidden pt-14 xl:inline-block z-10'>
-      <div  className='w-full px-3 h-16 flex items-center gap-3'>
+    <aside className='w-[300px] max-w-[300px] h-dvh max-h-dvh fixed left-0 hidden pt-14 xl:flex xl:flex-col z-10 overflow-hidden'>
+      <div  className='w-full px-3 h-16 shrink-0 flex items-center gap-3'>
         <h3 className="hidden xl:inline-block text-lg font-bold text-white site_sub_title">Hospitality Manager</h3>
       </div>
-      <header className='w-full px-3 h-16 flex items-center gap-3'>
+      <header className='w-full px-3 h-16 shrink-0 flex items-center gap-3'>
         <Show when="signed-in">
           <div className='w-full h-fit flex items-start justify-between gap-3'>
             <img  
@@ -95,7 +95,7 @@ export default function Sidebar() {
           </div>
         </Show>
       </header>
-      <div className='w-full h-full pt-16 text-white !px-0 glass'>
+      <div className='w-full flex-1 min-h-0 overflow-y-auto overscroll-contain pt-4 text-white !px-0 glass'>
 
         {filteredNavLinks.map(({ id, href, label, icon, subLink }, index) => (
           <div             
@@ -154,7 +154,7 @@ export default function Sidebar() {
           </div>
         ))}
 
-        <div className='w-full h-fit py-2 px-3 mt-24 '>
+        <div className='w-full h-fit py-2 px-3 mt-8 pb-6'>
           <SignOutButton redirectUrl="/">
             <button className='flex'>
               <i className='icon mr-2'><MdLogout /></i>

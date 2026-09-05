@@ -12,7 +12,7 @@ Based on PRD, ERD, and current setup, here's the recommended tech stack.
 | **Real-time** | Convex (already in package.json) | Reactive dashboards, live P&L updates, < 2min latency requirement |
 | **Authentication** | Clerk (already integrated) | RBAC built-in, SSO-ready, audit logs included |
 | **File Storage** | AWS S3 / Cloudinary | Document management (invoices, receipts, delivery notes per PRD scope) |
-| **Job Queue** | Bull / Redis or Temporal | Payroll runs, scheduled reconciliation, compliance report generation |
+| **Job Queue** | Bull / Redis or Temporal | Payroll, scheduled reconciliation, compliance report generation |
 | **Search** | Elasticsearch or Typesense | Guest/transaction search, audit log queries |
 
 ## Frontend Stack

@@ -940,7 +940,7 @@ export function findBestAvailableRoom(
 
 ## Payroll Calculations
 
-Overtime and premiums come from `PremiumRule`s (holiday, night, weekend, daily/weekly OT), with `PropertyPayrollSettings.overtimeMultiplier` as fallback daily OT. Unpaid approved `LeaveEntry` days prorate salary. Compensation rates come from `EmployeeCompensation` effective on the work date. See `ai/payroll-implementation.md`.
+Overtime and extra pay come from extra pay rules (holiday, night, weekend, daily/weekly OT), with Payroll settings `overtimeMultiplier` as fallback daily OT. Unpaid approved Time off days prorate salary. Compensation rates come from Pay history effective on the work date. See `ai/payroll-implementation.md`.
 
 ### Calculate Overtime Hours
 
@@ -948,7 +948,7 @@ Overtime and premiums come from `PremiumRule`s (holiday, night, weekend, daily/w
 /**
  * Calculates regular and overtime hours from property settings.
  * @param totalHours - Total hours worked (after breaks)
- * @param regularHoursLimit - From PropertyPayrollSettings (daily or weekly). Required — no default jurisdiction.
+ * @param regularHoursLimit - From Payroll settings (daily or weekly). Required — no default jurisdiction.
  */
 export function calculateOvertimeHours(
   totalHours: number,
@@ -964,7 +964,7 @@ export function calculateOvertimeHours(
 
 ```typescript
 /**
- * Hourly / overtime pay. overtimeMultiplier comes from PropertyPayrollSettings.
+ * Hourly / overtime pay. overtimeMultiplier comes from Payroll settings.
  */
 export function calculatePayAmount(
   hourlyRate: number,
@@ -990,7 +990,7 @@ export function calculatePayAmount(
 /**
  * Converts an annualized or frequency-based salary into pay for one run period.
  * MVP: if employee.payFrequency matches the run, return baseSalary as-is.
- * Mixed/hourly extras are added separately from timesheets.
+ * Mixed/hourly extras are added separately from Hours.
  */
 export function prorateSalaryForPeriod(
   baseSalary: number,
@@ -1093,7 +1093,7 @@ export function calculateNetPay(
 
 ### Calculate Gratuity/Tip Allocation (deferred)
 
-Tip pooling is out of scope. Keep this helper for a later phase; MVP uses a manual `gratuityAmount` on `PayrollRunLine` only.
+Tip pooling is out of scope. Keep this helper for a later phase; MVP uses a manual `gratuityAmount` on Staff pay only.
 
 ```typescript
 /**
