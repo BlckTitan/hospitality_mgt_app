@@ -13,6 +13,7 @@ interface Property {
   contactNumber: string;
   email: string;
   timezone: string;
+  country: string; // ISO 3166-1 alpha-2; selects payroll jurisdiction pack
   currency: string;
   taxId: string;
   isActive: boolean;
@@ -395,29 +396,208 @@ interface PurchaseOrderLine {
 
 ## Payroll Management Interfaces
 
+See `ai/payroll-implementation.md` for lifecycle and uniqueness rules.
+People table is Convex `staffs`. `employeeId` in these interfaces is `Id<"staffs">`.
+
 ### Employee
 ```typescript
+type PayType = 'hourly' | 'salary' | 'mixed';
+type PayFrequency = 'weekly' | 'bi-weekly' | 'monthly';
+type Department =
+  | 'front-office'
+  | 'housekeeping'
+  | 'fnb'
+  | 'maintenance'
+  | 'finance'
+  | 'admin'
+  | 'other';
+
 interface Employee {
   employeeId: string;
   propertyId: string;
-  userId?: string;
-  employeeNumber: string;
+  userId?: string; // optional; casuals/contractors need no login
+  employeeNumber: string; // unique per property
   firstName: string;
   lastName: string;
-  email: string;
+  email?: string;
   phone?: string;
   dateOfBirth?: Date;
   address?: string;
+  stateOfOrigin?: string;
+  LGA?: string;
   hireDate: Date;
   terminationDate?: Date;
   employmentStatus: 'active' | 'terminated' | 'on-leave';
-  department: string;
+  department: Department;
   position: string;
+  payType: PayType; // denormalized from current EmployeeCompensation
   baseSalary?: number;
   hourlyRate?: number;
-  payFrequency: 'weekly' | 'bi-weekly' | 'monthly';
-  taxId?: string;
-  bankAccount?: string; // encrypted
+  payScheduleId?: string;
+  paymentMethod: 'bank' | 'cash' | 'mobile_money' | 'check';
+  taxId?: string; // required when the property country pack has statutory deductions
+  bankName?: string;
+  accountName?: string;
+  accountNumber?: string; // encrypted
+  routingCode?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+```
+
+### PropertyPayrollSettings
+```typescript
+interface PropertyPayrollSettings {
+  propertyPayrollSettingsId: string;
+  propertyId: string;
+  country: string;
+  jurisdictionPack: string; // e.g. NG, US, generic
+  regularHoursLimitDaily?: number;
+  regularHoursLimitWeekly?: number;
+  overtimeMultiplier: number; // fallback daily OT if no PremiumRule
+  defaultPayScheduleId?: string;
+  bankExportFormat: 'generic_csv';
+  createdAt: Date;
+  updatedAt: Date;
+}
+```
+
+### PayComponent
+```typescript
+interface PayComponent {
+  payComponentId: string;
+  propertyId: string;
+  code: string;
+  name: string;
+  kind: 'earning' | 'allowance' | 'deduction';
+  source: 'statutory' | 'custom';
+  calculation: 'flat' | 'percent_of_gross' | 'pack_formula';
+  formulaKey?: string;
+  params?: Record<string, unknown>;
+  defaultAmount?: number;
+  defaultRate?: number;
+  glAccountId?: string;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+```
+
+### EmployeePayComponent
+```typescript
+interface EmployeePayComponent {
+  employeePayComponentId: string;
+  employeeId: string;
+  payComponentId: string;
+  amount?: number;
+  rate?: number;
+  isEnabled: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+```
+
+### EmployeeCompensation
+```typescript
+interface EmployeeCompensation {
+  employeeCompensationId: string;
+  employeeId: string;
+  payType: PayType;
+  baseSalary?: number;
+  hourlyRate?: number;
+  payScheduleId?: string;
+  effectiveFrom: Date;
+  effectiveTo?: Date;
+  changedBy: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+```
+
+### PaySchedule
+```typescript
+interface PaySchedule {
+  payScheduleId: string;
+  propertyId: string;
+  name: string;
+  frequency: PayFrequency;
+  anchorDate: Date;
+  cutoffDaysBeforePayDate: number;
+  isDefault: boolean;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+```
+
+### LeaveType
+```typescript
+interface LeaveType {
+  leaveTypeId: string;
+  propertyId: string;
+  code: string;
+  name: string;
+  paid: boolean;
+  countsTowardOvertime: boolean;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+```
+
+### LeaveEntry
+```typescript
+interface LeaveEntry {
+  leaveEntryId: string;
+  propertyId: string;
+  employeeId: string;
+  leaveTypeId: string;
+  startDate: Date;
+  endDate: Date;
+  days: number;
+  status: 'pending' | 'approved' | 'rejected';
+  approvedBy?: string;
+  approvedAt?: Date;
+  notes?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+```
+
+### HolidayCalendar
+```typescript
+interface HolidayCalendar {
+  holidayCalendarId: string;
+  propertyId: string;
+  name: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+```
+
+### Holiday
+```typescript
+interface Holiday {
+  holidayId: string;
+  holidayCalendarId: string;
+  date: Date;
+  name: string;
+  isPaid: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+```
+
+### PremiumRule
+```typescript
+interface PremiumRule {
+  premiumRuleId: string;
+  propertyId: string;
+  kind: 'daily_overtime' | 'weekly_overtime' | 'night' | 'weekend' | 'public_holiday';
+  multiplier: number;
+  startTime?: string;
+  endTime?: string;
+  isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -435,8 +615,13 @@ interface Timesheet {
   regularHours: number;
   overtimeHours: number;
   breakDuration?: number; // minutes
+  source: 'manual' | 'csv' | 'shift';
+  shiftId?: string;
+  payrollRunLineId?: string;
+  lockedAt?: Date;
+  lockedByRunId?: string;
   status: 'draft' | 'submitted' | 'approved' | 'rejected';
-  approvedBy?: string;
+  approvedBy?: string; // User id
   approvedAt?: Date;
   notes?: string;
   createdAt: Date;
@@ -449,17 +634,22 @@ interface Timesheet {
 interface PayrollRun {
   payrollRunId: string;
   propertyId: string;
+  payScheduleId: string;
+  runType: 'regular';
   payPeriodStart: Date;
   payPeriodEnd: Date;
   payDate: Date;
+  payFrequency: PayFrequency;
   status: 'draft' | 'calculated' | 'approved' | 'processed' | 'paid';
   totalGrossPay: number;
   totalDeductions: number;
   totalNetPay: number;
-  createdBy: string;
-  approvedBy?: string;
+  createdBy: string; // User id
+  calculatedBy?: string; // User id; must not equal approvedBy
+  approvedBy?: string; // User id; must not equal createdBy or calculatedBy
   approvedAt?: Date;
   processedAt?: Date;
+  paidAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -471,17 +661,65 @@ interface PayrollRunLine {
   payrollRunLineId: string;
   payrollRunId: string;
   employeeId: string;
+  compensationIdUsed?: string;
+  payTypeUsed: PayType;
+  hourlyRateUsed?: number;
+  baseSalaryUsed?: number;
+  overtimeMultiplierUsed?: number;
   regularHours: number;
   overtimeHours: number;
   regularPay: number;
   overtimePay: number;
+  gratuityAmount?: number; // manual only
   grossPay: number;
-  deductions: Record<string, number>;
   totalDeductions: number;
   netPay: number;
-  gratuityAmount?: number;
   createdAt: Date;
   updatedAt: Date;
+}
+```
+
+### PayrollLineItem
+```typescript
+interface PayrollLineItem {
+  payrollLineItemId: string;
+  payrollRunLineId: string;
+  payComponentId?: string;
+  kind: 'earning' | 'allowance' | 'overtime' | 'gratuity' | 'deduction';
+  code: string;
+  label: string;
+  amount: number;
+  glAccountId?: string;
+  createdAt: Date;
+}
+```
+
+### Payslip
+```typescript
+interface Payslip {
+  payslipId: string;
+  payrollRunLineId: string;
+  propertyId: string;
+  employeeId: string;
+  snapshot: Record<string, unknown>;
+  documentId?: string;
+  generatedAt: Date;
+  createdAt: Date;
+}
+```
+
+### PayrollExport
+```typescript
+interface PayrollExport {
+  payrollExportId: string;
+  payrollRunId: string;
+  format: 'generic_csv' | 'bank_file' | 'cash_sheet';
+  status: 'pending' | 'generated' | 'downloaded' | 'failed';
+  documentId?: string;
+  fileUrl?: string;
+  generatedBy: string; // User id
+  generatedAt?: Date;
+  createdAt: Date;
 }
 ```
 
@@ -978,7 +1216,10 @@ type DocumentReferenceable =
   | 'UtilityBill'
   | 'PurchaseOrder'
   | 'Payment'
-  | 'MaintenanceOrder';
+  | 'MaintenanceOrder'
+  | 'PayrollRun'
+  | 'Payslip'
+  | 'PayrollExport';
 
 // Journal entry reference types
 type JournalEntryReference =
@@ -1086,7 +1327,7 @@ interface SearchQuery {
 2. Sensitive fields (bankAccount, configuration in Integration, password) should be encrypted at rest.
 3. Foreign key fields use string IDs and should reference the actual entity by its primary key.
 4. Optional fields are marked with `?` in the interface definitions.
-5. Complex objects (permissions, configuration, ocrData, deductions) use `Record<string, any>` for flexibility.
+5. Complex objects (permissions, configuration, ocrData, payslip snapshot) use `Record<string, any>` for flexibility. Payroll deductions are `PayrollLineItem` rows, not a JSON blob.
 6. Enums provide type safety for status and category fields.
 7. Union types enable polymorphic relationships for flexible referencing.
 8. Document linking supports multiple entity types through referenceType/referenceId pattern.

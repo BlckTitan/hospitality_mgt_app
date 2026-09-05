@@ -42,14 +42,15 @@ This document defines a comprehensive Role-Based Access Control (RBAC) model for
 1. Users & Roles
 2. Properties
 3. Staff Management
-4. Reservations & Rooms
-5. Food & Beverage (F&B)
-6. Inventory Management
-7. Financial Management
-8. Reports & Analytics
-9. System Settings
-10. Maintenance & Facilities
-11. Security & Access Logs
+4. Payroll
+5. Reservations & Rooms
+6. Food & Beverage (F&B)
+7. Inventory Management
+8. Financial Management
+9. Reports & Analytics
+10. System Settings
+11. Maintenance & Facilities
+12. Security & Access Logs
 
 ---
 
@@ -100,6 +101,32 @@ Legend:
 - finance.charge
 - finance.refund
 - finance.reports
+
+### Payroll
+- payroll.employee.read
+- payroll.employee.create
+- payroll.employee.update
+- payroll.timesheet.read
+- payroll.timesheet.create
+- payroll.timesheet.update
+- payroll.timesheet.approve
+- payroll.leave.read
+- payroll.leave.create
+- payroll.leave.approve
+- payroll.run.read
+- payroll.run.create
+- payroll.run.calculate
+- payroll.run.approve
+- payroll.run.export
+- payroll.run.mark_paid
+- payroll.payslip.read
+- payroll.settings.update
+
+**Role mapping (see `ai/payroll-implementation.md`):**
+- HR Manager, Finance Manager, Administrator, Director, General Manager: full payroll. Approve mutation still requires a **different user** than creator/calculator (maker ≠ checker).
+- Supervisor / Assistant Manager: `payroll.timesheet.read` + `approve` and `payroll.leave.read` + `approve` for their team
+- Employees with a User login: own timesheet/leave create and own `payroll.payslip.read`
+- Other operational staff: none on runs or other employees' pay
 
 ### Food & Beverage
 - fnb.order.create

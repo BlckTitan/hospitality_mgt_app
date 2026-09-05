@@ -59,6 +59,7 @@ export default defineSchema({
     .index("by_expiresAt", ["expiresAt"])
     .index("by_propertyId", ["propertyId"]),
 
+  // People / payroll master. Do not add an `employees` table — FKs stay Id<"staffs">.
   staffs: defineTable({
     firstName: v.string(),
     lastName: v.string(),
@@ -68,16 +69,44 @@ export default defineSchema({
     LGA: v.string(),
     address: v.string(),
     salary: v.number(),
-    employmentStatus: v.union(v.literal("employed"), v.literal("terminated")),
+    employmentStatus: v.union(
+      v.literal("employed"),
+      v.literal("active"),
+      v.literal("terminated"),
+      v.literal("on-leave")
+    ),
     dateRecruited: v.string(),
     dateTerminated: v.optional(v.string()),
     role: v.string(),
     email: v.optional(v.string()),
+    propertyId: v.optional(v.id("properties")),
+    userId: v.optional(v.id("users")),
+    employeeNumber: v.optional(v.string()),
+    department: v.optional(v.string()),
+    position: v.optional(v.string()),
+    payType: v.optional(v.union(v.literal("hourly"), v.literal("salary"), v.literal("mixed"))),
+    baseSalary: v.optional(v.number()),
+    hourlyRate: v.optional(v.number()),
+    paymentMethod: v.optional(
+      v.union(
+        v.literal("bank"),
+        v.literal("cash"),
+        v.literal("mobile_money"),
+        v.literal("check")
+      )
+    ),
+    taxId: v.optional(v.string()),
+    bankName: v.optional(v.string()),
+    accountName: v.optional(v.string()),
+    accountNumber: v.optional(v.string()),
+    routingCode: v.optional(v.string()),
   })
     .index("email", ["email"])
+    .index("by_propertyId", ["propertyId"])
+    .index("by_userId", ["userId"])
     .searchIndex('search_staff', {
-      searchField: 'firstName', //field to index for search \\'lastName', \\
-      filterFields: ['employmentStatus', 'role'] //optional fields to filter
+      searchField: 'firstName',
+      filterFields: ['employmentStatus', 'role']
     }),
 
   // Properties table for multiple hospitality locations

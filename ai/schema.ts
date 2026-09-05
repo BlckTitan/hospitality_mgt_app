@@ -12,6 +12,7 @@ export default defineSchema({
     contactNumber: v.optional(v.string()),
     email: v.optional(v.string()),
     timezone: v.optional(v.string()),
+    country: v.string(), // ISO 3166-1 alpha-2; required at property setup
     currency: v.optional(v.string()),
     taxId: v.optional(v.string()),
     isActive: v.boolean(),
@@ -19,7 +20,8 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("by_name", ["name"])
-    .index("by_isActive", ["isActive"]),
+    .index("by_isActive", ["isActive"])
+    .index("by_country", ["country"]),
 
   users: defineTable({
     externalId: v.string(),
@@ -161,7 +163,7 @@ export default defineSchema({
   housekeepingTasks: defineTable({
     propertyId: v.id("properties"),
     roomId: v.id("rooms"),
-    assignedTo: v.optional(v.id("employees")),
+    assignedTo: v.optional(v.id("staffs")),
     taskType: v.string(), // cleaning, inspection, maintenance
     status: v.string(), // pending, in-progress, completed
     priority: v.string(), // low, medium, high, urgent
@@ -253,7 +255,7 @@ export default defineSchema({
     taxAmount: v.number(),
     discountAmount: v.optional(v.number()),
     totalAmount: v.number(),
-    serverId: v.optional(v.id("employees")),
+    serverId: v.optional(v.id("staffs")),
     completedAt: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -318,7 +320,7 @@ export default defineSchema({
     referenceType: v.optional(v.string()),
     referenceId: v.optional(v.string()),
     reason: v.optional(v.string()),
-    performedBy: v.optional(v.id("employees")),
+    performedBy: v.optional(v.id("staffs")),
     transactionDate: v.number(),
     createdAt: v.number(),
   })
@@ -357,8 +359,8 @@ export default defineSchema({
     taxAmount: v.number(),
     shippingAmount: v.optional(v.number()),
     totalAmount: v.number(),
-    createdBy: v.id("employees"),
-    approvedBy: v.optional(v.id("employees")),
+    createdBy: v.id("staffs"),
+    approvedBy: v.optional(v.id("staffs")),
     approvedAt: v.optional(v.number()),
     receivedAt: v.optional(v.number()),
     createdAt: v.number(),
@@ -385,42 +387,228 @@ export default defineSchema({
 
   // ============================================
   // Payroll Management
+  // See ai/payroll-implementation.md. People table is `staffs` only (no `employees` table).
+  // Convex indexes are not unique — enforce uniqueness in mutations.
+  // Payroll FKs named employeeId are Id<"staffs">.
   // ============================================
 
-  employees: defineTable({
+  propertyPayrollSettings: defineTable({
     propertyId: v.id("properties"),
-    userId: v.optional(v.id("users")),
-    employeeNumber: v.string(),
-    firstName: v.string(),
-    lastName: v.string(),
-    email: v.optional(v.string()),
-    phone: v.optional(v.string()),
-    dateOfBirth: v.optional(v.number()),
-    address: v.optional(v.string()),
-    hireDate: v.number(),
-    terminationDate: v.optional(v.number()),
-    employmentStatus: v.string(), // active, terminated, on-leave
-    department: v.optional(v.string()),
-    position: v.optional(v.string()),
-    baseSalary: v.optional(v.number()),
-    hourlyRate: v.optional(v.number()),
-    payFrequency: v.optional(v.string()),
-    taxId: v.optional(v.string()),
-    bankAccount: v.optional(v.string()),
+    country: v.string(),
+    jurisdictionPack: v.string(),
+    regularHoursLimitDaily: v.optional(v.number()),
+    regularHoursLimitWeekly: v.optional(v.number()),
+    overtimeMultiplier: v.number(),
+    defaultPayScheduleId: v.optional(v.string()),
+    bankExportFormat: v.literal("generic_csv"),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_propertyId", ["propertyId"])
+    .index("by_jurisdictionPack", ["jurisdictionPack"]),
+
+  staffs: defineTable({
+    propertyId: v.optional(v.id("properties")),
+    userId: v.optional(v.id("users")),
+    employeeNumber: v.optional(v.string()),
+    firstName: v.string(),
+    lastName: v.string(),
+    email: v.optional(v.string()),
+    phone: v.string(),
+    dateOfBirth: v.optional(v.number()),
+    DoB: v.optional(v.string()), // legacy; prefer dateOfBirth
+    address: v.string(),
+    stateOfOrigin: v.optional(v.string()),
+    LGA: v.optional(v.string()),
+    hireDate: v.optional(v.number()),
+    dateRecruited: v.optional(v.string()), // legacy; prefer hireDate
+    terminationDate: v.optional(v.number()),
+    dateTerminated: v.optional(v.string()),
+    // Keep `employed` until rows are backfilled to `active`
+    employmentStatus: v.union(
+      v.literal("employed"),
+      v.literal("active"),
+      v.literal("terminated"),
+      v.literal("on-leave")
+    ),
+    role: v.optional(v.string()), // legacy free-text; prefer department + position
+    department: v.optional(
+      v.union(
+        v.literal("front-office"),
+        v.literal("housekeeping"),
+        v.literal("fnb"),
+        v.literal("maintenance"),
+        v.literal("finance"),
+        v.literal("admin"),
+        v.literal("other")
+      )
+    ),
+    position: v.optional(v.string()),
+    salary: v.optional(v.number()), // legacy; prefer baseSalary + staff compensation
+    payType: v.optional(v.union(v.literal("hourly"), v.literal("salary"), v.literal("mixed"))),
+    baseSalary: v.optional(v.number()),
+    hourlyRate: v.optional(v.number()),
+    payScheduleId: v.optional(v.string()),
+    paymentMethod: v.optional(
+      v.union(
+        v.literal("bank"),
+        v.literal("cash"),
+        v.literal("mobile_money"),
+        v.literal("check")
+      )
+    ),
+    taxId: v.optional(v.string()),
+    bankName: v.optional(v.string()),
+    accountName: v.optional(v.string()),
+    accountNumber: v.optional(v.string()), // encrypted
+    routingCode: v.optional(v.string()),
+    createdAt: v.optional(v.number()),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("email", ["email"])
+    .index("by_propertyId", ["propertyId"])
     .index("by_userId", ["userId"])
-    .index("by_employeeNumber", ["employeeNumber"])
+    .index("by_propertyId_employeeNumber", ["propertyId", "employeeNumber"])
     .index("by_propertyId_employmentStatus", ["propertyId", "employmentStatus"])
-    .searchIndex("search_employees", {
+    .searchIndex("search_staff", {
       searchField: "firstName",
-      filterFields: ["propertyId", "employmentStatus", "department"],
+      filterFields: ["employmentStatus", "role", "department"],
     }),
 
+  payComponents: defineTable({
+    propertyId: v.id("properties"),
+    code: v.string(),
+    name: v.string(),
+    kind: v.union(v.literal("earning"), v.literal("allowance"), v.literal("deduction")),
+    source: v.union(v.literal("statutory"), v.literal("custom")),
+    calculation: v.union(v.literal("flat"), v.literal("percent_of_gross"), v.literal("pack_formula")),
+    formulaKey: v.optional(v.string()),
+    params: v.optional(v.any()),
+    defaultAmount: v.optional(v.number()),
+    defaultRate: v.optional(v.number()),
+    glAccountId: v.optional(v.id("chartOfAccounts")),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_propertyId_code", ["propertyId", "code"])
+    .index("by_propertyId_isActive", ["propertyId", "isActive"]),
+
+  employeePayComponents: defineTable({
+    employeeId: v.id("staffs"),
+    payComponentId: v.id("payComponents"),
+    amount: v.optional(v.number()),
+    rate: v.optional(v.number()),
+    isEnabled: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_employeeId", ["employeeId"])
+    .index("by_payComponentId", ["payComponentId"])
+    .index("by_employeeId_payComponentId", ["employeeId", "payComponentId"]),
+
+  paySchedules: defineTable({
+    propertyId: v.id("properties"),
+    name: v.string(),
+    frequency: v.union(v.literal("weekly"), v.literal("bi-weekly"), v.literal("monthly")),
+    anchorDate: v.number(),
+    cutoffDaysBeforePayDate: v.number(),
+    isDefault: v.boolean(),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_propertyId_isDefault", ["propertyId", "isDefault"]),
+
+  employeeCompensations: defineTable({
+    employeeId: v.id("staffs"),
+    payType: v.union(v.literal("hourly"), v.literal("salary"), v.literal("mixed")),
+    baseSalary: v.optional(v.number()),
+    hourlyRate: v.optional(v.number()),
+    payScheduleId: v.optional(v.id("paySchedules")),
+    effectiveFrom: v.number(),
+    effectiveTo: v.optional(v.number()),
+    changedBy: v.id("users"),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_employeeId", ["employeeId"])
+    .index("by_employeeId_effectiveFrom", ["employeeId", "effectiveFrom"]),
+
+  leaveTypes: defineTable({
+    propertyId: v.id("properties"),
+    code: v.string(),
+    name: v.string(),
+    paid: v.boolean(),
+    countsTowardOvertime: v.boolean(),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_propertyId_code", ["propertyId", "code"]),
+
+  leaveEntries: defineTable({
+    propertyId: v.id("properties"),
+    employeeId: v.id("staffs"),
+    leaveTypeId: v.id("leaveTypes"),
+    startDate: v.number(),
+    endDate: v.number(),
+    days: v.number(),
+    status: v.union(v.literal("pending"), v.literal("approved"), v.literal("rejected")),
+    approvedBy: v.optional(v.id("users")),
+    approvedAt: v.optional(v.number()),
+    notes: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_employeeId", ["employeeId"])
+    .index("by_employeeId_startDate", ["employeeId", "startDate"])
+    .index("by_propertyId_status", ["propertyId", "status"]),
+
+  holidayCalendars: defineTable({
+    propertyId: v.id("properties"),
+    name: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"]),
+
+  holidays: defineTable({
+    holidayCalendarId: v.id("holidayCalendars"),
+    date: v.number(),
+    name: v.string(),
+    isPaid: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_holidayCalendarId", ["holidayCalendarId"])
+    .index("by_holidayCalendarId_date", ["holidayCalendarId", "date"]),
+
+  premiumRules: defineTable({
+    propertyId: v.id("properties"),
+    kind: v.union(
+      v.literal("daily_overtime"),
+      v.literal("weekly_overtime"),
+      v.literal("night"),
+      v.literal("weekend"),
+      v.literal("public_holiday")
+    ),
+    multiplier: v.number(),
+    startTime: v.optional(v.string()),
+    endTime: v.optional(v.string()),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_propertyId_kind", ["propertyId", "kind"]),
+
   timesheets: defineTable({
-    employeeId: v.id("employees"),
+    employeeId: v.id("staffs"),
     propertyId: v.id("properties"),
     workDate: v.number(),
     clockInTime: v.optional(v.number()),
@@ -428,8 +616,13 @@ export default defineSchema({
     regularHours: v.optional(v.number()),
     overtimeHours: v.optional(v.number()),
     breakDuration: v.optional(v.number()),
-    status: v.string(), // draft, submitted, approved, rejected
-    approvedBy: v.optional(v.id("employees")),
+    source: v.union(v.literal("manual"), v.literal("csv"), v.literal("shift")),
+    shiftId: v.optional(v.string()), // bar shifts table id when source = shift
+    payrollRunLineId: v.optional(v.id("payrollRunLines")),
+    lockedAt: v.optional(v.number()),
+    lockedByRunId: v.optional(v.id("payrollRuns")),
+    status: v.union(v.literal("draft"), v.literal("submitted"), v.literal("approved"), v.literal("rejected")),
+    approvedBy: v.optional(v.id("users")),
     approvedAt: v.optional(v.number()),
     notes: v.optional(v.string()),
     createdAt: v.number(),
@@ -439,45 +632,114 @@ export default defineSchema({
     .index("by_propertyId", ["propertyId"])
     .index("by_employeeId_workDate", ["employeeId", "workDate"])
     .index("by_propertyId_workDate", ["propertyId", "workDate"])
-    .index("by_propertyId_status", ["propertyId", "status"]),
+    .index("by_propertyId_status", ["propertyId", "status"])
+    .index("by_shiftId", ["shiftId"])
+    .index("by_payrollRunLineId", ["payrollRunLineId"])
+    .index("by_lockedByRunId", ["lockedByRunId"]),
 
   payrollRuns: defineTable({
     propertyId: v.id("properties"),
+    payScheduleId: v.id("paySchedules"),
+    runType: v.literal("regular"),
     payPeriodStart: v.number(),
     payPeriodEnd: v.number(),
     payDate: v.number(),
-    status: v.string(), // draft, calculated, approved, processed
+    payFrequency: v.union(v.literal("weekly"), v.literal("bi-weekly"), v.literal("monthly")),
+    status: v.union(
+      v.literal("draft"),
+      v.literal("calculated"),
+      v.literal("approved"),
+      v.literal("processed"),
+      v.literal("paid")
+    ),
     totalGrossPay: v.number(),
     totalDeductions: v.number(),
     totalNetPay: v.number(),
-    createdBy: v.id("employees"),
-    approvedBy: v.optional(v.id("employees")),
+    createdBy: v.id("users"),
+    calculatedBy: v.optional(v.id("users")),
+    approvedBy: v.optional(v.id("users")),
     approvedAt: v.optional(v.number()),
     processedAt: v.optional(v.number()),
+    paidAt: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_propertyId", ["propertyId"])
     .index("by_propertyId_status", ["propertyId", "status"])
-    .index("by_propertyId_payPeriodStart", ["propertyId", "payPeriodStart"]),
+    .index("by_propertyId_payPeriodStart", ["propertyId", "payPeriodStart"])
+    .index("by_payScheduleId", ["payScheduleId"]),
 
   payrollRunLines: defineTable({
     payrollRunId: v.id("payrollRuns"),
-    employeeId: v.id("employees"),
+    employeeId: v.id("staffs"),
+    compensationIdUsed: v.optional(v.id("employeeCompensations")),
+    payTypeUsed: v.union(v.literal("hourly"), v.literal("salary"), v.literal("mixed")),
+    hourlyRateUsed: v.optional(v.number()),
+    baseSalaryUsed: v.optional(v.number()),
+    overtimeMultiplierUsed: v.optional(v.number()),
     regularHours: v.number(),
     overtimeHours: v.optional(v.number()),
     regularPay: v.number(),
     overtimePay: v.optional(v.number()),
+    gratuityAmount: v.optional(v.number()),
     grossPay: v.number(),
-    deductions: v.optional(v.any()), // JSON object
     totalDeductions: v.number(),
     netPay: v.number(),
-    gratuityAmount: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_payrollRunId", ["payrollRunId"])
-    .index("by_employeeId", ["employeeId"]),
+    .index("by_employeeId", ["employeeId"])
+    .index("by_payrollRunId_employeeId", ["payrollRunId", "employeeId"]),
+
+  payrollLineItems: defineTable({
+    payrollRunLineId: v.id("payrollRunLines"),
+    payComponentId: v.optional(v.id("payComponents")),
+    kind: v.union(
+      v.literal("earning"),
+      v.literal("allowance"),
+      v.literal("overtime"),
+      v.literal("gratuity"),
+      v.literal("deduction")
+    ),
+    code: v.string(),
+    label: v.string(),
+    amount: v.number(),
+    glAccountId: v.optional(v.id("chartOfAccounts")),
+    createdAt: v.number(),
+  })
+    .index("by_payrollRunLineId", ["payrollRunLineId"])
+    .index("by_payComponentId", ["payComponentId"]),
+
+  payslips: defineTable({
+    payrollRunLineId: v.id("payrollRunLines"),
+    propertyId: v.id("properties"),
+    employeeId: v.id("staffs"),
+    snapshot: v.any(),
+    documentId: v.optional(v.string()),
+    generatedAt: v.number(),
+    createdAt: v.number(),
+  })
+    .index("by_payrollRunLineId", ["payrollRunLineId"])
+    .index("by_employeeId", ["employeeId"])
+    .index("by_propertyId", ["propertyId"]),
+
+  payrollExports: defineTable({
+    payrollRunId: v.id("payrollRuns"),
+    format: v.union(v.literal("generic_csv"), v.literal("bank_file"), v.literal("cash_sheet")),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("generated"),
+      v.literal("downloaded"),
+      v.literal("failed")
+    ),
+    documentId: v.optional(v.string()),
+    fileUrl: v.optional(v.string()),
+    generatedBy: v.id("users"),
+    generatedAt: v.optional(v.number()),
+    createdAt: v.number(),
+  })
+    .index("by_payrollRunId", ["payrollRunId"]),
 
   // ============================================
   // Maintenance Management
@@ -518,8 +780,8 @@ export default defineSchema({
     propertyId: v.id("properties"),
     assetId: v.optional(v.id("assets")),
     roomId: v.optional(v.id("rooms")),
-    requestedBy: v.id("employees"),
-    assignedTo: v.optional(v.id("employees")),
+    requestedBy: v.id("staffs"),
+    assignedTo: v.optional(v.id("staffs")),
     orderType: v.string(), // preventive, corrective, emergency
     priority: v.string(), // low, medium, high, urgent
     title: v.string(),
@@ -575,7 +837,7 @@ export default defineSchema({
     totalCredit: v.number(),
     status: v.string(), // draft, posted, reversed
     postedAt: v.optional(v.number()),
-    postedBy: v.optional(v.id("employees")),
+    postedBy: v.optional(v.id("staffs")),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -606,8 +868,8 @@ export default defineSchema({
     vendor: v.optional(v.string()),
     invoiceNumber: v.optional(v.string()),
     status: v.string(), // draft, submitted, approved, rejected, paid
-    submittedBy: v.id("employees"),
-    approvedBy: v.optional(v.id("employees")),
+    submittedBy: v.id("staffs"),
+    approvedBy: v.optional(v.id("staffs")),
     approvedAt: v.optional(v.number()),
     glAccountId: v.optional(v.id("chartOfAccounts")),
     createdAt: v.number(),
@@ -653,7 +915,7 @@ export default defineSchema({
     paymentDate: v.number(),
     transactionId: v.optional(v.string()),
     status: v.string(), // pending, completed, failed, refunded
-    processedBy: v.optional(v.id("employees")),
+    processedBy: v.optional(v.id("staffs")),
     notes: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -674,15 +936,15 @@ export default defineSchema({
     fileUrl: v.string(),
     fileSize: v.optional(v.number()),
     mimeType: v.optional(v.string()),
-    uploadedBy: v.id("employees"),
+    uploadedBy: v.id("staffs"),
     uploadedAt: v.number(),
     description: v.optional(v.string()),
-    referenceType: v.optional(v.string()),
+    referenceType: v.optional(v.string()), // Expense, UtilityBill, PurchaseOrder, Payment, MaintenanceOrder, PayrollRun, Payslip, PayrollExport
     referenceId: v.optional(v.string()),
     documentDate: v.optional(v.number()),
     amount: v.optional(v.number()),
     isVerified: v.boolean(),
-    verifiedBy: v.optional(v.id("employees")),
+    verifiedBy: v.optional(v.id("staffs")),
     verifiedAt: v.optional(v.number()),
     ocrData: v.optional(v.any()), // JSON object
     createdAt: v.number(),
@@ -702,7 +964,7 @@ export default defineSchema({
     name: v.string(),
     reportType: v.string(),
     configuration: v.any(), // JSON object
-    createdBy: v.id("employees"),
+    createdBy: v.id("staffs"),
     isScheduled: v.boolean(),
     scheduleFrequency: v.optional(v.string()),
     lastRunAt: v.optional(v.number()),
@@ -719,7 +981,7 @@ export default defineSchema({
     snapshotDate: v.number(),
     data: v.any(), // JSON object
     generatedAt: v.number(),
-    generatedBy: v.id("employees"),
+    generatedBy: v.id("staffs"),
   })
     .index("by_reportId", ["reportId"])
     .index("by_reportId_snapshotDate", ["reportId", "snapshotDate"]),

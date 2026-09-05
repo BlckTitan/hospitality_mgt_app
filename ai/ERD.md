@@ -22,13 +22,14 @@ Represents a hospitality business location (hotel, guest house, resort, etc.).
 - `contactNumber`: Primary contact phone
 - `email`: Contact email
 - `timezone`: Timezone for the property
+- `country`: ISO 3166-1 alpha-2 country code (required at property setup; selects the payroll jurisdiction pack)
 - `currency`: Default currency code
 - `taxId`: Business tax identification number
 - `isActive`: Active status flag
 - `createdAt`: Timestamp of creation
 - `updatedAt`: Timestamp of last update
 
-**Purpose**: Central entity that all other entities are scoped to, enabling multi-property support with tenant isolation.
+**Purpose**: Central entity that all other entities are scoped to, enabling multi-property support with tenant isolation. `country` selects the payroll jurisdiction pack at setup.
 
 ---
 
@@ -452,34 +453,57 @@ Represents individual items in a purchase order.
 
 ### Payroll Management Entities
 
-#### Employee
-Represents staff members/employees.
+Implementation rules, lifecycle, GL template, and `staffs` migration: `ai/payroll-implementation.md`.
+
+#### Employee (Convex table: `staffs`)
+The people record used for payroll, housekeeping, POs, and inventory. **There is no `employees` table.** Primary key in Convex is `staffs._id`; docs still say `employeeId` for that id. Widen `staffs` in place so existing `Id<"staffs">` FKs stay valid.
 
 **Attributes:**
-- `employeeId` (PK): Unique identifier
+- `employeeId` (PK): `staffs._id`
 - `propertyId` (FK): Reference to Property
-- `userId` (FK): Reference to User (optional, for system access)
-- `employeeNumber`: Unique employee number
+- `userId` (FK): Reference to User (optional; casuals/contractors may have no login)
+- `employeeNumber`: Unique per property
 - `firstName`: First name
 - `lastName`: Last name
-- `email`: Email address
+- `email`: Email address (optional)
 - `phone`: Phone number
 - `dateOfBirth`: Date of birth
 - `address`: Physical address
+- `stateOfOrigin`: Optional locale field
+- `LGA`: Optional locale field
 - `hireDate`: Hire date
 - `terminationDate`: Termination date (optional)
 - `employmentStatus`: Status (active, terminated, on-leave)
-- `department`: Department (front-office, housekeeping, F&B, maintenance, etc.)
+- `department`: Closed set (front-office, housekeeping, fnb, maintenance, finance, admin, other)
 - `position`: Job title/position
-- `baseSalary`: Base salary amount
-- `hourlyRate`: Hourly rate (if applicable)
-- `payFrequency`: Pay frequency (weekly, bi-weekly, monthly)
-- `taxId`: Tax identification number
-- `bankAccount`: Bank account details (encrypted)
+- `payType`, `baseSalary`, `hourlyRate`: Current denormalized copy of the open `EmployeeCompensation` row
+- `payScheduleId` (FK, optional): Default `PaySchedule` (else property default)
+- `paymentMethod`: bank | cash | mobile_money | check (bank fields required only for bank)
+- `taxId`: Employee tax identifier (required when the property country pack has statutory deductions)
+- `bankName`, `accountName`, `accountNumber` (encrypted), `routingCode`: Structured payout fields
 - `createdAt`: Timestamp of creation
 - `updatedAt`: Timestamp of last update
 
-**Purpose**: Manages employee information for payroll, scheduling, and task assignment.
+**Purpose**: Manages employee information for payroll, scheduling, and task assignment. Soft-delete / terminate only — never hard-delete if timesheets or pay lines exist.
+
+---
+
+#### PropertyPayrollSettings
+Property-level overtime and export defaults.
+
+**Attributes:**
+- `propertyPayrollSettingsId` (PK)
+- `propertyId` (FK, unique)
+- `country`: Snapshot of Property.country at setup / last allowed change
+- `jurisdictionPack`: Pack id (e.g. `NG`, `US`, `generic`)
+- `regularHoursLimitDaily`: Hours before daily overtime (optional; pack default)
+- `regularHoursLimitWeekly`: Hours before weekly overtime (optional; pack default)
+- `overtimeMultiplier`: Fallback daily OT if no `PremiumRule` exists
+- `defaultPayScheduleId` (FK, optional)
+- `bankExportFormat`: generic_csv (MVP; pack may specify a local layout later)
+- `createdAt`, `updatedAt`
+
+**Purpose**: Overtime and export defaults for the property. Created when the admin sets country during property setup (also seeds schedule, holidays, premium rules). Changing country after approved/paid payroll is blocked.
 
 ---
 
@@ -490,20 +514,175 @@ Tracks employee work hours and attendance.
 - `timesheetId` (PK): Unique identifier
 - `employeeId` (FK): Reference to Employee
 - `propertyId` (FK): Reference to Property
-- `workDate`: Work date
+- `workDate`: Work date (unique with employeeId at application level)
 - `clockInTime`: Clock-in timestamp
 - `clockOutTime`: Clock-out timestamp
 - `regularHours`: Regular hours worked
 - `overtimeHours`: Overtime hours worked
 - `breakDuration`: Break duration in minutes
+- `source`: manual | csv | shift
+- `shiftId` (FK): Reference to Shift (optional; set when drafted from a finalized bar shift)
+- `payrollRunLineId` (FK): Set when this sheet is included in a calculated run
+- `lockedAt`: Set when the sheet is included in a calculated run
+- `lockedByRunId` (FK): PayrollRun that locked the sheet
 - `status`: Status (draft, submitted, approved, rejected)
-- `approvedBy` (FK): Reference to Employee (supervisor)
+- `approvedBy` (FK): Reference to User (supervisor)
 - `approvedAt`: Approval timestamp
 - `notes`: Notes
 - `createdAt`: Timestamp of creation
 - `updatedAt`: Timestamp of last update
 
-**Purpose**: Records work hours for payroll calculation and labor cost tracking.
+**Purpose**: Records work hours for payroll. Only **unlocked, approved** timesheets before schedule cutoff are included. Calculate locks included sheets (edits rejected). Recalculate unlocks then relocks. Finalizing a bar shift creates a draft timesheet; it does not overwrite submitted/approved/locked sheets.
+
+---
+
+#### EmployeeCompensation
+Dated compensation record (source of truth for rates).
+
+**Attributes:**
+- `employeeCompensationId` (PK)
+- `employeeId` (FK)
+- `payType`: hourly | salary | mixed
+- `baseSalary`, `hourlyRate` (as required by payType)
+- `payScheduleId` (FK, optional)
+- `effectiveFrom`: Start date (inclusive)
+- `effectiveTo`: End date (exclusive); null = current
+- `changedBy` (FK): User
+- `createdAt`, `updatedAt`
+
+**Purpose**: Compensation history. No overlapping open intervals per employee. Calculate reads the row(s) covering the pay period. Employee.baseSalary / hourlyRate / payType are the current denormalized copy.
+
+---
+
+#### PaySchedule
+Pay calendar for generating runs.
+
+**Attributes:**
+- `payScheduleId` (PK)
+- `propertyId` (FK)
+- `name`
+- `frequency`: weekly | bi-weekly | monthly
+- `anchorDate`: Used to generate period start/end and pay date
+- `cutoffDaysBeforePayDate`: Timesheets and leave approved after cutoff are excluded
+- `isDefault`, `isActive`
+- `createdAt`, `updatedAt`
+
+**Purpose**: First-class pay calendar. A PayrollRun is created from a schedule.
+
+---
+
+#### LeaveType
+Property-scoped leave category.
+
+**Attributes:**
+- `leaveTypeId` (PK)
+- `propertyId` (FK)
+- `code`, `name`
+- `paid`: If false, approved entries prorate salaried pay
+- `countsTowardOvertime`: Default false
+- `isActive`
+- `createdAt`, `updatedAt`
+
+**Purpose**: Distinguishes paid vs unpaid leave for calculation. Not a full PTO accrual engine.
+
+---
+
+#### LeaveEntry
+Approved time away that calculation honors.
+
+**Attributes:**
+- `leaveEntryId` (PK)
+- `propertyId` (FK)
+- `employeeId` (FK)
+- `leaveTypeId` (FK)
+- `startDate`, `endDate`
+- `days`: Working days (or hours if needed)
+- `status`: pending | approved | rejected
+- `approvedBy` (FK): User (optional)
+- `approvedAt` (optional)
+- `notes` (optional)
+- `createdAt`, `updatedAt`
+
+**Purpose**: Only approved entries affect pay. Unpaid days reduce salary; paid leave counts as regular hours unless the type allows OT.
+
+---
+
+#### HolidayCalendar
+Property holiday calendar (seeded from country pack).
+
+**Attributes:**
+- `holidayCalendarId` (PK)
+- `propertyId` (FK, unique)
+- `name`
+- `createdAt`, `updatedAt`
+
+---
+
+#### Holiday
+A public or property holiday date.
+
+**Attributes:**
+- `holidayId` (PK)
+- `holidayCalendarId` (FK)
+- `date`
+- `name`
+- `isPaid`
+- `createdAt`, `updatedAt`
+
+---
+
+#### PremiumRule
+Night, weekend, holiday, and overtime multipliers.
+
+**Attributes:**
+- `premiumRuleId` (PK)
+- `propertyId` (FK)
+- `kind`: daily_overtime | weekly_overtime | night | weekend | public_holiday
+- `multiplier`
+- `startTime`, `endTime` (optional; night window)
+- `isActive`
+- `createdAt`, `updatedAt`
+
+**Purpose**: Classifies hours before pay. `overtimeMultiplier` on settings is fallback daily OT only.
+
+---
+
+#### PayComponent
+Reusable earning, allowance, or deduction definition (data, not hardcoded tax law).
+
+**Attributes:**
+- `payComponentId` (PK)
+- `propertyId` (FK)
+- `code`: Stable code (e.g. HOUSING, PAYE, PENSION)
+- `name`: Display name
+- `kind`: earning | allowance | deduction
+- `source`: statutory (seeded from country pack) | custom
+- `calculation`: flat | percent_of_gross | pack_formula
+- `formulaKey`: Pack calculator key when calculation is pack_formula (e.g. ng_paye)
+- `params`: JSON rates/bands from the pack
+- `defaultAmount`: Used when calculation is flat
+- `defaultRate`: Used when calculation is percent_of_gross
+- `glAccountId` (FK, optional): ChartOfAccounts
+- `isActive`: Active flag
+- `createdAt`, `updatedAt`
+
+**Purpose**: Custom components plus statutory rows seeded from `Property.country`. Statutory rows are not user-deletable.
+
+---
+
+#### EmployeePayComponent
+Per-employee override or assignment of a PayComponent.
+
+**Attributes:**
+- `employeePayComponentId` (PK)
+- `employeeId` (FK)
+- `payComponentId` (FK)
+- `amount`: Override flat amount (optional)
+- `rate`: Override percent (optional)
+- `isEnabled`: If false, skip this component for the employee
+- `createdAt`, `updatedAt`
+
+**Purpose**: Assigns and overrides components without baking amounts into Employee.
 
 ---
 
@@ -513,44 +692,97 @@ Represents a payroll processing period/run.
 **Attributes:**
 - `payrollRunId` (PK): Unique identifier
 - `propertyId` (FK): Reference to Property
+- `payScheduleId` (FK): Schedule this run was created from
+- `runType`: regular (MVP)
 - `payPeriodStart`: Pay period start date
 - `payPeriodEnd`: Pay period end date
 - `payDate`: Pay date
-- `status`: Status (draft, calculated, approved, processed, paid)
+- `payFrequency`: Copied from the schedule
+- `status`: draft | calculated | approved | processed | paid
 - `totalGrossPay`: Total gross pay
 - `totalDeductions`: Total deductions
 - `totalNetPay`: Total net pay
-- `createdBy` (FK): Reference to Employee
-- `approvedBy` (FK): Reference to Employee
+- `createdBy` (FK): Reference to User
+- `calculatedBy` (FK): User who last calculated (optional until calculated)
+- `approvedBy` (FK): Reference to User
 - `approvedAt`: Approval timestamp
 - `processedAt`: Processing timestamp
+- `paidAt`: Paid timestamp
 - `createdAt`: Timestamp of creation
 - `updatedAt`: Timestamp of last update
 
-**Purpose**: Manages payroll processing cycles and generates financial journal entries.
+**Purpose**: Manages payroll cycles. Created from a PaySchedule. One open (`draft` or `calculated`) run per property per overlapping period. **Maker ≠ checker**: `approvedBy` must not equal `createdBy` or `calculatedBy`. After `approved`, amounts are immutable except via reversal.
 
 ---
 
 #### PayrollRunLine
-Represents individual employee payroll entries within a payroll run.
+Represents one employee’s calculated pay within a run.
 
 **Attributes:**
-- `payrollRunLineId` (PK): Unique identifier
-- `payrollRunId` (FK): Reference to PayrollRun
-- `employeeId` (FK): Reference to Employee
-- `regularHours`: Regular hours
-- `overtimeHours`: Overtime hours
-- `regularPay`: Regular pay amount
-- `overtimePay`: Overtime pay amount
-- `grossPay`: Gross pay amount
-- `deductions`: JSON object for deductions (tax, insurance, etc.)
-- `totalDeductions`: Total deductions amount
-- `netPay`: Net pay amount
-- `gratuityAmount`: Gratuity/tip allocation
-- `createdAt`: Timestamp of creation
-- `updatedAt`: Timestamp of last update
+- `payrollRunLineId` (PK)
+- `payrollRunId` (FK)
+- `employeeId` (FK)
+- `compensationIdUsed` (FK, optional): EmployeeCompensation snapshot
+- `payTypeUsed`, `hourlyRateUsed`, `baseSalaryUsed`, `overtimeMultiplierUsed`: Rate snapshots
+- `regularHours`, `overtimeHours`
+- `regularPay`, `overtimePay`
+- `gratuityAmount`: Manual gratuity only (pooling deferred)
+- `grossPay`, `totalDeductions`, `netPay`
+- Unique with payrollRunId + employeeId (application level)
+- `createdAt`, `updatedAt`
 
-**Purpose**: Tracks individual employee payroll calculations within each payroll run.
+**Purpose**: Frozen calculation header per employee. Breakdown lives on PayrollLineItem — do not store deductions as JSON.
+
+---
+
+#### PayrollLineItem
+Individual earning or deduction on a pay line.
+
+**Attributes:**
+- `payrollLineItemId` (PK)
+- `payrollRunLineId` (FK)
+- `payComponentId` (FK, optional)
+- `kind`: earning | allowance | overtime | gratuity | deduction
+- `code`, `label`
+- `amount`
+- `glAccountId` (FK, optional)
+- `createdAt`
+
+**Purpose**: Queryable, GL-mappable pay breakdown. Gross = non-deduction items; net = gross − deduction items.
+
+---
+
+#### Payslip
+Immutable payslip generated from a PayrollRunLine.
+
+**Attributes:**
+- `payslipId` (PK)
+- `payrollRunLineId` (FK, unique)
+- `propertyId` (FK)
+- `employeeId` (FK)
+- `snapshot`: JSON payload of amounts, items, names, period (frozen)
+- `documentId` (FK, optional): Generated PDF Document
+- `generatedAt`
+- `createdAt`
+
+**Purpose**: Employee-facing pay record. Generated when the run is approved (or processed if async).
+
+---
+
+#### PayrollExport
+Bank or CSV export of a payroll run.
+
+**Attributes:**
+- `payrollExportId` (PK)
+- `payrollRunId` (FK)
+- `format`: generic_csv | bank_file | cash_sheet (cash / mobile_money payees)
+- `status`: pending | generated | downloaded | failed
+- `documentId` (FK, optional)
+- `fileUrl` (optional)
+- `generatedBy` (FK): User
+- `generatedAt`, `createdAt`
+
+**Purpose**: Native payout file. Processor APIs (Gusto/ADP) are out of scope.
 
 ---
 
@@ -922,8 +1154,8 @@ These ratios highlight cost control and resource management efficiency.
 #### Labor Cost Percentage
 - **Calculation**: `(Total Labor Costs / Total Revenue) × 100`
 - **Data Sources**:
-  - `PayrollRun.totalGrossPay` (summed) for total labor costs
-  - `JournalEntry` with `accountId` pointing to labor expense accounts (from `ChartOfAccounts`)
+  - `PayrollRun.totalGrossPay` summed where `status IN ('approved', 'processed', 'paid')` (exclude draft/calculated)
+  - After posting, `JournalEntry` labor expense for the same period is the audit source if totals diverge
   - `JournalEntry` with revenue accounts (total revenue)
 - **Available For**: Daily, Monthly, Yearly
 - **Persona Access**: Hotel Owners/General Managers, Finance Teams, Housekeeping/Maintenance Supervisors
@@ -953,7 +1185,7 @@ These ratios highlight cost control and resource management efficiency.
 - **Data Sources**:
   - `InventoryTransaction` with F&B usage (COGS)
   - `PayrollRun.totalGrossPay` filtered by F&B department employees
-  - `Employee.department = 'F&B'` for F&B labor costs
+  - `Employee.department = 'fnb'` for F&B labor costs
 - **Available For**: Daily, Monthly, Yearly
 - **Persona Access**: Hotel Owners/General Managers, Finance Teams, F&B Managers
 
@@ -1162,7 +1394,7 @@ Represents uploaded documents (invoices, receipts, contracts, etc.) that serve a
 **Attributes:**
 - `documentId` (PK): Unique identifier
 - `propertyId` (FK): Reference to Property
-- `documentType`: Type (invoice, receipt, contract, delivery-note, payment-confirmation, utility-bill, etc.)
+- `documentType`: Type (invoice, receipt, contract, delivery-note, payment-confirmation, utility-bill, payslip, bank-export, etc.)
 - `fileName`: Original file name
 - `fileUrl`: Storage URL/path to the document file
 - `fileSize`: File size in bytes
@@ -1170,7 +1402,7 @@ Represents uploaded documents (invoices, receipts, contracts, etc.) that serve a
 - `uploadedBy` (FK): Reference to Employee
 - `uploadedAt`: Upload timestamp
 - `description`: Document description/notes
-- `referenceType`: Reference entity type (Expense, UtilityBill, PurchaseOrder, Payment, MaintenanceOrder, etc.)
+- `referenceType`: Reference entity type (Expense, UtilityBill, PurchaseOrder, Payment, MaintenanceOrder, PayrollRun, Payslip, PayrollExport, etc.)
 - `referenceId`: Reference entity ID
 - `documentDate`: Document date (from the document itself, e.g., invoice date)
 - `amount`: Amount shown on document (for invoices/receipts)
@@ -1241,8 +1473,8 @@ Tracks all system actions for compliance and security auditing.
 - **Explanation**: Implements RBAC where users can have multiple roles (e.g., a person might be both a Housekeeping Supervisor and a Maintenance Coordinator). The UserRole junction also links to Property, enabling role-per-property assignments.
 
 #### User ↔ Employee (One-to-One, Optional)
-- **Relationship**: A User can optionally be linked to an Employee record.
-- **Explanation**: Not all users are employees (e.g., external auditors, vendors). When a user is an employee, this link connects authentication (User) to operational data (Employee) for payroll, timesheets, and task assignments.
+- **Relationship**: A User can optionally be linked to a `staffs` row (the Employee entity).
+- **Explanation**: Not all users are staff (e.g., external auditors). When linked, `staffs.userId` connects login to payroll and task assignment. There is no separate `employees` table.
 
 ---
 
@@ -1398,35 +1630,80 @@ Tracks all system actions for compliance and security auditing.
 
 #### Property → Employee (One-to-Many)
 - **Relationship**: A Property has many Employees.
-- **Explanation**: All employees are scoped to a property. Enables property-level payroll management and labor cost tracking.
+- **Explanation**: All employees are scoped to a single property in this phase (no shared multi-property employment).
+
+#### User → Employee (One-to-One, Optional)
+- **Relationship**: An Employee may link to a User for login. Casuals/contractors can be paid without a User.
+
+#### Property → PropertyPayrollSettings (One-to-One)
+- **Relationship**: Each property has one overtime/export settings row, created when `country` is set at setup and seeded from that country’s jurisdiction pack.
+
+#### Property → PayComponent (One-to-Many)
+- **Relationship**: Components (earnings, allowances, deductions) are property-scoped.
+
+#### Employee → EmployeePayComponent (One-to-Many)
+- **Relationship**: Assigns or overrides PayComponents per employee.
 
 #### Employee → Timesheet (One-to-Many)
-- **Relationship**: An Employee has many Timesheets.
-- **Explanation**: Tracks work hours for each employee across multiple time periods. Timesheets are used for payroll calculation.
+- **Relationship**: An Employee has many Timesheets. Unique `(employeeId, workDate)` at application level.
 
 #### Property → Timesheet (One-to-Many)
-- **Relationship**: A Property has many Timesheets.
-- **Explanation**: All timesheets are scoped to a property for property-level labor cost tracking.
+- **Relationship**: All timesheets are scoped to a property.
 
-#### Employee → Timesheet (Many-to-One, as Approver)
-- **Relationship**: An Employee (supervisor) can approve many Timesheets.
-- **Explanation**: Tracks which supervisor approved each timesheet for workflow management.
+#### User → Timesheet (Many-to-One, as Approver)
+- **Relationship**: A User (supervisor) can approve many Timesheets.
+
+#### Shift → Timesheet (One-to-Many, Optional)
+- **Relationship**: Finalizing a bar Shift creates a draft Timesheet (`source = shift`). Does not overwrite submitted/approved sheets.
+
+#### Timesheet → PayrollRunLine (Many-to-One, Optional)
+- **Relationship**: When a run is calculated, included timesheets point at the line that paid them.
 
 #### Property → PayrollRun (One-to-Many)
-- **Relationship**: A Property has many PayrollRuns.
-- **Explanation**: Each property processes its own payroll runs. Enables property-level payroll management.
+- **Relationship**: Each property processes its own payroll runs. Only one open (`draft`/`calculated`) run per overlapping period.
+
+#### User → PayrollRun (Many-to-One, as Creator/Calculator/Approver)
+- **Relationship**: A User (finance/HR) creates, calculates, and approves runs. They need not be Employees. **Maker ≠ checker**: approver must not be the creator or last calculator.
+
+#### PaySchedule → PayrollRun (One-to-Many)
+- **Relationship**: Each run is created from a PaySchedule (period, cutoff, pay date).
+
+#### Employee → EmployeeCompensation (One-to-Many)
+- **Relationship**: Dated compensation rows. One current row (`effectiveTo` null).
+
+#### EmployeeCompensation → PayrollRunLine (One-to-Many, Optional)
+- **Relationship**: Line snapshots `compensationIdUsed`.
+
+#### Property → PaySchedule (One-to-Many)
+- **Relationship**: Property has one or more pay calendars; one may be default.
+
+#### Property → LeaveType (One-to-Many)
+#### Employee → LeaveEntry (One-to-Many)
+#### LeaveType → LeaveEntry (One-to-Many)
+- **Explanation**: Only approved leave entries affect calculation (unpaid proration; paid leave as regular hours).
+
+#### Property → HolidayCalendar (One-to-One)
+#### HolidayCalendar → Holiday (One-to-Many)
+#### Property → PremiumRule (One-to-Many)
+- **Explanation**: Country pack seeds calendar and premium rules; used to classify timesheet hours.
+
+#### Timesheet → PayrollRun (Many-to-One, as Lock)
+- **Relationship**: `lockedByRunId` points at the run that locked the sheet after calculate.
 
 #### PayrollRun → PayrollRunLine (One-to-Many)
-- **Relationship**: A PayrollRun has many PayrollRunLines.
-- **Explanation**: Each payroll run contains entries for multiple employees. PayrollRunLines calculate individual employee pay within the run.
+- **Relationship**: One line per employee in the run. Unique `(payrollRunId, employeeId)`.
 
 #### Employee → PayrollRunLine (One-to-Many)
-- **Relationship**: An Employee can have many PayrollRunLines (one per payroll run).
-- **Explanation**: Tracks payroll history for each employee across multiple pay periods.
+- **Relationship**: Payroll history across periods.
 
-#### Employee → PayrollRun (Many-to-One, as Creator/Approver)
-- **Relationship**: An Employee can create and approve many PayrollRuns.
-- **Explanation**: Tracks who created and approved each payroll run for workflow management and audit purposes.
+#### PayrollRunLine → PayrollLineItem (One-to-Many)
+- **Relationship**: Queryable earnings/deductions; replaces a deductions JSON blob.
+
+#### PayrollRunLine → Payslip (One-to-One)
+- **Relationship**: One immutable payslip per line after approve.
+
+#### PayrollRun → PayrollExport (One-to-Many)
+- **Relationship**: Bank/CSV files generated on process.
 
 ---
 
@@ -1568,6 +1845,10 @@ Tracks all system actions for compliance and security auditing.
 - **Relationship**: A Document can reference a MaintenanceOrder (via referenceType and referenceId).
 - **Explanation**: Links maintenance invoices, work completion certificates, and warranty documents to maintenance orders. **Document Requirement**: Maintenance orders with vendor services should include vendor invoices and payment receipts. Work completion certificates and warranty documents should be attached for completed maintenance work. Enables cost verification and warranty tracking for audit compliance.
 
+#### Document → PayrollRun / Payslip / PayrollExport (Many-to-One, Optional)
+- **Relationship**: A Document can reference a PayrollRun, Payslip, or PayrollExport (via referenceType and referenceId).
+- **Explanation**: Payslip PDFs, bank export files, and payment confirmations attach to the run or the generated artifact. Required when a run is marked paid.
+
 #### Employee → Document (One-to-Many, as Uploader)
 - **Relationship**: An Employee can upload many Documents.
 - **Explanation**: Tracks who uploaded each document for accountability and audit purposes. Enables document ownership and access control.
@@ -1643,18 +1924,24 @@ Tracks all system actions for compliance and security auditing.
 ### Cardinality Overview
 
 **One-to-Many Relationships:**
-- Property → Room, RoomType, Guest, Reservation, HousekeepingTask, FnbMenuItem, Table, Order, InventoryItem, Supplier, PurchaseOrder, Employee, Timesheet, PayrollRun, Asset, MaintenanceOrder, Expense, UtilityBill, Payment, ChartOfAccounts, JournalEntry, Report, Document, Integration, AuditLog
+- Property → Room, RoomType, Guest, Reservation, HousekeepingTask, FnbMenuItem, Table, Order, InventoryItem, Supplier, PurchaseOrder, Employee, Timesheet, PayComponent, PaySchedule, LeaveType, PremiumRule, PayrollRun, Asset, MaintenanceOrder, Expense, UtilityBill, Payment, ChartOfAccounts, JournalEntry, Report, Document, Integration, AuditLog, PropertyPayrollSettings (1:1), HolidayCalendar (1:1)
 - RoomType → Room, RatePlan
 - Room → Reservation, HousekeepingTask, Asset, MaintenanceOrder
 - Guest → Reservation
-- Employee → HousekeepingTask, Order, Timesheet, PurchaseOrder, PayrollRun, MaintenanceOrder, Expense, Document
+- Employee → HousekeepingTask, Order, Timesheet, PurchaseOrder, MaintenanceOrder, Expense, Document, EmployeePayComponent, EmployeeCompensation, LeaveEntry, PayrollRunLine
+- User → Timesheet (as approver), LeaveEntry (as approver), PayrollRun (as creator/calculator/approver)
+- PaySchedule → PayrollRun, Employee, EmployeeCompensation
+- LeaveType → LeaveEntry
+- HolidayCalendar → Holiday
 - FnbMenuItem → Recipe, OrderLine
 - Recipe → RecipeLine
 - InventoryItem → RecipeLine, InventoryTransaction, PurchaseOrderLine
 - Supplier → InventoryItem, PurchaseOrder
 - PurchaseOrder → PurchaseOrderLine
 - Order → OrderLine
-- PayrollRun → PayrollRunLine
+- PayrollRun → PayrollRunLine, PayrollExport
+- PayrollRunLine → PayrollLineItem, Payslip (1:1)
+- PayComponent → EmployeePayComponent, PayrollLineItem
 - Asset → MaintenanceOrder
 - ChartOfAccounts → ChartOfAccounts (self-referential), JournalEntryLine, Expense, UtilityBill
 - JournalEntry → JournalEntryLine
@@ -1665,7 +1952,9 @@ Tracks all system actions for compliance and security auditing.
 - User ↔ Role (via UserRole)
 
 **One-to-One Relationships:**
-- User ↔ Employee (optional)
+- User ↔ Employee (optional; employee can exist without a user)
+- Property ↔ PropertyPayrollSettings
+- Property ↔ HolidayCalendar
 - FnbMenuItem ↔ Recipe (optional)
 
 **Optional Relationships:**
@@ -1676,7 +1965,11 @@ Tracks all system actions for compliance and security auditing.
 - InventoryTransaction → Various entities (via referenceType/referenceId)
 - JournalEntry → Various entities (via referenceType/referenceId)
 - Payment → Various entities (via referenceType/referenceId)
-- Document → Expense, UtilityBill, PurchaseOrder, Payment, MaintenanceOrder (via referenceType/referenceId)
+- Document → Expense, UtilityBill, PurchaseOrder, Payment, MaintenanceOrder, PayrollRun, Payslip, PayrollExport (via referenceType/referenceId)
+- Shift → Timesheet (draft created on finalize)
+- Timesheet → PayrollRunLine (when included in a run)
+- Timesheet → PayrollRun (lock after calculate)
+- EmployeeCompensation → PayrollRunLine (`compensationIdUsed`)
 
 ### Key Design Patterns
 
@@ -1688,15 +1981,15 @@ Tracks all system actions for compliance and security auditing.
 
 4. **Hierarchical Structures**: ChartOfAccounts uses self-referential relationships for account hierarchies.
 
-5. **Workflow Management**: Approval workflows are embedded in entities (Expense, PurchaseOrder, PayrollRun, Timesheet) with approver tracking.
+5. **Workflow Management**: Approval workflows are embedded in entities (Expense, PurchaseOrder, PayrollRun, Timesheet, LeaveEntry). PayrollRun enforces maker ≠ checker. Timesheets lock after calculate.
 
 6. **Cost Tracking**: Recipe costing, inventory costing, and asset depreciation are supported through relationships between InventoryItem, Recipe, RecipeLine, and Asset.
 
 7. **Revenue Recognition**: Reservation and Order entities link to JournalEntry for automatic revenue posting to GL.
 
-8. **Labor Cost Tracking**: Employee, Timesheet, and PayrollRun relationships enable comprehensive labor cost analysis.
+8. **Labor Cost Tracking**: Employee, compensation history, Timesheet, leave, premium rules, PayComponent, PayrollRun, PayrollRunLine, and PayrollLineItem enable labor cost analysis. Only approved/processed/paid runs feed Labor Cost %.
 
-9. **Document Management**: Document entity provides centralized storage for payment evidence (invoices, receipts) linked to expenditures (Expense, UtilityBill, PurchaseOrder, Payment, MaintenanceOrder). Enables complete audit trails, compliance verification, and automated document processing (OCR).
+9. **Document Management**: Document entity provides centralized storage for payment evidence (invoices, receipts, payslips, bank exports) linked to Expense, UtilityBill, PurchaseOrder, Payment, MaintenanceOrder, PayrollRun, Payslip, and PayrollExport.
 
 10. **Comprehensive Reporting & Analytics**: Report and ReportSnapshot entities enable calculation of all four metric categories (Operational Performance, Profitability, Cost & Efficiency, Liquidity & Solvency) from entity data. Reports aggregate data from Reservation, Order, JournalEntry, PayrollRun, InventoryTransaction, Asset, and ChartOfAccounts entities. Persona-based access control ensures appropriate metric visibility (daily, monthly, yearly) for different user roles. All metrics are derived from transactional data, ensuring accuracy and real-time availability.
 
@@ -1706,9 +1999,9 @@ Tracks all system actions for compliance and security auditing.
 
 1. **Indexing Strategy**: Create indexes on foreign keys, date fields, and frequently queried fields (status, propertyId, etc.) for performance optimization.
 
-2. **Soft Deletes**: Consider implementing soft deletes (isActive flags) rather than hard deletes for audit compliance.
+2. **Soft Deletes**: Use soft deletes / terminate for Employee (and isActive flags elsewhere). Never hard-delete employees with timesheets or pay lines.
 
-3. **Data Encryption**: Sensitive fields (bankAccount, SSN, API keys) should be encrypted at rest.
+3. **Data Encryption**: Sensitive fields (`accountNumber`, tax IDs, API keys) should be encrypted at rest. Do not store a single opaque `bankAccount` string — use structured bank fields.
 
 4. **Cascading Rules**: Define appropriate cascade rules for deletions (e.g., deleting a Property should cascade to related entities, but deleting a Guest should not delete Reservations).
 
@@ -1721,4 +2014,8 @@ Tracks all system actions for compliance and security auditing.
 8. **Multi-Currency Support**: For Phase 2, add currency fields and exchange rate tracking to financial entities.
 
 9. **Time Zone Handling**: Store all timestamps in UTC and convert to property timezone for display.
+
+10. **Payroll uniqueness**: Enforce at application level (Convex indexes are not unique): `(propertyId, employeeNumber)`, `(employeeId, workDate)` on Timesheet, `(payrollRunId, employeeId)` on PayrollRunLine, no overlapping open `EmployeeCompensation` intervals, one open PayrollRun per property + overlapping period. Maker ≠ checker on approve. Locked timesheets reject edits.
+
+11. **Payroll implementation**: Follow `ai/payroll-implementation.md` for lifecycle, GL template, shift→timesheet, and `staffs` migration.
 

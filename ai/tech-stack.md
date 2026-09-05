@@ -42,7 +42,7 @@ Based on PRD, ERD, and current setup, here's the recommended tech stack.
 | Integration | Service | Purpose |
 |---|---|---|
 | **PMS** | Webhook listeners (custom) | Sync reservations bidirectionally |
-| **Payroll** | Gusto API / ADP / Paychex | Auto-export payroll runs (G2 goal) |
+| **Payroll** | Native calculate + country-pack statutory components + generic CSV / bank file export | Jurisdiction follows `Property.country` at setup. Processor APIs (Gusto, ADP, Paychex) remain out of scope. See `ai/payroll-implementation.md`. |
 | **POS** | Square, Toast, or custom | F&B revenue & inventory sync |
 | **Accounting** | QuickBooks API, Xero API | GL auto-posting, AP/AR reconciliation |
 | **Banking** | Plaid or direct APIs | Transaction ingestion for daily flash reports |

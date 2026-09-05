@@ -940,18 +940,19 @@ export function findBestAvailableRoom(
 
 ## Payroll Calculations
 
+Overtime and premiums come from `PremiumRule`s (holiday, night, weekend, daily/weekly OT), with `PropertyPayrollSettings.overtimeMultiplier` as fallback daily OT. Unpaid approved `LeaveEntry` days prorate salary. Compensation rates come from `EmployeeCompensation` effective on the work date. See `ai/payroll-implementation.md`.
+
 ### Calculate Overtime Hours
 
 ```typescript
 /**
- * Calculates regular and overtime hours
- * @param totalHours - Total hours worked
- * @param regularHoursLimit - Hours before overtime kicks in (typically 8 per day or 40 per week)
- * @returns Object with regular and overtime hours
+ * Calculates regular and overtime hours from property settings.
+ * @param totalHours - Total hours worked (after breaks)
+ * @param regularHoursLimit - From PropertyPayrollSettings (daily or weekly). Required — no default jurisdiction.
  */
 export function calculateOvertimeHours(
   totalHours: number,
-  regularHoursLimit: number = 8
+  regularHoursLimit: number
 ): { regularHours: number; overtimeHours: number } {
   const regularHours = Math.min(totalHours, regularHoursLimit);
   const overtimeHours = Math.max(0, totalHours - regularHoursLimit);
@@ -959,22 +960,17 @@ export function calculateOvertimeHours(
 }
 ```
 
-### Calculate Pay Amount
+### Calculate Pay Amount (hourly)
 
 ```typescript
 /**
- * Calculates pay amount based on hours and rates
- * @param hourlyRate - Hourly rate
- * @param regularHours - Regular hours worked
- * @param overtimeHours - Overtime hours worked
- * @param overtimeMultiplier - Overtime rate multiplier (typically 1.5 for 1.5x pay)
- * @returns Object with regular pay, overtime pay, and total
+ * Hourly / overtime pay. overtimeMultiplier comes from PropertyPayrollSettings.
  */
 export function calculatePayAmount(
   hourlyRate: number,
   regularHours: number,
   overtimeHours: number,
-  overtimeMultiplier: number = 1.5
+  overtimeMultiplier: number
 ): { regularPay: number; overtimePay: number; grossPay: number } {
   const regularPay = hourlyRate * regularHours;
   const overtimePay = hourlyRate * overtimeHours * overtimeMultiplier;
@@ -988,35 +984,94 @@ export function calculatePayAmount(
 }
 ```
 
-### Calculate Deductions
+### Prorate Salary For Period
 
 ```typescript
 /**
- * Calculates payroll deductions
- * @param grossPay - Gross pay amount
- * @param deductionRates - Object with deduction types and percentages
- * @returns Object with individual deductions and total
+ * Converts an annualized or frequency-based salary into pay for one run period.
+ * MVP: if employee.payFrequency matches the run, return baseSalary as-is.
+ * Mixed/hourly extras are added separately from timesheets.
  */
-export function calculateDeductions(
-  grossPay: number,
-  deductionRates: Record<string, number> = {
-    incomeTax: 0.15,
-    socialSecurity: 0.062,
-    medicare: 0.0145,
+export function prorateSalaryForPeriod(
+  baseSalary: number,
+  employeeFrequency: "weekly" | "bi-weekly" | "monthly",
+  runFrequency: "weekly" | "bi-weekly" | "monthly"
+): number {
+  if (employeeFrequency === runFrequency) {
+    return Math.round(baseSalary * 100) / 100;
   }
-): Record<string, number> & { totalDeductions: number } {
-  const deductions: Record<string, number> = {};
+  const monthlyEquivalent =
+    employeeFrequency === "monthly"
+      ? baseSalary
+      : employeeFrequency === "bi-weekly"
+        ? (baseSalary * 26) / 12
+        : (baseSalary * 52) / 12;
+  const periodPay =
+    runFrequency === "monthly"
+      ? monthlyEquivalent
+      : runFrequency === "bi-weekly"
+        ? (monthlyEquivalent * 12) / 26
+        : (monthlyEquivalent * 12) / 52;
+  return Math.round(periodPay * 100) / 100;
+}
+```
+
+### Prorate Salary For Unpaid Leave
+
+```typescript
+/**
+ * Reduces period salary for approved unpaid leave days.
+ * workingDaysInPeriod should exclude property holidays if those are unpaid.
+ */
+export function prorateSalaryForUnpaidLeave(
+  periodSalary: number,
+  unpaidLeaveDays: number,
+  workingDaysInPeriod: number
+): number {
+  if (workingDaysInPeriod <= 0) return 0;
+  const payableDays = Math.max(0, workingDaysInPeriod - unpaidLeaveDays);
+  return Math.round(((periodSalary * payableDays) / workingDaysInPeriod) * 100) / 100;
+}
+```
+
+### Apply Pay Components
+
+```typescript
+type PayComponentInput = {
+  code: string;
+  kind: "earning" | "allowance" | "deduction";
+  calculation: "flat" | "percent_of_gross";
+  amount?: number;
+  rate?: number;
+};
+
+/**
+ * Applies flat / percent custom components. percent_of_gross uses the running base
+ * (salary/hourly/overtime), not later allowances. `pack_formula` components are
+ * evaluated by the country pack module (e.g. ng_paye), not this helper.
+ */
+export function applyPayComponents(
+  baseGross: number,
+  components: PayComponentInput[]
+): { items: { code: string; kind: string; amount: number }[]; totalDeductions: number; grossPay: number } {
+  const items: { code: string; kind: string; amount: number }[] = [];
+  let extraEarnings = 0;
   let totalDeductions = 0;
 
-  Object.entries(deductionRates).forEach(([type, rate]) => {
-    const amount = grossPay * rate;
-    deductions[type] = Math.round(amount * 100) / 100;
-    totalDeductions += amount;
-  });
+  for (const c of components) {
+    const amount =
+      c.calculation === "percent_of_gross"
+        ? Math.round(baseGross * (c.rate ?? 0) * 100) / 100
+        : Math.round((c.amount ?? 0) * 100) / 100;
+    items.push({ code: c.code, kind: c.kind, amount });
+    if (c.kind === "deduction") totalDeductions += amount;
+    else extraEarnings += amount;
+  }
 
   return {
-    ...deductions,
+    items,
     totalDeductions: Math.round(totalDeductions * 100) / 100,
+    grossPay: Math.round((baseGross + extraEarnings) * 100) / 100,
   };
 }
 ```
@@ -1025,29 +1080,24 @@ export function calculateDeductions(
 
 ```typescript
 /**
- * Calculates net pay (take-home pay)
- * @param grossPay - Gross pay amount
- * @param deductions - Total deductions
- * @param allowances - Additional allowances (bonuses, gratuity, etc.)
- * @returns Net pay amount
+ * Net = gross − deductions + manual gratuity (gratuity is an earning on the line).
  */
 export function calculateNetPay(
   grossPay: number,
   deductions: number,
-  allowances: number = 0
+  manualGratuity: number = 0
 ): number {
-  return Math.round((grossPay - deductions + allowances) * 100) / 100;
+  return Math.round((grossPay - deductions + manualGratuity) * 100) / 100;
 }
 ```
 
-### Calculate Gratuity/Tip Allocation
+### Calculate Gratuity/Tip Allocation (deferred)
+
+Tip pooling is out of scope. Keep this helper for a later phase; MVP uses a manual `gratuityAmount` on `PayrollRunLine` only.
 
 ```typescript
 /**
- * Allocates gratuity/tips among staff
- * @param totalGratuity - Total gratuity amount collected
- * @param employeeWorkingHours - Map of employee ID to hours worked
- * @returns Map of employee ID to gratuity allocation
+ * Deferred: hours-weighted pool. Do not call from payroll calculate in this phase.
  */
 export function allocateGratuity(
   totalGratuity: number,
@@ -1643,7 +1693,7 @@ All helper functions are categorized by domain and include:
 - **Reporting & Analytics**: Metric aggregation builders, date filtering
 - **Inventory Management**: Recipe costing, inventory deduction, reorder logic
 - **Room Management**: Availability checking, reservation calculations, room selection
-- **Payroll Calculations**: Overtime, pay calculations, deductions, gratuity allocation
+- **Payroll Calculations**: Premium/OT rules, compensation-based rates, unpaid-leave proration, configurable + pack components; tip pooling helper deferred
 - **Document Processing**: OCR metadata extraction, document type detection, completeness verification
 - **Validation Helpers**: Email, phone, dates, payment amounts, purchase orders
 - **Data Transformation**: Currency/percentage formatting, entity to DTO conversion, pagination

@@ -475,10 +475,12 @@ Maria Garcia (housekeeper, `employeeId: 203`) arrives at 7:00 AM:
    - `overtimeHours: 0`
    - `status: "submitted"`
 
-3. Supervisor (Mike, `employeeId: 201`) approves:
+3. Supervisor (Mike, a `User` with timesheet approve permission) approves:
    - `status: "approved"`
-   - `approvedBy: 201`
+   - `approvedBy`: Mike's user id
    - `approvedAt: 2024-07-18 15:30:00`
+
+Bar staff: when a bar **Shift** is finalized, the system creates a **draft** Timesheet (`source: "shift"`) if none exists for that employee and work date. Supervisors still approve before the hours can be paid. Locked timesheets (already in a calculated run) are not overwritten.
 
 ### Payroll Processing
 
@@ -486,75 +488,43 @@ Maria Garcia (housekeeper, `employeeId: 203`) arrives at 7:00 AM:
 
 Every two weeks, the Finance Manager processes payroll:
 
-**Step 1: Create PayrollRun**
+**Step 1: Create PayrollRun from PaySchedule**
 
-- `payrollRunId: 6001`
-- `propertyId: 1`
-- `payPeriodStart: 2024-07-01`
-- `payPeriodEnd: 2024-07-14`
-- `payDate: 2024-07-15`
-- `status: "draft"`
-- `createdBy: 206` (Finance Manager)
+- Created from the property’s bi-weekly default schedule (period, cutoff, pay date copied)
+- `payrollRunId: 6001`, `status: "draft"`
+- `createdBy`: Finance Manager **User** id (need not be an Employee)
 
 **Step 2: Calculate Employee Pay**
 
-The system aggregates **Timesheet** records for each employee:
+Pull **unlocked, approved** timesheets and **approved** leave on or before cutoff. Rates come from `EmployeeCompensation` effective in the period. Hours are classified with `PremiumRule`s (holiday / night / weekend / OT).
 
-For Maria Garcia (`employeeId: 203`):
-- Total regular hours: 75 hours (10 days × 7.5 hours)
-- Total overtime hours: 5 hours
-- Hourly rate: $18/hour
-- Regular pay: 75 × $18 = $1,350
-- Overtime pay: 5 × $27 (1.5× rate) = $135
-- Gross pay: $1,485
-- Deductions: Tax ($297), Insurance ($50) = $347
-- Net pay: $1,138
+For Maria Garcia (`employeeId: 203`, `paymentMethod: bank`, `payType: hourly`):
+- Approved regular hours: 75; overtime: 5 (1.5× premium rule)
+- Hourly rate from current compensation: $18/hour
+- Regular pay: $1,350; overtime: $135; housing $50; insurance deduction $50
+- Gross: $1,535; net: $1,485
+- Included timesheets get `payrollRunLineId: 7001`, `lockedByRunId: 6001`
+- Line snapshots `compensationIdUsed`
 
-**PayrollRunLine** created:
-- `payrollRunLineId: 7001`
-- `payrollRunId: 6001`
-- `employeeId: 203`
-- `regularHours: 75`
-- `overtimeHours: 5`
-- `regularPay: $1,350`
-- `overtimePay: $135`
-- `grossPay: $1,485`
-- `totalDeductions: $347`
-- `netPay: $1,138`
+**Step 3: Approve and Process (maker ≠ checker)**
 
-**Step 3: Approve and Process**
-
-1. Finance Manager reviews totals:
-   - `totalGrossPay: $45,000` (all employees)
-   - `totalDeductions: $9,000`
-   - `totalNetPay: $36,000`
-
-2. Approves: `status: "approved"`, `approvedBy: 206`
-
-3. Processes: `status: "processed"`, `processedAt: 2024-07-15 10:00:00`
+1. A **different** User from creator/calculator approves. Self-approve is rejected.
+2. Status `approved`; **Payslip** per line; one balanced **JournalEntry**. Timesheets stay locked.
+3. Process: `PayrollExport` `generic_csv` for bank payees + `cash_sheet` for cash/mobile.
+4. Mark paid: **Payment** + optional bank-confirmation **Document**.
 
 **Step 4: Payment and Financial Posting**
 
-1. **Payment** records created for each employee (or batch payment):
-   - `paymentId: 3005`
-   - `paymentType: "payroll"`
-   - `referenceType: "PayrollRun"`
-   - `referenceId: 6001`
-   - `amount: $36,000`
-   - `paymentMethod: "bank_transfer"`
-   - `status: "completed"`
+Balanced template (gross $45,000, deductions $9,000, net $36,000) — withholdings are **credits**, not debits. No invented benefits line.
 
-2. **JournalEntry** automatically created:
-   - `entryId: 5004`
-   - `referenceType: "PayrollRun"`
-   - `referenceId: 6001`
-   - **JournalEntryLine** records:
-     - `accountId: 5200` (Labor Expense), `debitAmount: $45,000`
-     - `accountId: 2300` (Payroll Tax Payable), `debitAmount: $9,000`
-     - `accountId: 2100` (Accounts Payable), `creditAmount: $36,000`
-     - `accountId: 2400` (Employee Benefits Payable), `creditAmount: $18,000`
+| Account | Debit | Credit |
+|---|---:|---:|
+| Labor expense | 45000 | |
+| Employee deductions payable | | 9000 |
+| Wages payable | | 36000 |
 
-This posts labor costs to the General Ledger.
+1. **Payment**: `paymentType: "payroll"`, `referenceType: "PayrollRun"`, `amount: $36,000`, `paymentMethod: "bank_transfer"`.
+2. **JournalEntry**: `referenceType: "PayrollRun"`, `referenceId: 6001`, lines as above.
 
 ---
 

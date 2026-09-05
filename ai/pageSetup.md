@@ -18,7 +18,7 @@ This document outlines which entities should have dedicated pages and the data f
 
 **Data Fetching:**
 - Fetch all `Property` records (with pagination)
-- Filter by `isActive` status
+- Filter by `isActive` status and `country`
 - Include summary counts:
   - Total rooms per property
   - Total active reservations
@@ -39,12 +39,16 @@ This document outlines which entities should have dedicated pages and the data f
 **Data Fetching:**
 - Fetch single `Property` by `propertyId`
 - Include all property attributes
+- **Country is required** on create/setup (ISO 3166-1 alpha-2). Saving country the first time seeds `PropertyPayrollSettings` and statutory `PayComponent`s from that country’s jurisdiction pack.
+- Changing country is blocked if any payroll run is `approved`, `processed`, or `paid`.
 - Fetch related `Integration` records for this property
 - Fetch `UserRole` records to show assigned users/roles
+- Fetch `PropertyPayrollSettings` (jurisdiction pack snapshot)
 
 **Related Entities to Include:**
 - `Integration` (where `propertyId` matches)
 - `UserRole` (where `propertyId` matches) with joined `User` and `Role`
+- `PropertyPayrollSettings` (1:1)
 
 **Rendering Strategy: SSR**
 - **Reason**: Requires authentication and authorization (property admin), settings change frequently, includes sensitive configuration data, user-specific access control
@@ -642,38 +646,43 @@ This document outlines which entities should have dedicated pages and the data f
 
 ## Payroll Management Pages
 
-### 33. Employees Page (`/employees`)
-**Purpose**: Manage staff/employee records
+### 33. Staff Page (`/admin/staff`)
+**Purpose**: Manage staff records (Convex table `staffs`; no `employees` table)
 
 **Data Fetching:**
-- Fetch all `Employee` records for current property (with pagination)
+- Fetch all `staffs` records for current property (with pagination)
 - Include joined `User` data (if linked)
 - Include employment status and department
-- Filter by: `employmentStatus`, `department`, `position`, name
+- Filter by: `employmentStatus`, `department`, `position`, `payType`, name
 - Sort by: lastName, firstName, `hireDate`
 
 **Related Entities to Include:**
 - `User` (joined, optional, where `userId` matches)
+- `EmployeePayComponent` with `PayComponent` (optional summary)
 
 **Rendering Strategy: SSR**
 - **Reason**: Contains sensitive employee data (PII), employment status changes, requires authentication and data privacy compliance, HR-sensitive information
 
 ---
 
-### 34. Employee Detail Page (`/employees/[employeeId]`)
-**Purpose**: View employee profile and history
+### 34. Staff Detail Page (`/admin/staff/view` or `/admin/staff/[staffId]`)
+**Purpose**: View staff profile and history (`staffs._id`)
 
 **Data Fetching:**
-- Fetch single `Employee` by `employeeId`
+- Fetch single `staffs` row by id
 - Fetch joined `User` and `Property` data
 - Fetch recent `Timesheet` records (last 10)
+- Fetch `EmployeeCompensation` history
+- Fetch recent `LeaveEntry` records
 - Fetch recent `PayrollRunLine` records (last 5 payroll runs)
-- Show employment history and current assignments
+- Show payment method, current compensation, and assignments
 
 **Related Entities to Include:**
 - `User` (joined, optional, where `userId` matches)
 - `Property` (joined)
 - `Timesheet` (where `employeeId` matches, ordered by `workDate` DESC, limit 10)
+- `EmployeeCompensation` (where `employeeId` matches, ordered by `effectiveFrom` DESC)
+- `LeaveEntry` with `LeaveType`
 - `PayrollRunLine` with `PayrollRun` (where `employeeId` matches, ordered by `payrollRunId` DESC, limit 5)
 
 **Rendering Strategy: SSR**
@@ -687,8 +696,10 @@ This document outlines which entities should have dedicated pages and the data f
 **Data Fetching:**
 - Fetch all `Timesheet` records for current property (with pagination)
 - Include joined `Employee` data
-- Filter by: `status`, `workDate`, `employeeId`, `approvedBy`
+- Filter by: `status`, `workDate`, `employeeId`, `approvedBy`, `source`, locked vs unlocked
 - Sort by: `workDate` DESC, `status`
+- CSV import action (`source = csv`)
+- Locked sheets are read-only (locked after payroll calculate)
 
 **Related Entities to Include:**
 - `Employee` (joined)
@@ -703,16 +714,35 @@ This document outlines which entities should have dedicated pages and the data f
 
 **Data Fetching:**
 - Fetch single `Timesheet` by `timesheetId`
-- Fetch joined `Employee`, `Property`, and approver `Employee` data
-- Show hours breakdown and approval status
+- Fetch joined `Employee`, `Property`, and approver `User` data
+- Show hours breakdown, `source` (manual / csv / shift), linked shift if any, approval status, and lock state (`lockedByRunId`)
+- Reject edits when locked
 
 **Related Entities to Include:**
 - `Employee` (joined, where `employeeId` matches)
 - `Property` (joined)
-- `Employee` as approver (joined, where `approvedBy` matches, optional)
+- `User` as approver (joined, where `approvedBy` matches, optional)
+- `Shift` (optional, where `shiftId` matches)
 
 **Rendering Strategy: SSR**
 - **Reason**: Approval status updates in real-time, hours breakdown is critical for payroll, requires fresh data for accuracy, approval workflows are time-sensitive
+
+---
+
+### 36a. Leave Entries Page (`/leave`)
+**Purpose**: Record and approve leave that payroll calculation honors
+
+**Data Fetching:**
+- Fetch `LeaveEntry` records for current property (pagination)
+- Join `Employee` and `LeaveType`
+- Filter by: `status`, `employeeId`, `leaveTypeId`, date range
+- Actions: create, approve, reject (approved unpaid leave prorates salary)
+
+**Related Entities to Include:**
+- `Employee`, `LeaveType`
+
+**Rendering Strategy: SSR**
+- **Reason**: Approval affects the next payroll run; cutoff-sensitive
 
 ---
 
@@ -722,7 +752,8 @@ This document outlines which entities should have dedicated pages and the data f
 **Data Fetching:**
 - Fetch all `PayrollRun` records for current property (with pagination)
 - Include summary totals (gross pay, deductions, net pay)
-- Filter by: `status`, `payPeriodStart`, `payPeriodEnd`, `payDate`
+- Filter by: `status`, `payScheduleId`, `payPeriodStart`, `payPeriodEnd`, `payDate`
+- Create run **from a PaySchedule** (period/cutoff/pay date copied)
 - Sort by: `payPeriodEnd` DESC, `status`
 
 **Related Entities to Include:**
@@ -738,18 +769,59 @@ This document outlines which entities should have dedicated pages and the data f
 
 **Data Fetching:**
 - Fetch single `PayrollRun` by `payrollRunId`
-- Fetch joined `Property` and `Employee` data (creator/approver)
-- Fetch all `PayrollRunLine` records with joined `Employee` data
-- Show totals and breakdown by employee
+- Fetch joined `Property` and creator/approver `User` data
+- Fetch all `PayrollRunLine` records with joined `Employee` data and `PayrollLineItem` rows
+- Show totals, line-item breakdown, payslip/export status
+- Actions by status: calculate (locks timesheets), approve (maker ≠ checker; payslips + GL), export bank/CSV + cash sheet, mark paid
+- Show creator vs calculator vs approver; block self-approve
 
 **Related Entities to Include:**
 - `Property` (joined)
-- `Employee` as creator (joined, where `createdBy` matches)
-- `Employee` as approver (joined, where `approvedBy` matches, optional)
-- `PayrollRunLine` with `Employee` (where `payrollRunId` matches)
+- `User` as creator/approver
+- `PayrollRunLine` with `Employee` and `PayrollLineItem`
+- `Payslip`, `PayrollExport`, `JournalEntry` (where `referenceType = PayrollRun`)
 
 **Rendering Strategy: SSR**
 - **Reason**: Contains highly sensitive payroll data, approval status updates in real-time, financial accuracy critical, requires strict access control and fresh data
+
+---
+
+### 38a. Payslip Page (`/payroll/[payrollRunId]/payslips/[payslipId]`)
+**Purpose**: View an immutable payslip snapshot (and download PDF)
+
+**Data Fetching:**
+- Fetch `Payslip` by id with `PayrollRunLine`, `PayrollRun`, `Employee`, and linked `Document`
+
+**Rendering Strategy: SSR**
+- **Reason**: Sensitive compensation data; employees may view only their own payslip
+
+---
+
+### 38b. Payroll Export Page (`/payroll/[payrollRunId]/export`)
+**Purpose**: Generate and download bank/CSV export files
+
+**Data Fetching:**
+- Fetch `PayrollRun` and its `PayrollExport` records
+- Generate `generic_csv` / `bank_file` for `paymentMethod = bank`
+- Generate `cash_sheet` for cash and mobile_money payees
+
+**Rendering Strategy: SSR**
+- **Reason**: Payout file contains bank details; finance-only; status changes on generate/download
+
+---
+
+### 38c. Payroll Settings Page (`/settings/payroll`)
+**Purpose**: Property overtime/premium rules, pay schedules, holiday calendar, and `PayComponent` catalog
+
+**Data Fetching:**
+- Fetch `PropertyPayrollSettings` (show `country` / `jurisdictionPack` as read-only)
+- Fetch `PaySchedule` list (one default)
+- Fetch `HolidayCalendar` + `Holiday`s and `PremiumRule`s
+- Fetch `PayComponent` and `LeaveType` lists
+- Statutory components are not deletable; custom components, holidays, and extra schedules can be added
+
+**Rendering Strategy: SSR**
+- **Reason**: Controls pay calculation; mistakes affect every run; HR/finance only
 
 ---
 
@@ -1224,14 +1296,14 @@ This document outlines which entities should have dedicated pages and the data f
 
 ## Summary
 
-### Total Pages: 61
+### Total Pages: 65
 
 **Breakdown by Category:**
 - Core Platform: 6 pages
 - Room Management: 11 pages
 - Food & Beverage: 8 pages
 - Inventory Management: 7 pages
-- Payroll Management: 6 pages
+- Payroll Management: 10 pages
 - Maintenance Management: 4 pages
 - Financial Management: 10 pages
 - Reporting & Analytics: 3 pages
@@ -1241,7 +1313,7 @@ This document outlines which entities should have dedicated pages and the data f
 
 ### Rendering Strategy Distribution
 
-**SSR (Server-Side Rendering): ~45 pages (74%)**
+**SSR (Server-Side Rendering): ~49 pages (75%)**
 - **Use Cases**: Real-time operational data, status changes, approval workflows, sensitive data, authentication-required pages
 - **Examples**: Reservations, Orders, Rooms, Payments, Expenses, Timesheets, Dashboard
 - **Revalidation**: None (always fresh on each request)

@@ -50,8 +50,9 @@ Hospitality operators juggle siloed systems for reservations, POS, payroll, proc
    - Inventory counts, reorder points, supplier management, restocking workflows.
    - Document management for inventory purchases: supplier invoices, delivery receipts, and payment confirmations must be uploaded and linked to purchase orders.
 3. **Payroll Management**
-   - Staff profiles, roles, pay rates, timesheets, gratuity allocations.
-   - Payroll runs with export to major payroll processors or bank files.
+   - Staff profiles, roles, pay types (hourly / salary / mixed), pay rates, timesheets, configurable allowances and deductions.
+   - Native payroll runs: calculate, approve, generate payslips, export bank/CSV files, post GL, mark paid.
+   - Implementation decisions and target model: `ai/payroll-implementation.md`.
 4. **Maintenance Management**
    - Asset registry, preventive schedules, work orders, cost tracking.
 5. **Expenses & Financial Management**
@@ -79,6 +80,11 @@ Hospitality operators juggle siloed systems for reservations, POS, payroll, proc
 - Event/conference management.
 - Native mobile apps (web responsive only initially).
 - Dynamic pricing engine (pull rates from external partners for now).
+- Country payroll packs that are not implemented at launch (those properties use generic/custom components only). Changing `Property.country` after approved/paid payroll is blocked.
+- Gratuity / tip pooling from POS or hours/points (manual gratuity on a pay line is in scope).
+- Multi-property shared employees (one person employed at several properties).
+- Hardware / biometric time clocks.
+- Direct payroll processor APIs (Gusto, ADP, Paychex) — bank/CSV export is the MVP path.
 
 ## Functional Requirements
 
@@ -120,9 +126,19 @@ Hospitality operators juggle siloed systems for reservations, POS, payroll, proc
 
 ### Payroll
 
-- Time tracking (manual entry + CSV import + optional integration).
-- Overtime rules, allowances, deductions, gratuity pooling.
-- Payroll approval workflow, export to accounting, pay-slip generation.
+- Staff master (`staffs` table only — no separate `employees` table): property-scoped profiles; optional User login; `paymentMethod` (`bank` | `cash` | `mobile_money` | `check`); compensation **history**; soft delete only. Existing `/admin/staff` and `Id<"staffs">` FKs stay.
+- **PaySchedule**: runs are created from a schedule (period, cutoff, pay date). Timesheets/leave approved after cutoff are excluded.
+- Time tracking: manual entry, CSV import, and draft timesheets created when a bar shift is finalized. Only **unlocked, approved** timesheets are paid. Calculate **locks** included sheets.
+- **Leave**: `LeaveType` + `LeaveEntry`. Approved unpaid leave prorates salary. Paid leave counts as regular hours (not OT) unless the type allows OT.
+- **Holidays + premiums**: country pack seeds a holiday calendar and `PremiumRule`s (daily/weekly OT, night, weekend, public holiday). Single overtime multiplier is fallback daily OT only.
+- **Jurisdiction from property setup**: admin must select `Property.country`. Seeds statutory components, default schedule, holidays, and premium rules. Unsupported countries use generic fallback.
+- Optional **manual** gratuity amount on a pay line. Tip pooling is out of scope.
+- Payroll run lifecycle: draft → calculated → approved → processed → paid. **Maker ≠ checker**: approver must not be the creator or last calculator.
+- Immutable rate snapshots (`compensationIdUsed`) on each pay line; line items instead of a deductions JSON blob.
+- On approve: generate payslips and post one balanced journal entry (`referenceType = PayrollRun`).
+- On process: export bank/CSV for bank payees and a cash/mobile worksheet. On paid: record a `Payment` and optional bank confirmation document.
+- Labor cost % uses approved/processed/paid runs only (see ERD reporting notes).
+- Full rules, uniqueness, GL template, and `staffs` migration: `ai/payroll-implementation.md`.
 
 ### Maintenance
 
@@ -176,6 +192,7 @@ Hospitality operators juggle siloed systems for reservations, POS, payroll, proc
   - All utility bills must have original bill documents and payment confirmations.
   - All maintenance work orders must include vendor invoices and work completion certificates.
   - All payments must have payment receipts or bank confirmations linked.
+  - Payroll runs should have generated payslips and, when marked paid, a bank confirmation or export file linked (`Payslip`, `PayrollRun`, `PayrollExport`).
 - **Document Upload Methods**:
   - Direct file upload (drag-and-drop, file picker)
   - Mobile camera capture
@@ -185,7 +202,7 @@ Hospitality operators juggle siloed systems for reservations, POS, payroll, proc
   - OCR (Optical Character Recognition) for automatic data extraction from invoices and receipts (vendor name, amount, date, invoice number, tax amount).
   - Automatic document type detection (invoice, receipt, contract, etc.).
   - Document verification workflow with reviewer assignment and verification status tracking.
-- **Document Linking**: Documents can be linked to multiple entity types (Expense, PurchaseOrder, UtilityBill, Payment, MaintenanceOrder) using flexible reference system.
+- **Document Linking**: Documents can be linked to multiple entity types (Expense, PurchaseOrder, UtilityBill, Payment, MaintenanceOrder, PayrollRun, Payslip, PayrollExport) using flexible reference system.
 - **Document Security**:
   - Role-based access control for document viewing and downloading.
   - Encryption at rest and in transit.
@@ -211,13 +228,13 @@ Hospitality operators juggle siloed systems for reservations, POS, payroll, proc
 
 ## Data & ERD Considerations
 
-- Core entities: `Property`, `User`, `Role`, `Room`, `Reservation`, `HousekeepingTask`, `FnbMenuItem`, `InventoryItem`, `Supplier`, `PurchaseOrder`, `PayrollRun`, `Employee`, `MaintenanceOrder`, `Asset`, `Expense`, `UtilityBill`, `JournalEntry`, `Report`.
+- Core entities: `Property` (includes required `country` for payroll jurisdiction), `User`, `Role`, `Room`, `Reservation`, `HousekeepingTask`, `FnbMenuItem`, `InventoryItem`, `Supplier`, `PurchaseOrder`, `Employee`, `EmployeeCompensation`, `PaySchedule`, `LeaveType`, `LeaveEntry`, `HolidayCalendar`, `Holiday`, `PremiumRule`, `Timesheet`, `PropertyPayrollSettings`, `PayComponent`, `PayrollRun`, `PayrollRunLine`, `PayrollLineItem`, `Payslip`, `PayrollExport`, `MaintenanceOrder`, `Asset`, `Expense`, `UtilityBill`, `JournalEntry`, `Report`.
 - Relationships:
   - `Property` 1:N `Room`, `Employee`, `InventoryItem`, `Asset`.
   - `Reservation` links `Room`, `Guest`, and yields `JournalEntries`.
   - `HousekeepingTask` + `MaintenanceOrder` reference rooms/assets, produce expenses.
   - `FnbMenuItem` consumes `InventoryItems` via recipe lines.
-  - `PayrollRun` aggregates `Employee` timesheets and posts financial entries.
+  - `PayrollRun` is created from a `PaySchedule`, aggregates approved/unlocked `Timesheet`s, `LeaveEntry`s, compensation history, and `PayComponent`s for `staffs` into `PayrollRunLine` / `PayrollLineItem`, then posts `JournalEntry` and produces `Payslip` + `PayrollExport`.
   - `Report` entities store configuration + cached snapshots for analytics.
 - ERD deliverable: diagram showing above entities, primary keys, and cardinalities to be hosted in `docs/erd/` (format TBD—likely Draw.io or Mermaid).
 
@@ -298,5 +315,6 @@ Hospitality operators juggle siloed systems for reservations, POS, payroll, proc
 - Which specific PMS/POS/accounting systems must be supported at launch?
 - Do properties require multi-language interfaces at MVP?
 - Should we embed a booking engine or rely entirely on integrations long term?
-- What jurisdictions' compliance frameworks (e.g., local tax rules) are priority?
+- Which country payroll packs ship at launch besides `NG` and `generic`?
+- Bank export format beyond generic CSV (local NUBAN/NACHA templates, driven by country pack)?
 
