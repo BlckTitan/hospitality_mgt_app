@@ -17,6 +17,7 @@ type FormData = {
     timezone?: string;
     currency?: string;
     taxId?: string;
+    country?: string;
     isActive: boolean;
   };
 
@@ -34,6 +35,7 @@ export function FormComponent({ onSuccess, onClose }: { onSuccess: () => void; o
         timezone: 'UTC',
         currency: 'USD',
         taxId: '',
+        country: 'NG',
         isActive: true,
       },
     });
@@ -48,6 +50,7 @@ export function FormComponent({ onSuccess, onClose }: { onSuccess: () => void; o
           timezone: data.timezone || 'UTC',
           currency: data.currency || 'USD',
           taxId: data.taxId,
+          country: data.country,
           isActive: data.isActive,
         });
   
@@ -148,10 +151,23 @@ export function FormComponent({ onSuccess, onClose }: { onSuccess: () => void; o
             id="taxId"
             label="Tax ID"
             type="string"
-            inputWidth="w-1/3"
+            inputWidth="w-1/4"
             register={register('taxId')}
             error={errors.taxId}
           />
+
+          <div className="w-full lg:w-1/4">
+            <label htmlFor="country">Country</label>
+            <select id="country" {...register('country')} defaultValue="NG" className="w-full">
+              <option value="NG">Nigeria (NG)</option>
+              <option value="GH">Ghana (GH)</option>
+              <option value="KE">Kenya (KE)</option>
+              <option value="ZA">South Africa (ZA)</option>
+              <option value="GB">United Kingdom (GB)</option>
+              <option value="US">United States (US)</option>
+              <option value="generic">Other / generic</option>
+            </select>
+          </div>
         </div>
   
         <div className="w-full h-fit flex flex-col lg:flex-row lg:items-center gap-4 mb-4">

@@ -2,7 +2,7 @@
 
 Source of truth for payroll design decisions and the target data model. ERD, PRD, `ai/schema.ts`, and `ai/base.md` should match this document.
 
-Related: [prd.md](./prd.md), [ERD.md](./ERD.md), [schema.ts](./schema.ts), [base.md](./base.md), [pageSetup.md](./pageSetup.md), [helper-Functions.md](./helper-Functions.md).
+Related: [prd.md](./prd.md), [ERD.md](./ERD.md), [schema.ts](./schema.ts), [base.md](./base.md), [pageSetup.md](./pageSetup.md), [helper-Functions.md](./helper-Functions.md), [payroll-pages-guide.md](./payroll-pages-guide.md).
 
 ---
 

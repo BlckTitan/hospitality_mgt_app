@@ -9,6 +9,7 @@ import { IoFastFoodOutline } from "react-icons/io5";
 import { MdLogout, MdOutlineBedroomChild } from 'react-icons/md';
 import { RxDashboard, RxCaretDown } from "react-icons/rx";
 import { usePermissions } from '../hooks/usePermissions';
+import { filterNavByAccess, isPathInSection } from '../lib/route-access';
 
 interface CustomToggleProps {
   eventKey: string
@@ -54,6 +55,12 @@ const navItems = [
   {id: 11, href: "/admin/shift-management", label: "Shift Management", icon: <MdOutlineBedroomChild />,  subLink: [
     {id: 1101, href: '/admin/shift-management/shift', label: 'Shift'},
   ]},
+  {id: 12, href: "/admin/payroll-management", label: "Payroll", icon: <FcMoneyTransfer />, subLink: [
+    {id: 1201, href: '/admin/payroll-management/payroll', label: 'Payroll'},
+    {id: 1202, href: '/admin/payroll-management/hours', label: 'Hours'},
+    {id: 1203, href: '/admin/payroll-management/time-off', label: 'Time off'},
+    {id: 1204, href: '/admin/payroll-management/settings', label: 'Payroll settings'},
+  ]},
 ];
 
 export default function Navigation() {
@@ -64,19 +71,8 @@ export default function Navigation() {
 
   if (!isLoaded || isLoading) return null;
   
-  // Filter navigation items based on permissions
-  const filteredNavItems = navItems.filter(({ href }) => {
-    // Skip placeholder links (#)
-    if (href === "/#") return true;
-    return canAccessRoute(href);
-  }).map(({ subLink, ...rest }) => ({
-    ...rest,
-    subLink: subLink ? subLink.filter(link => {
-      // Skip placeholder links (#)
-      if (link.href === "/#") return true;
-      return canAccessRoute(link.href);
-    }) : undefined
-  }));
+  const filteredNavItems = filterNavByAccess(navItems, canAccessRoute);
+  const activeSectionKey = filteredNavItems.find((item) => isPathInSection(path, item.href))?.label;
   
   return (
     <nav className="w-full h-14 flex items-center fixed top-0 main_nav z-10 shadow-blue-100 shadow-sm overflow-visible">
@@ -117,56 +113,51 @@ export default function Navigation() {
                 </Show>
               </NavLink>
               
-              <Accordion 
-                defaultActiveKey="0" 
+              <Accordion
+                key={activeSectionKey ?? 'none'}
+                defaultActiveKey={activeSectionKey}
                 className='w-full h-auto block lg:hidden'
               >
-                {filteredNavItems.map(({ id, href, label, icon, subLink }, index) => (
+                {filteredNavItems.map(({ id, href, label, icon, subLink }) => (
 
                   <Card className='border-0' key={id}>
                     
                     <Card.Header 
                       className={`
                         flex justify-between items-center !p-0 !border-0
-                        ${(href === path) ? "!bg-[#333] text-white" : "bg-transparent"}
+                        ${isPathInSection(path, href) ? "!bg-[#333] text-white" : "bg-transparent"}
                       `}
                     >
                       <NavLink
-                        key={id}
                         href={href}
-                        className={`main_nav_link ${(href === path) ? "!bg-[#333] text-white" : "bg-transparent"}`}
+                        className={`main_nav_link ${isPathInSection(path, href) ? "!bg-[#333] text-white" : "bg-transparent"}`}
                       >
                         <span>{label}</span>
                         <i className="icon">{icon}</i>
                       </NavLink>
 
-                      {
-                        (
-                          <CustomToggle 
-                            key={href}
+                      {subLink?.length ? (
+                          <CustomToggle
                             eventKey={label}
-                            className={`!bg-transparent ${!subLink ? "invisible" : ""}`}
+                            className="!bg-transparent"
                           >
                             <i className='icon'><RxCaretDown /></i>
                           </CustomToggle>
-                        )
-                      }
+                      ) : null}
 
                     </Card.Header>
 
                     {
-                      subLink && subLink.map((link, subIndex) => (
+                      subLink?.map((link) => (
                         <Accordion.Collapse
                           eventKey={label} 
-                          key={subIndex}
-                          className={`!bg-transparent ${!subLink ? "invisible" : ""}`}
+                          key={link.id}
                         >
                           <Card.Body>
 
                             <NavLink
-                              key={index}
                               href={link.href}
-                              className='px-3 py-0 h-5 flex items-center'
+                              className={`px-3 py-0 h-5 flex items-center ${isPathInSection(path, link.href) ? '!bg-[#333] text-white' : ''}`}
                             >
                               <span>{link.label}</span>
                             </NavLink>

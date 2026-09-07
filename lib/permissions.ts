@@ -17,7 +17,8 @@ export type Module =
   | 'system'
   | 'maintenance'
   | 'security'
-  | 'expenses';
+  | 'expenses'
+  | 'payroll';
 
 export type Action =
   | 'create'
@@ -65,7 +66,8 @@ export const ROLE_PERMISSION_MATRIX: Record<string, UserPermissions> = {
     reports: 'FULL',
     system: 'FULL',
     maintenance: 'FULL',
-    security: 'FULL'
+    security: 'FULL',
+    payroll: 'FULL'
   },
   'Director': {
     users: 'NONE',
@@ -78,7 +80,8 @@ export const ROLE_PERMISSION_MATRIX: Record<string, UserPermissions> = {
     reports: 'FULL',
     system: 'LIMITED',
     maintenance: 'VIEW',
-    security: 'VIEW'
+    security: 'VIEW',
+    payroll: 'FULL'
   },
   'General Manager': {
     users: 'NONE',
@@ -91,7 +94,8 @@ export const ROLE_PERMISSION_MATRIX: Record<string, UserPermissions> = {
     reports: 'FULL',
     system: 'NONE',
     maintenance: 'LIMITED',
-    security: 'VIEW'
+    security: 'VIEW',
+    payroll: 'FULL'
   },
   'Operations Manager': {
     users: 'NONE',
@@ -104,7 +108,8 @@ export const ROLE_PERMISSION_MATRIX: Record<string, UserPermissions> = {
     reports: 'FULL',
     system: 'NONE',
     maintenance: 'FULL',
-    security: 'VIEW'
+    security: 'VIEW',
+    payroll: 'LIMITED'
   },
   'Finance Manager': {
     users: 'NONE',
@@ -117,7 +122,8 @@ export const ROLE_PERMISSION_MATRIX: Record<string, UserPermissions> = {
     reports: 'FULL',
     system: 'NONE',
     maintenance: 'NONE',
-    security: 'VIEW'
+    security: 'VIEW',
+    payroll: 'FULL'
   },
   'HR Manager': {
     users: 'LIMITED',
@@ -130,7 +136,8 @@ export const ROLE_PERMISSION_MATRIX: Record<string, UserPermissions> = {
     reports: 'LIMITED',
     system: 'NONE',
     maintenance: 'NONE',
-    security: 'NONE'
+    security: 'NONE',
+    payroll: 'FULL'
   },
   'IT Manager': {
     users: 'FULL',
@@ -143,7 +150,8 @@ export const ROLE_PERMISSION_MATRIX: Record<string, UserPermissions> = {
     reports: 'FULL',
     system: 'FULL',
     maintenance: 'FULL',
-    security: 'FULL'
+    security: 'FULL',
+    payroll: 'LIMITED'
   },
   'Manager': {
     users: 'NONE',
@@ -156,7 +164,8 @@ export const ROLE_PERMISSION_MATRIX: Record<string, UserPermissions> = {
     reports: 'FULL',
     system: 'NONE',
     maintenance: 'LIMITED',
-    security: 'NONE'
+    security: 'NONE',
+    payroll: 'LIMITED'
   },
   'Assistant Manager': {
     users: 'NONE',
@@ -169,7 +178,8 @@ export const ROLE_PERMISSION_MATRIX: Record<string, UserPermissions> = {
     reports: 'LIMITED',
     system: 'NONE',
     maintenance: 'NONE',
-    security: 'NONE'
+    security: 'NONE',
+    payroll: 'LIMITED'
   },
   'Supervisor': {
     users: 'NONE',
@@ -182,7 +192,8 @@ export const ROLE_PERMISSION_MATRIX: Record<string, UserPermissions> = {
     reports: 'LIMITED',
     system: 'NONE',
     maintenance: 'NONE',
-    security: 'NONE'
+    security: 'NONE',
+    payroll: 'LIMITED'
   },
   'Receptionist': {
     users: 'NONE',
@@ -195,7 +206,8 @@ export const ROLE_PERMISSION_MATRIX: Record<string, UserPermissions> = {
     reports: 'LIMITED',
     system: 'NONE',
     maintenance: 'NONE',
-    security: 'NONE'
+    security: 'NONE',
+    payroll: 'NONE'
   },
   'Concierge': {
     users: 'NONE',
@@ -208,7 +220,8 @@ export const ROLE_PERMISSION_MATRIX: Record<string, UserPermissions> = {
     reports: 'VIEW',
     system: 'NONE',
     maintenance: 'NONE',
-    security: 'NONE'
+    security: 'NONE',
+    payroll: 'NONE'
   },
   'Housekeeping': {
     users: 'NONE',
@@ -221,7 +234,8 @@ export const ROLE_PERMISSION_MATRIX: Record<string, UserPermissions> = {
     reports: 'NONE',
     system: 'NONE',
     maintenance: 'LIMITED',
-    security: 'NONE'
+    security: 'NONE',
+    payroll: 'NONE'
   },
   'Waiter': {
     users: 'NONE',
@@ -234,7 +248,8 @@ export const ROLE_PERMISSION_MATRIX: Record<string, UserPermissions> = {
     reports: 'NONE',
     system: 'NONE',
     maintenance: 'NONE',
-    security: 'NONE'
+    security: 'NONE',
+    payroll: 'NONE'
   },
   'Bartender': {
     users: 'NONE',
@@ -247,7 +262,8 @@ export const ROLE_PERMISSION_MATRIX: Record<string, UserPermissions> = {
     reports: 'NONE',
     system: 'NONE',
     maintenance: 'NONE',
-    security: 'NONE'
+    security: 'NONE',
+    payroll: 'NONE'
   },
   'Cook / Chef': {
     users: 'NONE',
@@ -260,7 +276,8 @@ export const ROLE_PERMISSION_MATRIX: Record<string, UserPermissions> = {
     reports: 'NONE',
     system: 'NONE',
     maintenance: 'NONE',
-    security: 'NONE'
+    security: 'NONE',
+    payroll: 'NONE'
   },
   'Kitchen Assistant': {
     users: 'NONE',
@@ -273,7 +290,8 @@ export const ROLE_PERMISSION_MATRIX: Record<string, UserPermissions> = {
     reports: 'NONE',
     system: 'NONE',
     maintenance: 'NONE',
-    security: 'NONE'
+    security: 'NONE',
+    payroll: 'NONE'
   },
   'Maintenance Staff': {
     users: 'NONE',
@@ -286,7 +304,8 @@ export const ROLE_PERMISSION_MATRIX: Record<string, UserPermissions> = {
     reports: 'NONE',
     system: 'NONE',
     maintenance: 'FULL',
-    security: 'NONE'
+    security: 'NONE',
+    payroll: 'NONE'
   },
   'Security Officer': {
     users: 'NONE',
@@ -299,7 +318,8 @@ export const ROLE_PERMISSION_MATRIX: Record<string, UserPermissions> = {
     reports: 'NONE',
     system: 'NONE',
     maintenance: 'NONE',
-    security: 'FULL'
+    security: 'FULL',
+    payroll: 'NONE'
   }
 };
 
@@ -329,5 +349,27 @@ export const GRANULAR_PERMISSIONS = {
     'fnb.order.create': 'fnb.create',
     'fnb.order.manage': 'fnb.update',
     'fnb.menu.update': 'fnb.update'
+  },
+  // Hours/Time off approve map to update so Supervisor LIMITED can approve
+  // those records without Approve payroll (payroll.approve).
+  payroll: {
+    'payroll.employee.read': 'payroll.read',
+    'payroll.employee.create': 'payroll.create',
+    'payroll.employee.update': 'payroll.update',
+    'payroll.timesheet.read': 'payroll.read',
+    'payroll.timesheet.create': 'payroll.create',
+    'payroll.timesheet.update': 'payroll.update',
+    'payroll.timesheet.approve': 'payroll.update',
+    'payroll.leave.read': 'payroll.read',
+    'payroll.leave.create': 'payroll.create',
+    'payroll.leave.approve': 'payroll.update',
+    'payroll.run.read': 'payroll.read',
+    'payroll.run.create': 'payroll.create',
+    'payroll.run.calculate': 'payroll.update',
+    'payroll.run.approve': 'payroll.approve',
+    'payroll.run.export': 'payroll.export',
+    'payroll.run.mark_paid': 'payroll.approve',
+    'payroll.payslip.read': 'payroll.read',
+    'payroll.settings.update': 'payroll.settings'
   }
 } as const;

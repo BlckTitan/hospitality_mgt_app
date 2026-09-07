@@ -22,7 +22,7 @@ function isModule(value: string): value is Module {
   return [
     "users", "roles", "properties", "staff", "reservations", "rooms", "fnb",
     "inventory", "financial", "finance", "reports", "system", "maintenance",
-    "security", "expenses",
+    "security", "expenses", "payroll",
   ].includes(value);
 }
 

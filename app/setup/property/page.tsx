@@ -22,6 +22,7 @@ interface PropertyFormData {
   timezone: string;
   currency: string;
   taxId?: string;
+  country?: string;
 }
 
 export default function PropertySetupPage() {
@@ -48,6 +49,7 @@ export default function PropertySetupPage() {
       timezone: 'UTC',
       currency: 'USD',
       taxId: '',
+      country: 'NG',
     },
   });
 
@@ -127,6 +129,7 @@ export default function PropertySetupPage() {
         timezone: data.timezone || 'UTC',
         currency: data.currency || 'USD',
         taxId: data.taxId || undefined,
+        country: data.country || 'NG',
         isActive: true,
       });
 
@@ -239,7 +242,7 @@ export default function PropertySetupPage() {
             />
           </div>
 
-          {/* Row 4: Tax ID */}
+          {/* Row 4: Tax ID + country (payroll jurisdiction) */}
           <div className="w-full">
             <InputComponent
               id="taxId"
@@ -249,6 +252,18 @@ export default function PropertySetupPage() {
               register={register('taxId')}
               error={errors.taxId}
             />
+          </div>
+          <div className="w-full">
+            <label htmlFor="country">Country</label>
+            <select id="country" {...register('country')} defaultValue="NG" className="w-full">
+              <option value="NG">Nigeria (NG)</option>
+              <option value="GH">Ghana (GH)</option>
+              <option value="KE">Kenya (KE)</option>
+              <option value="ZA">South Africa (ZA)</option>
+              <option value="GB">United Kingdom (GB)</option>
+              <option value="US">United States (US)</option>
+              <option value="generic">Other / generic</option>
+            </select>
           </div>
 
           {/* Submit Button */}

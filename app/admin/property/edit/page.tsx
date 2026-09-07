@@ -36,6 +36,7 @@ export default function Page() {
         timezone={response && '_id' in response ? response.timezone : undefined}
         currency={response && '_id' in response ? response.currency : undefined}
         taxId={response && '_id' in response ? response.taxId : undefined}
+        country={response && '_id' in response ? response.country : undefined}
         isActive={response && '_id' in response ? response.isActive : undefined}
       />
 

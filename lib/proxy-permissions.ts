@@ -45,6 +45,19 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermission> = {
   '/admin/shift-management': { granular: 'staff.read' },
   '/admin/shift-management/shift': { granular: 'staff.read' },
 
+  // Payroll Management — screens use Hours / Time off / Payroll / Payroll settings
+  '/admin/payroll-management': { granular: 'payroll.run.read' },
+  '/admin/payroll-management/payroll': { granular: 'payroll.run.read' },
+  '/admin/payroll-management/payroll/edit': { granular: 'payroll.run.read' },
+  '/admin/payroll-management/payroll/view': { granular: 'payroll.run.read' },
+  '/admin/payroll-management/payroll/payslip': { granular: 'payroll.payslip.read' },
+  '/admin/payroll-management/payroll/export': { granular: 'payroll.run.export' },
+  '/admin/payroll-management/hours': { granular: 'payroll.timesheet.read' },
+  '/admin/payroll-management/hours/edit': { granular: 'payroll.timesheet.update' },
+  '/admin/payroll-management/time-off': { granular: 'payroll.leave.read' },
+  '/admin/payroll-management/time-off/edit': { granular: 'payroll.leave.create' },
+  '/admin/payroll-management/settings': { granular: 'payroll.settings.update' },
+
   // Additional admin routes for specific actions
   '/admin/user/[id]/edit': { granular: 'users.update' },
   '/admin/user/[id]': { granular: 'users.read' },

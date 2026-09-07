@@ -630,6 +630,25 @@ export const PERMISSION_GROUPS = [
     ],
   },
   {
+    category: "Payroll",
+    permissions: [
+      { key: "payroll.run.read", label: "View Payroll" },
+      { key: "payroll.run.create", label: "Start payroll" },
+      { key: "payroll.run.calculate", label: "Prepare pay" },
+      { key: "payroll.run.approve", label: "Approve payroll" },
+      { key: "payroll.run.export", label: "Download payment files" },
+      { key: "payroll.run.mark_paid", label: "Mark as paid" },
+      { key: "payroll.timesheet.read", label: "View Hours" },
+      { key: "payroll.timesheet.create", label: "Create Hours" },
+      { key: "payroll.timesheet.approve", label: "Approve Hours" },
+      { key: "payroll.leave.read", label: "View Time off" },
+      { key: "payroll.leave.create", label: "Create Time off" },
+      { key: "payroll.leave.approve", label: "Approve Time off" },
+      { key: "payroll.payslip.read", label: "View Payslips" },
+      { key: "payroll.settings.update", label: "Update Payroll settings" },
+    ],
+  },
+  {
     category: "Financial",
     permissions: [
       { key: "financial.read", label: "View Financial Data" },

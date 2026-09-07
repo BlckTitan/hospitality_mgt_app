@@ -26,6 +26,17 @@ const TABLE_READ_PERMISSIONS = {
   storeInventories: "inventory.read",
   storeTransactions: "inventory.read",
   pendingInvites: "users.read",
+  timesheets: "payroll.timesheet.read",
+  leaveEntries: "payroll.leave.read",
+  leaveTypes: "payroll.leave.read",
+  payrollRuns: "payroll.run.read",
+  payrollRunLines: "payroll.run.read",
+  paySchedules: "payroll.run.read",
+  payComponents: "payroll.settings.update",
+  holidays: "payroll.settings.update",
+  premiumRules: "payroll.settings.update",
+  payslips: "payroll.payslip.read",
+  payrollExports: "payroll.run.export",
 } as const;
 
 export const getPaginatedData = query({
@@ -54,7 +65,18 @@ export const getPaginatedData = query({
       v.literal('userStockLogs'),
       v.literal('storeInventories'),
       v.literal('storeTransactions'),
-      v.literal('pendingInvites')
+      v.literal('pendingInvites'),
+      v.literal('timesheets'),
+      v.literal('leaveEntries'),
+      v.literal('leaveTypes'),
+      v.literal('payrollRuns'),
+      v.literal('payrollRunLines'),
+      v.literal('paySchedules'),
+      v.literal('payComponents'),
+      v.literal('holidays'),
+      v.literal('premiumRules'),
+      v.literal('payslips'),
+      v.literal('payrollExports')
     ),
     limit: v.number(), //items per page
     cursor: v.optional(v.string()), //current page cursor

@@ -21,6 +21,7 @@ type FormData = {
     timezone?: string;
     currency?: string;
     taxId?: string;
+    country?: string;
     isActive: boolean;
   };
 
@@ -28,7 +29,7 @@ type FormData = {
 export function FormComponent(/*{ onSuccess, onClose }: { onSuccess: () => void; onClose: () => void },*/
   {
     id, name, address, phone, email, 
-    timezone, currency, taxId, isActive
+    timezone, currency, taxId, country, isActive
   }) {
     const updateProperty = useMutation(api.property.updateProperty);
   
@@ -42,6 +43,7 @@ export function FormComponent(/*{ onSuccess, onClose }: { onSuccess: () => void;
         timezone: timezone,
         currency: currency,
         taxId: taxId,
+        country: country || 'NG',
         isActive: isActive,
       },
     });
@@ -57,6 +59,7 @@ export function FormComponent(/*{ onSuccess, onClose }: { onSuccess: () => void;
           timezone: data.timezone || 'UTC',
           currency: data.currency || 'USD',
           taxId: data.taxId,
+          country: data.country,
           isActive: data.isActive,
         });
   
@@ -156,10 +159,22 @@ export function FormComponent(/*{ onSuccess, onClose }: { onSuccess: () => void;
             id="taxId"
             label="Tax ID"
             type="string"
-            inputWidth="w-1/3"
+            inputWidth="w-1/4"
             register={register('taxId')}
             error={errors.taxId}
           />
+          <div className="w-full lg:w-1/4">
+            <label htmlFor="country">Country</label>
+            <select id="country" {...register('country')} className="w-full">
+              <option value="NG">Nigeria (NG)</option>
+              <option value="GH">Ghana (GH)</option>
+              <option value="KE">Kenya (KE)</option>
+              <option value="ZA">South Africa (ZA)</option>
+              <option value="GB">United Kingdom (GB)</option>
+              <option value="US">United States (US)</option>
+              <option value="generic">Other / generic</option>
+            </select>
+          </div>
         </div>
   
         <div className="w-full h-fit flex flex-col lg:flex-row lg:items-center gap-4 mb-4">

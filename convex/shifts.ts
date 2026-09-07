@@ -1,6 +1,7 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
 import { requirePermission } from './lib/rbac';
+import { draftHoursFromShift } from './timesheets';
 
 export const getAllShifts = query({
   args: { propertyId: v.id('properties') },
@@ -200,6 +201,14 @@ export const finalizeShift = mutation({
       };
 
       await ctx.db.patch(args.shiftId, updates);
+      await draftHoursFromShift(ctx, {
+        _id: shift._id,
+        propertyId: shift.propertyId,
+        userId: shift.userId,
+        startTime: shift.startTime,
+        endTime: updates.endTime,
+        shiftDate: shift.shiftDate,
+      });
       return { success: true, message: 'Shift finalized successfully' };
     } catch (error) {
       console.log(`Failed to finalize shift: ${error}`);

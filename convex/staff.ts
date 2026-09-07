@@ -41,7 +41,7 @@ export const createStaff = mutation({
     role: v.string(),
   },
   handler: async (ctx, args) => {
-    await requirePermission(ctx, 'staff.create');
+    const auth = await requirePermission(ctx, 'staff.create');
 
     try {
       
@@ -53,7 +53,13 @@ export const createStaff = mutation({
         return { success: false, message: "Staff already exists" };
       }
 
-      await ctx.db.insert('staffs', args);
+      await ctx.db.insert('staffs', {
+        ...args,
+        propertyId: auth.propertyIds[0],
+        payType: 'salary',
+        baseSalary: args.salary,
+        paymentMethod: 'cash',
+      });
       return { success: true, message: "Staff added successfully" };
 
     } catch (error) {

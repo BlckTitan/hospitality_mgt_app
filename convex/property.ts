@@ -2,6 +2,7 @@ import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
 import { requirePermission, requirePermissionOrInitialSetup, getAuthContext } from './lib/rbac';
 import { assignAdministratorRoleForProperty } from './lib/systemRoles';
+import { seedPayrollForProperty } from './lib/payrollHelpers';
 
 export const getAllProperties = query({
   handler: async (ctx) => {
@@ -55,6 +56,7 @@ export const createProperty = mutation({
     timezone: v.optional(v.string()),
     currency: v.optional(v.string()),
     taxId: v.optional(v.string()),
+    country: v.optional(v.string()),
     isActive: v.boolean(),
   },
   handler: async (ctx, args) => {
@@ -90,10 +92,14 @@ export const createProperty = mutation({
         timezone: args.timezone || 'UTC',
         currency: args.currency || 'USD',
         taxId: args.taxId,
+        country: args.country?.trim().toUpperCase() || undefined,
         isActive: args.isActive,
       });
 
       await assignAdministratorRoleForProperty(ctx, authContext.user._id, property_id);
+      if (args.country) {
+        await seedPayrollForProperty(ctx, property_id, args.country);
+      }
 
       return { success: true, message: 'Property created successfully', id: property_id };
     } catch (error) {
@@ -113,6 +119,7 @@ export const updateProperty = mutation({
     timezone: v.optional(v.string()),
     currency: v.optional(v.string()),
     taxId: v.optional(v.string()),
+    country: v.optional(v.string()),
     isActive: v.boolean(),
   },
   handler: async (ctx, args) => {
@@ -148,6 +155,19 @@ export const updateProperty = mutation({
         }
       }
 
+      const nextCountry = args.country?.trim().toUpperCase();
+      if (nextCountry && existingProperty.country && nextCountry !== existingProperty.country) {
+        const paidRuns = (
+          await ctx.db
+            .query('payrollRuns')
+            .withIndex('by_propertyId', (q) => q.eq('propertyId', args.property_id))
+            .collect()
+        ).filter((run) => run.status === 'approved' || run.status === 'processed' || run.status === 'paid');
+        if (paidRuns.length > 0) {
+          return { success: false, message: 'Country cannot change after an approved or paid Payroll' };
+        }
+      }
+
       await ctx.db.patch(args.property_id, {
         name: args.name,
         address: args.address,
@@ -156,8 +176,13 @@ export const updateProperty = mutation({
         timezone: args.timezone,
         currency: args.currency,
         taxId: args.taxId,
+        country: nextCountry ?? existingProperty.country,
         isActive: args.isActive,
       });
+
+      if (nextCountry && !existingProperty.country) {
+        await seedPayrollForProperty(ctx, args.property_id, nextCountry);
+      }
 
       return { success: true, message: 'Property updated successfully' };
     } catch (error) {

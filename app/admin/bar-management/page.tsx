@@ -5,9 +5,11 @@ import { api } from '../../../convex/_generated/api';
 import { Id } from '../../../convex/_generated/dataModel';
 import ReorderAlertsTable from './components/reorder-alerts';
 import SalesSummaryCharts from './components/sales-summary-charts';
+import { usePermissions } from '../../../hooks/usePermissions';
 
 export default function BarManagement() {
     const [propertyId, setPropertyId] = useState<string>('');
+    const { canAccessRoute } = usePermissions();
 
     const propertiesResponse = useQuery(api.property.getAllProperties);
     const properties = propertiesResponse?.data || [];
@@ -101,8 +103,8 @@ export default function BarManagement() {
                 <SalesSummaryCharts currentPropertyId={currentPropertyId as Id<"properties">} />
             </div>
 
-            {/* Quick Actions */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {canAccessRoute('/admin/bar-management/beverages') && (
                 <a 
                     href="/admin/bar-management/beverages" 
                     className="block p-4 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
@@ -110,7 +112,9 @@ export default function BarManagement() {
                     <h3 className="text-lg font-semibold text-blue-800 mb-2">Beverages</h3>
                     <p className="text-sm text-blue-600">Manage beverage catalog and pricing</p>
                 </a>
+                )}
                 
+                {canAccessRoute('/admin/bar-management/store-inventory') && (
                 <a 
                     href="/admin/bar-management/store-inventory" 
                     className="block p-4 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 transition-colors"
@@ -118,7 +122,9 @@ export default function BarManagement() {
                     <h3 className="text-lg font-semibold text-green-800 mb-2">Store Inventory</h3>
                     <p className="text-sm text-green-600">View and manage central store stock</p>
                 </a>
+                )}
                 
+                {canAccessRoute('/admin/bar-management/store-transactions') && (
                 <a 
                     href="/admin/bar-management/store-transactions" 
                     className="block p-4 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 transition-colors"
@@ -126,6 +132,7 @@ export default function BarManagement() {
                     <h3 className="text-lg font-semibold text-purple-800 mb-2">Stock Transactions</h3>
                     <p className="text-sm text-purple-600">Track stock movements and issues</p>
                 </a>
+                )}
             </div>
         </div>
     );

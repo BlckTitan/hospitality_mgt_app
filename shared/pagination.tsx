@@ -95,15 +95,17 @@ export default function PaginationComponent({collectionName, columns, jointTable
 
   const currentData = pageCache[currentPage] || [];
 
-  // check response for data
-  if (response === undefined) {
+  // Enriched lists can render even when the raw paginated page is empty.
+  const hasJointData = Array.isArray(jointTableData) && jointTableData.length > 0;
+
+  if (response === undefined && !hasJointData) {
     return (
       <div className='w-full h-screen flex items-center justify-center'>
         <Spinner animation="border" size='sm' variant="dark" />
       </div>
     );
   }
-  if (!response || !response.page || response?.page.length === 0) {
+  if (!hasJointData && (!response || !response.page || response?.page.length === 0)) {
     return (
       <div className='w-full h-full flex justify-center items-center'>
         No data available!

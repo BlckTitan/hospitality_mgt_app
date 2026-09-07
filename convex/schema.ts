@@ -87,6 +87,7 @@ export default defineSchema({
     payType: v.optional(v.union(v.literal("hourly"), v.literal("salary"), v.literal("mixed"))),
     baseSalary: v.optional(v.number()),
     hourlyRate: v.optional(v.number()),
+    payScheduleId: v.optional(v.id("paySchedules")),
     paymentMethod: v.optional(
       v.union(
         v.literal("bank"),
@@ -117,11 +118,14 @@ export default defineSchema({
     email: v.optional(v.string()),
     timezone: v.optional(v.string()),
     currency: v.optional(v.string()),
+    // ISO 3166-1 alpha-2. Optional until first payroll seed (widen-migrate-narrow).
+    country: v.optional(v.string()),
     taxId: v.optional(v.string()),
     isActive: v.boolean(),
   })
     .index("by_name", ["name"])
-    .index("by_email", ["email"]),
+    .index("by_email", ["email"])
+    .index("by_country", ["country"]),
 
   // Sale categories for bar, restaurant, and lodging
   saleCategories: defineTable({
@@ -604,4 +608,334 @@ export default defineSchema({
     .index("by_year_periodType", ["year", "periodType"])
     .index("by_propertyId_periodType", ["propertyId", "periodType"])
     .index("by_propertyId_barId_period", ["propertyId", "barId", "periodType", "periodKey"]),
+
+  // ============================================
+  // Payroll Management
+  // People table is `staffs` only. FKs named employeeId are Id<"staffs">.
+  // glAccountId is a string until chartOfAccounts is live.
+  // ============================================
+
+  propertyPayrollSettings: defineTable({
+    propertyId: v.id("properties"),
+    country: v.string(),
+    jurisdictionPack: v.string(),
+    regularHoursLimitDaily: v.optional(v.number()),
+    regularHoursLimitWeekly: v.optional(v.number()),
+    overtimeMultiplier: v.number(),
+    defaultPayScheduleId: v.optional(v.id("paySchedules")),
+    bankExportFormat: v.literal("generic_csv"),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"]),
+
+  payComponents: defineTable({
+    propertyId: v.id("properties"),
+    code: v.string(),
+    name: v.string(),
+    kind: v.union(v.literal("earning"), v.literal("allowance"), v.literal("deduction")),
+    source: v.union(v.literal("statutory"), v.literal("custom")),
+    calculation: v.union(v.literal("flat"), v.literal("percent_of_gross"), v.literal("pack_formula")),
+    formulaKey: v.optional(v.string()),
+    params: v.optional(v.any()),
+    defaultAmount: v.optional(v.number()),
+    defaultRate: v.optional(v.number()),
+    glAccountId: v.optional(v.string()),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_propertyId_code", ["propertyId", "code"])
+    .index("by_propertyId_isActive", ["propertyId", "isActive"]),
+
+  employeePayComponents: defineTable({
+    employeeId: v.id("staffs"),
+    payComponentId: v.id("payComponents"),
+    amount: v.optional(v.number()),
+    rate: v.optional(v.number()),
+    isEnabled: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_employeeId", ["employeeId"])
+    .index("by_payComponentId", ["payComponentId"])
+    .index("by_employeeId_payComponentId", ["employeeId", "payComponentId"]),
+
+  paySchedules: defineTable({
+    propertyId: v.id("properties"),
+    name: v.string(),
+    frequency: v.union(v.literal("weekly"), v.literal("bi-weekly"), v.literal("monthly")),
+    anchorDate: v.number(),
+    cutoffDaysBeforePayDate: v.number(),
+    isDefault: v.boolean(),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_propertyId_isDefault", ["propertyId", "isDefault"]),
+
+  employeeCompensations: defineTable({
+    employeeId: v.id("staffs"),
+    payType: v.union(v.literal("hourly"), v.literal("salary"), v.literal("mixed")),
+    baseSalary: v.optional(v.number()),
+    hourlyRate: v.optional(v.number()),
+    payScheduleId: v.optional(v.id("paySchedules")),
+    effectiveFrom: v.number(),
+    effectiveTo: v.optional(v.number()),
+    changedBy: v.id("users"),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_employeeId", ["employeeId"])
+    .index("by_employeeId_effectiveFrom", ["employeeId", "effectiveFrom"]),
+
+  leaveTypes: defineTable({
+    propertyId: v.id("properties"),
+    code: v.string(),
+    name: v.string(),
+    paid: v.boolean(),
+    countsTowardOvertime: v.boolean(),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_propertyId_code", ["propertyId", "code"]),
+
+  leaveEntries: defineTable({
+    propertyId: v.id("properties"),
+    employeeId: v.id("staffs"),
+    leaveTypeId: v.id("leaveTypes"),
+    startDate: v.number(),
+    endDate: v.number(),
+    days: v.number(),
+    status: v.union(v.literal("pending"), v.literal("approved"), v.literal("rejected")),
+    approvedBy: v.optional(v.id("users")),
+    approvedAt: v.optional(v.number()),
+    notes: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_employeeId", ["employeeId"])
+    .index("by_propertyId_status", ["propertyId", "status"]),
+
+  holidayCalendars: defineTable({
+    propertyId: v.id("properties"),
+    name: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"]),
+
+  holidays: defineTable({
+    holidayCalendarId: v.id("holidayCalendars"),
+    date: v.number(),
+    name: v.string(),
+    isPaid: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_holidayCalendarId", ["holidayCalendarId"])
+    .index("by_holidayCalendarId_date", ["holidayCalendarId", "date"]),
+
+  premiumRules: defineTable({
+    propertyId: v.id("properties"),
+    kind: v.union(
+      v.literal("daily_overtime"),
+      v.literal("weekly_overtime"),
+      v.literal("night"),
+      v.literal("weekend"),
+      v.literal("public_holiday")
+    ),
+    multiplier: v.number(),
+    startTime: v.optional(v.string()),
+    endTime: v.optional(v.string()),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_propertyId_kind", ["propertyId", "kind"]),
+
+  timesheets: defineTable({
+    employeeId: v.id("staffs"),
+    propertyId: v.id("properties"),
+    workDate: v.number(),
+    clockInTime: v.optional(v.number()),
+    clockOutTime: v.optional(v.number()),
+    regularHours: v.number(),
+    overtimeHours: v.number(),
+    breakDuration: v.optional(v.number()),
+    source: v.union(v.literal("manual"), v.literal("csv"), v.literal("shift")),
+    shiftId: v.optional(v.id("shifts")),
+    payrollRunLineId: v.optional(v.id("payrollRunLines")),
+    lockedAt: v.optional(v.number()),
+    lockedByRunId: v.optional(v.id("payrollRuns")),
+    status: v.union(
+      v.literal("draft"),
+      v.literal("submitted"),
+      v.literal("approved"),
+      v.literal("rejected")
+    ),
+    approvedBy: v.optional(v.id("users")),
+    approvedAt: v.optional(v.number()),
+    notes: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_employeeId", ["employeeId"])
+    .index("by_propertyId", ["propertyId"])
+    .index("by_employeeId_workDate", ["employeeId", "workDate"])
+    .index("by_propertyId_workDate", ["propertyId", "workDate"])
+    .index("by_propertyId_status", ["propertyId", "status"])
+    .index("by_lockedByRunId", ["lockedByRunId"]),
+
+  payrollRuns: defineTable({
+    propertyId: v.id("properties"),
+    payScheduleId: v.id("paySchedules"),
+    runType: v.literal("regular"),
+    payPeriodStart: v.number(),
+    payPeriodEnd: v.number(),
+    payDate: v.number(),
+    payFrequency: v.union(v.literal("weekly"), v.literal("bi-weekly"), v.literal("monthly")),
+    cutoffDaysBeforePayDate: v.number(),
+    status: v.union(
+      v.literal("draft"),
+      v.literal("calculated"),
+      v.literal("approved"),
+      v.literal("processed"),
+      v.literal("paid")
+    ),
+    totalGrossPay: v.number(),
+    totalDeductions: v.number(),
+    totalNetPay: v.number(),
+    createdBy: v.id("users"),
+    calculatedBy: v.optional(v.id("users")),
+    approvedBy: v.optional(v.id("users")),
+    approvedAt: v.optional(v.number()),
+    processedAt: v.optional(v.number()),
+    paidAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_propertyId_status", ["propertyId", "status"])
+    .index("by_payScheduleId", ["payScheduleId"]),
+
+  payrollRunLines: defineTable({
+    payrollRunId: v.id("payrollRuns"),
+    employeeId: v.id("staffs"),
+    compensationIdUsed: v.optional(v.id("employeeCompensations")),
+    payTypeUsed: v.union(v.literal("hourly"), v.literal("salary"), v.literal("mixed")),
+    hourlyRateUsed: v.optional(v.number()),
+    baseSalaryUsed: v.optional(v.number()),
+    overtimeMultiplierUsed: v.optional(v.number()),
+    regularHours: v.number(),
+    overtimeHours: v.number(),
+    regularPay: v.number(),
+    overtimePay: v.number(),
+    gratuityAmount: v.optional(v.number()),
+    grossPay: v.number(),
+    totalDeductions: v.number(),
+    netPay: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_payrollRunId", ["payrollRunId"])
+    .index("by_employeeId", ["employeeId"])
+    .index("by_payrollRunId_employeeId", ["payrollRunId", "employeeId"]),
+
+  payrollLineItems: defineTable({
+    payrollRunLineId: v.id("payrollRunLines"),
+    payComponentId: v.optional(v.id("payComponents")),
+    kind: v.union(
+      v.literal("earning"),
+      v.literal("allowance"),
+      v.literal("overtime"),
+      v.literal("gratuity"),
+      v.literal("deduction")
+    ),
+    code: v.string(),
+    label: v.string(),
+    amount: v.number(),
+    glAccountId: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_payrollRunLineId", ["payrollRunLineId"]),
+
+  payslips: defineTable({
+    payrollRunLineId: v.id("payrollRunLines"),
+    propertyId: v.id("properties"),
+    employeeId: v.id("staffs"),
+    snapshot: v.any(),
+    documentId: v.optional(v.string()),
+    generatedAt: v.number(),
+    createdAt: v.number(),
+  })
+    .index("by_payrollRunLineId", ["payrollRunLineId"])
+    .index("by_employeeId", ["employeeId"])
+    .index("by_propertyId", ["propertyId"]),
+
+  payrollExports: defineTable({
+    payrollRunId: v.id("payrollRuns"),
+    format: v.union(v.literal("generic_csv"), v.literal("bank_file"), v.literal("cash_sheet")),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("generated"),
+      v.literal("downloaded"),
+      v.literal("failed")
+    ),
+    content: v.optional(v.string()),
+    documentId: v.optional(v.string()),
+    fileUrl: v.optional(v.string()),
+    generatedBy: v.id("users"),
+    generatedAt: v.optional(v.number()),
+    createdAt: v.number(),
+  })
+    .index("by_payrollRunId", ["payrollRunId"]),
+
+  // Lightweight GL + payment records for Approve payroll / Mark as paid.
+  // Full chart of accounts can replace string account codes later.
+  journalEntries: defineTable({
+    propertyId: v.id("properties"),
+    referenceType: v.optional(v.string()),
+    referenceId: v.optional(v.string()),
+    status: v.string(),
+    totalDebit: v.number(),
+    totalCredit: v.number(),
+    postedAt: v.optional(v.number()),
+    postedBy: v.optional(v.id("users")),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_reference", ["referenceType", "referenceId"]),
+
+  journalEntryLines: defineTable({
+    journalEntryId: v.id("journalEntries"),
+    accountCode: v.string(),
+    accountName: v.string(),
+    debit: v.number(),
+    credit: v.number(),
+    description: v.optional(v.string()),
+  })
+    .index("by_journalEntryId", ["journalEntryId"]),
+
+  payments: defineTable({
+    propertyId: v.id("properties"),
+    paymentType: v.string(),
+    referenceType: v.string(),
+    referenceId: v.string(),
+    amount: v.number(),
+    paymentMethod: v.string(),
+    status: v.string(),
+    paidAt: v.optional(v.number()),
+    createdBy: v.id("users"),
+    createdAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_reference", ["referenceType", "referenceId"]),
 })

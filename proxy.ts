@@ -6,14 +6,13 @@ import {
   logMissingClerkConvexJwtTemplate,
 } from './lib/clerk-convex-auth';
 import { createPermissionChecker } from './lib/permission-utils';
-import { ROUTE_PERMISSIONS } from './lib/proxy-permissions';
 import {
   ensureUserAndGetContext,
   needsPropertySetup,
   PUBLIC_ROUTES,
 } from './lib/proxy-helpers';
 import { isSignInEntryPath, isSignUpEntryPath } from './lib/auth-routes';
-import { matchRoute } from './lib/route-matching';
+import { canAccessPath } from './lib/route-access';
 
 const isAdminRoute = createRouteMatcher(['/admin(.*)']);
 const isSetupRoute = createRouteMatcher(['/setup(.*)']);
@@ -122,35 +121,10 @@ export default clerkMiddleware(async (auth, req) => {
       return NextResponse.redirect(dashboardUrl);
     }
 
-    if (isAdminRoute(req)) {
-      const matchedRoute = matchRoute(pathname, ROUTE_PERMISSIONS);
-
-      if (!matchedRoute) {
-        const unauthorizedUrl = new URL('/unauthorized', req.url);
-        return NextResponse.redirect(unauthorizedUrl);
-      }
-
-      const routePermission = ROUTE_PERMISSIONS[matchedRoute];
-      const permissionChecker = createPermissionChecker(userContext);
-      const hasPermission = permissionChecker.hasGranularPermission(routePermission.granular);
-
-      if (!hasPermission) {
-        const unauthorizedUrl = new URL('/unauthorized', req.url);
-        return NextResponse.redirect(unauthorizedUrl);
-      }
-    } else {
-      const matchedRoute = matchRoute(pathname, ROUTE_PERMISSIONS);
-
-      if (matchedRoute) {
-        const routePermission = ROUTE_PERMISSIONS[matchedRoute];
-        const permissionChecker = createPermissionChecker(userContext);
-        const hasPermission = permissionChecker.hasGranularPermission(routePermission.granular);
-
-        if (!hasPermission) {
-          const unauthorizedUrl = new URL('/unauthorized', req.url);
-          return NextResponse.redirect(unauthorizedUrl);
-        }
-      }
+    const permissionChecker = createPermissionChecker(userContext);
+    if (!canAccessPath(pathname, (granular) => permissionChecker.hasGranularPermission(granular))) {
+      const unauthorizedUrl = new URL('/unauthorized', req.url);
+      return NextResponse.redirect(unauthorizedUrl);
     }
   }
 

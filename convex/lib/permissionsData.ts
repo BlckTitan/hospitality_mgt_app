@@ -15,7 +15,8 @@ export type Module =
   | "system"
   | "maintenance"
   | "security"
-  | "expenses";
+  | "expenses"
+  | "payroll";
 
 export type Action =
   | "create"
@@ -50,6 +51,7 @@ export const ROLE_PERMISSION_MATRIX: Record<string, UserPermissions> = {
     system: "FULL",
     maintenance: "FULL",
     security: "FULL",
+    payroll: "FULL",
   },
   Director: {
     users: "NONE",
@@ -63,6 +65,7 @@ export const ROLE_PERMISSION_MATRIX: Record<string, UserPermissions> = {
     system: "LIMITED",
     maintenance: "VIEW",
     security: "VIEW",
+    payroll: "FULL",
   },
   "General Manager": {
     users: "NONE",
@@ -76,6 +79,7 @@ export const ROLE_PERMISSION_MATRIX: Record<string, UserPermissions> = {
     system: "NONE",
     maintenance: "LIMITED",
     security: "VIEW",
+    payroll: "FULL",
   },
   "Operations Manager": {
     users: "NONE",
@@ -89,6 +93,7 @@ export const ROLE_PERMISSION_MATRIX: Record<string, UserPermissions> = {
     system: "NONE",
     maintenance: "FULL",
     security: "VIEW",
+    payroll: "LIMITED",
   },
   "Finance Manager": {
     users: "NONE",
@@ -102,6 +107,49 @@ export const ROLE_PERMISSION_MATRIX: Record<string, UserPermissions> = {
     system: "NONE",
     maintenance: "NONE",
     security: "VIEW",
+    payroll: "FULL",
+  },
+  "HR Manager": {
+    users: "LIMITED",
+    properties: "NONE",
+    staff: "FULL",
+    reservations: "NONE",
+    fnb: "NONE",
+    inventory: "NONE",
+    finance: "LIMITED",
+    reports: "LIMITED",
+    system: "NONE",
+    maintenance: "NONE",
+    security: "NONE",
+    payroll: "FULL",
+  },
+  Supervisor: {
+    users: "NONE",
+    properties: "NONE",
+    staff: "LIMITED",
+    reservations: "LIMITED",
+    fnb: "FULL",
+    inventory: "LIMITED",
+    finance: "NONE",
+    reports: "LIMITED",
+    system: "NONE",
+    maintenance: "NONE",
+    security: "NONE",
+    payroll: "LIMITED",
+  },
+  "Assistant Manager": {
+    users: "NONE",
+    properties: "NONE",
+    staff: "LIMITED",
+    reservations: "FULL",
+    fnb: "FULL",
+    inventory: "LIMITED",
+    finance: "NONE",
+    reports: "LIMITED",
+    system: "NONE",
+    maintenance: "NONE",
+    security: "NONE",
+    payroll: "LIMITED",
   },
   Manager: {
     users: "NONE",
@@ -115,6 +163,7 @@ export const ROLE_PERMISSION_MATRIX: Record<string, UserPermissions> = {
     system: "NONE",
     maintenance: "LIMITED",
     security: "NONE",
+    payroll: "LIMITED",
   },
   Bartender: {
     users: "NONE",
@@ -128,6 +177,7 @@ export const ROLE_PERMISSION_MATRIX: Record<string, UserPermissions> = {
     system: "NONE",
     maintenance: "NONE",
     security: "NONE",
+    payroll: "NONE",
   },
 };
 
@@ -144,5 +194,25 @@ export const GRANULAR_PERMISSIONS: Record<string, Record<string, string>> = {
     "fnb.order.create": "fnb.create",
     "fnb.order.manage": "fnb.update",
     "fnb.menu.update": "fnb.update",
+  },
+  payroll: {
+    "payroll.employee.read": "payroll.read",
+    "payroll.employee.create": "payroll.create",
+    "payroll.employee.update": "payroll.update",
+    "payroll.timesheet.read": "payroll.read",
+    "payroll.timesheet.create": "payroll.create",
+    "payroll.timesheet.update": "payroll.update",
+    "payroll.timesheet.approve": "payroll.update",
+    "payroll.leave.read": "payroll.read",
+    "payroll.leave.create": "payroll.create",
+    "payroll.leave.approve": "payroll.update",
+    "payroll.run.read": "payroll.read",
+    "payroll.run.create": "payroll.create",
+    "payroll.run.calculate": "payroll.update",
+    "payroll.run.approve": "payroll.approve",
+    "payroll.run.export": "payroll.export",
+    "payroll.run.mark_paid": "payroll.approve",
+    "payroll.payslip.read": "payroll.read",
+    "payroll.settings.update": "payroll.settings",
   },
 };

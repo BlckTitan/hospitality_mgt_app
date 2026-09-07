@@ -5,8 +5,7 @@ import { useAuth } from '@clerk/nextjs';
 import { useEffect, useState } from 'react';
 import { Action, Module } from '../lib/permissions';
 import { createPermissionChecker, PermissionChecker, UserContext } from '../lib/permission-utils';
-import { ROUTE_PERMISSIONS } from '../lib/proxy-permissions';
-import { matchRoute } from '../lib/route-matching';
+import { canAccessPath } from '../lib/route-access';
 import {
   getClerkConvexAuthToken,
   isMissingClerkConvexJwtTemplate,
@@ -103,24 +102,7 @@ export function usePermissions(options: UsePermissionsOptions = {}): UsePermissi
 
   const canAccessRoute = (pathname: string): boolean => {
     if (!permissionChecker) return false;
-
-    if (pathname.startsWith('/admin')) {
-      const matchedRoute = matchRoute(pathname, ROUTE_PERMISSIONS);
-      if (!matchedRoute) {
-        return false;
-      }
-
-      const routePermission = ROUTE_PERMISSIONS[matchedRoute];
-      return permissionChecker.hasGranularPermission(routePermission.granular);
-    }
-
-    const matchedRoute = matchRoute(pathname, ROUTE_PERMISSIONS);
-    if (matchedRoute) {
-      const routePermission = ROUTE_PERMISSIONS[matchedRoute];
-      return permissionChecker.hasGranularPermission(routePermission.granular);
-    }
-
-    return true;
+    return canAccessPath(pathname, (granular) => permissionChecker.hasGranularPermission(granular));
   };
 
   return {

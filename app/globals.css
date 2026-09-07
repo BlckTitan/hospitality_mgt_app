@@ -191,6 +191,13 @@ aside a:hover,
 aside a{
   @apply text-white no-underline;
 }
+aside .sidebar-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+aside .sidebar-scroll::-webkit-scrollbar {
+  display: none;
+}
 
 /* date picker styling */
 .react-datepicker__month-container {
