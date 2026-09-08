@@ -1,6 +1,7 @@
 'use client'
 import React from 'react';
 import { UseFormRegisterReturn, FieldError } from 'react-hook-form'
+import { Field, fieldWidthClass } from './field'
 
 interface FormInputProps{
     id: string
@@ -10,19 +11,35 @@ interface FormInputProps{
     error?: FieldError
     type: string
     placeholder?: string
-    options?: {
-        value: string;
-        label: string;
-    }[]
+    maxLength?: number
+    inputMode?: React.HTMLAttributes<HTMLInputElement>['inputMode']
+    step?: number | string
 }
 
-export default function InputComponent({id, register, label, type, inputWidth, error, placeholder}: FormInputProps) {
+export default function InputComponent({
+  id,
+  register,
+  label,
+  type,
+  inputWidth,
+  error,
+  placeholder,
+  maxLength,
+  inputMode,
+  step,
+}: FormInputProps) {
   return (
-    <div className={`w-full lg:${inputWidth}`}>
-      <label htmlFor={id}>{label}</label>
-      <input id={id} type={type} {...register}  placeholder={placeholder}/>
-      {error && <span className='text-red-500 text-sm'>{error.message}</span>}
-    </div>
-
+    <Field id={id} label={label} widthClass={fieldWidthClass(inputWidth)}>
+      <input
+        id={id}
+        type={type}
+        placeholder={placeholder}
+        maxLength={maxLength}
+        inputMode={inputMode}
+        step={step}
+        {...register}
+      />
+      {error && <span className="text-red-500 text-sm">{error.message}</span>}
+    </Field>
   )
 }

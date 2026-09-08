@@ -5,6 +5,7 @@ import {
   periodsPerYear,
   resolveJurisdictionPack,
   roundMoney,
+  type PayFrequency,
 } from "./payrollPacks";
 
 export function startOfUtcDay(ms: number): number {
@@ -39,7 +40,7 @@ export function overlapWorkingDays(
 
 /** Next pay period from a Pay cycle anchor. */
 export function periodFromSchedule(
-  frequency: "weekly" | "bi-weekly" | "monthly",
+  frequency: PayFrequency,
   anchorDate: number,
   asOf = Date.now()
 ): { payPeriodStart: number; payPeriodEnd: number; payDate: number } {
@@ -63,6 +64,23 @@ export function periodFromSchedule(
     const payPeriodStart = Date.UTC(year, month, 1);
     const payPeriodEnd = Date.UTC(year, month + 1, 0);
     return { payPeriodStart, payPeriodEnd, payDate };
+  }
+  if (frequency === "annually") {
+    const a = new Date(anchor);
+    const t = new Date(today);
+    let year = t.getUTCFullYear();
+    const payMonth = a.getUTCMonth();
+    const payDay = Math.min(a.getUTCDate(), 28);
+    let payDate = Date.UTC(year, payMonth, payDay);
+    if (payDate < today) {
+      year += 1;
+      payDate = Date.UTC(year, payMonth, payDay);
+    }
+    return {
+      payPeriodStart: Date.UTC(year, 0, 1),
+      payPeriodEnd: Date.UTC(year, 11, 31),
+      payDate,
+    };
   }
   const lengthDays = frequency === "weekly" ? 7 : 14;
   const lengthMs = lengthDays * 24 * 60 * 60 * 1000;
@@ -222,7 +240,7 @@ export function applyPayItemType(args: {
   defaultAmount?: number;
   defaultRate?: number;
   gross: number;
-  frequency: "weekly" | "bi-weekly" | "monthly";
+  frequency: PayFrequency;
 }): number {
   if (args.calculation === "flat") {
     return roundMoney(args.amount ?? args.defaultAmount ?? 0);

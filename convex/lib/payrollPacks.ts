@@ -16,13 +16,15 @@ export type PackComponent = {
 
 export type PackHoliday = { month: number; day: number; name: string; isPaid: boolean };
 
+export type PayFrequency = "weekly" | "bi-weekly" | "monthly" | "annually";
+
 export type JurisdictionPack = {
   id: string;
   country: string;
   regularHoursLimitDaily: number;
   overtimeMultiplier: number;
   defaultScheduleName: string;
-  defaultFrequency: "weekly" | "bi-weekly" | "monthly";
+  defaultFrequency: PayFrequency;
   cutoffDaysBeforePayDate: number;
   components: PackComponent[];
   timeOffTypes: Array<{ code: string; name: string; paid: boolean; countsTowardOvertime: boolean }>;
@@ -45,9 +47,9 @@ const GENERIC_PACK: JurisdictionPack = {
   cutoffDaysBeforePayDate: 2,
   components: [],
   timeOffTypes: [
-    { code: "ANNUAL", name: "Annual leave", paid: true, countsTowardOvertime: false },
-    { code: "SICK", name: "Sick leave", paid: true, countsTowardOvertime: false },
-    { code: "UNPAID", name: "Unpaid leave", paid: false, countsTowardOvertime: false },
+    { code: "110001", name: "Annual leave", paid: true, countsTowardOvertime: false },
+    { code: "110002", name: "Sick leave", paid: true, countsTowardOvertime: false },
+    { code: "110003", name: "Unpaid leave", paid: false, countsTowardOvertime: false },
   ],
   holidays: [
     { month: 1, day: 1, name: "New Year's Day", isPaid: true },
@@ -70,7 +72,7 @@ const NG_PACK: JurisdictionPack = {
   cutoffDaysBeforePayDate: 3,
   components: [
     {
-      code: "PAYE",
+      code: "210001",
       name: "PAYE",
       kind: "deduction",
       calculation: "pack_formula",
@@ -89,7 +91,7 @@ const NG_PACK: JurisdictionPack = {
       },
     },
     {
-      code: "PENSION",
+      code: "210002",
       name: "Employee pension",
       kind: "deduction",
       calculation: "percent_of_gross",
@@ -97,9 +99,9 @@ const NG_PACK: JurisdictionPack = {
     },
   ],
   timeOffTypes: [
-    { code: "ANNUAL", name: "Annual leave", paid: true, countsTowardOvertime: false },
-    { code: "SICK", name: "Sick leave", paid: true, countsTowardOvertime: false },
-    { code: "UNPAID", name: "Unpaid leave", paid: false, countsTowardOvertime: false },
+    { code: "110001", name: "Annual leave", paid: true, countsTowardOvertime: false },
+    { code: "110002", name: "Sick leave", paid: true, countsTowardOvertime: false },
+    { code: "110003", name: "Unpaid leave", paid: false, countsTowardOvertime: false },
   ],
   holidays: [
     { month: 1, day: 1, name: "New Year's Day", isPaid: true },
@@ -152,9 +154,10 @@ export function calculateNgPaye(
   return roundMoney(tax / periodsPerYear);
 }
 
-export function periodsPerYear(frequency: "weekly" | "bi-weekly" | "monthly"): number {
+export function periodsPerYear(frequency: PayFrequency): number {
   if (frequency === "weekly") return 52;
   if (frequency === "bi-weekly") return 26;
+  if (frequency === "annually") return 1;
   return 12;
 }
 

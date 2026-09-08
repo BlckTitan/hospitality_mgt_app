@@ -511,7 +511,7 @@ export default defineSchema({
   payCycles: defineTable({
     propertyId: v.id("properties"),
     name: v.string(),
-    frequency: v.union(v.literal("weekly"), v.literal("bi-weekly"), v.literal("monthly")),
+    frequency: v.union(v.literal("weekly"), v.literal("bi-weekly"), v.literal("monthly"), v.literal("annually")),
     anchorDate: v.number(),
     cutoffDaysBeforePayDate: v.number(),
     isDefault: v.boolean(),
@@ -644,7 +644,7 @@ export default defineSchema({
     payPeriodStart: v.number(),
     payPeriodEnd: v.number(),
     payDate: v.number(),
-    payFrequency: v.union(v.literal("weekly"), v.literal("bi-weekly"), v.literal("monthly")),
+    payFrequency: v.union(v.literal("weekly"), v.literal("bi-weekly"), v.literal("monthly"), v.literal("annually")),
     status: v.union(
       v.literal("draft"),
       v.literal("calculated"),

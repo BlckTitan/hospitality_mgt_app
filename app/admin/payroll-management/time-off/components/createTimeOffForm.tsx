@@ -9,13 +9,14 @@ import { api } from '../../../../../convex/_generated/api';
 import { Id } from '../../../../../convex/_generated/dataModel';
 import { formSchema } from './validation';
 import InputComponent from '../../../../../shared/input';
-import DatepickerComponent from '../../../../../shared/datepicker';
+import SelectComponent from '../../../../../shared/select';
+import { fieldRowClassName } from '../../../../../shared/field';
 
 type FormData = {
   employeeId: string;
   timeOffTypeId: string;
-  startDate: Date | null;
-  endDate: Date | null;
+  startDate: string;
+  endDate: string;
   notes?: string;
 };
 
@@ -36,13 +37,13 @@ export function FormComponent({
     propertyId: propertyId as Id<'properties'>,
   });
 
-  const { control, register, handleSubmit, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: yupResolver(formSchema) as any,
     defaultValues: {
       employeeId: '',
       timeOffTypeId: '',
-      startDate: null,
-      endDate: null,
+      startDate: '',
+      endDate: '',
       notes: '',
     },
   });
@@ -53,8 +54,8 @@ export function FormComponent({
       propertyId: propertyId as Id<'properties'>,
       employeeId: data.employeeId as Id<'staffs'>,
       timeOffTypeId: data.timeOffTypeId as Id<'timeOffTypes'>,
-      startDate: data.startDate.getTime(),
-      endDate: data.endDate.getTime(),
+      startDate: new Date(data.startDate).getTime(),
+      endDate: new Date(data.endDate).getTime(),
       notes: data.notes || undefined,
     });
     if (response.success === false) {
@@ -68,54 +69,56 @@ export function FormComponent({
 
   return (
     <form onSubmit={handleSubmit(onSubmit)}>
-      <div className="w-full h-fit flex flex-col lg:flex-row justify-between items-center gap-1 [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4">
-        <div className="w-full lg:w-1/3">
-          <label htmlFor="employeeId">Staff *</label>
-          <select id="employeeId" {...register('employeeId')} defaultValue="">
-            <option value="" disabled>Select staff</option>
-            {(staff?.data ?? []).map((row) => (
-              <option key={row._id} value={row._id}>
-                {row.firstName} {row.lastName}
-              </option>
-            ))}
-          </select>
-          {errors.employeeId && <span className="text-red-500 text-sm">{errors.employeeId.message}</span>}
-        </div>
-        <div className="w-full lg:w-1/3">
-          <label htmlFor="timeOffTypeId">Time-off type *</label>
-          <select id="timeOffTypeId" {...register('timeOffTypeId')} defaultValue="">
-            <option value="" disabled>Select type</option>
-            {(config?.data?.timeOffTypes ?? []).filter((t) => t.isActive).map((type) => (
-              <option key={type._id} value={type._id}>
-                {type.name}{type.paid ? '' : ' (unpaid)'}
-              </option>
-            ))}
-          </select>
-          {errors.timeOffTypeId && <span className="text-red-500 text-sm">{errors.timeOffTypeId.message}</span>}
-        </div>
-        <DatepickerComponent
+      <div className={fieldRowClassName}>
+        <SelectComponent
+          id="employeeId"
+          label="Staff *"
+          selectWidth="w-4/12"
+          defaultText="Select staff"
+          register={register('employeeId')}
+          error={errors.employeeId}
+          options={(staff?.data ?? []).map((row) => ({
+            value: row._id,
+            label: `${row.firstName} ${row.lastName}`,
+          }))}
+        />
+        <SelectComponent
+          id="timeOffTypeId"
+          label="Time-off type *"
+          selectWidth="w-4/12"
+          defaultText="Select type"
+          register={register('timeOffTypeId')}
+          error={errors.timeOffTypeId}
+          options={(config?.data?.timeOffTypes ?? [])
+            .filter((type) => type.isActive)
+            .map((type) => ({
+              value: type._id,
+              label: `${type.name}${type.paid ? '' : ' (unpaid)'}`,
+            }))}
+        />
+        <InputComponent
           id="startDate"
-          name="startDate"
           label="Start date *"
-          dateWidth="w-1/3"
-          control={control}
+          type="date"
+          inputWidth="w-2/12"
+          register={register('startDate')}
           error={errors.startDate}
         />
       </div>
-      <div className="w-full h-fit flex flex-col lg:flex-row justify-between items-center gap-1 [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4">
-        <DatepickerComponent
+      <div className={fieldRowClassName}>
+        <InputComponent
           id="endDate"
-          name="endDate"
           label="End date *"
-          dateWidth="w-1/3"
-          control={control}
+          type="date"
+          inputWidth="w-2/12"
+          register={register('endDate')}
           error={errors.endDate}
         />
         <InputComponent
           id="notes"
           label="Notes"
           type="text"
-          inputWidth="w-1/3"
+          inputWidth="w-4/12"
           register={register('notes')}
           error={errors.notes}
         />

@@ -141,8 +141,31 @@ main{
 footer{
   @apply w-full h-10;
 }
-input, select{
-  @apply w-full h-10 p-2 border rounded-sm;
+input:not([type="checkbox"]):not([type="radio"]), select{
+  @apply w-full max-w-full min-w-0 h-10 p-2 border rounded-sm;
+  field-sizing: fixed;
+}
+.field-w-2,
+.field-w-4,
+.field-w-third,
+.field-w-half,
+.field-w-2-5,
+.field-w-3-5 {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+@media (min-width: 1024px) {
+  .field-w-2 { width: 16.666%; max-width: 16.666%; flex: 0 0 16.666%; }
+  .field-w-4 { width: 33.333%; max-width: 33.333%; flex: 0 0 33.333%; }
+  .field-w-third { width: 33.333%; max-width: 33.333%; flex: 0 0 33.333%; }
+  .field-w-half { width: 50%; max-width: 50%; flex: 0 0 50%; }
+  .field-w-2-5 { width: 40%; max-width: 40%; flex: 0 0 40%; }
+  .field-w-3-5 { width: 60%; max-width: 60%; flex: 0 0 60%; }
+}
+input[type="checkbox"],
+input[type="radio"] {
+  @apply size-4 w-4 h-4 p-0 m-0 shrink-0 border rounded-sm;
 }
 label{
   @apply text-left;
@@ -200,6 +223,10 @@ aside .sidebar-scroll::-webkit-scrollbar {
 }
 
 /* date picker styling */
+.react-datepicker-wrapper,
+.react-datepicker__input-container {
+  @apply w-full;
+}
 .react-datepicker__month-container {
   display: flex !important;
   flex-direction: column !important;

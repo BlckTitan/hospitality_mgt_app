@@ -9,11 +9,12 @@ import { api } from '../../../../../convex/_generated/api';
 import { Id } from '../../../../../convex/_generated/dataModel';
 import { formSchema } from './validation';
 import InputComponent from '../../../../../shared/input';
-import DatepickerComponent from '../../../../../shared/datepicker';
+import SelectComponent from '../../../../../shared/select';
+import { fieldRowClassName } from '../../../../../shared/field';
 
 type FormData = {
   employeeId: string;
-  workDate: Date | null;
+  workDate: string;
   regularHours: number;
   overtimeHours: number;
   notes?: string;
@@ -33,11 +34,11 @@ export function FormComponent({
     propertyId: propertyId as Id<'properties'>,
   });
 
-  const { control, register, handleSubmit, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: yupResolver(formSchema) as any,
     defaultValues: {
       employeeId: '',
-      workDate: null,
+      workDate: '',
       regularHours: 8,
       overtimeHours: 0,
       notes: '',
@@ -49,7 +50,7 @@ export function FormComponent({
     const response = await createHours({
       propertyId: propertyId as Id<'properties'>,
       employeeId: data.employeeId as Id<'staffs'>,
-      workDate: data.workDate.getTime(),
+      workDate: new Date(data.workDate).getTime(),
       regularHours: Number(data.regularHours),
       overtimeHours: Number(data.overtimeHours),
       notes: data.notes || undefined,
@@ -65,25 +66,25 @@ export function FormComponent({
 
   return (
     <form onSubmit={handleSubmit(onSubmit)}>
-      <div className="w-full h-fit flex flex-col lg:flex-row justify-between items-center gap-1 [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4">
-        <div className="w-full lg:w-1/3">
-          <label htmlFor="employeeId">Staff *</label>
-          <select id="employeeId" {...register('employeeId')} defaultValue="">
-            <option value="" disabled>Select staff</option>
-            {(staff?.data ?? []).map((row) => (
-              <option key={row._id} value={row._id}>
-                {row.firstName} {row.lastName}
-              </option>
-            ))}
-          </select>
-          {errors.employeeId && <span className="text-red-500 text-sm">{errors.employeeId.message}</span>}
-        </div>
-        <DatepickerComponent
+      <div className={fieldRowClassName}>
+        <SelectComponent
+          id="employeeId"
+          label="Staff *"
+          selectWidth="w-1/3"
+          defaultText="Select staff"
+          register={register('employeeId')}
+          error={errors.employeeId}
+          options={(staff?.data ?? []).map((row) => ({
+            value: row._id,
+            label: `${row.firstName} ${row.lastName}`,
+          }))}
+        />
+        <InputComponent
           id="workDate"
-          name="workDate"
           label="Work date *"
-          dateWidth="w-1/3"
-          control={control}
+          type="date"
+          inputWidth="w-2/12"
+          register={register('workDate')}
           error={errors.workDate}
         />
         <InputComponent
@@ -95,7 +96,7 @@ export function FormComponent({
           error={errors.regularHours}
         />
       </div>
-      <div className="w-full h-fit flex flex-col lg:flex-row justify-between items-center gap-1 [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4">
+      <div className={fieldRowClassName}>
         <InputComponent
           id="overtimeHours"
           label="Overtime hours *"

@@ -2,7 +2,21 @@ import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { requirePermission } from "./lib/rbac";
 import { resolveJurisdictionPack } from "./lib/payrollPacks";
-import { seedPayrollForProperty } from "./lib/payrollHelpers";
+import { seedPayrollForProperty, startOfUtcDay } from "./lib/payrollHelpers";
+
+const SETTINGS_CODE = /^\d{6}$/;
+
+function parseSettingsCode(code: string) {
+  const normalized = code.trim();
+  if (!SETTINGS_CODE.test(normalized)) {
+    return { ok: false as const, message: "Code must be exactly 6 digits" };
+  }
+  return { ok: true as const, code: normalized };
+}
+
+function sameName(left: string, right: string) {
+  return left.trim().toLowerCase() === right.trim().toLowerCase();
+}
 
 export const getSettings = query({
   args: { propertyId: v.id("properties") },
@@ -113,39 +127,65 @@ export const updateSettings = mutation({
   },
 });
 
-export const createPayCycle = mutation({
+/** Updates the property's single default pay cycle. Extra rows are deactivated. */
+export const savePayCycle = mutation({
   args: {
     propertyId: v.id("properties"),
-    name: v.string(),
-    frequency: v.union(v.literal("weekly"), v.literal("bi-weekly"), v.literal("monthly")),
-    anchorDate: v.number(),
-    cutoffDaysBeforePayDate: v.number(),
-    isDefault: v.boolean(),
+    frequency: v.union(v.literal("weekly"), v.literal("bi-weekly"), v.literal("monthly"), v.literal("annually")),
   },
   handler: async (ctx, args) => {
     await requirePermission(ctx, "payroll.settings.update", args.propertyId);
+    const name =
+      args.frequency === "weekly" ? "Weekly" : args.frequency === "annually" ? "Annually" : args.frequency === "bi-weekly" ? "Bi-weekly" : "Monthly";
+    const existing = await ctx.db
+      .query("payCycles")
+      .withIndex("by_propertyId", (q) => q.eq("propertyId", args.propertyId))
+      .collect();
+    const current = existing.find((row) => row.isDefault) ?? existing[0];
     const now = Date.now();
-    if (args.isDefault) {
-      const existing = await ctx.db
-        .query("payCycles")
-        .withIndex("by_propertyId", (q) => q.eq("propertyId", args.propertyId))
-        .collect();
-      for (const row of existing.filter((s) => s.isDefault)) {
-        await ctx.db.patch(row._id, { isDefault: false, updatedAt: now });
+
+    if (current) {
+      await ctx.db.patch(current._id, {
+        name,
+        frequency: args.frequency,
+        isDefault: true,
+        isActive: true,
+        updatedAt: now,
+      });
+      for (const row of existing) {
+        if (row._id !== current._id) {
+          await ctx.db.patch(row._id, { isDefault: false, isActive: false, updatedAt: now });
+        }
       }
+      const settings = await ctx.db
+        .query("payrollSettings")
+        .withIndex("by_propertyId", (q) => q.eq("propertyId", args.propertyId))
+        .first();
+      if (settings && settings.defaultPayCycleId !== current._id) {
+        await ctx.db.patch(settings._id, { defaultPayCycleId: current._id, updatedAt: now });
+      }
+      return { success: true, message: "Pay cycle updated", id: current._id };
     }
+
     const id = await ctx.db.insert("payCycles", {
       propertyId: args.propertyId,
-      name: args.name,
+      name,
       frequency: args.frequency,
-      anchorDate: args.anchorDate,
-      cutoffDaysBeforePayDate: args.cutoffDaysBeforePayDate,
-      isDefault: args.isDefault,
+      anchorDate: now,
+      cutoffDaysBeforePayDate: 2,
+      isDefault: true,
       isActive: true,
       createdAt: now,
       updatedAt: now,
     });
-    return { success: true, message: "Pay cycle created", id };
+    const settings = await ctx.db
+      .query("payrollSettings")
+      .withIndex("by_propertyId", (q) => q.eq("propertyId", args.propertyId))
+      .first();
+    if (settings) {
+      await ctx.db.patch(settings._id, { defaultPayCycleId: id, updatedAt: now });
+    }
+    return { success: true, message: "Pay cycle saved", id };
   },
 });
 
@@ -159,11 +199,27 @@ export const createTimeOffType = mutation({
   },
   handler: async (ctx, args) => {
     await requirePermission(ctx, "payroll.settings.update", args.propertyId);
+    const parsed = parseSettingsCode(args.code);
+    if (!parsed.ok) return { success: false, message: parsed.message };
+    const name = args.name.trim();
+    if (!name) return { success: false, message: "Enter a Time-off type name" };
+
+    const existing = await ctx.db
+      .query("timeOffTypes")
+      .withIndex("by_propertyId", (q) => q.eq("propertyId", args.propertyId))
+      .collect();
+    if (existing.some((row) => row.code === parsed.code)) {
+      return { success: false, message: "A Time-off type with this code already exists" };
+    }
+    if (existing.some((row) => sameName(row.name, name))) {
+      return { success: false, message: "A Time-off type with this name already exists" };
+    }
+
     const now = Date.now();
     const id = await ctx.db.insert("timeOffTypes", {
       propertyId: args.propertyId,
-      code: args.code.trim().toUpperCase(),
-      name: args.name,
+      code: parsed.code,
+      name,
       paid: args.paid,
       countsTowardOvertime: args.countsTowardOvertime,
       isActive: true,
@@ -186,11 +242,27 @@ export const createPayItemType = mutation({
   },
   handler: async (ctx, args) => {
     await requirePermission(ctx, "payroll.settings.update", args.propertyId);
+    const parsed = parseSettingsCode(args.code);
+    if (!parsed.ok) return { success: false, message: parsed.message };
+    const name = args.name.trim();
+    if (!name) return { success: false, message: "Enter a Pay item type name" };
+
+    const existing = await ctx.db
+      .query("payItemTypes")
+      .withIndex("by_propertyId", (q) => q.eq("propertyId", args.propertyId))
+      .collect();
+    if (existing.some((row) => row.code === parsed.code)) {
+      return { success: false, message: "A Pay item type with this code already exists" };
+    }
+    if (existing.some((row) => sameName(row.name, name))) {
+      return { success: false, message: "A Pay item type with this name already exists" };
+    }
+
     const now = Date.now();
     const id = await ctx.db.insert("payItemTypes", {
       propertyId: args.propertyId,
-      code: args.code.trim().toUpperCase(),
-      name: args.name,
+      code: parsed.code,
+      name,
       kind: args.kind,
       source: "custom",
       calculation: args.calculation,
@@ -228,10 +300,23 @@ export const createHoliday = mutation({
       calendar = await ctx.db.get(calendarId);
     }
     if (!calendar) return { success: false, message: "Could not create Holidays calendar" };
+    const name = args.name.trim();
+    if (!name) return { success: false, message: "Enter a holiday name" };
+    const date = startOfUtcDay(args.date);
+    const existing = await ctx.db
+      .query("holidays")
+      .withIndex("by_holidayCalendarId", (q) => q.eq("holidayCalendarId", calendar._id))
+      .collect();
+    if (existing.some((row) => startOfUtcDay(row.date) === date)) {
+      return { success: false, message: "A holiday already exists on this date" };
+    }
+    if (existing.some((row) => sameName(row.name, name))) {
+      return { success: false, message: "A holiday with this name already exists" };
+    }
     const id = await ctx.db.insert("holidays", {
       holidayCalendarId: calendar._id,
-      date: args.date,
-      name: args.name,
+      date,
+      name,
       isPaid: args.isPaid,
       createdAt: now,
       updatedAt: now,
@@ -256,7 +341,23 @@ export const createExtraPayRule = mutation({
   },
   handler: async (ctx, args) => {
     await requirePermission(ctx, "payroll.settings.update", args.propertyId);
+    const existing = await ctx.db
+      .query("extraPayRules")
+      .withIndex("by_propertyId_kind", (q) =>
+        q.eq("propertyId", args.propertyId).eq("kind", args.kind)
+      )
+      .first();
     const now = Date.now();
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        multiplier: args.multiplier,
+        startTime: args.startTime,
+        endTime: args.endTime,
+        isActive: true,
+        updatedAt: now,
+      });
+      return { success: true, message: "Extra pay rule updated", id: existing._id };
+    }
     const id = await ctx.db.insert("extraPayRules", {
       propertyId: args.propertyId,
       kind: args.kind,
