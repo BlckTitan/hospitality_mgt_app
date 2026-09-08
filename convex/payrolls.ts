@@ -3,7 +3,7 @@ import { v } from "convex/values";
 import { Doc, Id } from "./_generated/dataModel";
 import { requirePermission } from "./lib/rbac";
 import {
-  applyPayComponent,
+  applyPayItemType,
   overlapWorkingDays,
   periodFromSchedule,
   roundMoney,
@@ -24,8 +24,8 @@ function staffPayType(staff: Doc<"staffs">): "hourly" | "salary" | "mixed" {
 }
 
 async function currentCompensation(ctx: { db: any }, employeeId: Id<"staffs">) {
-  const rows: Doc<"employeeCompensations">[] = await ctx.db
-    .query("employeeCompensations")
+  const rows: Doc<"payHistory">[] = await ctx.db
+    .query("payHistory")
     .withIndex("by_employeeId", (q: any) => q.eq("employeeId", employeeId))
     .collect();
   return rows.find((row) => row.effectiveTo === undefined) ?? null;
@@ -36,7 +36,7 @@ export const listPayrolls = query({
   handler: async (ctx, args) => {
     await requirePermission(ctx, "payroll.run.read", args.propertyId);
     const rows = await ctx.db
-      .query("payrollRuns")
+      .query("payrolls")
       .withIndex("by_propertyId", (q) => q.eq("propertyId", args.propertyId))
       .collect();
     rows.sort((a, b) => b.payPeriodEnd - a.payPeriodEnd);
@@ -48,25 +48,25 @@ export const listPayrolls = query({
 });
 
 export const getPayroll = query({
-  args: { payrollRunId: v.id("payrollRuns") },
+  args: { payrollId: v.id("payrolls") },
   handler: async (ctx, args) => {
-    const run = await ctx.db.get(args.payrollRunId);
+    const run = await ctx.db.get(args.payrollId);
     if (!run) return { success: false, data: null, message: "Payroll not found" };
     await requirePermission(ctx, "payroll.run.read", run.propertyId);
     const lines = await ctx.db
-      .query("payrollRunLines")
-      .withIndex("by_payrollRunId", (q) => q.eq("payrollRunId", run._id))
+      .query("staffPay")
+      .withIndex("by_payrollId", (q) => q.eq("payrollId", run._id))
       .collect();
     const staffPay = await Promise.all(
       lines.map(async (line) => {
         const staff = await ctx.db.get(line.employeeId);
         const items = await ctx.db
-          .query("payrollLineItems")
-          .withIndex("by_payrollRunLineId", (q) => q.eq("payrollRunLineId", line._id))
+          .query("payItems")
+          .withIndex("by_staffPayId", (q) => q.eq("staffPayId", line._id))
           .collect();
         const payslip = await ctx.db
           .query("payslips")
-          .withIndex("by_payrollRunLineId", (q) => q.eq("payrollRunLineId", line._id))
+          .withIndex("by_staffPayId", (q) => q.eq("staffPayId", line._id))
           .first();
         return {
           ...line,
@@ -78,10 +78,10 @@ export const getPayroll = query({
       })
     );
     const exports = await ctx.db
-      .query("payrollExports")
-      .withIndex("by_payrollRunId", (q) => q.eq("payrollRunId", run._id))
+      .query("paymentFiles")
+      .withIndex("by_payrollId", (q) => q.eq("payrollId", run._id))
       .collect();
-    const schedule = await ctx.db.get(run.payScheduleId);
+    const schedule = await ctx.db.get(run.payCycleId);
     return {
       success: true,
       data: {
@@ -98,17 +98,17 @@ export const getPayroll = query({
 export const startPayroll = mutation({
   args: {
     propertyId: v.id("properties"),
-    payScheduleId: v.id("paySchedules"),
+    payCycleId: v.id("payCycles"),
   },
   handler: async (ctx, args) => {
     const auth = await requirePermission(ctx, "payroll.run.create", args.propertyId);
-    const schedule = await ctx.db.get(args.payScheduleId);
+    const schedule = await ctx.db.get(args.payCycleId);
     if (!schedule || schedule.propertyId !== args.propertyId) {
       return { success: false, message: "Pay cycle not found" };
     }
     const period = periodFromSchedule(schedule.frequency, schedule.anchorDate);
     const open = await ctx.db
-      .query("payrollRuns")
+      .query("payrolls")
       .withIndex("by_propertyId", (q) => q.eq("propertyId", args.propertyId))
       .collect();
     const overlap = open.find(
@@ -121,9 +121,9 @@ export const startPayroll = mutation({
       return { success: false, message: "An open Payroll already covers this period" };
     }
     const now = Date.now();
-    const id = await ctx.db.insert("payrollRuns", {
+    const id = await ctx.db.insert("payrolls", {
       propertyId: args.propertyId,
-      payScheduleId: schedule._id,
+      payCycleId: schedule._id,
       runType: "regular",
       payPeriodStart: period.payPeriodStart,
       payPeriodEnd: period.payPeriodEnd,
@@ -142,47 +142,47 @@ export const startPayroll = mutation({
   },
 });
 
-async function unlockHoursForRun(ctx: { db: any }, runId: Id<"payrollRuns">) {
-  const locked: Doc<"timesheets">[] = await ctx.db
-    .query("timesheets")
-    .withIndex("by_lockedByRunId", (q: any) => q.eq("lockedByRunId", runId))
+async function unlockHoursForPayroll(ctx: { db: any }, runId: Id<"payrolls">) {
+  const locked: Doc<"hours">[] = await ctx.db
+    .query("hours")
+    .withIndex("by_lockedByPayrollId", (q: any) => q.eq("lockedByPayrollId", runId))
     .collect();
   for (const sheet of locked) {
     await ctx.db.patch(sheet._id, {
       lockedAt: undefined,
-      lockedByRunId: undefined,
-      payrollRunLineId: undefined,
+      lockedByPayrollId: undefined,
+      staffPayId: undefined,
       updatedAt: Date.now(),
     });
   }
 }
 
 export const preparePay = mutation({
-  args: { payrollRunId: v.id("payrollRuns") },
+  args: { payrollId: v.id("payrolls") },
   handler: async (ctx, args) => {
-    const run = await ctx.db.get(args.payrollRunId);
+    const run = await ctx.db.get(args.payrollId);
     if (!run) return { success: false, message: "Payroll not found" };
     const auth = await requirePermission(ctx, "payroll.run.calculate", run.propertyId);
     if (run.status !== "draft" && run.status !== "calculated") {
       return { success: false, message: "Only Draft or Ready to review payrolls can be prepared" };
     }
 
-    await unlockHoursForRun(ctx, run._id);
+    await unlockHoursForPayroll(ctx, run._id);
     const existingLines = await ctx.db
-      .query("payrollRunLines")
-      .withIndex("by_payrollRunId", (q) => q.eq("payrollRunId", run._id))
+      .query("staffPay")
+      .withIndex("by_payrollId", (q) => q.eq("payrollId", run._id))
       .collect();
     for (const line of existingLines) {
       const items = await ctx.db
-        .query("payrollLineItems")
-        .withIndex("by_payrollRunLineId", (q) => q.eq("payrollRunLineId", line._id))
+        .query("payItems")
+        .withIndex("by_staffPayId", (q) => q.eq("staffPayId", line._id))
         .collect();
       for (const item of items) await ctx.db.delete(item._id);
       await ctx.db.delete(line._id);
     }
 
     const settings = await ctx.db
-      .query("propertyPayrollSettings")
+      .query("payrollSettings")
       .withIndex("by_propertyId", (q) => q.eq("propertyId", run.propertyId))
       .first();
     const otMultiplier = settings?.overtimeMultiplier ?? 1.5;
@@ -196,15 +196,15 @@ export const preparePay = mutation({
     ).concat((await ctx.db.query("staffs").collect()).filter((s) => !s.propertyId));
 
     const hours = await ctx.db
-      .query("timesheets")
+      .query("hours")
       .withIndex("by_propertyId", (q) => q.eq("propertyId", run.propertyId))
       .collect();
     const leave = await ctx.db
-      .query("leaveEntries")
+      .query("timeOff")
       .withIndex("by_propertyId", (q) => q.eq("propertyId", run.propertyId))
       .collect();
     const components = await ctx.db
-      .query("payComponents")
+      .query("payItemTypes")
       .withIndex("by_propertyId_isActive", (q) =>
         q.eq("propertyId", run.propertyId).eq("isActive", true)
       )
@@ -243,7 +243,7 @@ export const preparePay = mutation({
 
       let unpaidDays = 0;
       for (const entry of approvedLeave) {
-        const type = await ctx.db.get(entry.leaveTypeId);
+        const type = await ctx.db.get(entry.timeOffTypeId);
         if (type && !type.paid) {
           unpaidDays += overlapWorkingDays(run.payPeriodStart, run.payPeriodEnd, entry.startDate, entry.endDate);
         }
@@ -275,10 +275,10 @@ export const preparePay = mutation({
       regularPay = roundMoney(regularPay);
       overtimePay = roundMoney(overtimePay);
 
-      const lineId = await ctx.db.insert("payrollRunLines", {
-        payrollRunId: run._id,
+      const lineId = await ctx.db.insert("staffPay", {
+        payrollId: run._id,
         employeeId: staff._id,
-        compensationIdUsed: compensation?._id,
+        payHistoryIdUsed: compensation?._id,
         payTypeUsed: payType,
         hourlyRateUsed: hourlyRate || undefined,
         baseSalaryUsed: baseSalary || undefined,
@@ -303,14 +303,14 @@ export const preparePay = mutation({
 
       let gross = regularPay + overtimePay;
       const overrides = await ctx.db
-        .query("employeePayComponents")
+        .query("staffPayItems")
         .withIndex("by_employeeId", (q) => q.eq("employeeId", staff._id))
         .collect();
 
       for (const component of components) {
-        const override = overrides.find((o) => o.payComponentId === component._id);
+        const override = overrides.find((o) => o.payItemTypeId === component._id);
         if (override && !override.isEnabled) continue;
-        const amount = applyPayComponent({
+        const amount = applyPayItemType({
           calculation: component.calculation,
           formulaKey: component.formulaKey,
           params: component.params as Record<string, unknown> | undefined,
@@ -333,8 +333,8 @@ export const preparePay = mutation({
       let deductions = 0;
       let finalGross = 0;
       for (const item of items) {
-        await ctx.db.insert("payrollLineItems", {
-          payrollRunLineId: lineId,
+        await ctx.db.insert("payItems", {
+          staffPayId: lineId,
           kind: item.kind,
           code: item.code,
           label: item.label,
@@ -355,8 +355,8 @@ export const preparePay = mutation({
       for (const sheet of approvedHours) {
         await ctx.db.patch(sheet._id, {
           lockedAt: now,
-          lockedByRunId: run._id,
-          payrollRunLineId: lineId,
+          lockedByPayrollId: run._id,
+          staffPayId: lineId,
           updatedAt: now,
         });
       }
@@ -379,9 +379,9 @@ export const preparePay = mutation({
 });
 
 export const approvePayroll = mutation({
-  args: { payrollRunId: v.id("payrollRuns") },
+  args: { payrollId: v.id("payrolls") },
   handler: async (ctx, args) => {
-    const run = await ctx.db.get(args.payrollRunId);
+    const run = await ctx.db.get(args.payrollId);
     if (!run) return { success: false, message: "Payroll not found" };
     const auth = await requirePermission(ctx, "payroll.run.approve", run.propertyId);
     if (run.status !== "calculated") {
@@ -392,24 +392,24 @@ export const approvePayroll = mutation({
     }
 
     const lines = await ctx.db
-      .query("payrollRunLines")
-      .withIndex("by_payrollRunId", (q) => q.eq("payrollRunId", run._id))
+      .query("staffPay")
+      .withIndex("by_payrollId", (q) => q.eq("payrollId", run._id))
       .collect();
     const now = Date.now();
 
     for (const line of lines) {
       const staff = await ctx.db.get(line.employeeId);
       const items = await ctx.db
-        .query("payrollLineItems")
-        .withIndex("by_payrollRunLineId", (q) => q.eq("payrollRunLineId", line._id))
+        .query("payItems")
+        .withIndex("by_staffPayId", (q) => q.eq("staffPayId", line._id))
         .collect();
       const existing = await ctx.db
         .query("payslips")
-        .withIndex("by_payrollRunLineId", (q) => q.eq("payrollRunLineId", line._id))
+        .withIndex("by_staffPayId", (q) => q.eq("staffPayId", line._id))
         .first();
       if (!existing) {
         await ctx.db.insert("payslips", {
-          payrollRunLineId: line._id,
+          staffPayId: line._id,
           propertyId: run.propertyId,
           employeeId: line.employeeId,
           snapshot: {
@@ -430,7 +430,7 @@ export const approvePayroll = mutation({
 
     const journalId = await ctx.db.insert("journalEntries", {
       propertyId: run.propertyId,
-      referenceType: "PayrollRun",
+      referenceType: "Payroll",
       referenceId: run._id,
       status: "posted",
       totalDebit: run.totalGrossPay,
@@ -474,17 +474,17 @@ export const approvePayroll = mutation({
 });
 
 export const downloadPaymentFiles = mutation({
-  args: { payrollRunId: v.id("payrollRuns") },
+  args: { payrollId: v.id("payrolls") },
   handler: async (ctx, args) => {
-    const run = await ctx.db.get(args.payrollRunId);
+    const run = await ctx.db.get(args.payrollId);
     if (!run) return { success: false, message: "Payroll not found" };
     const auth = await requirePermission(ctx, "payroll.run.export", run.propertyId);
     if (run.status !== "approved" && run.status !== "processed") {
       return { success: false, message: "Approve payroll before downloading payment files" };
     }
     const lines = await ctx.db
-      .query("payrollRunLines")
-      .withIndex("by_payrollRunId", (q) => q.eq("payrollRunId", run._id))
+      .query("staffPay")
+      .withIndex("by_payrollId", (q) => q.eq("payrollId", run._id))
       .collect();
     const bankRows: string[] = ["staff,accountName,accountNumber,bankName,routingCode,netPay"];
     const cashRows: string[] = ["staff,paymentMethod,netPay"];
@@ -501,13 +501,13 @@ export const downloadPaymentFiles = mutation({
     }
     const now = Date.now();
     const existing = await ctx.db
-      .query("payrollExports")
-      .withIndex("by_payrollRunId", (q) => q.eq("payrollRunId", run._id))
+      .query("paymentFiles")
+      .withIndex("by_payrollId", (q) => q.eq("payrollId", run._id))
       .collect();
     for (const row of existing) await ctx.db.delete(row._id);
 
-    await ctx.db.insert("payrollExports", {
-      payrollRunId: run._id,
+    await ctx.db.insert("paymentFiles", {
+      payrollId: run._id,
       format: "generic_csv",
       status: "generated",
       content: bankRows.join("\n"),
@@ -515,8 +515,8 @@ export const downloadPaymentFiles = mutation({
       generatedAt: now,
       createdAt: now,
     });
-    await ctx.db.insert("payrollExports", {
-      payrollRunId: run._id,
+    await ctx.db.insert("paymentFiles", {
+      payrollId: run._id,
       format: "cash_sheet",
       status: "generated",
       content: cashRows.join("\n"),
@@ -530,9 +530,9 @@ export const downloadPaymentFiles = mutation({
 });
 
 export const markAsPaid = mutation({
-  args: { payrollRunId: v.id("payrollRuns") },
+  args: { payrollId: v.id("payrolls") },
   handler: async (ctx, args) => {
-    const run = await ctx.db.get(args.payrollRunId);
+    const run = await ctx.db.get(args.payrollId);
     if (!run) return { success: false, message: "Payroll not found" };
     const auth = await requirePermission(ctx, "payroll.run.mark_paid", run.propertyId);
     if (run.status !== "processed" && run.status !== "approved") {
@@ -542,7 +542,7 @@ export const markAsPaid = mutation({
     await ctx.db.insert("payments", {
       propertyId: run.propertyId,
       paymentType: "payroll",
-      referenceType: "PayrollRun",
+      referenceType: "Payroll",
       referenceId: run._id,
       amount: run.totalNetPay,
       paymentMethod: "bank_transfer",
@@ -562,8 +562,8 @@ export const getPayslip = query({
     const payslip = await ctx.db.get(args.payslipId);
     if (!payslip) return { success: false, data: null, message: "Payslip not found" };
     await requirePermission(ctx, "payroll.payslip.read", payslip.propertyId);
-    const line = await ctx.db.get(payslip.payrollRunLineId);
-    const run = line ? await ctx.db.get(line.payrollRunId) : null;
+    const line = await ctx.db.get(payslip.staffPayId);
+    const run = line ? await ctx.db.get(line.payrollId) : null;
     const staff = await ctx.db.get(payslip.employeeId);
     return { success: true, data: { payslip, line, run, staff } };
   },

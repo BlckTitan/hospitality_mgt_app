@@ -1,7 +1,7 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
 import { requirePermission } from './lib/rbac';
-import { draftHoursFromShift } from './timesheets';
+import { draftHoursFromShift } from './hours';
 
 export const getAllShifts = query({
   args: { propertyId: v.id('properties') },

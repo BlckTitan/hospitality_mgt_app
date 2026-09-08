@@ -1037,7 +1037,7 @@ export function prorateSalaryForUnpaidLeave(
 ### Apply Pay Components
 
 ```typescript
-type PayComponentInput = {
+type PayItemTypeInput = {
   code: string;
   kind: "earning" | "allowance" | "deduction";
   calculation: "flat" | "percent_of_gross";
@@ -1050,9 +1050,9 @@ type PayComponentInput = {
  * (salary/hourly/overtime), not later allowances. `pack_formula` components are
  * evaluated by the country pack module (e.g. ng_paye), not this helper.
  */
-export function applyPayComponents(
+export function applyPayItemTypes(
   baseGross: number,
-  components: PayComponentInput[]
+  components: PayItemTypeInput[]
 ): { items: { code: string; kind: string; amount: number }[]; totalDeductions: number; grossPay: number } {
   const items: { code: string; kind: string; amount: number }[] = [];
   let extraEarnings = 0;

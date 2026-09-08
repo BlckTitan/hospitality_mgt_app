@@ -461,7 +461,7 @@ If inventory is damaged or expires:
 
 Maria Garcia (housekeeper, `employeeId: 203`) arrives at 7:00 AM:
 1. System creates **Hours** record:
-   - `timesheetId: 5001`
+   - `hoursId: 5001`
    - `employeeId: 203`
    - `propertyId: 1`
    - `workDate: 2024-07-18`
@@ -491,7 +491,7 @@ Every two weeks, the Finance Manager processes payroll:
 **Step 1: Start payroll from a Pay cycle**
 
 - Created from the property’s bi-weekly default Pay cycle (period, cutoff, pay date copied)
-- `payrollRunId: 6001`, `status: "draft"`
+- `payrollId: 6001`, `status: "draft"`
 - `createdBy`: Finance Manager **User** id (need not be an Employee)
 
 **Step 2: Prepare pay**
@@ -503,8 +503,8 @@ For Maria Garcia (`employeeId: 203`, `paymentMethod: bank`, `payType: hourly`):
 - Hourly rate from current compensation: $18/hour
 - Regular pay: $1,350; overtime: $135; housing $50; insurance deduction $50
 - Gross: $1,535; net: $1,485
-- Included Hours get `payrollRunLineId: 7001`, `lockedByRunId: 6001`
-- Line snapshots `compensationIdUsed`
+- Included Hours get `staffPayId: 7001`, `lockedByPayrollId: 6001`
+- Line snapshots `payHistoryIdUsed`
 
 **Step 3: Approve and Process (maker ≠ checker)**
 
@@ -523,8 +523,8 @@ Balanced template (gross $45,000, deductions $9,000, net $36,000) — withholdin
 | Employee deductions payable | | 9000 |
 | Wages payable | | 36000 |
 
-1. **Payment**: `paymentType: "payroll"`, `referenceType: "PayrollRun"`, `amount: $36,000`, `paymentMethod: "bank_transfer"`.
-2. **JournalEntry**: `referenceType: "PayrollRun"`, `referenceId: 6001`, lines as above.
+1. **Payment**: `paymentType: "payroll"`, `referenceType: "Payroll"`, `amount: $36,000`, `paymentMethod: "bank_transfer"`.
+2. **JournalEntry**: `referenceType: "Payroll"`, `referenceId: 6001`, lines as above.
 
 ---
 

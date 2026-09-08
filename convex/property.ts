@@ -159,7 +159,7 @@ export const updateProperty = mutation({
       if (nextCountry && existingProperty.country && nextCountry !== existingProperty.country) {
         const paidRuns = (
           await ctx.db
-            .query('payrollRuns')
+            .query('payrolls')
             .withIndex('by_propertyId', (q) => q.eq('propertyId', args.property_id))
             .collect()
         ).filter((run) => run.status === 'approved' || run.status === 'processed' || run.status === 'paid');

@@ -392,14 +392,14 @@ export default defineSchema({
   // Payroll FKs named employeeId are Id<"staffs">.
   // ============================================
 
-  propertyPayrollSettings: defineTable({
+  payrollSettings: defineTable({
     propertyId: v.id("properties"),
     country: v.string(),
     jurisdictionPack: v.string(),
     regularHoursLimitDaily: v.optional(v.number()),
     regularHoursLimitWeekly: v.optional(v.number()),
     overtimeMultiplier: v.number(),
-    defaultPayScheduleId: v.optional(v.string()),
+    defaultPayCycleId: v.optional(v.string()),
     bankExportFormat: v.literal("generic_csv"),
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -448,7 +448,7 @@ export default defineSchema({
     payType: v.optional(v.union(v.literal("hourly"), v.literal("salary"), v.literal("mixed"))),
     baseSalary: v.optional(v.number()),
     hourlyRate: v.optional(v.number()),
-    payScheduleId: v.optional(v.string()),
+    payCycleId: v.optional(v.string()),
     paymentMethod: v.optional(
       v.union(
         v.literal("bank"),
@@ -475,7 +475,7 @@ export default defineSchema({
       filterFields: ["employmentStatus", "role", "department"],
     }),
 
-  payComponents: defineTable({
+  payItemTypes: defineTable({
     propertyId: v.id("properties"),
     code: v.string(),
     name: v.string(),
@@ -495,9 +495,9 @@ export default defineSchema({
     .index("by_propertyId_code", ["propertyId", "code"])
     .index("by_propertyId_isActive", ["propertyId", "isActive"]),
 
-  employeePayComponents: defineTable({
+  staffPayItems: defineTable({
     employeeId: v.id("staffs"),
-    payComponentId: v.id("payComponents"),
+    payItemTypeId: v.id("payItemTypes"),
     amount: v.optional(v.number()),
     rate: v.optional(v.number()),
     isEnabled: v.boolean(),
@@ -505,10 +505,10 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("by_employeeId", ["employeeId"])
-    .index("by_payComponentId", ["payComponentId"])
-    .index("by_employeeId_payComponentId", ["employeeId", "payComponentId"]),
+    .index("by_payItemTypeId", ["payItemTypeId"])
+    .index("by_employeeId_payItemTypeId", ["employeeId", "payItemTypeId"]),
 
-  paySchedules: defineTable({
+  payCycles: defineTable({
     propertyId: v.id("properties"),
     name: v.string(),
     frequency: v.union(v.literal("weekly"), v.literal("bi-weekly"), v.literal("monthly")),
@@ -522,12 +522,12 @@ export default defineSchema({
     .index("by_propertyId", ["propertyId"])
     .index("by_propertyId_isDefault", ["propertyId", "isDefault"]),
 
-  employeeCompensations: defineTable({
+  payHistory: defineTable({
     employeeId: v.id("staffs"),
     payType: v.union(v.literal("hourly"), v.literal("salary"), v.literal("mixed")),
     baseSalary: v.optional(v.number()),
     hourlyRate: v.optional(v.number()),
-    payScheduleId: v.optional(v.id("paySchedules")),
+    payCycleId: v.optional(v.id("payCycles")),
     effectiveFrom: v.number(),
     effectiveTo: v.optional(v.number()),
     changedBy: v.id("users"),
@@ -537,7 +537,7 @@ export default defineSchema({
     .index("by_employeeId", ["employeeId"])
     .index("by_employeeId_effectiveFrom", ["employeeId", "effectiveFrom"]),
 
-  leaveTypes: defineTable({
+  timeOffTypes: defineTable({
     propertyId: v.id("properties"),
     code: v.string(),
     name: v.string(),
@@ -550,10 +550,10 @@ export default defineSchema({
     .index("by_propertyId", ["propertyId"])
     .index("by_propertyId_code", ["propertyId", "code"]),
 
-  leaveEntries: defineTable({
+  timeOff: defineTable({
     propertyId: v.id("properties"),
     employeeId: v.id("staffs"),
-    leaveTypeId: v.id("leaveTypes"),
+    timeOffTypeId: v.id("timeOffTypes"),
     startDate: v.number(),
     endDate: v.number(),
     days: v.number(),
@@ -588,7 +588,7 @@ export default defineSchema({
     .index("by_holidayCalendarId", ["holidayCalendarId"])
     .index("by_holidayCalendarId_date", ["holidayCalendarId", "date"]),
 
-  premiumRules: defineTable({
+  extraPayRules: defineTable({
     propertyId: v.id("properties"),
     kind: v.union(
       v.literal("daily_overtime"),
@@ -607,7 +607,7 @@ export default defineSchema({
     .index("by_propertyId", ["propertyId"])
     .index("by_propertyId_kind", ["propertyId", "kind"]),
 
-  timesheets: defineTable({
+  hours: defineTable({
     employeeId: v.id("staffs"),
     propertyId: v.id("properties"),
     workDate: v.number(),
@@ -618,9 +618,9 @@ export default defineSchema({
     breakDuration: v.optional(v.number()),
     source: v.union(v.literal("manual"), v.literal("csv"), v.literal("shift")),
     shiftId: v.optional(v.string()), // bar shifts table id when source = shift
-    payrollRunLineId: v.optional(v.id("payrollRunLines")),
+    staffPayId: v.optional(v.id("staffPay")),
     lockedAt: v.optional(v.number()),
-    lockedByRunId: v.optional(v.id("payrollRuns")),
+    lockedByPayrollId: v.optional(v.id("payrolls")),
     status: v.union(v.literal("draft"), v.literal("submitted"), v.literal("approved"), v.literal("rejected")),
     approvedBy: v.optional(v.id("users")),
     approvedAt: v.optional(v.number()),
@@ -634,12 +634,12 @@ export default defineSchema({
     .index("by_propertyId_workDate", ["propertyId", "workDate"])
     .index("by_propertyId_status", ["propertyId", "status"])
     .index("by_shiftId", ["shiftId"])
-    .index("by_payrollRunLineId", ["payrollRunLineId"])
-    .index("by_lockedByRunId", ["lockedByRunId"]),
+    .index("by_staffPayId", ["staffPayId"])
+    .index("by_lockedByPayrollId", ["lockedByPayrollId"]),
 
-  payrollRuns: defineTable({
+  payrolls: defineTable({
     propertyId: v.id("properties"),
-    payScheduleId: v.id("paySchedules"),
+    payCycleId: v.id("payCycles"),
     runType: v.literal("regular"),
     payPeriodStart: v.number(),
     payPeriodEnd: v.number(),
@@ -667,12 +667,12 @@ export default defineSchema({
     .index("by_propertyId", ["propertyId"])
     .index("by_propertyId_status", ["propertyId", "status"])
     .index("by_propertyId_payPeriodStart", ["propertyId", "payPeriodStart"])
-    .index("by_payScheduleId", ["payScheduleId"]),
+    .index("by_payCycleId", ["payCycleId"]),
 
-  payrollRunLines: defineTable({
-    payrollRunId: v.id("payrollRuns"),
+  staffPay: defineTable({
+    payrollId: v.id("payrolls"),
     employeeId: v.id("staffs"),
-    compensationIdUsed: v.optional(v.id("employeeCompensations")),
+    payHistoryIdUsed: v.optional(v.id("payHistory")),
     payTypeUsed: v.union(v.literal("hourly"), v.literal("salary"), v.literal("mixed")),
     hourlyRateUsed: v.optional(v.number()),
     baseSalaryUsed: v.optional(v.number()),
@@ -688,13 +688,13 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
   })
-    .index("by_payrollRunId", ["payrollRunId"])
+    .index("by_payrollId", ["payrollId"])
     .index("by_employeeId", ["employeeId"])
-    .index("by_payrollRunId_employeeId", ["payrollRunId", "employeeId"]),
+    .index("by_payrollId_employeeId", ["payrollId", "employeeId"]),
 
-  payrollLineItems: defineTable({
-    payrollRunLineId: v.id("payrollRunLines"),
-    payComponentId: v.optional(v.id("payComponents")),
+  payItems: defineTable({
+    staffPayId: v.id("staffPay"),
+    payItemTypeId: v.optional(v.id("payItemTypes")),
     kind: v.union(
       v.literal("earning"),
       v.literal("allowance"),
@@ -708,11 +708,11 @@ export default defineSchema({
     glAccountId: v.optional(v.id("chartOfAccounts")),
     createdAt: v.number(),
   })
-    .index("by_payrollRunLineId", ["payrollRunLineId"])
-    .index("by_payComponentId", ["payComponentId"]),
+    .index("by_staffPayId", ["staffPayId"])
+    .index("by_payItemTypeId", ["payItemTypeId"]),
 
   payslips: defineTable({
-    payrollRunLineId: v.id("payrollRunLines"),
+    staffPayId: v.id("staffPay"),
     propertyId: v.id("properties"),
     employeeId: v.id("staffs"),
     snapshot: v.any(),
@@ -720,12 +720,12 @@ export default defineSchema({
     generatedAt: v.number(),
     createdAt: v.number(),
   })
-    .index("by_payrollRunLineId", ["payrollRunLineId"])
+    .index("by_staffPayId", ["staffPayId"])
     .index("by_employeeId", ["employeeId"])
     .index("by_propertyId", ["propertyId"]),
 
-  payrollExports: defineTable({
-    payrollRunId: v.id("payrollRuns"),
+  paymentFiles: defineTable({
+    payrollId: v.id("payrolls"),
     format: v.union(v.literal("generic_csv"), v.literal("bank_file"), v.literal("cash_sheet")),
     status: v.union(
       v.literal("pending"),
@@ -739,7 +739,7 @@ export default defineSchema({
     generatedAt: v.optional(v.number()),
     createdAt: v.number(),
   })
-    .index("by_payrollRunId", ["payrollRunId"]),
+    .index("by_payrollId", ["payrollId"]),
 
   // ============================================
   // Maintenance Management
@@ -908,7 +908,7 @@ export default defineSchema({
   payments: defineTable({
     propertyId: v.id("properties"),
     paymentType: v.string(), // reservation, order, expense, payroll, other
-    referenceType: v.string(), // reservation, order, expense, payrollRun
+    referenceType: v.string(), // reservation, order, expense, payroll
     referenceId: v.string(),
     amount: v.number(),
     paymentMethod: v.string(), // cash, card, bank_transfer, check, other
@@ -939,7 +939,7 @@ export default defineSchema({
     uploadedBy: v.id("staffs"),
     uploadedAt: v.number(),
     description: v.optional(v.string()),
-    referenceType: v.optional(v.string()), // Expense, UtilityBill, PurchaseOrder, Payment, MaintenanceOrder, PayrollRun, Payslip, PayrollExport
+    referenceType: v.optional(v.string()), // Expense, UtilityBill, PurchaseOrder, Payment, MaintenanceOrder, Payroll, Payslip, PaymentFile
     referenceId: v.optional(v.string()),
     documentDate: v.optional(v.number()),
     amount: v.optional(v.number()),

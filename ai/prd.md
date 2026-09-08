@@ -134,8 +134,8 @@ Hospitality operators juggle siloed systems for reservations, POS, payroll, proc
 - **Jurisdiction from property setup**: admin must select `Property.country`. Seeds statutory Pay item types, default Pay cycle, Holidays, and extra pay rules. Unsupported countries use generic fallback.
 - Optional **manual** gratuity amount on a Pay item. Tip pooling is out of scope.
 - Payroll lifecycle: Draft → Ready to review → Approved → Payment files ready → Paid. **Maker ≠ checker**: approver must not be the creator or last calculator.
-- Immutable rate snapshots (`compensationIdUsed`) on each Staff pay; Pay items instead of a deductions JSON blob.
-- On Approve payroll: generate Payslips and post one balanced journal entry (`referenceType = PayrollRun`).
+- Immutable rate snapshots (`payHistoryIdUsed`) on each Staff pay; Pay items instead of a deductions JSON blob.
+- On Approve payroll: generate Payslips and post one balanced journal entry (`referenceType = Payroll`).
 - On Download payment files: export bank/CSV for bank payees and a cash/mobile worksheet. On Mark as paid: record a `Payment` and optional bank confirmation document.
 - Labor cost % uses approved / payment-files-ready / paid payrolls only (see ERD reporting notes).
 - Full rules, uniqueness, GL template, and `staffs` migration: `ai/payroll-implementation.md`.
@@ -192,7 +192,7 @@ Hospitality operators juggle siloed systems for reservations, POS, payroll, proc
   - All utility bills must have original bill documents and payment confirmations.
   - All maintenance work orders must include vendor invoices and work completion certificates.
   - All payments must have payment receipts or bank confirmations linked.
-  - Payrolls should have generated Payslips and, when marked paid, a bank confirmation or Payment file linked (`Payslip`, `PayrollRun`, `PayrollExport` as stored `referenceType` values).
+  - Payrolls should have generated Payslips and, when marked paid, a bank confirmation or Payment file linked (`Payslip`, `Payroll`, `PaymentFile` as stored `referenceType` values).
 - **Document Upload Methods**:
   - Direct file upload (drag-and-drop, file picker)
   - Mobile camera capture
@@ -202,7 +202,7 @@ Hospitality operators juggle siloed systems for reservations, POS, payroll, proc
   - OCR (Optical Character Recognition) for automatic data extraction from invoices and receipts (vendor name, amount, date, invoice number, tax amount).
   - Automatic document type detection (invoice, receipt, contract, etc.).
   - Document verification workflow with reviewer assignment and verification status tracking.
-- **Document Linking**: Documents can be linked to multiple entity types (Expense, PurchaseOrder, UtilityBill, Payment, MaintenanceOrder, Payroll, Payslip, Payment file). Stored `referenceType` values stay `PayrollRun`, `Payslip`, `PayrollExport`.
+- **Document Linking**: Documents can be linked to multiple entity types (Expense, PurchaseOrder, UtilityBill, Payment, MaintenanceOrder, Payroll, Payslip, Payment file). Stored `referenceType` values stay `Payroll`, `Payslip`, `PaymentFile`.
 - **Document Security**:
   - Role-based access control for document viewing and downloading.
   - Encryption at rest and in transit.
@@ -228,7 +228,7 @@ Hospitality operators juggle siloed systems for reservations, POS, payroll, proc
 
 ## Data & ERD Considerations
 
-- Core entities: `Property` (includes required `country` for payroll jurisdiction), `User`, `Role`, `Room`, `Reservation`, `HousekeepingTask`, `FnbMenuItem`, `InventoryItem`, `Supplier`, `PurchaseOrder`, `Employee`, Pay history, Pay cycle, Time-off type, Time off, Holidays, Extra pay rules, Hours, Payroll settings, Pay item type, Payroll, Staff pay, Pay item, Payslip, Payment file, `MaintenanceOrder`, `Asset`, `Expense`, `UtilityBill`, `JournalEntry`, `Report`. Schema table names stay `employeeCompensations`, `paySchedules`, `leaveTypes`, `leaveEntries`, `holidayCalendars`, `premiumRules`, `timesheets`, `propertyPayrollSettings`, `payComponents`, `payrollRuns`, `payrollRunLines`, `payrollLineItems`, `payslips`, `payrollExports`.
+- Core entities: `Property` (includes required `country` for payroll jurisdiction), `User`, `Role`, `Room`, `Reservation`, `HousekeepingTask`, `FnbMenuItem`, `InventoryItem`, `Supplier`, `PurchaseOrder`, `Employee`, Pay history, Pay cycle, Time-off type, Time off, Holidays, Extra pay rules, Hours, Payroll settings, Pay item type, Payroll, Staff pay, Pay item, Payslip, Payment file, `MaintenanceOrder`, `Asset`, `Expense`, `UtilityBill`, `JournalEntry`, `Report`. Schema table names stay `payHistory`, `payCycles`, `timeOffTypes`, `timeOff`, `holidayCalendars`, `extraPayRules`, `hours`, `payrollSettings`, `payItemTypes`, `payrolls`, `staffPay`, `payItems`, `payslips`, `paymentFiles`.
 - Relationships:
   - `Property` 1:N `Room`, `Employee`, `InventoryItem`, `Asset`.
   - `Reservation` links `Room`, `Guest`, and yields `JournalEntries`.

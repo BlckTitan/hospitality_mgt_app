@@ -18,7 +18,7 @@ export default function PayrollSettingsPage() {
   );
   const seedSettings = useMutation(api.payrollConfig.seedSettings);
   const createPayCycle = useMutation(api.payrollConfig.createPayCycle);
-  const createLeaveType = useMutation(api.payrollConfig.createLeaveType);
+  const createTimeOffType = useMutation(api.payrollConfig.createTimeOffType);
   const createPayItemType = useMutation(api.payrollConfig.createPayItemType);
   const createHoliday = useMutation(api.payrollConfig.createHoliday);
   const createExtraPayRule = useMutation(api.payrollConfig.createExtraPayRule);
@@ -51,10 +51,13 @@ export default function PayrollSettingsPage() {
       <PayrollPageGuide page="settings" />
 
       {!settings && (
-        <section className="mb-6 p-3 border">
+        <section className="mb-6 p-3">
+          <div className='w-fit h-fit'>
+            {/* country settings */}
+          </div>
           <p>No Payroll settings yet. Seed from the property country pack (NG or generic).</p>
           <div className="w-full h-fit flex flex-col lg:flex-row justify-between items-center gap-1 mb-2 lg:mb-4">
-            <div className="w-full lg:w-1/3">
+            <div className="w-full lg:w-2/12">
               <label htmlFor="country">Country</label>
               <select id="country" value={country} onChange={(e) => setCountry(e.target.value)}>
                 <option value="NG">Nigeria (NG)</option>
@@ -86,7 +89,7 @@ export default function PayrollSettingsPage() {
       <section className="mb-6">
         <h4>Pay cycles</h4>
         <ul>
-          {(data?.schedules ?? []).map((row) => (
+          {(data?.payCycles ?? []).map((row) => (
             <li key={row._id}>{row.name} ({row.frequency}){row.isDefault ? ' — default' : ''}</li>
           ))}
         </ul>
@@ -104,7 +107,7 @@ export default function PayrollSettingsPage() {
               frequency: 'monthly',
               anchorDate: Date.now(),
               cutoffDaysBeforePayDate: 2,
-              isDefault: (data?.schedules ?? []).length === 0,
+              isDefault: (data?.payCycles ?? []).length === 0,
             });
             if (result.success === false) toast.error(result.message);
             else toast.success(result.message);
@@ -117,7 +120,7 @@ export default function PayrollSettingsPage() {
       <section className="mb-6">
         <h4>Time-off types</h4>
         <ul>
-          {(data?.leaveTypes ?? []).map((row) => (
+          {(data?.timeOffTypes ?? []).map((row) => (
             <li key={row._id}>{row.name} ({row.paid ? 'paid' : 'unpaid'})</li>
           ))}
         </ul>
@@ -137,7 +140,7 @@ export default function PayrollSettingsPage() {
         <Button
           variant="dark"
           onClick={async () => {
-            const result = await createLeaveType({
+            const result = await createTimeOffType({
               propertyId,
               code: leaveCode,
               name: leaveName,
@@ -155,7 +158,7 @@ export default function PayrollSettingsPage() {
       <section className="mb-6">
         <h4>Pay item types</h4>
         <ul>
-          {(data?.payComponents ?? []).map((row) => (
+          {(data?.payItemTypes ?? []).map((row) => (
             <li key={row._id}>{row.name} ({row.kind}, {row.source})</li>
           ))}
         </ul>
@@ -239,7 +242,7 @@ export default function PayrollSettingsPage() {
       <section className="mb-6">
         <h4>Extra pay rules</h4>
         <ul>
-          {(data?.premiumRules ?? []).map((row) => (
+          {(data?.extraPayRules ?? []).map((row) => (
             <li key={row._id}>{row.kind} × {row.multiplier}</li>
           ))}
         </ul>

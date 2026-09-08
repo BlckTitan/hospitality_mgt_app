@@ -23,7 +23,7 @@ function formatDate(ms: number) {
 }
 
 export default function Payrolls({ propertyId }: { propertyId: string }) {
-  const response = useQuery(api.payrollRuns.listPayrolls, {
+  const response = useQuery(api.payrolls.listPayrolls, {
     propertyId: propertyId as Id<'properties'>,
   });
 
@@ -56,7 +56,7 @@ export default function Payrolls({ propertyId }: { propertyId: string }) {
     <div className="w-full h-full overflow-x-scroll lg:!overflow-x-hidden">
       <Suspense>
         <PaginationComponent
-          collectionName="payrollRuns"
+          collectionName="payrolls"
           columns={tableColumns}
           jointTableData={response?.success === true ? response.data : []}
         />

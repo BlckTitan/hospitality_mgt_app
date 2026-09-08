@@ -49,7 +49,7 @@ const navLinks = [
   {id: 11, href: "/admin/shift-management", label: "Shift Management", icon: <MdOutlineBedroomChild />,  subLink: [
     {id: 1101, href: '/admin/shift-management/shift', label: 'Shift'},
   ]},
-  {id: 12, href: "/admin/payroll-management", label: "Payroll", icon: <FcMoneyTransfer />, subLink: [
+  {id: 12, href: "/admin/payroll-management", label: "Payroll Management", icon: <FcMoneyTransfer />, subLink: [
     {id: 1201, href: '/admin/payroll-management/payroll', label: 'Payroll'},
     {id: 1202, href: '/admin/payroll-management/hours', label: 'Hours'},
     {id: 1203, href: '/admin/payroll-management/time-off', label: 'Time off'},

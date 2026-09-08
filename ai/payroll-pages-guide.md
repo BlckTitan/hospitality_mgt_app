@@ -97,4 +97,4 @@ People master (`staffs` only). New staff get the current property, salary pay ty
 | Staff with a User login | Own Hours / Time off create; own Payslip. |
 | Other operational roles | No payroll screens. |
 
-Permission keys stay technical (`payroll.run.approve`, `payroll.timesheet.read`). Screens never say PayrollRun or Timesheet.
+Permission keys stay technical (`payroll.run.approve`, `payroll.timesheet.read`). Screens use Payroll, Hours, and Time off — never table identifiers like `staffPay`.

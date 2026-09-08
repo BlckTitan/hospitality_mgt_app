@@ -430,10 +430,10 @@ interface Employee {
   employmentStatus: 'active' | 'terminated' | 'on-leave';
   department: Department;
   position: string;
-  payType: PayType; // denormalized from current Pay history (EmployeeCompensation)
+  payType: PayType; // denormalized from current Pay history (PayHistory)
   baseSalary?: number;
   hourlyRate?: number;
-  payScheduleId?: string;
+  payCycleId?: string;
   paymentMethod: 'bank' | 'cash' | 'mobile_money' | 'check';
   taxId?: string; // required when the property country pack has statutory deductions
   bankName?: string;
@@ -446,17 +446,17 @@ interface Employee {
 ```
 
 ### Payroll settings
-UI: **Payroll settings**. Schema table: `propertyPayrollSettings`. Interface: `PropertyPayrollSettings`.
+UI: **Payroll settings**. Schema table: `payrollSettings`. Interface: `PayrollSettings`.
 ```typescript
-interface PropertyPayrollSettings {
-  propertyPayrollSettingsId: string;
+interface PayrollSettings {
+  payrollSettingsId: string;
   propertyId: string;
   country: string;
   jurisdictionPack: string; // e.g. NG, US, generic
   regularHoursLimitDaily?: number;
   regularHoursLimitWeekly?: number;
   overtimeMultiplier: number; // fallback daily OT if no extra pay rule
-  defaultPayScheduleId?: string;
+  defaultPayCycleId?: string;
   bankExportFormat: 'generic_csv';
   createdAt: Date;
   updatedAt: Date;
@@ -464,10 +464,10 @@ interface PropertyPayrollSettings {
 ```
 
 ### Pay item type
-UI: **Pay item type**. Schema table: `payComponents`. Interface: `PayComponent`.
+UI: **Pay item type**. Schema table: `payItemTypes`. Interface: `PayItemType`.
 ```typescript
-interface PayComponent {
-  payComponentId: string;
+interface PayItemType {
+  payItemTypeId: string;
   propertyId: string;
   code: string;
   name: string;
@@ -486,12 +486,12 @@ interface PayComponent {
 ```
 
 ### This person's pay items
-UI: **This person’s pay items**. Schema table: `employeePayComponents`. Interface: `EmployeePayComponent`.
+UI: **This person’s pay items**. Schema table: `staffPayItems`. Interface: `StaffPayItem`.
 ```typescript
-interface EmployeePayComponent {
-  employeePayComponentId: string;
+interface StaffPayItem {
+  staffPayItemId: string;
   employeeId: string;
-  payComponentId: string;
+  payItemTypeId: string;
   amount?: number;
   rate?: number;
   isEnabled: boolean;
@@ -501,15 +501,15 @@ interface EmployeePayComponent {
 ```
 
 ### Pay history
-UI: **Pay rate** / **Pay history**. Schema table: `employeeCompensations`. Interface: `EmployeeCompensation`.
+UI: **Pay rate** / **Pay history**. Schema table: `payHistory`. Interface: `PayHistory`.
 ```typescript
-interface EmployeeCompensation {
-  employeeCompensationId: string;
+interface PayHistory {
+  payHistoryId: string;
   employeeId: string;
   payType: PayType;
   baseSalary?: number;
   hourlyRate?: number;
-  payScheduleId?: string;
+  payCycleId?: string;
   effectiveFrom: Date;
   effectiveTo?: Date;
   changedBy: string;
@@ -519,10 +519,10 @@ interface EmployeeCompensation {
 ```
 
 ### Pay cycle
-UI: **Pay cycle**. Schema table: `paySchedules`. Interface: `PaySchedule`.
+UI: **Pay cycle**. Schema table: `payCycles`. Interface: `PayCycle`.
 ```typescript
-interface PaySchedule {
-  payScheduleId: string;
+interface PayCycle {
+  payCycleId: string;
   propertyId: string;
   name: string;
   frequency: PayFrequency;
@@ -536,10 +536,10 @@ interface PaySchedule {
 ```
 
 ### Time-off type
-UI: **Time-off type**. Schema table: `leaveTypes`. Interface: `LeaveType`.
+UI: **Time-off type**. Schema table: `timeOffTypes`. Interface: `TimeOffType`.
 ```typescript
-interface LeaveType {
-  leaveTypeId: string;
+interface TimeOffType {
+  timeOffTypeId: string;
   propertyId: string;
   code: string;
   name: string;
@@ -552,13 +552,13 @@ interface LeaveType {
 ```
 
 ### Time off
-UI: **Time off**. Schema table: `leaveEntries`. Interface: `LeaveEntry`.
+UI: **Time off**. Schema table: `timeOff`. Interface: `TimeOff`.
 ```typescript
-interface LeaveEntry {
-  leaveEntryId: string;
+interface TimeOff {
+  timeOffId: string;
   propertyId: string;
   employeeId: string;
-  leaveTypeId: string;
+  timeOffTypeId: string;
   startDate: Date;
   endDate: Date;
   days: number;
@@ -597,10 +597,10 @@ interface Holiday {
 ```
 
 ### Extra pay rules
-UI: **Extra pay rules**. Schema table: `premiumRules`. Interface: `PremiumRule`.
+UI: **Extra pay rules**. Schema table: `extraPayRules`. Interface: `ExtraPayRule`.
 ```typescript
-interface PremiumRule {
-  premiumRuleId: string;
+interface ExtraPayRule {
+  extraPayRuleId: string;
   propertyId: string;
   kind: 'daily_overtime' | 'weekly_overtime' | 'night' | 'weekend' | 'public_holiday';
   multiplier: number;
@@ -613,10 +613,10 @@ interface PremiumRule {
 ```
 
 ### Hours
-UI: **Hours**. Schema table: `timesheets`. Interface: `Timesheet`.
+UI: **Hours**. Schema table: `hours`. Interface: `Hours`.
 ```typescript
-interface Timesheet {
-  timesheetId: string;
+interface Hours {
+  hoursId: string;
   employeeId: string;
   propertyId: string;
   workDate: Date;
@@ -627,9 +627,9 @@ interface Timesheet {
   breakDuration?: number; // minutes
   source: 'manual' | 'csv' | 'shift';
   shiftId?: string;
-  payrollRunLineId?: string;
+  staffPayId?: string;
   lockedAt?: Date;
-  lockedByRunId?: string;
+  lockedByPayrollId?: string;
   status: 'draft' | 'submitted' | 'approved' | 'rejected';
   approvedBy?: string; // User id
   approvedAt?: Date;
@@ -640,12 +640,12 @@ interface Timesheet {
 ```
 
 ### Payroll
-UI: **Payroll**. Schema table: `payrollRuns`. Interface: `PayrollRun`.
+UI: **Payroll**. Schema table: `payrolls`. Interface: `Payroll`.
 ```typescript
-interface PayrollRun {
-  payrollRunId: string;
+interface Payroll {
+  payrollId: string;
   propertyId: string;
-  payScheduleId: string;
+  payCycleId: string;
   runType: 'regular';
   payPeriodStart: Date;
   payPeriodEnd: Date;
@@ -667,13 +667,13 @@ interface PayrollRun {
 ```
 
 ### Staff pay
-UI: **Staff pay**. Schema table: `payrollRunLines`. Interface: `PayrollRunLine`.
+UI: **Staff pay**. Schema table: `staffPay`. Interface: `StaffPay`.
 ```typescript
-interface PayrollRunLine {
-  payrollRunLineId: string;
-  payrollRunId: string;
+interface StaffPay {
+  staffPayId: string;
+  payrollId: string;
   employeeId: string;
-  compensationIdUsed?: string;
+  payHistoryIdUsed?: string;
   payTypeUsed: PayType;
   hourlyRateUsed?: number;
   baseSalaryUsed?: number;
@@ -692,12 +692,12 @@ interface PayrollRunLine {
 ```
 
 ### Pay item
-UI: **Pay item**. Schema table: `payrollLineItems`. Interface: `PayrollLineItem`.
+UI: **Pay item**. Schema table: `payItems`. Interface: `PayItem`.
 ```typescript
-interface PayrollLineItem {
-  payrollLineItemId: string;
-  payrollRunLineId: string;
-  payComponentId?: string;
+interface PayItem {
+  payItemId: string;
+  staffPayId: string;
+  payItemTypeId?: string;
   kind: 'earning' | 'allowance' | 'overtime' | 'gratuity' | 'deduction';
   code: string;
   label: string;
@@ -712,7 +712,7 @@ UI: **Payslip**. Schema table: `payslips`. Interface: `Payslip`.
 ```typescript
 interface Payslip {
   payslipId: string;
-  payrollRunLineId: string;
+  staffPayId: string;
   propertyId: string;
   employeeId: string;
   snapshot: Record<string, unknown>;
@@ -723,11 +723,11 @@ interface Payslip {
 ```
 
 ### Payment file
-UI: **Payment file**. Schema table: `payrollExports`. Interface: `PayrollExport`.
+UI: **Payment file**. Schema table: `paymentFiles`. Interface: `PaymentFile`.
 ```typescript
-interface PayrollExport {
-  payrollExportId: string;
-  payrollRunId: string;
+interface PaymentFile {
+  paymentFileId: string;
+  payrollId: string;
   format: 'generic_csv' | 'bank_file' | 'cash_sheet';
   status: 'pending' | 'generated' | 'downloaded' | 'failed';
   documentId?: string;
@@ -1232,15 +1232,15 @@ type DocumentReferenceable =
   | 'PurchaseOrder'
   | 'Payment'
   | 'MaintenanceOrder'
-  | 'PayrollRun'
+  | 'Payroll'
   | 'Payslip'
-  | 'PayrollExport';
+  | 'PaymentFile';
 
 // Journal entry reference types
 type JournalEntryReference =
   | 'Reservation'
   | 'Order'
-  | 'PayrollRun'
+  | 'Payroll'
   | 'Expense'
   | 'UtilityBill'
   | 'Manual';
@@ -1258,7 +1258,7 @@ type PaymentReference =
   | 'Reservation'
   | 'Order'
   | 'Expense'
-  | 'PayrollRun'
+  | 'Payroll'
   | 'Other';
 
 // Report metric categories

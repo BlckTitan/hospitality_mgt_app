@@ -16,15 +16,15 @@ function formatDate(ms?: number) {
 
 function PayrollViewInner() {
   const searchParams = useSearchParams();
-  const payrollId = searchParams.get('payroll_id') as Id<'payrollRuns'> | null;
+  const payrollId = searchParams.get('payroll_id') as Id<'payrolls'> | null;
   const payroll = useQuery(
-    api.payrollRuns.getPayroll,
-    payrollId ? { payrollRunId: payrollId } : 'skip'
+    api.payrolls.getPayroll,
+    payrollId ? { payrollId: payrollId } : 'skip'
   );
-  const preparePay = useMutation(api.payrollRuns.preparePay);
-  const approvePayroll = useMutation(api.payrollRuns.approvePayroll);
-  const downloadPaymentFiles = useMutation(api.payrollRuns.downloadPaymentFiles);
-  const markAsPaid = useMutation(api.payrollRuns.markAsPaid);
+  const preparePay = useMutation(api.payrolls.preparePay);
+  const approvePayroll = useMutation(api.payrolls.approvePayroll);
+  const downloadPaymentFiles = useMutation(api.payrolls.downloadPaymentFiles);
+  const markAsPaid = useMutation(api.payrolls.markAsPaid);
 
   if (!payrollId) return <p className="p-4">Missing payroll id.</p>;
   if (payroll === undefined) {
@@ -62,12 +62,12 @@ function PayrollViewInner() {
 
       <div className="flex flex-wrap gap-2 mb-4">
         {(run.status === 'draft' || run.status === 'calculated') && (
-          <Button variant="dark" onClick={() => runAction(() => preparePay({ payrollRunId: run._id }))}>
+          <Button variant="dark" onClick={() => runAction(() => preparePay({ payrollId: run._id }))}>
             {run.status === 'calculated' ? 'Recalculate' : 'Prepare pay'}
           </Button>
         )}
         {run.status === 'calculated' && (
-          <Button variant="dark" onClick={() => runAction(() => approvePayroll({ payrollRunId: run._id }))}>
+          <Button variant="dark" onClick={() => runAction(() => approvePayroll({ payrollId: run._id }))}>
             Approve payroll
           </Button>
         )}
@@ -76,7 +76,7 @@ function PayrollViewInner() {
             variant="dark"
             onClick={() =>
               runAction(
-                () => downloadPaymentFiles({ payrollRunId: run._id }),
+                () => downloadPaymentFiles({ payrollId: run._id }),
                 `/admin/payroll-management/payroll/export?payroll_id=${run._id}`
               )
             }
@@ -85,7 +85,7 @@ function PayrollViewInner() {
           </Button>
         )}
         {(run.status === 'processed' || run.status === 'approved') && (
-          <Button variant="dark" onClick={() => runAction(() => markAsPaid({ payrollRunId: run._id }))}>
+          <Button variant="dark" onClick={() => runAction(() => markAsPaid({ payrollId: run._id }))}>
             Mark as paid
           </Button>
         )}

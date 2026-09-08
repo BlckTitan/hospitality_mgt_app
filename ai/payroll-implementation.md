@@ -14,40 +14,40 @@ Related: [prd.md](./prd.md), [ERD.md](./ERD.md), [schema.ts](./schema.ts), [base
 | MVP mode | **Native full cycle**: Prepare pay, generate Payslips, Download payment files, post GL, Mark as paid. |
 | Who is paid | `staffs` rows only (this is the Employee entity). A linked `User` is optional. Casuals and contractors are staff without system access. There is **no** `employees` table. |
 | Gratuity / tips | Defer pooling. Optional **manual** gratuity amount on a Pay item. No POS tip pull, no hours/points pool. |
-| Bar shifts vs Hours | When a bar `Shift` is finalized, create a **draft** Hours row (`timesheets`, `source = shift`) for supervisor approval. Payroll hours still come only from **approved** Hours. |
-| People table | **`staffs` is the only people table.** Live app, housekeeping, POs, and inventory already use `Id<"staffs">`. Widen `staffs`; never create `employees`. Payroll FKs (`timesheets.employeeId`, etc.) are `v.id("staffs")`. |
+| Bar shifts vs Hours | When a bar `Shift` is finalized, create a **draft** Hours row (`hours`, `source = shift`) for supervisor approval. Payroll hours still come only from **approved** Hours. |
+| People table | **`staffs` is the only people table.** Live app, housekeeping, POs, and inventory already use `Id<"staffs">`. Widen `staffs`; never create `employees`. Payroll FKs (`hours.employeeId`, etc.) are `v.id("staffs")`. |
 | Time off | Time-off type + Time off. Approved **unpaid** Time off prorates salaried period pay. Paid Time off counts as regular hours (not OT) unless the type sets `countsTowardOvertime`. |
 | Pay cycle | First-class Pay cycle. A Payroll is created from a cycle (period, cutoff, pay date). |
 | Payment method | On Employee: `bank` \| `cash` \| `mobile_money` \| `check`. Bank fields required only when method is `bank`. |
 | Holidays + extra pay rules | Holidays + extra pay rules (daily/weekly OT, night, weekend, public holiday). Single `overtimeMultiplier` is the fallback daily-OT rule only. |
 | Pay history | Pay history with `effectiveFrom` / `effectiveTo`. Prepare pay reads the row effective on each day / period end. Employee rate fields are the current denormalized copy. |
 | Maker ≠ checker | Payroll `createdBy` and last calculator must not equal `approvedBy`. |
-| Hours lock | Prepare pay locks included Hours (`lockedAt`, `lockedByRunId`). Edits rejected until the payroll returns to Draft / Recalculate (unlock then relock). |
-| User-facing names | Screens and buttons use the names in [User-facing names](#user-facing-names). Schema/code keep `payrollRuns`, `payrollRunLines`, etc. |
+| Hours lock | Prepare pay locks included Hours (`lockedAt`, `lockedByPayrollId`). Edits rejected until the payroll returns to Draft / Recalculate (unlock then relock). |
+| User-facing names | Screens, docs, and Convex tables use the names in [User-facing names](#user-facing-names). |
 
 ---
 
 ## User-facing names
 
-Use these labels in navigation, headings, buttons, and empty states. Do not show `PayrollRun`, `PayrollRunLine`, or `PayrollLineItem` to users.
+Use these labels in navigation, headings, buttons, and empty states. Do not show table identifiers (`staffPay`, `payItems`, `timeOff`) to users.
 
-| In the app, say | Instead of | Meaning |
+| In the app, say | Convex table | Interface |
 |---|---|---|
-| **Payroll** | PayrollRun | One pay cycle you prepare, approve, and pay (e.g. “Payroll 1–14 July”) |
-| **Staff pay** | PayrollRunLine | One staff member’s totals in that payroll |
-| **Pay item** | PayrollLineItem | A single earning or deduction (basic pay, overtime, housing, tax) |
-| **Payslip** | Payslip | The staff-facing summary they can view or download |
-| **Payment file** | PayrollExport | Bank download or cash-pay list |
-| **Pay item type** | PayComponent | Reusable catalog item (housing, PAYE, transport) |
-| **This person’s pay items** | EmployeePayComponent | Overrides for one staff member |
-| **Pay cycle** | PaySchedule | How often you pay (weekly, every two weeks, monthly) and the cutoff |
-| **Pay rate** / **Pay history** | EmployeeCompensation | Current rate and past rate changes |
-| **Payroll settings** | PropertyPayrollSettings | Property defaults (overtime, holidays, country pack) |
-| **Hours** | Timesheet | Hours worked for a day |
-| **Time off** | LeaveEntry | Approved or pending leave |
-| **Time-off type** | LeaveType | Annual, sick, unpaid, etc. |
-| **Extra pay rules** | PremiumRule | Night, weekend, holiday, overtime multipliers |
-| **Holidays** | Holiday / HolidayCalendar | Public or property holidays |
+| **Payroll** | `payrolls` | `Payroll` |
+| **Staff pay** | `staffPay` | `StaffPay` |
+| **Pay item** | `payItems` | `PayItem` |
+| **Payslip** | `payslips` | `Payslip` |
+| **Payment file** | `paymentFiles` | `PaymentFile` |
+| **Pay item type** | `payItemTypes` | `PayItemType` |
+| **This person’s pay items** | `staffPayItems` | `StaffPayItem` |
+| **Pay cycle** | `payCycles` | `PayCycle` |
+| **Pay rate** / **Pay history** | `payHistory` | `PayHistory` |
+| **Payroll settings** | `payrollSettings` | `PayrollSettings` |
+| **Hours** | `hours` | `Hours` |
+| **Time off** | `timeOff` | `TimeOff` |
+| **Time-off type** | `timeOffTypes` | `TimeOffType` |
+| **Extra pay rules** | `extraPayRules` | `ExtraPayRule` |
+| **Holidays** | `holidays` / `holidayCalendars` | `Holiday` / `HolidayCalendar` |
 
 **Payroll statuses** (user copy):
 
@@ -70,7 +70,7 @@ Use these labels in navigation, headings, buttons, and empty states. Do not show
 | process / export | Download payment files |
 | mark paid | Mark as paid |
 
-Example heading: “Payroll 1–14 July” with a table of **Staff pay**, not “PayrollRun 6001 / PayrollRunLines”.
+Example heading: “Payroll 1–14 July” with a table of **Staff pay**, not `payrolls` / `staffPay`.
 
 ---
 
@@ -109,7 +109,7 @@ Required additions beyond today’s `staffs` row:
 - `userId` (optional)
 - `employeeNumber` (unique per property)
 - `payType`, `baseSalary`, `hourlyRate`: **current** denormalized copy of the open Pay history row
-- `payScheduleId` (optional; default is the property’s default Pay cycle)
+- `payCycleId` (optional; default is the property’s default Pay cycle)
 - `paymentMethod`: `bank` | `cash` | `mobile_money` | `check` (bank fields required only for `bank`)
 - `department`: closed set — `front-office` | `housekeeping` | `fnb` | `maintenance` | `finance` | `admin` | `other`
 - `position`
@@ -126,18 +126,18 @@ Required additions beyond today’s `staffs` row:
 - `mixed`: salary for the period plus overtime/hourly extras from approved Hours.
 
 ### Pay history
-Schema table: `employeeCompensations`. Interface: `EmployeeCompensation`.
+Schema table: `payHistory`. Interface: `PayHistory`.
 
 Dated pay record. Application-level: no overlapping open intervals per employee.
 
-- `payType`, `baseSalary`, `hourlyRate`, optional `payScheduleId`
+- `payType`, `baseSalary`, `hourlyRate`, optional `payCycleId`
 - `effectiveFrom` (required), `effectiveTo` (null = current)
 - `changedBy` (User)
 - Writing a new current row closes the previous (`effectiveTo = new.effectiveFrom`) and updates Employee’s denormalized rates
-- Prepare pay snapshots `compensationIdUsed` on Staff pay (use period-end row if one row covers the whole period; if rates change mid-period, blend by days)
+- Prepare pay snapshots `payHistoryIdUsed` on Staff pay (use period-end row if one row covers the whole period; if rates change mid-period, blend by days)
 
 ### Pay cycle
-Schema table: `paySchedules`. Interface: `PaySchedule`.
+Schema table: `payCycles`. Interface: `PayCycle`.
 
 - `propertyId`, `name`, `frequency` (`weekly` | `bi-weekly` | `monthly`)
 - `anchorDate` (used to generate period start/end and pay date)
@@ -147,7 +147,7 @@ Schema table: `paySchedules`. Interface: `PaySchedule`.
 - A Payroll is created **from** a Pay cycle (copies period, pay date, frequency, cutoff)
 
 ### Time-off type / Time off
-Schema tables: `leaveTypes`, `leaveEntries`. Interfaces: `LeaveType`, `LeaveEntry`.
+Schema tables: `timeOffTypes`, `timeOff`. Interfaces: `TimeOffType`, `TimeOff`.
 
 - Time-off type: `code`, `name`, `paid` (bool), `countsTowardOvertime` (default false), `isActive`
 - Time off: employee, type, `startDate` / `endDate`, `days` (or hours), `status` (`pending` | `approved` | `rejected`), `approvedBy` (User)
@@ -156,7 +156,7 @@ Schema tables: `leaveTypes`, `leaveEntries`. Interfaces: `LeaveType`, `LeaveEntr
 - Paid Time off: treat as regular hours for hourly/mixed; do not apply OT / extra pay rules unless `countsTowardOvertime`
 
 ### Holidays / Extra pay rules
-Schema tables: `holidayCalendars`, `holidays`, `premiumRules`. Interfaces: `HolidayCalendar`, `Holiday`, `PremiumRule`.
+Schema tables: `holidayCalendars`, `holidays`, `extraPayRules`. Interfaces: `HolidayCalendar`, `Holiday`, `ExtraPayRule`.
 
 - One Holidays calendar per property, seeded from the country pack (admins can add dates)
 - Holiday: `date`, `name`, `isPaid`
@@ -165,14 +165,14 @@ Schema tables: `holidayCalendars`, `holidays`, `premiumRules`. Interfaces: `Holi
 - Extra pay is stored as Pay item kinds `overtime` or a `PREMIUM_*` earning code
 
 ### Hours
-Schema table: `timesheets`. Interface: `Timesheet`.
+Schema table: `hours`. Interface: `Hours`.
 
 - One row per employee per work date in MVP (single clock-in/out).
 - Application-level unique `(employeeId, workDate)`.
 - `source`: `manual` | `csv` | `shift`
 - `shiftId` optional (set when drafted from a bar shift)
-- `payrollRunLineId` optional (set when included in a payroll after Prepare pay)
-- `lockedAt`, `lockedByRunId`: set on Prepare pay; mutations reject edits/status changes while locked
+- `staffPayId` optional (set when included in a payroll after Prepare pay)
+- `lockedAt`, `lockedByPayrollId`: set on Prepare pay; mutations reject edits/status changes while locked
 - Recalculate (payroll still `draft`/`calculated`): unlock those Hours, recompute, relock
 - Returning a payroll to Draft (before Approve payroll) unlocks
 - Hours: classify with extra pay rules + OT at submit/approve time
@@ -199,18 +199,18 @@ Country change after setup:
 Pack catalog lives in application code (versioned), not a Convex table. Each pack can include `pack_formula` components (e.g. graduated PAYE) whose rates/bands sit on `params`. First launch packs: **`NG`** and **`generic`**; add others as needed. A property in an unsupported country still runs payroll with custom components only.
 
 ### Payroll settings
-Schema table: `propertyPayrollSettings`. Interface: `PropertyPayrollSettings`.
+Schema table: `payrollSettings`. Interface: `PayrollSettings`.
 
 Per-property settings row, created during property setup:
 
 - `country`, `jurisdictionPack` (snapshots from setup)
 - Regular hours limit (daily and/or weekly) — pack default, overridable
 - Overtime multiplier — fallback daily OT if no extra pay rule exists
-- `defaultPayScheduleId`
+- `defaultPayCycleId`
 - Bank export format (`generic_csv` MVP; pack may later specify a local layout)
 
 ### Pay item type
-Schema table: `payComponents`. Interface: `PayComponent`.
+Schema table: `payItemTypes`. Interface: `PayItemType`.
 
 Named, reusable earning or deduction:
 
@@ -228,9 +228,9 @@ Named, reusable earning or deduction:
 This person’s pay items override amount/rate or disable a Pay item type for one employee. Statutory rows cannot be deleted.
 
 ### Payroll
-Schema table: `payrollRuns`. Interface: `PayrollRun`.
+Schema table: `payrolls`. Interface: `Payroll`.
 
-- Scoped to `propertyId`; created from a Pay cycle (`payScheduleId` required)
+- Scoped to `propertyId`; created from a Pay cycle (`payCycleId` required)
 - Copies `payPeriodStart`, `payPeriodEnd`, `payDate`, `payFrequency`, cutoff from the schedule
 - `runType`: `regular` (MVP; off-cycle/correction later)
 - `status`: `draft` | `calculated` | `approved` | `processed` | `paid`
@@ -241,13 +241,13 @@ Schema table: `payrollRuns`. Interface: `PayrollRun`.
 - After `approved`, lines and amounts are immutable except via a reversal + new run
 
 ### Staff pay
-Schema table: `payrollRunLines`. Interface: `PayrollRunLine`.
+Schema table: `staffPay`. Interface: `StaffPay`.
 
-One employee per payroll. Application-level unique `(payrollRunId, employeeId)`.
+One employee per payroll. Application-level unique `(payrollId, employeeId)`.
 
 Snapshot fields (so later employee edits do not rewrite history):
 
-- `compensationIdUsed`, `payTypeUsed`, `hourlyRateUsed`, `baseSalaryUsed`, `overtimeMultiplierUsed`
+- `payHistoryIdUsed`, `payTypeUsed`, `hourlyRateUsed`, `baseSalaryUsed`, `overtimeMultiplierUsed`
 - Hours and pay: `regularHours`, `overtimeHours`, `regularPay`, `overtimePay`
 - `gratuityAmount` (manual only)
 - `grossPay`, `totalDeductions`, `netPay`
@@ -255,13 +255,13 @@ Snapshot fields (so later employee edits do not rewrite history):
 Do **not** store deductions as JSON.
 
 ### Pay item
-Schema table: `payrollLineItems`. Interface: `PayrollLineItem`.
+Schema table: `payItems`. Interface: `PayItem`.
 
 Child of Staff pay:
 
 - `kind`: `earning` | `allowance` | `overtime` | `gratuity` | `deduction`
 - `code`, `label`, `amount`
-- `payComponentId` optional
+- `payItemTypeId` optional
 - `glAccountId` optional
 
 Gross = sum of earning/allowance/overtime/gratuity items.  
@@ -277,9 +277,9 @@ Schema table: `payslips`. Interface: `Payslip`.
 - Generated on transition to `approved` (or `processed` if generation is async)
 
 ### Payment file
-Schema table: `payrollExports`. Interface: `PayrollExport`.
+Schema table: `paymentFiles`. Interface: `PaymentFile`.
 
-- `payrollRunId`, `format` (`generic_csv` | `bank_file` | `cash_sheet`)
+- `payrollId`, `format` (`generic_csv` | `bank_file` | `cash_sheet`)
 - Bank/CSV includes `paymentMethod = bank` only; cash and mobile_money go on `cash_sheet`
 - `status`: `pending` | `generated` | `downloaded` | `failed`
 - `fileUrl` / `documentId`
@@ -292,7 +292,7 @@ Schema table: `payrollExports`. Interface: `PayrollExport`.
 Enforce in mutations, not only in UI. Buttons: Start payroll → Prepare pay → Recalculate → Approve payroll → Download payment files → Mark as paid.
 
 1. **Start payroll (Draft)** — from a Pay cycle. Reject if another open payroll overlaps the period for the property.
-2. **Prepare pay** — include employees on this Pay cycle who are `active` (or `terminated`/`on-leave` with approved Hours or unpaid Time off) in the period. Pull **unlocked, approved** Hours and **approved** Time off in range **on or before cutoff**. Apply Pay history, unpaid Time off proration, extra pay / OT rules, then Pay item types. Write Staff pay + Pay items; set `payrollRunLineId` and **lock** included Hours. Set `calculatedBy`. Idempotent while `draft` or `calculated`.
+2. **Prepare pay** — include employees on this Pay cycle who are `active` (or `terminated`/`on-leave` with approved Hours or unpaid Time off) in the period. Pull **unlocked, approved** Hours and **approved** Time off in range **on or before cutoff**. Apply Pay history, unpaid Time off proration, extra pay / OT rules, then Pay item types. Write Staff pay + Pay items; set `staffPayId` and **lock** included Hours. Set `calculatedBy`. Idempotent while `draft` or `calculated`.
 3. **Approve payroll** — reject if `approvedBy === createdBy` or `approvedBy === calculatedBy`. Freeze Staff pay. Create Payslip rows. Create one balanced `JournalEntry`. Status → `approved`. Locked Hours stay locked.
 4. **Download payment files** — generate Payment files (bank/CSV + cash_sheet). Status → `processed`.
 5. **Mark as paid** — record `Payment` (`paymentType = payroll`) and optional bank confirmation `Document`. Status → `paid`.

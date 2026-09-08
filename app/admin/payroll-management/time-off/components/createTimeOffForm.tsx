@@ -13,7 +13,7 @@ import DatepickerComponent from '../../../../../shared/datepicker';
 
 type FormData = {
   employeeId: string;
-  leaveTypeId: string;
+  timeOffTypeId: string;
   startDate: Date | null;
   endDate: Date | null;
   notes?: string;
@@ -28,7 +28,7 @@ export function FormComponent({
   onClose: () => void;
   propertyId: string;
 }) {
-  const createTimeOff = useMutation(api.leaveEntries.createTimeOff);
+  const createTimeOff = useMutation(api.timeOff.createTimeOff);
   const staff = useQuery(api.payrollConfig.listStaffForProperty, {
     propertyId: propertyId as Id<'properties'>,
   });
@@ -40,7 +40,7 @@ export function FormComponent({
     resolver: yupResolver(formSchema) as any,
     defaultValues: {
       employeeId: '',
-      leaveTypeId: '',
+      timeOffTypeId: '',
       startDate: null,
       endDate: null,
       notes: '',
@@ -52,7 +52,7 @@ export function FormComponent({
     const response = await createTimeOff({
       propertyId: propertyId as Id<'properties'>,
       employeeId: data.employeeId as Id<'staffs'>,
-      leaveTypeId: data.leaveTypeId as Id<'leaveTypes'>,
+      timeOffTypeId: data.timeOffTypeId as Id<'timeOffTypes'>,
       startDate: data.startDate.getTime(),
       endDate: data.endDate.getTime(),
       notes: data.notes || undefined,
@@ -82,16 +82,16 @@ export function FormComponent({
           {errors.employeeId && <span className="text-red-500 text-sm">{errors.employeeId.message}</span>}
         </div>
         <div className="w-full lg:w-1/3">
-          <label htmlFor="leaveTypeId">Time-off type *</label>
-          <select id="leaveTypeId" {...register('leaveTypeId')} defaultValue="">
+          <label htmlFor="timeOffTypeId">Time-off type *</label>
+          <select id="timeOffTypeId" {...register('timeOffTypeId')} defaultValue="">
             <option value="" disabled>Select type</option>
-            {(config?.data?.leaveTypes ?? []).filter((t) => t.isActive).map((type) => (
+            {(config?.data?.timeOffTypes ?? []).filter((t) => t.isActive).map((type) => (
               <option key={type._id} value={type._id}>
                 {type.name}{type.paid ? '' : ' (unpaid)'}
               </option>
             ))}
           </select>
-          {errors.leaveTypeId && <span className="text-red-500 text-sm">{errors.leaveTypeId.message}</span>}
+          {errors.timeOffTypeId && <span className="text-red-500 text-sm">{errors.timeOffTypeId.message}</span>}
         </div>
         <DatepickerComponent
           id="startDate"

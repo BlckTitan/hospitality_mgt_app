@@ -477,7 +477,7 @@ The people record used for payroll, housekeeping, POs, and inventory. **There is
 - `department`: Closed set (front-office, housekeeping, fnb, maintenance, finance, admin, other)
 - `position`: Job title/position
 - `payType`, `baseSalary`, `hourlyRate`: Current denormalized copy of the open `Pay history` row
-- `payScheduleId` (FK, optional): Default `Pay cycle` (else property default)
+- `payCycleId` (FK, optional): Default `Pay cycle` (else property default)
 - `paymentMethod`: bank | cash | mobile_money | check (bank fields required only for bank)
 - `taxId`: Employee tax identifier (required when the property country pack has statutory deductions)
 - `bankName`, `accountName`, `accountNumber` (encrypted), `routingCode`: Structured payout fields
@@ -489,17 +489,17 @@ The people record used for payroll, housekeeping, POs, and inventory. **There is
 ---
 
 #### Payroll settings
-Schema table: `propertyPayrollSettings`. Property-level overtime and export defaults.
+Schema table: `payrollSettings`. Property-level overtime and export defaults.
 
 **Attributes:**
-- `propertyPayrollSettingsId` (PK)
+- `payrollSettingsId` (PK)
 - `propertyId` (FK, unique)
 - `country`: Snapshot of Property.country at setup / last allowed change
 - `jurisdictionPack`: Pack id (e.g. `NG`, `US`, `generic`)
 - `regularHoursLimitDaily`: Hours before daily overtime (optional; pack default)
 - `regularHoursLimitWeekly`: Hours before weekly overtime (optional; pack default)
 - `overtimeMultiplier`: Fallback daily OT if no `Extra pay rule` exists
-- `defaultPayScheduleId` (FK, optional)
+- `defaultPayCycleId` (FK, optional)
 - `bankExportFormat`: generic_csv (MVP; pack may specify a local layout later)
 - `createdAt`, `updatedAt`
 
@@ -508,10 +508,10 @@ Schema table: `propertyPayrollSettings`. Property-level overtime and export defa
 ---
 
 #### Hours
-Schema table: `timesheets`. Tracks employee work hours and attendance.
+Schema table: `hours`. Tracks employee work hours and attendance.
 
 **Attributes:**
-- `timesheetId` (PK): Unique identifier
+- `hoursId` (PK): Unique identifier
 - `employeeId` (FK): Reference to Employee
 - `propertyId` (FK): Reference to Property
 - `workDate`: Work date (unique with employeeId at application level)
@@ -522,9 +522,9 @@ Schema table: `timesheets`. Tracks employee work hours and attendance.
 - `breakDuration`: Break duration in minutes
 - `source`: manual | csv | shift
 - `shiftId` (FK): Reference to Shift (optional; set when drafted from a finalized bar shift)
-- `payrollRunLineId` (FK): Set when this Hours row is included after Prepare pay
+- `staffPayId` (FK): Set when this Hours row is included after Prepare pay
 - `lockedAt`: Set when this Hours row is included after Prepare pay
-- `lockedByRunId` (FK): Payroll that locked the sheet
+- `lockedByPayrollId` (FK): Payroll that locked the sheet
 - `status`: Status (draft, submitted, approved, rejected)
 - `approvedBy` (FK): Reference to User (supervisor)
 - `approvedAt`: Approval timestamp
@@ -537,14 +537,14 @@ Schema table: `timesheets`. Tracks employee work hours and attendance.
 ---
 
 #### Pay history
-Schema table: `employeeCompensations`. Dated compensation record (source of truth for rates).
+Schema table: `payHistory`. Dated compensation record (source of truth for rates).
 
 **Attributes:**
-- `employeeCompensationId` (PK)
+- `payHistoryId` (PK)
 - `employeeId` (FK)
 - `payType`: hourly | salary | mixed
 - `baseSalary`, `hourlyRate` (as required by payType)
-- `payScheduleId` (FK, optional)
+- `payCycleId` (FK, optional)
 - `effectiveFrom`: Start date (inclusive)
 - `effectiveTo`: End date (exclusive); null = current
 - `changedBy` (FK): User
@@ -555,10 +555,10 @@ Schema table: `employeeCompensations`. Dated compensation record (source of trut
 ---
 
 #### Pay cycle
-Schema table: `paySchedules`. Pay calendar for generating payrolls.
+Schema table: `payCycles`. Pay calendar for generating payrolls.
 
 **Attributes:**
-- `payScheduleId` (PK)
+- `payCycleId` (PK)
 - `propertyId` (FK)
 - `name`
 - `frequency`: weekly | bi-weekly | monthly
@@ -572,10 +572,10 @@ Schema table: `paySchedules`. Pay calendar for generating payrolls.
 ---
 
 #### Time-off type
-Schema table: `leaveTypes`. Property-scoped leave category.
+Schema table: `timeOffTypes`. Property-scoped leave category.
 
 **Attributes:**
-- `leaveTypeId` (PK)
+- `timeOffTypeId` (PK)
 - `propertyId` (FK)
 - `code`, `name`
 - `paid`: If false, approved entries prorate salaried pay
@@ -588,13 +588,13 @@ Schema table: `leaveTypes`. Property-scoped leave category.
 ---
 
 #### Time off
-Schema table: `leaveEntries`. Approved time away that calculation honors.
+Schema table: `timeOff`. Approved time away that calculation honors.
 
 **Attributes:**
-- `leaveEntryId` (PK)
+- `timeOffId` (PK)
 - `propertyId` (FK)
 - `employeeId` (FK)
-- `leaveTypeId` (FK)
+- `timeOffTypeId` (FK)
 - `startDate`, `endDate`
 - `days`: Working days (or hours if needed)
 - `status`: pending | approved | rejected
@@ -632,10 +632,10 @@ Schema table: `holidays`. A public or property holiday date.
 ---
 
 #### Extra pay rule
-Schema table: `premiumRules`. Night, weekend, holiday, and overtime multipliers.
+Schema table: `extraPayRules`. Night, weekend, holiday, and overtime multipliers.
 
 **Attributes:**
-- `premiumRuleId` (PK)
+- `extraPayRuleId` (PK)
 - `propertyId` (FK)
 - `kind`: daily_overtime | weekly_overtime | night | weekend | public_holiday
 - `multiplier`
@@ -648,10 +648,10 @@ Schema table: `premiumRules`. Night, weekend, holiday, and overtime multipliers.
 ---
 
 #### Pay item type
-Schema table: `payComponents`. Reusable earning, allowance, or deduction definition (data, not hardcoded tax law).
+Schema table: `payItemTypes`. Reusable earning, allowance, or deduction definition (data, not hardcoded tax law).
 
 **Attributes:**
-- `payComponentId` (PK)
+- `payItemTypeId` (PK)
 - `propertyId` (FK)
 - `code`: Stable code (e.g. HOUSING, PAYE, PENSION)
 - `name`: Display name
@@ -671,12 +671,12 @@ Schema table: `payComponents`. Reusable earning, allowance, or deduction definit
 ---
 
 #### This person's pay items
-Schema table: `employeePayComponents`. Per-employee override or assignment of a Pay item type.
+Schema table: `staffPayItems`. Per-employee override or assignment of a Pay item type.
 
 **Attributes:**
-- `employeePayComponentId` (PK)
+- `staffPayItemId` (PK)
 - `employeeId` (FK)
-- `payComponentId` (FK)
+- `payItemTypeId` (FK)
 - `amount`: Override flat amount (optional)
 - `rate`: Override percent (optional)
 - `isEnabled`: If false, skip this component for the employee
@@ -687,12 +687,12 @@ Schema table: `employeePayComponents`. Per-employee override or assignment of a 
 ---
 
 #### Payroll
-Schema table: `payrollRuns`. Represents a payroll processing period.
+Schema table: `payrolls`. Represents a payroll processing period.
 
 **Attributes:**
-- `payrollRunId` (PK): Unique identifier
+- `payrollId` (PK): Unique identifier
 - `propertyId` (FK): Reference to Property
-- `payScheduleId` (FK): Pay cycle this Payroll was created from
+- `payCycleId` (FK): Pay cycle this Payroll was created from
 - `runType`: regular (MVP)
 - `payPeriodStart`: Pay period start date
 - `payPeriodEnd`: Pay period end date
@@ -716,19 +716,19 @@ Schema table: `payrollRuns`. Represents a payroll processing period.
 ---
 
 #### Staff pay
-Schema table: `payrollRunLines`. Represents one employee’s calculated pay within a payroll.
+Schema table: `staffPay`. Represents one employee’s calculated pay within a payroll.
 
 **Attributes:**
-- `payrollRunLineId` (PK)
-- `payrollRunId` (FK)
+- `staffPayId` (PK)
+- `payrollId` (FK)
 - `employeeId` (FK)
-- `compensationIdUsed` (FK, optional): Pay history snapshot
+- `payHistoryIdUsed` (FK, optional): Pay history snapshot
 - `payTypeUsed`, `hourlyRateUsed`, `baseSalaryUsed`, `overtimeMultiplierUsed`: Rate snapshots
 - `regularHours`, `overtimeHours`
 - `regularPay`, `overtimePay`
 - `gratuityAmount`: Manual gratuity only (pooling deferred)
 - `grossPay`, `totalDeductions`, `netPay`
-- Unique with payrollRunId + employeeId (application level)
+- Unique with payrollId + employeeId (application level)
 - `createdAt`, `updatedAt`
 
 **Purpose**: Frozen calculation header per employee. Breakdown lives on Pay item — do not store deductions as JSON.
@@ -736,12 +736,12 @@ Schema table: `payrollRunLines`. Represents one employee’s calculated pay with
 ---
 
 #### Pay item
-Schema table: `payrollLineItems`. Individual earning or deduction on a staff pay line.
+Schema table: `payItems`. Individual earning or deduction on a staff pay line.
 
 **Attributes:**
-- `payrollLineItemId` (PK)
-- `payrollRunLineId` (FK)
-- `payComponentId` (FK, optional)
+- `payItemId` (PK)
+- `staffPayId` (FK)
+- `payItemTypeId` (FK, optional)
 - `kind`: earning | allowance | overtime | gratuity | deduction
 - `code`, `label`
 - `amount`
@@ -757,7 +757,7 @@ Schema table: `payslips`. Immutable payslip generated from a Staff pay.
 
 **Attributes:**
 - `payslipId` (PK)
-- `payrollRunLineId` (FK, unique)
+- `staffPayId` (FK, unique)
 - `propertyId` (FK)
 - `employeeId` (FK)
 - `snapshot`: JSON payload of amounts, items, names, period (frozen)
@@ -770,11 +770,11 @@ Schema table: `payslips`. Immutable payslip generated from a Staff pay.
 ---
 
 #### Payment file
-Schema table: `payrollExports`. Bank or CSV export of a payroll.
+Schema table: `paymentFiles`. Bank or CSV export of a payroll.
 
 **Attributes:**
-- `payrollExportId` (PK)
-- `payrollRunId` (FK)
+- `paymentFileId` (PK)
+- `payrollId` (FK)
 - `format`: generic_csv | bank_file | cash_sheet (cash / mobile_money payees)
 - `status`: pending | generated | downloaded | failed
 - `documentId` (FK, optional)
@@ -877,7 +877,7 @@ Represents accounting journal entries for GL posting.
 - `entryNumber`: Unique entry number
 - `entryDate`: Entry date
 - `entryType`: Type (manual, automatic, adjustment, reversal)
-- `referenceType`: Source entity type (Reservation, Order, PayrollRun, Expense, etc.)
+- `referenceType`: Source entity type (Reservation, Order, Payroll, Expense, etc.)
 - `referenceId`: Source entity ID
 - `description`: Entry description
 - `totalDebit`: Total debit amount
@@ -1402,7 +1402,7 @@ Represents uploaded documents (invoices, receipts, contracts, etc.) that serve a
 - `uploadedBy` (FK): Reference to Employee
 - `uploadedAt`: Upload timestamp
 - `description`: Document description/notes
-- `referenceType`: Reference entity type (Expense, UtilityBill, PurchaseOrder, Payment, MaintenanceOrder, PayrollRun, Payslip, PayrollExport, etc.)
+- `referenceType`: Reference entity type (Expense, UtilityBill, PurchaseOrder, Payment, MaintenanceOrder, Payroll, Payslip, PaymentFile, etc.)
 - `referenceId`: Reference entity ID
 - `documentDate`: Document date (from the document itself, e.g., invoice date)
 - `amount`: Amount shown on document (for invoices/receipts)
@@ -1672,7 +1672,7 @@ Tracks all system actions for compliance and security auditing.
 - **Relationship**: Dated compensation rows. One current row (`effectiveTo` null).
 
 #### Pay history → Staff pay (One-to-Many, Optional)
-- **Relationship**: Line snapshots `compensationIdUsed`.
+- **Relationship**: Line snapshots `payHistoryIdUsed`.
 
 #### Property → Pay cycle (One-to-Many)
 - **Relationship**: Property has one or more pay calendars; one may be default.
@@ -1688,10 +1688,10 @@ Tracks all system actions for compliance and security auditing.
 - **Explanation**: Country pack seeds calendar and extra pay rules; used to classify Hours.
 
 #### Hours → Payroll (Many-to-One, as Lock)
-- **Relationship**: `lockedByRunId` points at the run that locked the sheet after calculate.
+- **Relationship**: `lockedByPayrollId` points at the run that locked the sheet after calculate.
 
 #### Payroll → Staff pay (One-to-Many)
-- **Relationship**: One line per employee in the run. Unique `(payrollRunId, employeeId)`.
+- **Relationship**: One line per employee in the run. Unique `(payrollId, employeeId)`.
 
 #### Employee → Staff pay (One-to-Many)
 - **Relationship**: Payroll history across periods.
@@ -1771,7 +1771,7 @@ Tracks all system actions for compliance and security auditing.
 
 #### JournalEntry → Payroll (Many-to-One, Optional)
 - **Relationship**: A JournalEntry can reference a Payroll (via referenceType and referenceId).
-- **Explanation**: When payroll expenses are posted to the GL, the journal entry links to the source Payroll (`referenceType = PayrollRun`) for traceability.
+- **Explanation**: When payroll expenses are posted to the GL, the journal entry links to the source Payroll (`referenceType = Payroll`) for traceability.
 
 #### JournalEntry → Expense (Many-to-One, Optional)
 - **Relationship**: A JournalEntry can reference an Expense (via referenceType and referenceId).
@@ -1969,7 +1969,7 @@ Tracks all system actions for compliance and security auditing.
 - Shift → Hours (draft created on finalize)
 - Hours → Staff pay (when included in a run)
 - Hours → Payroll (lock after calculate)
-- Pay history → Staff pay (`compensationIdUsed`)
+- Pay history → Staff pay (`payHistoryIdUsed`)
 
 ### Key Design Patterns
 
@@ -2015,7 +2015,7 @@ Tracks all system actions for compliance and security auditing.
 
 9. **Time Zone Handling**: Store all timestamps in UTC and convert to property timezone for display.
 
-10. **Payroll uniqueness**: Enforce at application level (Convex indexes are not unique): `(propertyId, employeeNumber)`, `(employeeId, workDate)` on Hours, `(payrollRunId, employeeId)` on Staff pay, no overlapping open Pay history intervals, one open Payroll per property + overlapping period. Maker ≠ checker on approve. Locked Hours reject edits.
+10. **Payroll uniqueness**: Enforce at application level (Convex indexes are not unique): `(propertyId, employeeNumber)`, `(employeeId, workDate)` on Hours, `(payrollId, employeeId)` on Staff pay, no overlapping open Pay history intervals, one open Payroll per property + overlapping period. Maker ≠ checker on approve. Locked Hours reject edits.
 
 11. **Payroll implementation**: Follow `ai/payroll-implementation.md` for lifecycle, GL template, shift→Hours, and `staffs` migration.
 

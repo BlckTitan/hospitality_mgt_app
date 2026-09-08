@@ -12,7 +12,7 @@ function PayslipInner() {
   const searchParams = useSearchParams();
   const payslipId = searchParams.get('payslip_id') as Id<'payslips'> | null;
   const response = useQuery(
-    api.payrollRuns.getPayslip,
+    api.payrolls.getPayslip,
     payslipId ? { payslipId } : 'skip'
   );
 

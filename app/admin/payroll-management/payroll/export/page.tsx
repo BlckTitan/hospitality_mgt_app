@@ -20,10 +20,10 @@ function download(filename: string, content: string) {
 
 function ExportInner() {
   const searchParams = useSearchParams();
-  const payrollId = searchParams.get('payroll_id') as Id<'payrollRuns'> | null;
+  const payrollId = searchParams.get('payroll_id') as Id<'payrolls'> | null;
   const payroll = useQuery(
-    api.payrollRuns.getPayroll,
-    payrollId ? { payrollRunId: payrollId } : 'skip'
+    api.payrolls.getPayroll,
+    payrollId ? { payrollId: payrollId } : 'skip'
   );
 
   if (!payrollId) return <p className="p-4">Missing payroll id.</p>;

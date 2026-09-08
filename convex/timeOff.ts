@@ -8,18 +8,18 @@ export const listTimeOff = query({
   handler: async (ctx, args) => {
     await requirePermission(ctx, "payroll.leave.read", args.propertyId);
     const rows = await ctx.db
-      .query("leaveEntries")
+      .query("timeOff")
       .withIndex("by_propertyId", (q) => q.eq("propertyId", args.propertyId))
       .collect();
     const enriched = await Promise.all(
       rows.map(async (row) => {
         const staff = await ctx.db.get(row.employeeId);
-        const leaveType = await ctx.db.get(row.leaveTypeId);
+        const timeOffType = await ctx.db.get(row.timeOffTypeId);
         return {
           ...row,
           staffName: staff ? `${staff.firstName} ${staff.lastName}` : "Unknown",
-          leaveTypeName: leaveType?.name ?? "Unknown",
-          paid: leaveType?.paid ?? true,
+          timeOffTypeName: timeOffType?.name ?? "Unknown",
+          paid: timeOffType?.paid ?? true,
         };
       })
     );
@@ -32,7 +32,7 @@ export const createTimeOff = mutation({
   args: {
     propertyId: v.id("properties"),
     employeeId: v.id("staffs"),
-    leaveTypeId: v.id("leaveTypes"),
+    timeOffTypeId: v.id("timeOffTypes"),
     startDate: v.number(),
     endDate: v.number(),
     notes: v.optional(v.string()),
@@ -45,10 +45,10 @@ export const createTimeOff = mutation({
       return { success: false, message: "End date must be on or after start date" };
     }
     const now = Date.now();
-    const id = await ctx.db.insert("leaveEntries", {
+    const id = await ctx.db.insert("timeOff", {
       propertyId: args.propertyId,
       employeeId: args.employeeId,
-      leaveTypeId: args.leaveTypeId,
+      timeOffTypeId: args.timeOffTypeId,
       startDate,
       endDate,
       days: workingDaysInclusive(startDate, endDate),
@@ -62,12 +62,12 @@ export const createTimeOff = mutation({
 });
 
 export const approveTimeOff = mutation({
-  args: { leaveEntryId: v.id("leaveEntries") },
+  args: { timeOffId: v.id("timeOff") },
   handler: async (ctx, args) => {
-    const row = await ctx.db.get(args.leaveEntryId);
+    const row = await ctx.db.get(args.timeOffId);
     if (!row) return { success: false, message: "Time off not found" };
     const auth = await requirePermission(ctx, "payroll.leave.approve", row.propertyId);
-    await ctx.db.patch(args.leaveEntryId, {
+    await ctx.db.patch(args.timeOffId, {
       status: "approved",
       approvedBy: auth.user._id,
       approvedAt: Date.now(),
@@ -78,12 +78,12 @@ export const approveTimeOff = mutation({
 });
 
 export const rejectTimeOff = mutation({
-  args: { leaveEntryId: v.id("leaveEntries") },
+  args: { timeOffId: v.id("timeOff") },
   handler: async (ctx, args) => {
-    const row = await ctx.db.get(args.leaveEntryId);
+    const row = await ctx.db.get(args.timeOffId);
     if (!row) return { success: false, message: "Time off not found" };
     const auth = await requirePermission(ctx, "payroll.leave.approve", row.propertyId);
-    await ctx.db.patch(args.leaveEntryId, {
+    await ctx.db.patch(args.timeOffId, {
       status: "rejected",
       approvedBy: auth.user._id,
       approvedAt: Date.now(),

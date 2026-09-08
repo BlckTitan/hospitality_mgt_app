@@ -355,8 +355,8 @@ package "Payroll Management" {
         + updatedAt : Timestamp
     }
 
-    class Timesheet as "Hours" {
-        + timesheetId : PK
+    class Hours as "Hours" {
+        + hoursId : PK
         + employeeId : FK
         + propertyId : FK
         + workDate : Date
@@ -373,8 +373,8 @@ package "Payroll Management" {
         + updatedAt : Timestamp
     }
 
-    class PayrollRun as "Payroll" {
-        + payrollRunId : PK
+    class Payroll as "Payroll" {
+        + payrollId : PK
         + propertyId : FK
         + payPeriodStart : Date
         + payPeriodEnd : Date
@@ -391,9 +391,9 @@ package "Payroll Management" {
         + updatedAt : Timestamp
     }
 
-    class PayrollRunLine as "Staff pay" {
-        + payrollRunLineId : PK
-        + payrollRunId : FK
+    class StaffPay as "Staff pay" {
+        + staffPayId : PK
+        + payrollId : FK
         + employeeId : FK
         + regularHours : Decimal
         + overtimeHours : Decimal
@@ -685,12 +685,12 @@ Employee ||--o{ PurchaseOrder : "creates"
 
 ' Payroll Management Relationships
 Property ||--o{ Employee : "has"
-Property ||--o{ Timesheet : "has"
-Property ||--o{ PayrollRun : "has"
-Employee ||--o{ Timesheet : "tracks"
-Employee ||--o{ PayrollRunLine : "paid in"
-PayrollRun ||--o{ PayrollRunLine : "contains"
-Employee ||--o{ PayrollRun : "approves"
+Property ||--o{ Hours : "has"
+Property ||--o{ Payroll : "has"
+Employee ||--o{ Hours : "tracks"
+Employee ||--o{ StaffPay : "paid in"
+Payroll ||--o{ StaffPay : "contains"
+Employee ||--o{ Payroll : "approves"
 
 ' Maintenance Management Relationships
 Property ||--o{ Asset : "has"
@@ -743,7 +743,7 @@ note right of JournalEntry
   Journal entries link to:
   - Reservation
   - Order
-  - PayrollRun
+  - Payroll
   - Expense
   via referenceType/referenceId
 end note
@@ -753,7 +753,7 @@ note right of Payment
   - Reservation
   - Order
   - Expense
-  - PayrollRun
+  - Payroll
   via referenceType/referenceId
 end note
 

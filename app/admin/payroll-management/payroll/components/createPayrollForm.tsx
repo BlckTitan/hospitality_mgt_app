@@ -10,7 +10,7 @@ import { Id } from '../../../../../convex/_generated/dataModel';
 import { formSchema } from './validation';
 
 type FormData = {
-  payScheduleId: string;
+  payCycleId: string;
 };
 
 export function FormComponent({
@@ -22,21 +22,21 @@ export function FormComponent({
   onClose: () => void;
   propertyId: string;
 }) {
-  const startPayroll = useMutation(api.payrollRuns.startPayroll);
+  const startPayroll = useMutation(api.payrolls.startPayroll);
   const config = useQuery(api.payrollConfig.getSettings, {
     propertyId: propertyId as Id<'properties'>,
   });
-  const schedules = config?.data?.schedules?.filter((s) => s.isActive) ?? [];
+  const payCycles = config?.data?.payCycles?.filter((s) => s.isActive) ?? [];
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: yupResolver(formSchema) as any,
-    defaultValues: { payScheduleId: '' },
+    defaultValues: { payCycleId: '' },
   });
 
   const onSubmit: SubmitHandler<FormData> = async (data) => {
     const response = await startPayroll({
       propertyId: propertyId as Id<'properties'>,
-      payScheduleId: data.payScheduleId as Id<'paySchedules'>,
+      payCycleId: data.payCycleId as Id<'payCycles'>,
     });
     if (response.success === false) {
       toast.error(response.message);
@@ -51,17 +51,17 @@ export function FormComponent({
     <form onSubmit={handleSubmit(onSubmit)}>
       <div className="w-full h-fit flex flex-col lg:flex-row justify-between items-center gap-1 [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4">
         <div className="w-full lg:w-1/3">
-          <label htmlFor="payScheduleId">Pay cycle *</label>
-          <select id="payScheduleId" {...register('payScheduleId')} defaultValue="">
+          <label htmlFor="payCycleId">Pay cycle *</label>
+          <select id="payCycleId" {...register('payCycleId')} defaultValue="">
             <option value="" disabled>Select a Pay cycle</option>
-            {schedules.map((schedule) => (
-              <option key={schedule._id} value={schedule._id}>
-                {schedule.name} ({schedule.frequency})
+            {payCycles.map((cycle) => (
+              <option key={cycle._id} value={cycle._id}>
+                {cycle.name} ({cycle.frequency})
               </option>
             ))}
           </select>
-          {errors.payScheduleId && (
-            <span className="text-red-500 text-sm">{errors.payScheduleId.message}</span>
+          {errors.payCycleId && (
+            <span className="text-red-500 text-sm">{errors.payCycleId.message}</span>
           )}
         </div>
       </div>

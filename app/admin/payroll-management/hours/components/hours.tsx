@@ -21,20 +21,20 @@ type HoursRow = {
 };
 
 export default function Hours({ propertyId }: { propertyId: string }) {
-  const response = useQuery(api.timesheets.listHours, {
+  const response = useQuery(api.hours.listHours, {
     propertyId: propertyId as Id<'properties'>,
   });
-  const approveHours = useMutation(api.timesheets.approveHours);
-  const rejectHours = useMutation(api.timesheets.rejectHours);
+  const approveHours = useMutation(api.hours.approveHours);
+  const rejectHours = useMutation(api.hours.rejectHours);
 
   const handleApprove = async (id: string) => {
-    const result = await approveHours({ timesheetId: id as Id<'timesheets'> });
+    const result = await approveHours({ hoursId: id as Id<'hours'> });
     if (result.success === false) toast.error(result.message);
     else toast.success(result.message);
   };
 
   const handleReject = async (id: string) => {
-    const result = await rejectHours({ timesheetId: id as Id<'timesheets'> });
+    const result = await rejectHours({ hoursId: id as Id<'hours'> });
     if (result.success === false) toast.error(result.message);
     else toast.success(result.message);
   };
@@ -76,7 +76,7 @@ export default function Hours({ propertyId }: { propertyId: string }) {
     <div className="w-full h-full overflow-x-scroll lg:!overflow-x-hidden">
       <Suspense>
         <PaginationComponent
-          collectionName="timesheets"
+          collectionName="hours"
           columns={tableColumns}
           jointTableData={response?.success === true ? response.data : []}
         />

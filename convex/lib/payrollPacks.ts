@@ -25,9 +25,9 @@ export type JurisdictionPack = {
   defaultFrequency: "weekly" | "bi-weekly" | "monthly";
   cutoffDaysBeforePayDate: number;
   components: PackComponent[];
-  leaveTypes: Array<{ code: string; name: string; paid: boolean; countsTowardOvertime: boolean }>;
+  timeOffTypes: Array<{ code: string; name: string; paid: boolean; countsTowardOvertime: boolean }>;
   holidays: PackHoliday[];
-  premiumRules: Array<{
+  extraPayRules: Array<{
     kind: "daily_overtime" | "weekly_overtime" | "night" | "weekend" | "public_holiday";
     multiplier: number;
     startTime?: string;
@@ -44,7 +44,7 @@ const GENERIC_PACK: JurisdictionPack = {
   defaultFrequency: "monthly",
   cutoffDaysBeforePayDate: 2,
   components: [],
-  leaveTypes: [
+  timeOffTypes: [
     { code: "ANNUAL", name: "Annual leave", paid: true, countsTowardOvertime: false },
     { code: "SICK", name: "Sick leave", paid: true, countsTowardOvertime: false },
     { code: "UNPAID", name: "Unpaid leave", paid: false, countsTowardOvertime: false },
@@ -53,7 +53,7 @@ const GENERIC_PACK: JurisdictionPack = {
     { month: 1, day: 1, name: "New Year's Day", isPaid: true },
     { month: 12, day: 25, name: "Christmas Day", isPaid: true },
   ],
-  premiumRules: [
+  extraPayRules: [
     { kind: "daily_overtime", multiplier: 1.5 },
     { kind: "weekend", multiplier: 1.5 },
     { kind: "public_holiday", multiplier: 2 },
@@ -96,7 +96,7 @@ const NG_PACK: JurisdictionPack = {
       defaultRate: 0.08,
     },
   ],
-  leaveTypes: [
+  timeOffTypes: [
     { code: "ANNUAL", name: "Annual leave", paid: true, countsTowardOvertime: false },
     { code: "SICK", name: "Sick leave", paid: true, countsTowardOvertime: false },
     { code: "UNPAID", name: "Unpaid leave", paid: false, countsTowardOvertime: false },
@@ -109,7 +109,7 @@ const NG_PACK: JurisdictionPack = {
     { month: 12, day: 25, name: "Christmas Day", isPaid: true },
     { month: 12, day: 26, name: "Boxing Day", isPaid: true },
   ],
-  premiumRules: [
+  extraPayRules: [
     { kind: "daily_overtime", multiplier: 1.5 },
     { kind: "weekend", multiplier: 1.5 },
     { kind: "public_holiday", multiplier: 2 },

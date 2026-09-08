@@ -15,7 +15,7 @@ export const listHours = query({
   handler: async (ctx, args) => {
     await requirePermission(ctx, "payroll.timesheet.read", args.propertyId);
     const rows = await ctx.db
-      .query("timesheets")
+      .query("hours")
       .withIndex("by_propertyId", (q) => q.eq("propertyId", args.propertyId))
       .collect();
     const enriched = await Promise.all(
@@ -33,9 +33,9 @@ export const listHours = query({
 });
 
 export const getHours = query({
-  args: { timesheetId: v.id("timesheets") },
+  args: { hoursId: v.id("hours") },
   handler: async (ctx, args) => {
-    const row = await ctx.db.get(args.timesheetId);
+    const row = await ctx.db.get(args.hoursId);
     if (!row) return { success: false, data: null, message: "Hours not found" };
     await requirePermission(ctx, "payroll.timesheet.read", row.propertyId);
     const staff = await ctx.db.get(row.employeeId);
@@ -59,7 +59,7 @@ export const createHours = mutation({
     await requirePermission(ctx, "payroll.timesheet.create", args.propertyId);
     const workDate = startOfUtcDay(args.workDate);
     const existing = await ctx.db
-      .query("timesheets")
+      .query("hours")
       .withIndex("by_employeeId_workDate", (q) =>
         q.eq("employeeId", args.employeeId).eq("workDate", workDate)
       )
@@ -69,7 +69,7 @@ export const createHours = mutation({
     }
 
     const settings = await ctx.db
-      .query("propertyPayrollSettings")
+      .query("payrollSettings")
       .withIndex("by_propertyId", (q) => q.eq("propertyId", args.propertyId))
       .first();
     const dailyLimit = settings?.regularHoursLimitDaily ?? 8;
@@ -81,7 +81,7 @@ export const createHours = mutation({
     const overtimeHours = args.overtimeHours ?? Math.max(0, total - dailyLimit);
     const now = Date.now();
 
-    const id = await ctx.db.insert("timesheets", {
+    const id = await ctx.db.insert("hours", {
       employeeId: args.employeeId,
       propertyId: args.propertyId,
       workDate,
@@ -102,7 +102,7 @@ export const createHours = mutation({
 
 export const updateHours = mutation({
   args: {
-    timesheetId: v.id("timesheets"),
+    hoursId: v.id("hours"),
     clockInTime: v.optional(v.number()),
     clockOutTime: v.optional(v.number()),
     regularHours: v.optional(v.number()),
@@ -117,12 +117,12 @@ export const updateHours = mutation({
     )),
   },
   handler: async (ctx, args) => {
-    const row = await ctx.db.get(args.timesheetId);
+    const row = await ctx.db.get(args.hoursId);
     if (!row) return { success: false, message: "Hours not found" };
     await requirePermission(ctx, "payroll.timesheet.update", row.propertyId);
     const locked = await rejectIfLocked(row);
     if (locked) return { success: false, message: locked };
-    await ctx.db.patch(args.timesheetId, {
+    await ctx.db.patch(args.hoursId, {
       clockInTime: args.clockInTime ?? row.clockInTime,
       clockOutTime: args.clockOutTime ?? row.clockOutTime,
       regularHours: args.regularHours ?? row.regularHours,
@@ -137,14 +137,14 @@ export const updateHours = mutation({
 });
 
 export const approveHours = mutation({
-  args: { timesheetId: v.id("timesheets") },
+  args: { hoursId: v.id("hours") },
   handler: async (ctx, args) => {
-    const row = await ctx.db.get(args.timesheetId);
+    const row = await ctx.db.get(args.hoursId);
     if (!row) return { success: false, message: "Hours not found" };
     const auth = await requirePermission(ctx, "payroll.timesheet.approve", row.propertyId);
     const locked = await rejectIfLocked(row);
     if (locked) return { success: false, message: locked };
-    await ctx.db.patch(args.timesheetId, {
+    await ctx.db.patch(args.hoursId, {
       status: "approved",
       approvedBy: auth.user._id,
       approvedAt: Date.now(),
@@ -155,14 +155,14 @@ export const approveHours = mutation({
 });
 
 export const rejectHours = mutation({
-  args: { timesheetId: v.id("timesheets") },
+  args: { hoursId: v.id("hours") },
   handler: async (ctx, args) => {
-    const row = await ctx.db.get(args.timesheetId);
+    const row = await ctx.db.get(args.hoursId);
     if (!row) return { success: false, message: "Hours not found" };
     const auth = await requirePermission(ctx, "payroll.timesheet.approve", row.propertyId);
     const locked = await rejectIfLocked(row);
     if (locked) return { success: false, message: locked };
-    await ctx.db.patch(args.timesheetId, {
+    await ctx.db.patch(args.hoursId, {
       status: "rejected",
       approvedBy: auth.user._id,
       approvedAt: Date.now(),
@@ -195,14 +195,14 @@ export async function draftHoursFromShift(
     : startOfUtcDay(Date.now());
 
   const existing = await ctx.db
-    .query("timesheets")
+    .query("hours")
     .withIndex("by_employeeId_workDate", (q) =>
       q.eq("employeeId", staff._id).eq("workDate", workDate)
     )
     .first();
 
   const settings = await ctx.db
-    .query("propertyPayrollSettings")
+    .query("payrollSettings")
     .withIndex("by_propertyId", (q) => q.eq("propertyId", shift.propertyId))
     .first();
   const dailyLimit = settings?.regularHoursLimitDaily ?? 8;
@@ -219,7 +219,7 @@ export async function draftHoursFromShift(
   const now = Date.now();
 
   if (!existing) {
-    await ctx.db.insert("timesheets", {
+    await ctx.db.insert("hours", {
       employeeId: staff._id,
       propertyId: shift.propertyId,
       workDate,

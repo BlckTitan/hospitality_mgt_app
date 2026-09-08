@@ -12,7 +12,7 @@ import { Id } from '../../../../../convex/_generated/dataModel';
 type TimeOffRow = {
   _id: string;
   staffName: string;
-  leaveTypeName: string;
+  timeOffTypeName: string;
   startDate: number;
   endDate: number;
   days: number;
@@ -21,15 +21,15 @@ type TimeOffRow = {
 };
 
 export default function TimeOff({ propertyId }: { propertyId: string }) {
-  const response = useQuery(api.leaveEntries.listTimeOff, {
+  const response = useQuery(api.timeOff.listTimeOff, {
     propertyId: propertyId as Id<'properties'>,
   });
-  const approveTimeOff = useMutation(api.leaveEntries.approveTimeOff);
-  const rejectTimeOff = useMutation(api.leaveEntries.rejectTimeOff);
+  const approveTimeOff = useMutation(api.timeOff.approveTimeOff);
+  const rejectTimeOff = useMutation(api.timeOff.rejectTimeOff);
 
   const tableColumns: TableColumn<TimeOffRow>[] = [
     { label: 'Staff', key: 'staffName' },
-    { label: 'Type', key: 'leaveTypeName' },
+    { label: 'Type', key: 'timeOffTypeName' },
     {
       label: 'Dates',
       key: 'startDate',
@@ -54,7 +54,7 @@ export default function TimeOff({ propertyId }: { propertyId: string }) {
                 variant="dark"
                 size="sm"
                 onClick={async () => {
-                  const result = await approveTimeOff({ leaveEntryId: row._id as Id<'leaveEntries'> });
+                  const result = await approveTimeOff({ timeOffId: row._id as Id<'timeOff'> });
                   if (result.success === false) toast.error(result.message);
                   else toast.success(result.message);
                 }}
@@ -65,7 +65,7 @@ export default function TimeOff({ propertyId }: { propertyId: string }) {
                 variant="secondary"
                 size="sm"
                 onClick={async () => {
-                  const result = await rejectTimeOff({ leaveEntryId: row._id as Id<'leaveEntries'> });
+                  const result = await rejectTimeOff({ timeOffId: row._id as Id<'timeOff'> });
                   if (result.success === false) toast.error(result.message);
                   else toast.success(result.message);
                 }}
@@ -83,7 +83,7 @@ export default function TimeOff({ propertyId }: { propertyId: string }) {
     <div className="w-full h-full overflow-x-scroll lg:!overflow-x-hidden">
       <Suspense>
         <PaginationComponent
-          collectionName="leaveEntries"
+          collectionName="timeOff"
           columns={tableColumns}
           jointTableData={response?.success === true ? response.data : []}
         />

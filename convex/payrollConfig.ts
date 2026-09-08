@@ -9,23 +9,23 @@ export const getSettings = query({
   handler: async (ctx, args) => {
     await requirePermission(ctx, "payroll.run.read", args.propertyId);
     const settings = await ctx.db
-      .query("propertyPayrollSettings")
+      .query("payrollSettings")
       .withIndex("by_propertyId", (q) => q.eq("propertyId", args.propertyId))
       .first();
-    const schedules = await ctx.db
-      .query("paySchedules")
+    const payCycles = await ctx.db
+      .query("payCycles")
       .withIndex("by_propertyId", (q) => q.eq("propertyId", args.propertyId))
       .collect();
-    const leaveTypes = await ctx.db
-      .query("leaveTypes")
+    const timeOffTypes = await ctx.db
+      .query("timeOffTypes")
       .withIndex("by_propertyId", (q) => q.eq("propertyId", args.propertyId))
       .collect();
-    const payComponents = await ctx.db
-      .query("payComponents")
+    const payItemTypes = await ctx.db
+      .query("payItemTypes")
       .withIndex("by_propertyId", (q) => q.eq("propertyId", args.propertyId))
       .collect();
-    const premiumRules = await ctx.db
-      .query("premiumRules")
+    const extraPayRules = await ctx.db
+      .query("extraPayRules")
       .withIndex("by_propertyId", (q) => q.eq("propertyId", args.propertyId))
       .collect();
     const calendar = await ctx.db
@@ -44,10 +44,10 @@ export const getSettings = query({
       data: {
         property,
         settings,
-        schedules,
-        leaveTypes,
-        payComponents,
-        premiumRules,
+        payCycles,
+        timeOffTypes,
+        payItemTypes,
+        extraPayRules,
         calendar,
         holidays,
       },
@@ -72,7 +72,7 @@ export const seedSettings = mutation({
     }
 
     const existing = await ctx.db
-      .query("propertyPayrollSettings")
+      .query("payrollSettings")
       .withIndex("by_propertyId", (q) => q.eq("propertyId", args.propertyId))
       .first();
     if (existing) {
@@ -94,19 +94,19 @@ export const updateSettings = mutation({
     propertyId: v.id("properties"),
     regularHoursLimitDaily: v.optional(v.number()),
     overtimeMultiplier: v.optional(v.number()),
-    defaultPayScheduleId: v.optional(v.id("paySchedules")),
+    defaultPayCycleId: v.optional(v.id("payCycles")),
   },
   handler: async (ctx, args) => {
     await requirePermission(ctx, "payroll.settings.update", args.propertyId);
     const settings = await ctx.db
-      .query("propertyPayrollSettings")
+      .query("payrollSettings")
       .withIndex("by_propertyId", (q) => q.eq("propertyId", args.propertyId))
       .first();
     if (!settings) return { success: false, message: "Seed Payroll settings first" };
     await ctx.db.patch(settings._id, {
       regularHoursLimitDaily: args.regularHoursLimitDaily ?? settings.regularHoursLimitDaily,
       overtimeMultiplier: args.overtimeMultiplier ?? settings.overtimeMultiplier,
-      defaultPayScheduleId: args.defaultPayScheduleId ?? settings.defaultPayScheduleId,
+      defaultPayCycleId: args.defaultPayCycleId ?? settings.defaultPayCycleId,
       updatedAt: Date.now(),
     });
     return { success: true, message: "Payroll settings updated" };
@@ -127,14 +127,14 @@ export const createPayCycle = mutation({
     const now = Date.now();
     if (args.isDefault) {
       const existing = await ctx.db
-        .query("paySchedules")
+        .query("payCycles")
         .withIndex("by_propertyId", (q) => q.eq("propertyId", args.propertyId))
         .collect();
       for (const row of existing.filter((s) => s.isDefault)) {
         await ctx.db.patch(row._id, { isDefault: false, updatedAt: now });
       }
     }
-    const id = await ctx.db.insert("paySchedules", {
+    const id = await ctx.db.insert("payCycles", {
       propertyId: args.propertyId,
       name: args.name,
       frequency: args.frequency,
@@ -149,7 +149,7 @@ export const createPayCycle = mutation({
   },
 });
 
-export const createLeaveType = mutation({
+export const createTimeOffType = mutation({
   args: {
     propertyId: v.id("properties"),
     code: v.string(),
@@ -160,7 +160,7 @@ export const createLeaveType = mutation({
   handler: async (ctx, args) => {
     await requirePermission(ctx, "payroll.settings.update", args.propertyId);
     const now = Date.now();
-    const id = await ctx.db.insert("leaveTypes", {
+    const id = await ctx.db.insert("timeOffTypes", {
       propertyId: args.propertyId,
       code: args.code.trim().toUpperCase(),
       name: args.name,
@@ -187,7 +187,7 @@ export const createPayItemType = mutation({
   handler: async (ctx, args) => {
     await requirePermission(ctx, "payroll.settings.update", args.propertyId);
     const now = Date.now();
-    const id = await ctx.db.insert("payComponents", {
+    const id = await ctx.db.insert("payItemTypes", {
       propertyId: args.propertyId,
       code: args.code.trim().toUpperCase(),
       name: args.name,
@@ -257,7 +257,7 @@ export const createExtraPayRule = mutation({
   handler: async (ctx, args) => {
     await requirePermission(ctx, "payroll.settings.update", args.propertyId);
     const now = Date.now();
-    const id = await ctx.db.insert("premiumRules", {
+    const id = await ctx.db.insert("extraPayRules", {
       propertyId: args.propertyId,
       kind: args.kind,
       multiplier: args.multiplier,

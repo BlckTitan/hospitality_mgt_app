@@ -28,7 +28,7 @@ export function FormComponent({
   onClose: () => void;
   propertyId: string;
 }) {
-  const createHours = useMutation(api.timesheets.createHours);
+  const createHours = useMutation(api.hours.createHours);
   const staff = useQuery(api.payrollConfig.listStaffForProperty, {
     propertyId: propertyId as Id<'properties'>,
   });

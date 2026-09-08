@@ -115,14 +115,14 @@ export async function seedPayrollForProperty(
   const now = Date.now();
 
   const existing = await ctx.db
-    .query("propertyPayrollSettings")
+    .query("payrollSettings")
     .withIndex("by_propertyId", (q) => q.eq("propertyId", propertyId))
     .first();
   if (existing) {
     return existing._id;
   }
 
-  const settingsId = await ctx.db.insert("propertyPayrollSettings", {
+  const settingsId = await ctx.db.insert("payrollSettings", {
     propertyId,
     country: pack.country === "generic" ? (country || "generic") : pack.country,
     jurisdictionPack: pack.id,
@@ -133,7 +133,7 @@ export async function seedPayrollForProperty(
     updatedAt: now,
   });
 
-  const scheduleId = await ctx.db.insert("paySchedules", {
+  const scheduleId = await ctx.db.insert("payCycles", {
     propertyId,
     name: pack.defaultScheduleName,
     frequency: pack.defaultFrequency,
@@ -145,7 +145,7 @@ export async function seedPayrollForProperty(
     updatedAt: now,
   });
 
-  await ctx.db.patch(settingsId, { defaultPayScheduleId: scheduleId, updatedAt: now });
+  await ctx.db.patch(settingsId, { defaultPayCycleId: scheduleId, updatedAt: now });
 
   const calendarId = await ctx.db.insert("holidayCalendars", {
     propertyId,
@@ -166,8 +166,8 @@ export async function seedPayrollForProperty(
     });
   }
 
-  for (const rule of pack.premiumRules) {
-    await ctx.db.insert("premiumRules", {
+  for (const rule of pack.extraPayRules) {
+    await ctx.db.insert("extraPayRules", {
       propertyId,
       kind: rule.kind,
       multiplier: rule.multiplier,
@@ -179,8 +179,8 @@ export async function seedPayrollForProperty(
     });
   }
 
-  for (const type of pack.leaveTypes) {
-    await ctx.db.insert("leaveTypes", {
+  for (const type of pack.timeOffTypes) {
+    await ctx.db.insert("timeOffTypes", {
       propertyId,
       code: type.code,
       name: type.name,
@@ -193,7 +193,7 @@ export async function seedPayrollForProperty(
   }
 
   for (const component of pack.components) {
-    await ctx.db.insert("payComponents", {
+    await ctx.db.insert("payItemTypes", {
       propertyId,
       code: component.code,
       name: component.name,
@@ -213,7 +213,7 @@ export async function seedPayrollForProperty(
   return settingsId;
 }
 
-export function applyPayComponent(args: {
+export function applyPayItemType(args: {
   calculation: "flat" | "percent_of_gross" | "pack_formula";
   formulaKey?: string;
   params?: Record<string, unknown>;
