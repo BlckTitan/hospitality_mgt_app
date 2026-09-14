@@ -1,5 +1,6 @@
 'use client'
 
+import { BackLink } from '../../../../shared/pageHeader';
 import React from 'react'
 import { Spinner } from 'react-bootstrap';
 import { useQuery } from 'convex/react';
@@ -24,6 +25,7 @@ export default function Page() {
       
       <header className='w-full border-b flex justify-between items-center'>
         <h3>Update {`${response.lastName}`}</h3>
+        <BackLink />
       </header>
 
       <FormComponent 
@@ -42,6 +44,7 @@ export default function Page() {
         dateRecruited={response.dateRecruited}
         dateTerminated={response.dateTerminated}
         department={response.department}
+        userId={response.userId}
       />
 
     </div>

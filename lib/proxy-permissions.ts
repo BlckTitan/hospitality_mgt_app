@@ -10,6 +10,7 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermission> = {
   '/admin/user': { granular: 'users.read' },
   '/admin/user/role': { granular: 'roles.read' },
   '/admin/user/userRole': { granular: 'users.read' },
+  '/admin/userRole': { granular: 'users.read' },
 
   // Properties
   '/admin/property': { granular: 'properties.read' },

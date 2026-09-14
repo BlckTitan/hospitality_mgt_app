@@ -1,5 +1,6 @@
 'use client';
 
+import { BackLink } from '../../../../../shared/pageHeader';
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { EditFormComponent } from '../components/editStoreInventoryForm';
@@ -42,6 +43,10 @@ export default function EditStoreInventoryPage() {
 
   return (
     <div className="w-full p-4 bg-white">
+      <header className="w-full border-b flex justify-between items-center mb-4">
+        <h3>Edit Store Inventory</h3>
+        <BackLink />
+      </header>
       <BootstrapModal
         show={modalShow}
         onHide={handleClose}

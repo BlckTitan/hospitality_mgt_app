@@ -7,6 +7,7 @@ import { FieldValues, SubmitHandler, useForm } from "react-hook-form";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { toast } from "sonner";
 import InputComponent from "../../../../shared/input";
+import { fieldWidthClass } from "../../../../shared/field";
 
 type FormData = {
   id: Id<'users'>;
@@ -84,10 +85,7 @@ export function FormComponent({
           </div>
         )}
 
-        <div
-          className='w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-1 
-          [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4'
-        >
+        <div className='w-full lg:w-6/12 grid grid-cols-1 lg:grid-cols-2 gap-2 mb-4'>
           <InputComponent
             id='name'
             label='Name'
@@ -97,16 +95,11 @@ export function FormComponent({
             register={register("name", { required: true })}
             error={errors.name}
           />
-        </div>
 
-        <div
-          className='w-full h-fit flex flex-col lg:flex-row lg:justify-start lg:items-center gap-1 
-          [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4'
-        >
           <InputComponent
             id='email'
             label='Email'
-            inputWidth='w-1/2'
+            inputWidth='w-full'
             type='email'
             register={register("email", { required: true })}
             error={errors.email}
@@ -115,31 +108,32 @@ export function FormComponent({
           <InputComponent
             id='phone'
             label='Phone'
-            inputWidth='w-1/2'
+            inputWidth='w-full'
             type='tel'
             register={register("phone")}
             error={errors.phone}
           />
-        </div>
 
-        <div
-          className='w-full h-fit flex flex-col items-start justify-center lg:flex-row lg:justify-start lg:items-center gap-1 
-          [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-4'
-        >
-          <div className='w-full lg:w-1/2'>
+          <div className={`flex flex-col items-start justify-start min-w-0 ${fieldWidthClass('w-full')}`}>
             <label htmlFor="isActive">Active Status</label>
-            <select className="border rounded p-2" defaultValue={isActive ? 'true' : 'false'} {...register("isActive", { required: true })}>
+            <select
+              id="isActive"
+              className="w-full border rounded p-2 h-10"
+              defaultValue={isActive ? 'true' : 'false'}
+              {...register("isActive", { required: true })}
+            >
               <option value='true'>Active</option>
               <option value='false'>Inactive</option>
             </select>
             {errors.isActive && <span className='text-red-500 text-sm'>This field is required</span>}
           </div>
-          <div className='w-full lg:w-1/2 mb-4 p-3 bg-gray-50 rounded border'>
-            <label className='block text-sm font-medium text-gray-700 mb-1'>Last Login</label>
-            <div className='text-sm text-gray-600'>
+
+          <div className={`flex flex-col items-start justify-start min-w-0 ${fieldWidthClass('w-full')}`}>
+            <label htmlFor="lastLoginAt">Last Login</label>
+            <div id="lastLoginAt" className="w-full h-10 px-2 border rounded-sm bg-gray-50 text-sm text-gray-600 flex items-center">
               {lastLoginAt ? new Date(lastLoginAt).toLocaleString() : '-'}
             </div>
-            <p className='text-xs text-gray-500 mt-1'>Updated automatically when the user signs in. This field cannot be edited.</p>
+            <p className='text-xs text-gray-500 mt-1'>Updated automatically when the user signs in.</p>
           </div>
         </div>
 

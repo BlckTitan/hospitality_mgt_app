@@ -1,5 +1,6 @@
 'use client'
 
+import { BackLink } from '../../../../../shared/pageHeader';
 import { useQuery } from 'convex/react';
 import { useSearchParams } from 'next/navigation';
 import React from 'react'
@@ -23,6 +24,7 @@ export default function Page() {
     <div className='w-full p-4 bg-white'>
       <header className='w-full border-b flex justify-between items-center mb-4'>
         <h3>Update {role.name}</h3>
+        <BackLink />
       </header>
 
       <FormComponent

@@ -53,12 +53,34 @@ export default defineSchema({
     roleId: v.id("roles"),
     propertyId: v.id("properties"),
     assignedAt: v.number(),
-    assignedBy: v.string(),
+    assignedBy: v.id("users"),
   })
     .index("by_userId", ["userId"])
     .index("by_propertyId", ["propertyId"])
     .index("by_roleId", ["roleId"])
-    .index("by_userId_propertyId", ["userId", "propertyId"]),
+    .index("by_userId_propertyId", ["userId", "propertyId"])
+    .index("by_roleId_and_propertyId", ["roleId", "propertyId"]),
+
+  pendingInvites: defineTable({
+    email: v.string(),
+    roleId: v.id("roles"),
+    propertyId: v.id("properties"),
+    invitedBy: v.id("users"),
+    clerkInvitationId: v.optional(v.string()),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("accepted"),
+      v.literal("revoked"),
+      v.literal("expired"),
+    ),
+    createdAt: v.number(),
+    expiresAt: v.number(),
+    lastReminderSentAt: v.optional(v.number()),
+  })
+    .index("by_email", ["email"])
+    .index("by_status", ["status"])
+    .index("by_expiresAt", ["expiresAt"])
+    .index("by_propertyId", ["propertyId"]),
 
   // ============================================
   // Room Management
@@ -462,12 +484,14 @@ export default defineSchema({
     accountName: v.optional(v.string()),
     accountNumber: v.optional(v.string()), // encrypted
     routingCode: v.optional(v.string()),
+    shiftTemplateId: v.optional(v.id("shiftTemplates")),
     createdAt: v.optional(v.number()),
     updatedAt: v.optional(v.number()),
   })
     .index("email", ["email"])
     .index("by_propertyId", ["propertyId"])
     .index("by_userId", ["userId"])
+    .index("by_shiftTemplateId", ["shiftTemplateId"])
     .index("by_propertyId_employeeNumber", ["propertyId", "employeeNumber"])
     .index("by_propertyId_employmentStatus", ["propertyId", "employmentStatus"])
     .searchIndex("search_staff", {
@@ -607,17 +631,96 @@ export default defineSchema({
     .index("by_propertyId", ["propertyId"])
     .index("by_propertyId_kind", ["propertyId", "kind"]),
 
+  // Department default hours. F&B templates require barId.
+  shiftTemplates: defineTable({
+    propertyId: v.id("properties"),
+    department: v.union(
+      v.literal("front-office"),
+      v.literal("housekeeping"),
+      v.literal("fnb"),
+      v.literal("maintenance"),
+      v.literal("finance"),
+      v.literal("admin"),
+      v.literal("other")
+    ),
+    name: v.string(),
+    startTime: v.string(),
+    endTime: v.string(),
+    barId: v.optional(v.id("bars")),
+    isDefault: v.boolean(),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_propertyId_department", ["propertyId", "department"])
+    .index("by_propertyId_department_default", ["propertyId", "department", "isDefault"]),
+
+  // Cover changes workingEmployeeId only; never rewrites Hours.
+  rosterSlots: defineTable({
+    propertyId: v.id("properties"),
+    shiftDate: v.string(),
+    shiftTemplateId: v.id("shiftTemplates"),
+    scheduledEmployeeId: v.id("staffs"),
+    workingEmployeeId: v.id("staffs"),
+    coveredAt: v.optional(v.number()),
+    coveredBy: v.optional(v.id("users")),
+    notes: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_propertyId_date", ["propertyId", "shiftDate"])
+    .index("by_scheduled_date", ["scheduledEmployeeId", "shiftDate"])
+    .index("by_working_date", ["workingEmployeeId", "shiftDate"])
+    .index("by_template_date", ["shiftTemplateId", "shiftDate"]),
+
+  // Actual working session. Attendance Tracker Start shift and ad-hoc create both insert here.
+  // barId required only for F&B. One session per staff per date (application-enforced).
+  shifts: defineTable({
+    propertyId: v.id("properties"),
+    employeeId: v.optional(v.id("staffs")),
+    userId: v.optional(v.id("users")),
+    barId: v.optional(v.id("bars")),
+    department: v.optional(
+      v.union(
+        v.literal("front-office"),
+        v.literal("housekeeping"),
+        v.literal("fnb"),
+        v.literal("maintenance"),
+        v.literal("finance"),
+        v.literal("admin"),
+        v.literal("other")
+      )
+    ),
+    shiftDate: v.string(),
+    startTime: v.string(),
+    endTime: v.optional(v.string()),
+    isFinalized: v.boolean(),
+    shiftTemplateId: v.optional(v.id("shiftTemplates")),
+    rosterSlotId: v.optional(v.id("rosterSlots")),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_userId", ["userId"])
+    .index("by_employeeId", ["employeeId"])
+    .index("by_employeeId_date", ["employeeId", "shiftDate"])
+    .index("by_barId", ["barId"])
+    .index("by_barId_date", ["barId", "shiftDate"])
+    .index("by_userId_date", ["userId", "shiftDate"])
+    .index("by_propertyId_date", ["propertyId", "shiftDate"])
+    .index("by_rosterSlotId", ["rosterSlotId"]),
+
   hours: defineTable({
     employeeId: v.id("staffs"),
     propertyId: v.id("properties"),
     workDate: v.number(),
-    clockInTime: v.optional(v.number()),
-    clockOutTime: v.optional(v.number()),
+    clockInTime: v.optional(v.number()), // from Shift startTime when source = shift
+    clockOutTime: v.optional(v.number()), // from Shift endTime; overnight wrap + 24h
     regularHours: v.optional(v.number()),
     overtimeHours: v.optional(v.number()),
     breakDuration: v.optional(v.number()),
     source: v.union(v.literal("manual"), v.literal("csv"), v.literal("shift")),
-    shiftId: v.optional(v.string()), // bar shifts table id when source = shift
+    shiftId: v.optional(v.id("shifts")),
     staffPayId: v.optional(v.id("staffPay")),
     lockedAt: v.optional(v.number()),
     lockedByPayrollId: v.optional(v.id("payrolls")),

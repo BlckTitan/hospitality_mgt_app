@@ -1,6 +1,7 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
 import { requirePermission } from './lib/rbac';
+import { peopleSearchName } from './lib/searchNames';
 
 export const getAllGuests = query({
   args: { propertyId: v.id('properties') },
@@ -63,6 +64,7 @@ export const createGuest = mutation({
         dateOfBirth: args.dateOfBirth,
         loyaltyNumber: args.loyaltyNumber,
         preferences: args.preferences,
+        searchName: peopleSearchName(args.firstName, args.lastName),
         createdAt: now,
         updatedAt: now,
       });
@@ -105,6 +107,7 @@ export const updateGuest = mutation({
         dateOfBirth: args.dateOfBirth,
         loyaltyNumber: args.loyaltyNumber,
         preferences: args.preferences,
+        searchName: peopleSearchName(args.firstName, args.lastName),
         updatedAt: now,
       });
 

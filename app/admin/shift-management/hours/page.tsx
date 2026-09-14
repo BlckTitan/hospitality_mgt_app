@@ -1,5 +1,6 @@
 'use client'
 
+import { BackLink } from '../../../../shared/pageHeader';
 import React, { useState } from 'react';
 import { Button } from 'react-bootstrap';
 import { FcPlus } from 'react-icons/fc';
@@ -26,6 +27,8 @@ export default function HoursPage() {
     <div className="w-full p-4 bg-white">
       <header className="w-full border-b flex justify-between items-center mb-4">
         <h3>Hours</h3>
+        <div className="flex items-center gap-3">
+          <BackLink />
         <Button
           variant="light"
           className="cursor-pointer"
@@ -34,6 +37,8 @@ export default function HoursPage() {
         >
           <FcPlus className="w-8 h-8" />
         </Button>
+      
+        </div>
       </header>
       <p className="mb-4 text-sm text-gray-600">
         Record a day’s Hours with +, end a shift on Attendance Tracker, or finalize an ad-hoc Shift to create a draft.

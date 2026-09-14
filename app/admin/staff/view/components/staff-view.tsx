@@ -110,6 +110,15 @@ export default function StaffViewComponent(){
               </div>
 
               <div>
+                <p className='!font-semibold'>Linked login:</p>
+                <p>
+                  {staffData?.linkedLogin
+                    ? `${staffData.linkedLogin.name} — ${staffData.linkedLogin.email}`
+                    : 'Not linked'}
+                </p>
+              </div>
+
+              <div>
                 <p className='!font-semibold'>Salary:</p>
                 <p>{`#${staffData?.salary} (Naira)`}</p>
               </div>

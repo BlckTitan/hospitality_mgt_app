@@ -1,56 +1,70 @@
-import { useQuery } from 'convex/react';
+import { useMutation, useQuery } from 'convex/react';
 import { Dispatch, SetStateAction, useEffect, useState } from 'react';
 import Pagination from 'react-bootstrap/Pagination';
 import { api } from '../convex/_generated/api';
 import TableComponent from './table';
 import { Spinner } from 'react-bootstrap';
 import { FcSearch } from 'react-icons/fc';
-import { yupResolver } from '@hookform/resolvers/yup';
-import { searchFormSchema } from './search-form-validation';
-import { useForm } from 'react-hook-form';
 import { useDebounce } from 'use-debounce';
-import { Id } from '../convex/_generated/dataModel';
 
-interface PaginationProps{
-  collectionName: string,
-  columns: Record<string, any>[] | []
-}
-interface FormData{
-  search: string
-}
-interface SearchComponentProps{
-  setSearchQuery: Dispatch<SetStateAction<string>>
+const PEOPLE_SEARCH_TABLES = new Set(['staffs', 'guests']);
+const LOGIN_SEARCH_TABLES = new Set(['users']);
+
+function searchPlaceholder(collectionName: string) {
+  if (PEOPLE_SEARCH_TABLES.has(collectionName)) {
+    return 'Search by first or last name';
+  }
+  if (LOGIN_SEARCH_TABLES.has(collectionName)) {
+    return 'Search by name or email';
+  }
+  return '';
 }
 
-export default function PaginationComponent({collectionName, columns, jointTableData = []}) {
+function supportsNameSearch(collectionName: string) {
+  return PEOPLE_SEARCH_TABLES.has(collectionName) || LOGIN_SEARCH_TABLES.has(collectionName);
+}
 
+interface SearchComponentProps {
+  setSearchQuery: Dispatch<SetStateAction<string>>;
+  placeholder: string;
+  value: string;
+}
+
+export default function PaginationComponent({ collectionName, columns, jointTableData = [] }) {
   const limit = 10;
-
-  // Keeps the cursor history in order: [null, "cursor_1", "cursor_2", ...]
   const [cursorHistory, setCursorHistory] = useState<(string | null)[]>([null]);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageCache, setPageCache] = useState<Record<number, any[]>>({});
-  const [searchQuery, setSearchQuery] = useState<string>('')
+  const [searchQuery, setSearchQuery] = useState('');
   const [query] = useDebounce(searchQuery, 300);
+  const searchTerm = query.trim().length >= 2 ? query.trim() : undefined;
+  const showSearch = supportsNameSearch(collectionName);
+  const needsBackfill = useQuery(
+    api.searchBackfill.needsSearchNameBackfill,
+    showSearch ? {} : "skip",
+  );
+  const backfillSearchNames = useMutation(api.searchBackfill.backfillSearchNames);
 
+  useEffect(() => {
+    if (needsBackfill) {
+      void backfillSearchNames({});
+    }
+  }, [needsBackfill, backfillSearchNames]);
   const currentCursor = cursorHistory[currentPage - 1] ?? undefined;
 
-  // Query current page
   const response = useQuery(api.functions.paginated.getPaginatedData, {
     table: collectionName,
     limit,
     cursor: currentCursor,
-    searchTerm: query
+    ...(searchTerm ? { searchTerm } : {}),
   });
 
-  // New search or table: start over from page 1
   useEffect(() => {
     setCursorHistory([null]);
     setCurrentPage(1);
     setPageCache({});
   }, [query, collectionName]);
 
-  // Update local cache + cursor list when a new page is loaded
   useEffect(() => {
     if (!response?.page) return;
 
@@ -59,8 +73,6 @@ export default function PaginationComponent({collectionName, columns, jointTable
       [currentPage]: response.page,
     }));
 
-    // Convex always returns continueCursor, even when isDone is true.
-    // Only record a next-page cursor when there is actually another page.
     setCursorHistory((prev) => {
       const knownPages = prev.slice(0, currentPage);
       if (response.isDone || !response.continueCursor) {
@@ -94,109 +106,76 @@ export default function PaginationComponent({collectionName, columns, jointTable
   };
 
   const currentData = pageCache[currentPage] || [];
-
-  // Enriched lists can render even when the raw paginated page is empty.
   const hasJointData = Array.isArray(jointTableData) && jointTableData.length > 0;
+  const emptyMessage = searchTerm ? 'No matching results were found.' : 'No data available!';
 
   if (response === undefined && !hasJointData) {
     return (
-      <div className='w-full h-screen flex items-center justify-center'>
-        <Spinner animation="border" size='sm' variant="dark" />
-      </div>
-    );
-  }
-  if (!hasJointData && (!response || !response.page || response?.page.length === 0)) {
-    return (
-      <div className='w-full h-full flex justify-center items-center'>
-        No data available!
+      <div className="w-full h-screen flex justify-center items-center">
+        <Spinner animation="border" size="sm" variant="dark" />
       </div>
     );
   }
 
-  
+  const isEmpty = !hasJointData && (!response?.page || response.page.length === 0);
+
   return (
-    //Pagination Buttons
     <>
-      <SearchComponent setSearchQuery={setSearchQuery}/>
-      {/* Data Table */}
-      {((jointTableData && jointTableData.length > 0) || collectionName === '') ? (
-        <TableComponent data={jointTableData} columns={columns}/>
+      {showSearch && (
+        <SearchComponent
+          value={searchQuery}
+          placeholder={searchPlaceholder(collectionName)}
+          setSearchQuery={setSearchQuery}
+        />
+      )}
+      {isEmpty ? (
+        <div className="w-full h-full flex justify-center items-center">
+          {emptyMessage}
+        </div>
       ) : (
-        <TableComponent data={currentData} columns={columns}/>
+        <TableComponent
+          data={(jointTableData && jointTableData.length > 0) || collectionName === ''
+            ? jointTableData
+            : currentData}
+          columns={columns}
+        />
       )}
 
-      {/* Table Pagination */}
-      <Pagination className="justify-content-left mt-3">
-
-        <Pagination.Prev 
-          onClick={handlePrev} 
-          disabled={currentPage === 1} 
-        />
-
-        {cursorHistory.map((_, index) => (
-          <Pagination.Item
-            key={index}
-            active={currentPage === index + 1}
-            onClick={() => handlePageClick(index + 1)}
-          >
-            {index + 1}
-          </Pagination.Item>
-        ))}
-
-        <Pagination.Next
-          onClick={handleNext}
-          disabled={!hasNextPage}
-        />
-
-      </Pagination>
-
+      {!isEmpty && (
+        <Pagination className="justify-content-left mt-3">
+          <Pagination.Prev onClick={handlePrev} disabled={currentPage === 1} />
+          {cursorHistory.map((_, index) => (
+            <Pagination.Item
+              key={index}
+              active={currentPage === index + 1}
+              onClick={() => handlePageClick(index + 1)}
+            >
+              {index + 1}
+            </Pagination.Item>
+          ))}
+          <Pagination.Next onClick={handleNext} disabled={!hasNextPage} />
+        </Pagination>
+      )}
     </>
   );
 }
 
-// search form component
-const SearchComponent = ({setSearchQuery}: SearchComponentProps) =>{
-
-  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
-    resolver: yupResolver(searchFormSchema) as any,
-    defaultValues: { 
-      search: ''
-    }
-  })
-
-  const onSubmit = (data: FormData) => {
-
-    // setSearchQuery(data.search);
-
-  }
-  
+function SearchComponent({ setSearchQuery, placeholder, value }: SearchComponentProps) {
   return (
-    <form 
-      action="" 
-      className='w-full h-fit py-2 flex items-start justify-end'
-      onSubmit={handleSubmit(onSubmit)}
-    >
-
-      <div className='w-full lg:w-1/3 h-fit flex flex-col items-end'>
-
-        <div className='w-full h-full flex justify-start items-center gap-2'>
-
-          <button type='submit' className='icon'>
-            <FcSearch/>
-          </button>
-
-          <input 
-            type="text"
-            placeholder='search by firstname, lastname, employment status or role'
-            {...register("search", { required: true })}
+    <div className="w-full h-fit py-2 flex items-start justify-end">
+      <div className="w-full lg:w-1/3 h-fit flex flex-col items-end">
+        <div className="w-full h-full flex justify-start items-center gap-2">
+          <span className="icon">
+            <FcSearch />
+          </span>
+          <input
+            type="search"
+            value={value}
+            placeholder={placeholder}
+            onChange={(event) => setSearchQuery(event.target.value)}
           />
-
-        </div>
-
-        <div>
-          {errors.search && <span className='text-red-500 text-sm'>This field is required</span>}
         </div>
       </div>
-    </form>
-  )
-} 
+    </div>
+  );
+}

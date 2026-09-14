@@ -55,38 +55,43 @@ This document outlines which entities should have dedicated pages and the data f
 
 ---
 
-### 3. Users Page (`/users`)
-**Purpose**: Manage system users
+### 3. Users Page (`/admin/user`)
+**Purpose**: Manage system users and Clerk invitations
 
 **Data Fetching:**
-- Fetch all `User` records (with pagination)
-- Include related `Employee` records (if linked via `userId`)
-- Include `UserRole` records with joined `Role` and `Property`
+- Fetch all `User` records (with pagination), scoped to properties the caller can `users.read`
+- Fetch `pendingInvites` (pending / expired / revoked / accepted history)
 - Filter by: `isActive`, email, name
 - Sort by: name, email, lastLoginAt
 
 **Related Entities to Include:**
 - `Employee` (where `userId` matches, optional)
-- `UserRole` with `Role` and `Property` (joined)
+- `PendingInvite` with joined `Role` and inviter `User`
+
+**Create path:** Invite User (Clerk). Required fields: email, `roleId` (from defined Roles), `propertyId`. On accept, a `UserRole` is created. Existing Clerk emails cannot be invited again.
 
 **Rendering Strategy: SSR**
 - **Reason**: Requires authentication (admin-only), contains sensitive user data, user list changes frequently, includes real-time status (lastLoginAt), permission-based filtering
 
 ---
 
-### 4. User Detail Page (`/users/[userId]`)
-**Purpose**: View/edit individual user details
+### 4. User Detail Page (`/admin/user/edit`)
+**Purpose**: View/edit individual user details and property access
 
 **Data Fetching:**
 - Fetch single `User` by `userId`
 - Fetch related `Employee` record (if exists)
-- Fetch all `UserRole` records with joined `Role` and `Property`
+- Fetch this user's `UserRole` records with joined `Role` and `Property` (only properties the caller can `users.read`)
 - Fetch `AuditLog` records for this user (recent activity)
 
 **Related Entities to Include:**
 - `Employee` (where `userId` matches, optional)
 - `UserRole` with `Role` and `Property` (joined)
 - `AuditLog` (where `userId` matches, limit 50, ordered by timestamp DESC)
+
+**Ongoing assignment:** Add / change / remove `UserRole` here (not via a second invite). `assignedBy` is the authenticated actor. Administrator grants/revokes follow last-admin and peer-admin rules (`ai/RBAC.md`).
+
+**Retired route:** `/admin/user/userRole` redirects to `/admin/user`. Assignment is not a separate nav item.
 
 **Rendering Strategy: SSR**
 - **Reason**: Requires authentication and authorization, contains sensitive personal data, audit logs are real-time, user-specific access control, data changes frequently
@@ -644,7 +649,9 @@ This document outlines which entities should have dedicated pages and the data f
 
 ---
 
-## Payroll Management Pages
+## Staff, Shift Management, and Payroll Pages
+
+Sidebar: **Staff**; **Shift Management** → Department shifts, Attendance Tracker, Cover, Shift, Hours; **Payroll** → Payroll, Time off, Payroll settings.
 
 ### 33. Staff Page (`/admin/staff`)
 **Purpose**: Manage staff records (Convex table `staffs`; no `employees` table)
@@ -652,13 +659,15 @@ This document outlines which entities should have dedicated pages and the data f
 **Data Fetching:**
 - Fetch all `staffs` records for current property (with pagination)
 - Include joined `User` data (if linked)
-- Include employment status and department
+- Include employment status, department, and assigned Department shift (`shiftTemplateName`)
 - Filter by: `employmentStatus`, `department`, `position`, `payType`, name
 - Sort by: lastName, firstName, `hireDate`
+- Create (`+`) and edit (`/admin/staff/edit?staff_id=`) set **department**. On create and department change, the backend assigns the department’s default **Department shift** (`staffs.shiftTemplateId`). Link a User login before the person can use Attendance Tracker.
 
 **Related Entities to Include:**
 - `User` (joined, optional, where `userId` matches)
 - This person’s pay items with Pay item type (optional summary; `staffPayItems`, `payItemTypes`)
+- Department shift (`shiftTemplates`, via `shiftTemplateId`)
 
 **Rendering Strategy: SSR**
 - **Reason**: Contains sensitive employee data (PII), employment status changes, requires authentication and data privacy compliance, HR-sensitive information
@@ -675,11 +684,12 @@ This document outlines which entities should have dedicated pages and the data f
 - Fetch Pay history (`payHistory`)
 - Fetch recent Time off (`timeOff`)
 - Fetch recent Staff pay (`staffPay`, last 5 payrolls)
-- Show payment method, current compensation, and assignments
+- Show payment method, current compensation, assigned Department shift, and assignments
 
 **Related Entities to Include:**
 - `User` (joined, optional, where `userId` matches)
 - `Property` (joined)
+- Department shift (`shiftTemplates`, via `shiftTemplateId`; show `shiftTemplateName`)
 - Hours (`hours` where `employeeId` matches, ordered by `workDate` DESC, limit 10)
 - Pay history (`payHistory` where `employeeId` matches, ordered by `effectiveFrom` DESC)
 - Time off with Time-off type (`timeOff`, `timeOffTypes`)
@@ -690,36 +700,102 @@ This document outlines which entities should have dedicated pages and the data f
 
 ---
 
-### 35. Hours Page (`/hours`)
-**Purpose**: Record and approve hours worked (Hours; schema: `hours`)
+### 34a. Shift Management hub (`/admin/shift-management`)
+**Purpose**: Landing page with links to Department shifts, Attendance Tracker, Cover, Shift, and Hours.
+
+**Data Fetching:**
+- No list query. Filter hub links by route access (`staff.read` for the hub).
+
+**Rendering Strategy: SSR** — `staff.read`
+
+---
+
+### 34b. Department shifts (`/admin/shift-management/templates`)
+**Purpose**: Define default working hours per department (`shiftTemplates`)
+
+**Data Fetching:**
+- Fetch Department shifts for current property
+- Include assigned staff count and default bar name (F&B)
+- **+** creates a template (F&B requires a default bar). Edit is `/admin/shift-management/templates/edit?template_id=`
+
+**Related Entities:** `Property`, `Bar` (optional), `staffs` (by `shiftTemplateId`)
+
+**Rendering Strategy: SSR** — HR/supervisors with `staff.read` / `staff.update`
+
+---
+
+### 34c. Attendance Tracker (`/admin/shift-management/attendance`)
+**Purpose**: Staff start and end today’s scheduled shift. Login does **not** start a shift.
+
+**Data Fetching:**
+- Resolve linked `staffs` for the logged-in User
+- Show today’s expected Department shift (template times) and Cover status
+- **Start shift** inserts `shifts` with actual clock time. **End shift** finalizes and drafts Hours.
+
+**Related Entities:** `staffs`, `shiftTemplates`, `rosterSlots`, `shifts`, `hours`
+
+**Rendering Strategy: SSR** — own session only (`payroll.timesheet.create` or `fnb.read`); User must be linked to Staff
+
+---
+
+### 34d. Cover (`/admin/shift-management/cover`)
+**Purpose**: Reassign who should work a roster day without changing Hours
+
+**Data Fetching:**
+- Fetch roster for selected date (assigned staff + existing `rosterSlots`)
+- Assign / clear Cover. Blocked if scheduled staff already started a Shift or has Hours, or covering staff already started a Shift that day
+
+**Related Entities:** `rosterSlots`, `staffs`, `shiftTemplates`, `shifts`, `hours`
+
+**Rendering Strategy: SSR** — `staff.update`
+
+---
+
+### 34e. Shifts (`/admin/shift-management/shift`)
+**Purpose**: List actual working sessions (`shifts`). Same table as Attendance Tracker.
+
+**Data Fetching:**
+- Managers (`staff.read`): all property shifts. Employees (`payroll.timesheet.create` or `fnb.read`): own rows only (`employeeId` / `userId`)
+- Employees cannot add, edit, delete, or Finalize
+- **+** is the unscheduled path (`staff.create`). Edit is `/admin/shift-management/shift/edit?shift_id=` (`staff.update`). **Finalize** (or End shift) drafts Hours. One session per staff per date.
+
+**Related Entities:** `staffs`, `bars` (F&B), `hours`, `shiftTemplates`, `rosterSlots`
+
+**Rendering Strategy: SSR**
+
+---
+
+### 35. Hours Page (`/admin/shift-management/hours`)
+**Purpose**: Record and approve hours worked (Hours; schema: `hours`). Old `/admin/payroll-management/hours` redirects here.
 
 **Data Fetching:**
 - Fetch all Hours (`hours`) for current property (with pagination)
-- Include joined `Employee` data
+- Include joined `staffs` data
 - Filter by: `status`, `workDate`, `employeeId`, `approvedBy`, `source`, locked vs unlocked
 - Sort by: `workDate` DESC, `status`
 - CSV import action (`source = csv`)
+- End shift / Finalize also create draft Hours (`source = shift`)
 - Locked Hours are read-only (locked after Prepare pay)
 
 **Related Entities to Include:**
-- `Employee` (joined)
+- `staffs` (joined, where `employeeId` matches)
 
 **Rendering Strategy: SSR**
 - **Reason**: Hours status changes frequently (draft/submitted/approved), approval workflows require real-time updates, critical for payroll accuracy, requires fresh data
 
 ---
 
-### 36. Hours Detail Page (`/hours/[hoursId]`)
+### 36. Hours Detail Page (`/admin/shift-management/hours/edit`)
 **Purpose**: View or edit one day’s hours. Show “Locked for payroll” when `lockedAt` is set.
 
 **Data Fetching:**
 - Fetch single Hours row by `hoursId`
-- Fetch joined `Employee`, `Property`, and approver `User` data
+- Fetch joined `staffs`, `Property`, and approver `User` data
 - Show hours breakdown, `source` (manual / csv / shift), linked shift if any, approval status, and lock state (`lockedByPayrollId`)
 - Reject edits when locked
 
 **Related Entities to Include:**
-- `Employee` (joined, where `employeeId` matches)
+- `staffs` (joined, where `employeeId` matches)
 - `Property` (joined)
 - `User` as approver (joined, where `approvedBy` matches, optional)
 - `Shift` (optional, where `shiftId` matches)
@@ -729,17 +805,17 @@ This document outlines which entities should have dedicated pages and the data f
 
 ---
 
-### 36a. Time Off Page (`/leave`)
+### 36a. Time Off Page (`/admin/payroll-management/time-off`)
 **Purpose**: Record and approve time off. Unpaid time off reduces salary on the next payroll.
 
 **Data Fetching:**
 - Fetch Time off (`timeOff`) for current property (pagination)
-- Join `Employee` and Time-off type (`timeOffTypes`)
+- Join `staffs` and Time-off type (`timeOffTypes`)
 - Filter by: `status`, `employeeId`, `timeOffTypeId`, date range
 - Actions: create, approve, reject (approved unpaid leave prorates salary)
 
 **Related Entities to Include:**
-- `Employee`, Time-off type (`timeOffTypes`)
+- `staffs`, Time-off type (`timeOffTypes`)
 
 **Rendering Strategy: SSR**
 - **Reason**: Approval affects the next Payroll; cutoff-sensitive
@@ -770,7 +846,7 @@ This document outlines which entities should have dedicated pages and the data f
 **Data Fetching:**
 - Fetch single Payroll by `payrollId`
 - Fetch joined `Property` and creator/approver `User` data
-- Fetch all Staff pay with joined `Employee` data and Pay item rows
+- Fetch all Staff pay with joined `staffs` data and Pay item rows
 - Show totals, Pay item breakdown, Payslip / Payment file status
 - Actions by status: Prepare pay (locks Hours), Approve payroll (maker ≠ checker; Payslips + GL), Download payment files, Mark as paid
 - Show creator vs calculator vs approver; block self-approve
@@ -778,7 +854,7 @@ This document outlines which entities should have dedicated pages and the data f
 **Related Entities to Include:**
 - `Property` (joined)
 - `User` as creator/approver
-- Staff pay with `Employee` and Pay items (`staffPay`, `payItems`)
+- Staff pay with `staffs` and Pay items (`staffPay`, `payItems`)
 - Payslip, Payment file, `JournalEntry` (where `referenceType = Payroll`)
 
 **Rendering Strategy: SSR**
@@ -790,7 +866,7 @@ This document outlines which entities should have dedicated pages and the data f
 **Purpose**: View or download a payslip (frozen after approve)
 
 **Data Fetching:**
-- Fetch Payslip by id with Staff pay, Payroll, `Employee`, and linked `Document`
+- Fetch Payslip by id with Staff pay, Payroll, `staffs`, and linked `Document`
 
 **Rendering Strategy: SSR**
 - **Reason**: Sensitive compensation data; employees may view only their own payslip
@@ -1296,14 +1372,16 @@ This document outlines which entities should have dedicated pages and the data f
 
 ## Summary
 
-### Total Pages: 65
+### Total Pages: 70
 
 **Breakdown by Category:**
 - Core Platform: 6 pages
 - Room Management: 11 pages
 - Food & Beverage: 8 pages
 - Inventory Management: 7 pages
-- Payroll Management: 10 pages
+- Staff: 2 pages
+- Shift Management: 7 pages (hub, Department shifts, Attendance Tracker, Cover, Shift, Hours, Hours edit)
+- Payroll Management: 6 pages (Time off, Payroll, Payroll detail, Payslip, Payment files, Payroll settings)
 - Maintenance Management: 4 pages
 - Financial Management: 10 pages
 - Reporting & Analytics: 3 pages

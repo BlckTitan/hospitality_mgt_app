@@ -1,12 +1,14 @@
 'use client'
 
+import { BackLink } from '../../../../shared/pageHeader';
 import Attendance from './components/attendance';
 
 export default function AttendancePage() {
   return (
     <div className="w-full p-4 bg-white">
-      <header className="w-full border-b mb-4">
+      <header className="w-full border-b flex justify-between items-center mb-4">
         <h3>Attendance Tracker</h3>
+        <BackLink />
       </header>
       <p className="mb-4 text-sm text-gray-600">
         Logging in does not start your shift. Open this page, then click Start shift when you begin work

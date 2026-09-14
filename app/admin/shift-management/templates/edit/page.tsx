@@ -1,5 +1,6 @@
 'use client';
 
+import { BackLink } from '../../../../../shared/pageHeader';
 import React, { useState, useEffect } from 'react';
 import { Button } from 'react-bootstrap';
 import { useQuery } from 'convex/react';
@@ -60,6 +61,7 @@ export default function EditTemplatePage() {
     <div className="w-full p-4 bg-white">
       <header className="w-full border-b flex justify-between items-center mb-4">
         <h3>Edit department shift</h3>
+        <BackLink />
         <Button
           variant="light"
           className="cursor-pointer"

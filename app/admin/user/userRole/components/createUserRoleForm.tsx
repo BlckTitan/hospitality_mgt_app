@@ -26,7 +26,7 @@ export function FormComponent({ onSuccess, onClose }: { onSuccess: () => void; o
       userId: '',
       roleId: '',
       propertyId: '',
-      assignedBy: '', // TODO: Get current user ID from auth context
+      assignedBy: '',
     },
   });
 
@@ -36,7 +36,6 @@ export function FormComponent({ onSuccess, onClose }: { onSuccess: () => void; o
         userId: data.userId as Id<'users'>,
         roleId: data.roleId as Id<'roles'>,
         propertyId: data.propertyId as Id<'properties'>,
-        assignedBy: data.assignedBy, // User ID who assigned
       });
 
       if (response.success === false) {
@@ -46,7 +45,7 @@ export function FormComponent({ onSuccess, onClose }: { onSuccess: () => void; o
         reset();
         setTimeout(() => {
           onSuccess();
-          window.location.href = '/admin/userRole';
+          window.location.href = '/admin/user';
         }, 1500);
       }
     } catch (error: any) {

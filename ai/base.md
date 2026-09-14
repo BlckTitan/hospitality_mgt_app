@@ -58,7 +58,23 @@ interface UserRole {
   roleId: string;
   propertyId: string;
   assignedAt: Date;
-  assignedBy: string;
+  assignedBy: string; // User ID of the actor who created the assignment (server-set)
+}
+```
+
+### PendingInvite
+```typescript
+interface PendingInvite {
+  pendingInviteId: string;
+  email: string;
+  roleId: string;
+  propertyId: string;
+  invitedBy: string;
+  clerkInvitationId?: string;
+  status: 'pending' | 'accepted' | 'revoked' | 'expired';
+  createdAt: Date;
+  expiresAt: Date;
+  lastReminderSentAt?: Date;
 }
 ```
 
@@ -429,6 +445,7 @@ interface Employee {
   terminationDate?: Date;
   employmentStatus: 'active' | 'terminated' | 'on-leave';
   department: Department;
+  shiftTemplateId?: string; // default Department shift; inherited on onboard
   position: string;
   payType: PayType; // denormalized from current Pay history (PayHistory)
   baseSalary?: number;
@@ -612,8 +629,65 @@ interface ExtraPayRule {
 }
 ```
 
+### Department shift
+UI: **Department shifts**. Schema table: `shiftTemplates`. Interface: `ShiftTemplate`.
+```typescript
+interface ShiftTemplate {
+  shiftTemplateId: string;
+  propertyId: string;
+  department: Department;
+  name: string;
+  startTime: string; // expected HH:MM
+  endTime: string;
+  barId?: string; // required when department is fnb
+  isDefault: boolean;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+```
+
+### Roster day
+UI: **Cover**. Schema table: `rosterSlots`. Interface: `RosterSlot`.
+```typescript
+interface RosterSlot {
+  rosterSlotId: string;
+  propertyId: string;
+  shiftDate: string; // YYYY-MM-DD
+  shiftTemplateId: string;
+  scheduledEmployeeId: string;
+  workingEmployeeId: string; // Cover changes this only
+  coveredAt?: Date;
+  coveredBy?: string; // User id
+  notes?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+```
+
+### Shift
+UI: **Shift**. Schema table: `shifts`. Interface: `Shift`.
+Attendance Tracker Start shift and ad-hoc Shift create both write this table. Login does not start a shift.
+```typescript
+interface Shift {
+  shiftId: string;
+  propertyId: string;
+  employeeId?: string;
+  userId?: string;
+  barId?: string; // required only for F&B
+  department?: Department;
+  shiftDate: string;
+  startTime: string; // actual clock
+  endTime?: string;
+  isFinalized: boolean;
+  shiftTemplateId?: string;
+  rosterSlotId?: string;
+}
+```
+
 ### Hours
 UI: **Hours**. Schema table: `hours`. Interface: `Hours`.
+End shift / Finalize copies Shift `startTime` / `endTime` into `clockInTime` / `clockOutTime` (overnight wrap; 30-minute default break).
 ```typescript
 interface Hours {
   hoursId: string;
@@ -1347,4 +1421,4 @@ interface SearchQuery {
 7. Union types enable polymorphic relationships for flexible referencing.
 8. Document linking supports multiple entity types through referenceType/referenceId pattern.
 9. All metrics in ReportMetricsData are optional as different reports include different metrics.
-10. Persona-based access can be controlled via the Role.permissions object in the User/UserRole relationship.
+10. Persona-based access is controlled via Role.permissions on UserRole (user + role + property). New users are onboarded with a Clerk invitation that already includes roleId and propertyId; acceptance writes the UserRole row. Extra properties or role changes for existing users are assigned on the user edit page, not by sending another invite.

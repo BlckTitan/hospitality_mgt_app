@@ -90,30 +90,31 @@ export const getPaginatedData = query({
     }
 
     try {
-      //if we have a searchTerm and a request comes for the staffs document,
-      // search the staffs record for firstname, lastName, employmentStatus, role data, if found, return it
-      if ( table === 'staffs' && searchTerm ) {
-        const items = await ctx.db
+      const term = searchTerm?.trim();
+      const paginationOpts = { numItems: limit, cursor: cursor ?? null };
+
+      if (term && table === 'staffs') {
+        return await ctx.db
           .query('staffs')
-          .withSearchIndex('search_staff', (idx) =>
-            idx.search('firstName', searchTerm)
-          )
-          // .filter(q =>
-          //   q.or(
-          //     // q.eq(q.field('lastName'), searchTerm),
-          //     q.eq(q.field('employmentStatus'), searchTerm),
-          //     q.eq(q.field('role'), searchTerm),
-          //   )
-          // )
-          .paginate({ numItems: limit, cursor: cursor  ?? null});
+          .withSearchIndex('search_staff', (idx) => idx.search('searchName', term))
+          .paginate(paginationOpts);
+      }
 
-          if(items.page.length === 0){
-            return { success: false, message: "No matching results were found!", page: null, isDone: null, continueCursor: null};
-          }else{
-            return items;
-          }
+      if (term && table === 'guests') {
+        return await ctx.db
+          .query('guests')
+          .withSearchIndex('search_guests', (idx) => idx.search('searchName', term))
+          .paginate(paginationOpts);
+      }
 
-      } else if (table === 'pendingInvites') {
+      if (term && table === 'users') {
+        return await ctx.db
+          .query('users')
+          .withSearchIndex('search_users', (idx) => idx.search('searchName', term))
+          .paginate(paginationOpts);
+      }
+
+      if (table === 'pendingInvites') {
         // Include pending, expired, and revoked so the admin UI can re-invite.
         // Accepted rows stay visible as history ("User accepted").
         const items = await ctx.db

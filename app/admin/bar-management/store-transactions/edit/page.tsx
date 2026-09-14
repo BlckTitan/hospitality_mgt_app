@@ -1,5 +1,6 @@
 'use client';
 
+import { BackLink } from '../../../../../shared/pageHeader';
 import React, { useState } from 'react';
 import { Button } from 'react-bootstrap';
 import { useSearchParams } from 'next/navigation';
@@ -48,9 +49,7 @@ export default function EditStoreTransactionPage() {
     <div className="w-full p-4 bg-white">
       <header className="w-full border-b flex justify-between items-center mb-4">
         <h3>Edit Store Transaction</h3>
-        <a href="/admin/bar-management/store-transactions" className="text-blue-600 hover:underline">
-          ← Back
-        </a>
+        <BackLink />
       </header>
 
       <ModalComponent

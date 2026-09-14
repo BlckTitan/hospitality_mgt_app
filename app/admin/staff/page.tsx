@@ -1,5 +1,6 @@
 'use client'
 
+import { BackLink } from '../../../shared/pageHeader';
 import React, { useState } from 'react'
 import { Button, Modal } from 'react-bootstrap'
 import { FcPlus} from "react-icons/fc";
@@ -18,6 +19,8 @@ import { FormComponent } from './components/createEmployeeForm';
     <div className='w-full p-4 bg-white'>
       <header className='w-full border-b flex justify-between items-center'>
         <h3>Staffs</h3>
+        <div className="flex items-center gap-3">
+          <BackLink />
         <Button 
           variant='light' 
           className='cursor-pointer' 
@@ -26,6 +29,8 @@ import { FormComponent } from './components/createEmployeeForm';
         >
           <FcPlus className='w-8 h-8'/>
         </Button>
+      
+        </div>
       </header>
       
       <Staff/> 

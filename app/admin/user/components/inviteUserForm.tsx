@@ -123,8 +123,9 @@ export function InviteUserForm({ onSuccess, onClose }: InviteUserFormProps) {
 
       <div className="bg-blue-50 border border-blue-200 rounded p-3 mb-4">
         <p className="text-sm text-blue-800">
-          <strong>Note:</strong> The invited user will receive an email to sign up. Once they accept the invitation,
-          they will be automatically assigned the selected role for the chosen property.
+          <strong>Note:</strong> The invited user will receive an email to sign up. Once they accept,
+          they are assigned the selected role at the chosen property. The same email cannot be invited
+          again; add more properties or change roles from the user&apos;s edit page.
         </p>
       </div>
 

@@ -1,5 +1,6 @@
 'use client'
 
+import { BackLink } from '../../../../shared/pageHeader';
 import { useQuery } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 import { Id } from '../../../../convex/_generated/dataModel';
@@ -28,8 +29,9 @@ export default function PayrollSettingsPage() {
 
   return (
     <div className="w-full p-4 bg-white">
-      <header className="w-full border-b mb-4">
+      <header className="w-full border-b flex justify-between items-center mb-4">
         <h3>Payroll settings</h3>
+        <BackLink />
       </header>
       <PayrollPageGuide page="settings" />
 

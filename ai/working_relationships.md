@@ -47,10 +47,23 @@ When Sarah logs in, the system checks her **UserRole** entries to determine whic
 - **UserRole** record: Property 1, Role "Housekeeping Supervisor"
 
 Mike's **User** account links to his **Employee** record, which means:
-- He can clock in/out (creates **Hours** records)
+- He can use **Attendance Tracker** (Start/End shift writes a `shifts` row, then draft **Hours** on End shift). Logging in does not start a shift.
 - He can be assigned **HousekeepingTask** records
 - His hours are tracked for **Payroll** calculations
 - He can upload **Document** records (e.g., maintenance photos)
+
+Permissions are checked **at the property being accessed**. Sarah's Finance Manager rights at Grand Hotel do not apply at Mountain Lodge, where she is Finance Viewer.
+
+### Inviting a new user (Clerk)
+
+New people are not typed into a create-user form. An admin at Grand Hotel sends a Clerk invitation: email + a defined Role (for example "Housekeeping Supervisor") + Property 1. That is stored as a **PendingInvite**. When Mike accepts the email and signs up:
+
+- Clerk creates the identity
+- Convex creates the **User** row
+- The pending invite is fulfilled into a **UserRole** (Property 1, Housekeeping Supervisor)
+- `assignedBy` is the admin who sent the invite
+
+If Mike later also works at Seaside Resort, the admin **cannot invite the same email again**. They open Mike's user record and **Add access** (Role + Property 2). Promotion or demotion is the same screen (change or remove the UserRole). Administrator changes follow last-admin and peer-admin rules (see `ai/RBAC.md`).
 
 **Not all Users are Employees**: An external auditor might have a **User** account with "Auditor" role but no **Employee** record, since they're not on payroll.
 
@@ -457,30 +470,31 @@ If inventory is damaged or expires:
 
 ### Daily Operations
 
-**Clock-In/Clock-Out**
+**Start shift / End shift (Attendance Tracker)**
 
-Maria Garcia (housekeeper, `employeeId: 203`) arrives at 7:00 AM:
-1. System creates **Hours** record:
-   - `hoursId: 5001`
+Maria Garcia (housekeeper, `employeeId: 203`) is onboarded into housekeeping and inherits that department’s default **Department shift** (expected 07:00–15:00). She logs in at home — no `shifts` row is created.
+
+On site she opens Attendance Tracker and clicks **Start shift**:
+1. System creates a **Shift** (`shifts`) for today:
    - `employeeId: 203`
-   - `propertyId: 1`
-   - `workDate: 2024-07-18`
-   - `clockInTime: 2024-07-18 07:00:00`
-   - `status: "draft"`
+   - `shiftDate: 2024-07-18`
+   - `startTime`: actual clock (not the template start)
+   - `isFinalized: false`
+   - `shiftTemplateId` / `rosterSlotId` from her assignment
 
-2. At end of shift (3:00 PM):
-   - `clockOutTime: 2024-07-18 15:00:00`
-   - `breakDuration: 30` (minutes)
-   - `regularHours: 7.5` (8 hours - 0.5 hour break)
-   - `overtimeHours: 0`
-   - `status: "submitted"`
+2. At **End shift** (3:00 PM):
+   - `endTime` set, `isFinalized: true`
+   - System drafts **Hours** (`source: "shift"`) if none exist for that staff and date:
+     - `clockInTime` / `clockOutTime` from the Shift
+     - `breakDuration: 30`
+     - `regularHours: 7.5`, `overtimeHours: 0`
+     - `status: "draft"` (supervisor still **Approve**)
 
 3. Supervisor (Mike, a `User` with Hours approve permission) approves:
    - `status: "approved"`
    - `approvedBy`: Mike's user id
-   - `approvedAt: 2024-07-18 15:30:00`
 
-Bar staff: when a bar **Shift** is finalized, the system creates a **draft** Hours row (`source: "shift"`) if none exists for that employee and work date. Supervisors still approve before the hours can be paid. Locked Hours (already in a payroll that is Ready to review) are not overwritten.
+Ad-hoc **Shift** create/Finalize is the unscheduled path into the same `shifts` table. One session per staff per date. Cover changes who should attend that roster day and never rewrites Hours. Locked Hours (already in a payroll that is Ready to review) are not overwritten.
 
 ### Payroll Processing
 

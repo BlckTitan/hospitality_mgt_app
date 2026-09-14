@@ -1,41 +1,37 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
 import { Id } from './_generated/dataModel';
-import { requirePermission } from './lib/rbac';
+import { requireAuthContext, requirePermission } from './lib/rbac';
+import {
+  assertAdministratorAssignmentChange,
+  canReadUsersAtProperty,
+  enrichUserRole,
+  findUserRoleDuplicate,
+} from './lib/userRoleAssignment';
 
 export const getAllUserRoles = query({
+  args: {},
   handler: async (ctx) => {
-    await requirePermission(ctx, 'users.read');
+    const authContext = await requirePermission(ctx, 'users.read');
     try {
-      const userRoles = await ctx.db.query('userRoles').collect();
-      
-      // Populate related data for display
-      const populatedUserRoles = await Promise.all(
-        userRoles.map(async (userRole) => {
-          const user = await ctx.db.get(userRole.userId);
-          const role = await ctx.db.get(userRole.roleId);
-          const property = await ctx.db.get(userRole.propertyId);
-          
-          // Try to get assignedBy user (assignedBy is a string that should be a user ID)
-          let assignedByUser = null;
-          try {
-            // Try to get as ID first
-            assignedByUser = await ctx.db.get(userRole.assignedBy as Id<'users'>);
-          } catch {
-            // If not a valid ID, leave as null and use the string value
-            assignedByUser = null;
-          }
+      const populatedUserRoles = [];
+      for (const propertyId of authContext.propertyIds) {
+        if (!canReadUsersAtProperty(authContext, propertyId)) {
+          continue;
+        }
 
-          return {
-            ...userRole,
-            userName: user?.name || 'Unknown',
-            userEmail: user?.email || 'Unknown',
-            roleName: role?.name || 'Unknown',
-            propertyName: property?.name || 'Unknown',
-            assignedByName: assignedByUser?.name || userRole.assignedBy,
-          };
-        })
-      );
+        const userRoles = await ctx.db
+          .query('userRoles')
+          .withIndex('by_propertyId', (q) => q.eq('propertyId', propertyId))
+          .collect();
+
+        for (const userRole of userRoles) {
+          const enriched = await enrichUserRole(ctx, userRole._id);
+          if (enriched) {
+            populatedUserRoles.push(enriched);
+          }
+        }
+      }
 
       return { success: true, data: populatedUserRoles };
     } catch (error) {
@@ -48,6 +44,7 @@ export const getAllUserRoles = query({
 export const getUserRole = query({
   args: { userRole_id: v.id('userRoles') },
   handler: async (ctx, args) => {
+    await requireAuthContext(ctx);
     const userRole = await ctx.db.get(args.userRole_id);
     if (!userRole) {
       return { success: false, data: null, message: 'User role not found' };
@@ -56,32 +53,8 @@ export const getUserRole = query({
     await requirePermission(ctx, 'users.read', userRole.propertyId);
 
     try {
-      // Populate related data
-      const user = await ctx.db.get(userRole.userId);
-      const role = await ctx.db.get(userRole.roleId);
-      const property = await ctx.db.get(userRole.propertyId);
-      
-      // Try to get assignedBy user (assignedBy is a string that should be a user ID)
-      let assignedByUser = null;
-      try {
-        // Try to get as ID first
-        assignedByUser = await ctx.db.get(userRole.assignedBy as Id<'users'>);
-      } catch {
-        // If not a valid ID, leave as null and use the string value
-        assignedByUser = null;
-      }
-
-      return {
-        success: true,
-        data: {
-          ...userRole,
-          userName: user?.name || 'Unknown',
-          userEmail: user?.email || 'Unknown',
-          roleName: role?.name || 'Unknown',
-          propertyName: property?.name || 'Unknown',
-          assignedByName: assignedByUser?.name || userRole.assignedBy,
-        },
-      };
+      const data = await enrichUserRole(ctx, userRole._id);
+      return { success: true, data };
     } catch (error) {
       console.log(`Failed to fetch user role: ${error}`);
       return { success: false, data: null, message: 'Failed to fetch user role' };
@@ -94,27 +67,15 @@ export const createUserRole = mutation({
     userId: v.id('users'),
     roleId: v.id('roles'),
     propertyId: v.id('properties'),
-    assignedBy: v.string(), // User ID who assigned the role
   },
   handler: async (ctx, args) => {
-    await requirePermission(ctx, 'users.create', args.propertyId);
+    const authContext = await requirePermission(ctx, 'users.create', args.propertyId);
     try {
-      const existingUserRole = await ctx.db
-        .query('userRoles')
-        .filter((q: any) => 
-          q.and(
-            q.eq(q.field('userId'), args.userId),
-            q.eq(q.field('roleId'), args.roleId),
-            q.eq(q.field('propertyId'), args.propertyId)
-          )
-        )
-        .first();
-
+      const existingUserRole = await findUserRoleDuplicate(ctx, args);
       if (existingUserRole) {
         return { success: false, message: 'This user already has this role at this property' };
       }
 
-      // Verify that user, role, and property exist
       const user = await ctx.db.get(args.userId);
       const role = await ctx.db.get(args.roleId);
       const property = await ctx.db.get(args.propertyId);
@@ -129,12 +90,22 @@ export const createUserRole = mutation({
         return { success: false, message: 'Property does not exist' };
       }
 
+      const adminGuard = await assertAdministratorAssignmentChange(ctx, authContext, {
+        targetUserId: args.userId,
+        propertyId: args.propertyId,
+        existingRoleName: null,
+        newRoleName: role.name,
+      });
+      if (!adminGuard.ok) {
+        return { success: false, message: adminGuard.message };
+      }
+
       const userRole_id = await ctx.db.insert('userRoles', {
         userId: args.userId,
         roleId: args.roleId,
         propertyId: args.propertyId,
         assignedAt: Date.now(),
-        assignedBy: args.assignedBy,
+        assignedBy: authContext.user._id,
       });
 
       return { success: true, message: 'User role assigned successfully', id: userRole_id };
@@ -148,46 +119,38 @@ export const createUserRole = mutation({
 export const updateUserRole = mutation({
   args: {
     userRole_id: v.id('userRoles'),
-    userId: v.id('users'),
     roleId: v.id('roles'),
     propertyId: v.id('properties'),
-    assignedBy: v.string(),
   },
   handler: async (ctx, args) => {
+    await requireAuthContext(ctx);
     const existingUserRole = await ctx.db.get(args.userRole_id);
 
     if (!existingUserRole) {
       return { success: false, message: 'User role does not exist' };
     }
 
-    await requirePermission(ctx, 'users.update', args.propertyId);
+    const authContext = await requirePermission(ctx, 'users.update', existingUserRole.propertyId);
+    if (args.propertyId !== existingUserRole.propertyId) {
+      await requirePermission(ctx, 'users.update', args.propertyId);
+    }
 
     try {
-      // Check if the new combination already exists (excluding current record)
-      const duplicateUserRole = await ctx.db
-        .query('userRoles')
-        .filter((q: any) => 
-          q.and(
-            q.eq(q.field('userId'), args.userId),
-            q.eq(q.field('roleId'), args.roleId),
-            q.eq(q.field('propertyId'), args.propertyId),
-            q.neq(q.field('_id'), args.userRole_id)
-          )
-        )
-        .first();
+      const duplicateUserRole = await findUserRoleDuplicate(ctx, {
+        userId: existingUserRole.userId,
+        roleId: args.roleId,
+        propertyId: args.propertyId,
+        excludeId: args.userRole_id,
+      });
 
       if (duplicateUserRole) {
         return { success: false, message: 'This user already has this role at this property' };
       }
 
-      // Verify that user, role, and property exist
-      const user = await ctx.db.get(args.userId);
+      const existingRole = await ctx.db.get(existingUserRole.roleId);
       const role = await ctx.db.get(args.roleId);
       const property = await ctx.db.get(args.propertyId);
 
-      if (!user) {
-        return { success: false, message: 'User does not exist' };
-      }
       if (!role) {
         return { success: false, message: 'Role does not exist' };
       }
@@ -195,12 +158,33 @@ export const updateUserRole = mutation({
         return { success: false, message: 'Property does not exist' };
       }
 
+      const oldPropertyGuard = await assertAdministratorAssignmentChange(ctx, authContext, {
+        targetUserId: existingUserRole.userId,
+        propertyId: existingUserRole.propertyId,
+        existingRoleName: existingRole?.name ?? null,
+        newRoleName:
+          args.propertyId === existingUserRole.propertyId ? role.name : null,
+        excludeUserRoleId: args.userRole_id,
+      });
+      if (!oldPropertyGuard.ok) {
+        return { success: false, message: oldPropertyGuard.message };
+      }
+
+      if (args.propertyId !== existingUserRole.propertyId) {
+        const newPropertyGuard = await assertAdministratorAssignmentChange(ctx, authContext, {
+          targetUserId: existingUserRole.userId,
+          propertyId: args.propertyId,
+          existingRoleName: null,
+          newRoleName: role.name,
+        });
+        if (!newPropertyGuard.ok) {
+          return { success: false, message: newPropertyGuard.message };
+        }
+      }
+
       await ctx.db.patch(args.userRole_id, {
-        userId: args.userId,
         roleId: args.roleId,
         propertyId: args.propertyId,
-        assignedBy: args.assignedBy,
-        // Note: assignedAt is not updated - it should remain the original assignment date
       });
 
       return { success: true, message: 'User role updated successfully' };
@@ -214,15 +198,28 @@ export const updateUserRole = mutation({
 export const deleteUserRole = mutation({
   args: { userRole_id: v.id('userRoles') },
   handler: async (ctx, args) => {
+    await requireAuthContext(ctx);
     const userRole = await ctx.db.get(args.userRole_id);
 
     if (!userRole) {
       return { success: false, message: 'User role does not exist' };
     }
 
-    await requirePermission(ctx, 'users.update', userRole.propertyId);
+    const authContext = await requirePermission(ctx, 'users.update', userRole.propertyId);
 
     try {
+      const role = await ctx.db.get(userRole.roleId);
+      const adminGuard = await assertAdministratorAssignmentChange(ctx, authContext, {
+        targetUserId: userRole.userId,
+        propertyId: userRole.propertyId,
+        existingRoleName: role?.name ?? null,
+        newRoleName: null,
+        excludeUserRoleId: args.userRole_id,
+      });
+      if (!adminGuard.ok) {
+        return { success: false, message: adminGuard.message };
+      }
+
       await ctx.db.delete(args.userRole_id);
       return { success: true, message: 'User role removed successfully' };
     } catch (error) {
@@ -235,7 +232,7 @@ export const deleteUserRole = mutation({
 export const getUserRolesByUserId = query({
   args: { userId: v.union(v.id('users'), v.string()) },
   handler: async (ctx, args) => {
-    await requirePermission(ctx, 'users.read');
+    const authContext = await requirePermission(ctx, 'users.read');
 
     try {
       let resolvedUserId: Id<'users'>;
@@ -257,20 +254,16 @@ export const getUserRolesByUserId = query({
         .withIndex('by_userId', (q) => q.eq('userId', resolvedUserId))
         .collect();
 
-      // Populate related data
-      const populatedUserRoles = await Promise.all(
-        userRoles.map(async (userRole) => {
-          const role = await ctx.db.get(userRole.roleId);
-          const property = await ctx.db.get(userRole.propertyId);
-          
-          return {
-            ...userRole,
-            roleName: role?.name || 'Unknown',
-            propertyName: property?.name || 'Unknown',
-            propertyId: property?._id || userRole.propertyId,
-          };
-        })
-      );
+      const populatedUserRoles = [];
+      for (const userRole of userRoles) {
+        if (!canReadUsersAtProperty(authContext, userRole.propertyId)) {
+          continue;
+        }
+        const enriched = await enrichUserRole(ctx, userRole._id);
+        if (enriched) {
+          populatedUserRoles.push(enriched);
+        }
+      }
 
       return { success: true, data: populatedUserRoles };
     } catch (error) {
@@ -279,4 +272,3 @@ export const getUserRolesByUserId = query({
     }
   },
 });
-

@@ -43,13 +43,15 @@ export async function fulfillPendingInviteForUser(
   }
 
   // Guard against duplicate webhook / login retries creating twin userRoles rows.
-  const existingUserRole = await ctx.db
+  const assignmentsAtProperty = await ctx.db
     .query("userRoles")
     .withIndex("by_userId_propertyId", (q) =>
       q.eq("userId", args.userId).eq("propertyId", pendingInvite.propertyId),
     )
-    .filter((q) => q.eq(q.field("roleId"), pendingInvite.roleId))
-    .first();
+    .collect();
+  const existingUserRole = assignmentsAtProperty.find(
+    (row) => row.roleId === pendingInvite.roleId,
+  );
 
   if (!existingUserRole) {
     await ctx.db.insert("userRoles", {
@@ -57,7 +59,7 @@ export async function fulfillPendingInviteForUser(
       roleId: pendingInvite.roleId,
       propertyId: pendingInvite.propertyId,
       assignedAt: Date.now(),
-      assignedBy: String(pendingInvite.invitedBy),
+      assignedBy: pendingInvite.invitedBy,
     });
   }
 

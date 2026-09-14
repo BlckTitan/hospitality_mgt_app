@@ -1,5 +1,6 @@
 'use client';
 
+import { BackLink } from '../../../../shared/pageHeader';
 import React, { useState } from 'react';
 import { Button } from 'react-bootstrap';
 import { FcPlus } from 'react-icons/fc';
@@ -50,6 +51,8 @@ export default function UserStockLogPage() {
     <div className="w-full p-4 bg-white">
       <header className="w-full border-b flex justify-between items-center mb-4">
         <h3>User Stock Logs</h3>
+        <div className="flex items-center gap-3">
+          <BackLink />
         <Button
           variant="light"
           className="cursor-pointer"
@@ -58,6 +61,8 @@ export default function UserStockLogPage() {
         >
           <FcPlus className="w-8 h-8" />
         </Button>
+      
+        </div>
       </header>
 
       <FilterComponent

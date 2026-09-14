@@ -1,11 +1,55 @@
-import { mutation, query } from './_generated/server';
+import { mutation, query, MutationCtx, QueryCtx } from './_generated/server';
 import { v } from 'convex/values';
+import { Doc, Id } from './_generated/dataModel';
 import { requirePermission } from './lib/rbac';
 import {
   assignDefaultShiftTemplate,
   departmentFromRole,
   normalizeDepartment,
 } from './lib/shiftHelpers';
+import { peopleSearchName } from './lib/searchNames';
+
+type DbCtx = MutationCtx | QueryCtx;
+
+async function assertLinkableUser(
+  ctx: DbCtx,
+  userId: Id<'users'>,
+  propertyId: Id<'properties'> | undefined,
+  excludeStaffId?: Id<'staffs'>,
+): Promise<string | null> {
+  const user = await ctx.db.get(userId);
+  if (!user) {
+    return 'Selected login was not found.';
+  }
+  if (!user.isActive) {
+    return 'Selected login is inactive.';
+  }
+  if (propertyId) {
+    const roleOnProperty = await ctx.db
+      .query('userRoles')
+      .withIndex('by_userId_propertyId', (q) =>
+        q.eq('userId', userId).eq('propertyId', propertyId),
+      )
+      .first();
+    if (!roleOnProperty) {
+      return 'Selected login has no role on this property. Invite them first.';
+    }
+  }
+  const linked = await ctx.db
+    .query('staffs')
+    .withIndex('by_userId', (q) => q.eq('userId', userId))
+    .first();
+  if (linked && linked._id !== excludeStaffId) {
+    return 'That login is already linked to another staff record.';
+  }
+  return null;
+}
+
+async function unsetStaffUserId(ctx: MutationCtx, staff: Doc<'staffs'>) {
+  if (!staff.userId) return;
+  const { _id, _creationTime, userId: _userId, ...rest } = staff;
+  await ctx.db.replace(_id, rest);
+}
 
 export const getStaff = query({
   args: {staff_id: v.id('staffs')},
@@ -14,8 +58,57 @@ export const getStaff = query({
     const staff = await ctx.db.get(args.staff_id)
     if (!staff) return null;
     const template = staff.shiftTemplateId ? await ctx.db.get(staff.shiftTemplateId) : null;
-    return { ...staff, shiftTemplateName: template?.name ?? null };
+    const linkedUser = staff.userId ? await ctx.db.get(staff.userId) : null;
+    return {
+      ...staff,
+      shiftTemplateName: template?.name ?? null,
+      linkedLogin: linkedUser
+        ? { name: linkedUser.name, email: linkedUser.email }
+        : null,
+    };
   }
+});
+
+export const listLinkableUsers = query({
+  args: {
+    excludeStaffId: v.optional(v.id('staffs')),
+  },
+  handler: async (ctx, args) => {
+    const auth = await requirePermission(ctx, 'staff.read');
+    const propertyId = auth.propertyIds[0];
+    if (!propertyId) {
+      return [];
+    }
+
+    const roles = await ctx.db
+      .query('userRoles')
+      .withIndex('by_propertyId', (q) => q.eq('propertyId', propertyId))
+      .collect();
+    const userIds = [...new Set(roles.map((role) => role.userId))];
+
+    const currentStaff = args.excludeStaffId
+      ? await ctx.db.get(args.excludeStaffId)
+      : null;
+    const allStaff = await ctx.db.query('staffs').collect();
+    const takenUserIds = new Set(
+      allStaff
+        .filter((staff) => staff.userId && staff._id !== args.excludeStaffId)
+        .map((staff) => staff.userId as Id<'users'>),
+    );
+
+    const users = [];
+    for (const userId of userIds) {
+      const user = await ctx.db.get(userId);
+      if (!user) continue;
+      const isCurrentLink = currentStaff?.userId === user._id;
+      if (!user.isActive && !isCurrentLink) continue;
+      if (takenUserIds.has(user._id)) continue;
+      users.push({ _id: user._id, name: user.name, email: user.email });
+    }
+
+    users.sort((a, b) => a.name.localeCompare(b.name) || a.email.localeCompare(b.email));
+    return users;
+  },
 });
 
 export const getAllStaffs = query({
@@ -47,6 +140,7 @@ export const createStaff = mutation({
     dateTerminated: v.optional(v.string()),
     role: v.string(),
     department: v.optional(v.string()),
+    userId: v.optional(v.id('users')),
   },
   handler: async (ctx, args) => {
     const auth = await requirePermission(ctx, 'staff.create');
@@ -62,6 +156,12 @@ export const createStaff = mutation({
       }
 
       const propertyId = auth.propertyIds[0];
+      if (args.userId) {
+        const linkError = await assertLinkableUser(ctx, args.userId, propertyId);
+        if (linkError) {
+          return { success: false, message: linkError };
+        }
+      }
       const department = normalizeDepartment(args.department ?? departmentFromRole(args.role));
       let template = null;
       if (propertyId) {
@@ -94,6 +194,8 @@ export const createStaff = mutation({
         payType: 'salary',
         baseSalary: args.salary,
         paymentMethod: 'cash',
+        searchName: peopleSearchName(args.firstName, args.lastName),
+        ...(args.userId ? { userId: args.userId } : {}),
       });
       const suffix = template
         ? ` Assigned ${template.name} (${department}).`
@@ -125,6 +227,7 @@ export const updateStaff = mutation({
     dateTerminated: v.optional(v.string()),
     role: v.string(),
     department: v.optional(v.string()),
+    userId: v.optional(v.union(v.id('users'), v.null())),
   },
 
   handler: async (ctx, args) => {
@@ -135,6 +238,19 @@ export const updateStaff = mutation({
     await requirePermission(ctx, 'staff.update');
     
     try {
+      const propertyId = existingStaff.propertyId;
+      if (args.userId) {
+        const linkError = await assertLinkableUser(
+          ctx,
+          args.userId,
+          propertyId,
+          existingStaff._id,
+        );
+        if (linkError) {
+          return { success: false, message: linkError };
+        }
+      }
+
       const department = args.department
         ? normalizeDepartment(args.department)
         : normalizeDepartment(existingStaff.department ?? departmentFromRole(args.role));
@@ -153,7 +269,16 @@ export const updateStaff = mutation({
         LGA: args.LGA,
         dateTerminated: args.dateTerminated,
         department,
+        searchName: peopleSearchName(args.firstName, args.lastName),
+        ...(args.userId ? { userId: args.userId } : {}),
       });
+
+      if (args.userId === null) {
+        const latest = await ctx.db.get(existingStaff._id);
+        if (latest) {
+          await unsetStaffUserId(ctx, latest);
+        }
+      }
 
       if (departmentChanged && existingStaff.propertyId) {
         await assignDefaultShiftTemplate(ctx, existingStaff._id, existingStaff.propertyId, department);

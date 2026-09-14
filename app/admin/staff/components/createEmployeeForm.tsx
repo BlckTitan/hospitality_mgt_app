@@ -8,8 +8,10 @@ import { toast } from "sonner";
 import InputComponent from "../../../../shared/input";
 import DatepickerComponent from "../../../../shared/datepicker";
 import SelectComponent from "../../../../shared/select";
+import UserAutocomplete, { applyLinkedUserToStaff } from "../../../../shared/userAutocomplete";
 import { roles, states_lga } from "../../../../lib/data";
 import { Button, Modal } from "react-bootstrap";
+import { Id } from "../../../../convex/_generated/dataModel";
 
 type FormData = {
     DoB: Date | null;
@@ -24,7 +26,10 @@ type FormData = {
     stateOfOrigin: string;
     LGA: string;
     salary: number;
+    userId?: string;
   };
+
+
 
   
 export function FormComponent() {
@@ -33,7 +38,7 @@ export function FormComponent() {
 
   const [staffState, setStaffState] = useState<string>('')
 
-  const { control, register, handleSubmit, formState: { errors } } = useForm<FormData>({
+  const { control, register, handleSubmit, setValue, watch, formState: { errors } } = useForm<FormData>({
     resolver: yupResolver(formSchema) as any,
     defaultValues: { 
       DoB: null,
@@ -48,8 +53,11 @@ export function FormComponent() {
       dateRecruited: null,
       salary: 0,
       department: 'other',
+      userId: '',
     },
   });
+
+  const linkedUserId = watch('userId');
 
   const onSubmit: SubmitHandler<FormData> = async (data) => { 
     try {
@@ -67,6 +75,7 @@ export function FormComponent() {
         salary: Number(data.salary),
         role: data.role,
         department: data.department,
+        ...(data.userId ? { userId: data.userId as Id<'users'> } : {}),
       })
 
       if(response.success === false){
@@ -226,6 +235,24 @@ export function FormComponent() {
           ]}
         />
 
+      </div>
+
+      <div
+        className='w-full h-fit flex flex-col lg:flex-row lg:justify-start lg:items-start gap-1
+        [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-4'
+      >
+        <UserAutocomplete
+          value={linkedUserId}
+          error={errors.userId}
+          onChange={(userId, user) => {
+            setValue('userId', userId ?? '');
+            if (user) {
+              applyLinkedUserToStaff(user, {
+                email: watch('email'),
+              }, (name, value) => setValue(name, value));
+            }
+          }}
+        />
       </div>
       
       <Modal.Footer>

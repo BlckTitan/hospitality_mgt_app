@@ -1,5 +1,6 @@
 'use client';
 
+import { BackLink } from '../../../../shared/pageHeader';
 import React from 'react';
 import { Spinner } from 'react-bootstrap';
 import { useQuery } from 'convex/react';
@@ -7,13 +8,17 @@ import { api } from '../../../../convex/_generated/api';
 import { Id } from '../../../../convex/_generated/dataModel';
 import { useSearchParams } from 'next/navigation';
 import { FormComponent } from '../components/editUserForm';
+import { UserAccessAssignments } from '../components/userAccessAssignments';
 
 export default function Page() {
   const searchParams = useSearchParams();
   const id = searchParams.get("user_id") ?? null;
-  const response = useQuery(api.users.getUser, { userId: id as Id<'users'> });
+  const response = useQuery(
+    api.users.getUser,
+    id ? { userId: id as Id<'users'> } : 'skip',
+  );
 
-  // Check response for data
+  if (!id) return <div>No data available!</div>;
   if (response === undefined) return <div className='w-full h-screen flex items-center justify-center'><Spinner animation="border" size='sm' variant="dark" /></div>;
   if (!response.success || !response.data) return <div>No data available!</div>;
 
@@ -23,6 +28,7 @@ export default function Page() {
     <div className='w-full p-4 bg-white'>
       <header className='w-full border-b flex justify-between items-center'>
         <h3>Update {user.name}</h3>
+        <BackLink />
       </header>
 
       <FormComponent
@@ -34,6 +40,8 @@ export default function Page() {
         isActive={user.isActive}
         lastLoginAt={user.lastLoginAt}
       />
+
+      <UserAccessAssignments userId={id as Id<'users'>} />
     </div>
   );
 }

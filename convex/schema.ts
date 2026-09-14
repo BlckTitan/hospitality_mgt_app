@@ -12,10 +12,16 @@ export default defineSchema({
     lastLoginAt: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
+    // name + email for login search. Optional until existing users are backfilled.
+    searchName: v.optional(v.string()),
   })
     .index("byExternalId", ["externalId"])
     .index("by_email", ["email"])
-    .index("by_isActive", ["isActive"]),
+    .index("by_isActive", ["isActive"])
+    .searchIndex("search_users", {
+      searchField: "searchName",
+      filterFields: ["isActive"],
+    }),
 
   // Roles table for RBAC (Role-Based Access Control)
   roles: defineTable({
@@ -35,12 +41,13 @@ export default defineSchema({
     roleId: v.id("roles"),
     propertyId: v.id("properties"),
     assignedAt: v.number(),
-    assignedBy: v.string(), // User ID who assigned the role
+    assignedBy: v.id("users"),
   })
     .index("by_userId", ["userId"])
     .index("by_propertyId", ["propertyId"])
     .index("by_roleId", ["roleId"])
-    .index("by_userId_propertyId", ["userId", "propertyId"]),
+    .index("by_userId_propertyId", ["userId", "propertyId"])
+    .index("by_roleId_and_propertyId", ["roleId", "propertyId"]),
 
   // PendingInvites table for tracking Clerk invitations before user signup
   pendingInvites: defineTable({
@@ -102,13 +109,15 @@ export default defineSchema({
     accountNumber: v.optional(v.string()),
     routingCode: v.optional(v.string()),
     shiftTemplateId: v.optional(v.id("shiftTemplates")),
+    // firstName + lastName for people search. Optional until existing staff are backfilled.
+    searchName: v.optional(v.string()),
   })
     .index("email", ["email"])
     .index("by_propertyId", ["propertyId"])
     .index("by_userId", ["userId"])
     .index("by_shiftTemplateId", ["shiftTemplateId"])
     .searchIndex('search_staff', {
-      searchField: 'firstName',
+      searchField: 'searchName',
       filterFields: ['employmentStatus', 'role']
     }),
 
@@ -382,12 +391,14 @@ export default defineSchema({
     preferences: v.optional(v.any()), // JSON object
     createdAt: v.number(),
     updatedAt: v.number(),
+    // firstName + lastName for people search. Optional until existing guests are backfilled.
+    searchName: v.optional(v.string()),
   })
     .index("by_propertyId", ["propertyId"])
     .index("by_email", ["email"])
     .index("by_loyaltyNumber", ["loyaltyNumber"])
     .searchIndex("search_guests", {
-      searchField: "firstName",
+      searchField: "searchName",
       filterFields: ["propertyId"],
     }),
 

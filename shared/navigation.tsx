@@ -22,7 +22,6 @@ const navItems = [
   { id: 2, href: "/admin/property", label: "Properties", icon: <FcDepartment /> },
   { id: 3, href: "/admin/user", label: "Users", icon: <FcManager />, subLink: [
     {id: 301, href: '/admin/user/role', label: 'Role'}, 
-    {id: 302, href: '/admin/user/userRole', label: 'User role'},
     {id: 303, href: '/admin/user', label: 'Users'}, 
   ]},
   { id: 4, href: "/admin/bar-management", label: "Bar Management", icon: <IoFastFoodOutline className='!text-brown-600'/>,  

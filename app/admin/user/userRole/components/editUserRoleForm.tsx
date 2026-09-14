@@ -45,10 +45,8 @@ export function FormComponent({
     try {
       const response = await updateUserRole({
         userRole_id: id,
-        userId: data.userId as Id<'users'>,
         roleId: data.roleId as Id<'roles'>,
         propertyId: data.propertyId as Id<'properties'>,
-        assignedBy: data.assignedBy,
       });
 
       if (response.success === false) {
@@ -57,7 +55,7 @@ export function FormComponent({
         toast.success('User role updated successfully!');
         reset();
         setTimeout(() => {
-          window.location.href = '/admin/userRole';
+          window.location.href = '/admin/user';
         }, 1500);
       }
     } catch (error: any) {
@@ -149,7 +147,7 @@ export function FormComponent({
       </div>
 
       <div className="flex gap-2 justify-end">
-        <Button variant="secondary" onClick={() => window.location.href = '/admin/userRole'}>
+        <Button variant="secondary" onClick={() => window.location.href = '/admin/user'}>
           Cancel
         </Button>
         <Button variant="dark" type="submit">

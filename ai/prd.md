@@ -68,6 +68,7 @@ Hospitality operators juggle siloed systems for reservations, POS, payroll, proc
    - Real-time dashboards for cash flow, occupancy, ADR, labor cost %, food cost %, etc.
 7. **Platform Foundations**
    - Role-based access control, audit logs, SOC2-ready security controls.
+   - **User onboarding**: new users are created only via Clerk invitation. The admin selects a defined Role and Property; on accept, the system writes a `UserRole` row. Existing users cannot be re-invited — additional roles or properties are assigned on the user record.
    - Multi-channel accessibility: responsive web, optimized tablet/mobile web, future native apps.
    - Native POS/PMS capabilities: built-in reservation management and point-of-sale functionality for businesses operating without existing systems.
    - Integrations: PMS (e.g., Cloudbeds), Online Travel Agencies, POS, accounting suites (QuickBooks, Xero), payment gateways (for businesses with existing systems).
@@ -128,7 +129,7 @@ Hospitality operators juggle siloed systems for reservations, POS, payroll, proc
 
 - Staff master (`staffs` table only — no separate `employees` table): property-scoped profiles; optional User login; `paymentMethod` (`bank` | `cash` | `mobile_money` | `check`); compensation **history**; soft delete only. Existing `/admin/staff` and `Id<"staffs">` FKs stay.
 - **Pay cycle**: payrolls are created from a cycle (period, cutoff, pay date). Hours and Time off approved after cutoff are excluded.
-- Time tracking: manual entry, CSV import, and draft Hours created when a bar shift is finalized. Only **unlocked, approved** Hours are paid. Prepare pay **locks** included Hours.
+- Time tracking: department shifts (default hours per department, inherited on onboard), Attendance Tracker Start/End shift (actual clock; login does not start work), Cover for a roster day, ad-hoc Shift create/Finalize, plus manual Hours and CSV. Ending or finalizing a shift creates **draft** Hours. Only **unlocked, approved** Hours are paid. Prepare pay **locks** included Hours. Cover never rewrites Hours.
 - **Time off**: Time-off types + Time off. Approved unpaid Time off prorates salary. Paid Time off counts as regular hours (not OT) unless the type allows OT.
 - **Holidays + extra pay rules**: country pack seeds Holidays and extra pay rules (daily/weekly OT, night, weekend, public holiday). Single overtime multiplier is fallback daily OT only.
 - **Jurisdiction from property setup**: admin must select `Property.country`. Seeds statutory Pay item types, default Pay cycle, Holidays, and extra pay rules. Unsupported countries use generic fallback.
@@ -228,12 +229,13 @@ Hospitality operators juggle siloed systems for reservations, POS, payroll, proc
 
 ## Data & ERD Considerations
 
-- Core entities: `Property` (includes required `country` for payroll jurisdiction), `User`, `Role`, `Room`, `Reservation`, `HousekeepingTask`, `FnbMenuItem`, `InventoryItem`, `Supplier`, `PurchaseOrder`, `Employee`, Pay history, Pay cycle, Time-off type, Time off, Holidays, Extra pay rules, Hours, Payroll settings, Pay item type, Payroll, Staff pay, Pay item, Payslip, Payment file, `MaintenanceOrder`, `Asset`, `Expense`, `UtilityBill`, `JournalEntry`, `Report`. Schema table names stay `payHistory`, `payCycles`, `timeOffTypes`, `timeOff`, `holidayCalendars`, `extraPayRules`, `hours`, `payrollSettings`, `payItemTypes`, `payrolls`, `staffPay`, `payItems`, `payslips`, `paymentFiles`.
+- Core entities: `Property` (includes required `country` for payroll jurisdiction), `User`, `Role`, `Room`, `Reservation`, `HousekeepingTask`, `FnbMenuItem`, `InventoryItem`, `Supplier`, `PurchaseOrder`, `Employee`, Department shift (`shiftTemplates`), Roster day (`rosterSlots`), Shift (`shifts`), Pay history, Pay cycle, Time-off type, Time off, Holidays, Extra pay rules, Hours, Payroll settings, Pay item type, Payroll, Staff pay, Pay item, Payslip, Payment file, `MaintenanceOrder`, `Asset`, `Expense`, `UtilityBill`, `JournalEntry`, `Report`. Schema table names stay `payHistory`, `payCycles`, `timeOffTypes`, `timeOff`, `holidayCalendars`, `extraPayRules`, `hours`, `payrollSettings`, `payItemTypes`, `payrolls`, `staffPay`, `payItems`, `payslips`, `paymentFiles`, plus live `shiftTemplates`, `rosterSlots`, `shifts`.
 - Relationships:
   - `Property` 1:N `Room`, `Employee`, `InventoryItem`, `Asset`.
   - `Reservation` links `Room`, `Guest`, and yields `JournalEntries`.
   - `HousekeepingTask` + `MaintenanceOrder` reference rooms/assets, produce expenses.
   - `FnbMenuItem` consumes `InventoryItems` via recipe lines.
+  - Department shift → Employee (default on onboard); Roster day (Cover) → who should attend; Shift (Attendance Tracker or ad-hoc) → Hours on End shift / Finalize.
   - A Payroll is created from a Pay cycle, aggregates approved/unlocked Hours, Time off, Pay history, and Pay item types for `staffs` into Staff pay / Pay items, then posts a `JournalEntry` and produces Payslips + Payment files.
   - `Report` entities store configuration + cached snapshots for analytics.
 - ERD deliverable: diagram showing above entities, primary keys, and cardinalities to be hosted in `docs/erd/` (format TBD—likely Draw.io or Mermaid).

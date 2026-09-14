@@ -62,10 +62,18 @@ Who: supervisors who can update staff.
 Who: supervisors (approve) and staff with login (record).
 
 - **+** records one day’s Hours for a staff member (no shift required).
-- Signing out on Attendance Tracker, or finalizing an ad-hoc **Shift**, creates a **draft** Hours row (`source = shift`). Still **Approve** before those hours can be paid.
+- **Start shift** / **End shift** on Attendance Tracker, or finalizing an ad-hoc **Shift**, creates a **draft** Hours row (`source = shift`). Still **Approve** before those hours can be paid.
 - After **Prepare pay**, included Hours show **Locked for payroll** and cannot be edited until Recalculate (while the Payroll is still Draft / Ready to review).
 
 The old `/admin/payroll-management/hours` URL redirects here.
+
+### Shift — `/admin/shift-management/shift`
+
+Who: employees (own rows) and managers with `staff.read` (every staff member).
+
+- Attendance Tracker Start shift and ad-hoc **+** both write the same `shifts` table. One session per staff per date.
+- Employees see only their own shifts and cannot add, edit, delete, or Finalize.
+- Managers see all property shifts. **Finalize** (or End shift) creates draft Hours.
 
 ### Time off — `/admin/payroll-management/time-off`
 
@@ -117,8 +125,8 @@ People master (`staffs` only). New staff get the current property, salary pay ty
 | Role | Typical access |
 |---|---|
 | Administrator, Director, GM, Finance, HR | Full payroll. Two different users still required to prepare vs approve. |
-| Supervisor / Assistant Manager | Hours (Shift Management) and Time off approve. They can also open Payroll today (LIMITED). |
-| Staff with a User login | Own Hours / Time off create; own Payslip. |
+| Supervisor / Assistant Manager | Hours (Shift Management) and Time off approve; Department shifts and Cover (`staff.update`). They can also open Payroll today (LIMITED). |
+| Staff with a User login | Attendance Tracker Start/End shift; own Shift rows; own Hours / Time off create; own Payslip. |
 | Other operational roles | No payroll screens. |
 
-Permission keys stay technical (`payroll.run.approve`, `payroll.timesheet.read`). Screens use Payroll, Hours, and Time off — never table identifiers like `staffPay`.
+Permission keys stay technical (`payroll.run.approve`, `payroll.timesheet.read`). Screens use Payroll, Hours, Time off, Department shifts, Attendance Tracker, Cover, and Shift — never table identifiers like `staffPay`.

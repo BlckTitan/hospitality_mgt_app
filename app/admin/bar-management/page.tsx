@@ -6,6 +6,7 @@ import { Id } from '../../../convex/_generated/dataModel';
 import ReorderAlertsTable from './components/reorder-alerts';
 import SalesSummaryCharts from './components/sales-summary-charts';
 import { usePermissions } from '../../../hooks/usePermissions';
+import { BackLink } from '../../../shared/pageHeader';
 
 export default function BarManagement() {
     const [propertyId, setPropertyId] = useState<string>('');
@@ -33,9 +34,12 @@ export default function BarManagement() {
 
     return (
         <div className="w-full p-6 bg-white">
-            <div className="mb-6">
-                <h1 className="text-2xl font-bold text-gray-800 mb-2">Bar Management</h1>
-                <p className="text-gray-600">Manage your bar operations, inventory, and reorder alerts</p>
+            <div className="mb-6 flex justify-between items-start">
+                <div>
+                    <h1 className="text-2xl font-bold text-gray-800 mb-2">Bar Management</h1>
+                    <p className="text-gray-600">Manage your bar operations, inventory, and reorder alerts</p>
+                </div>
+                <BackLink />
             </div>
 
             {/* Property Selector */}

@@ -1,15 +1,13 @@
-import { FcDocument, FcEmptyTrash } from "react-icons/fc";
+import { FcEmptyTrash } from "react-icons/fc";
 import { TableColumn } from "../../../../shared/table";
 import { MdEditDocument } from "react-icons/md";
 import { Button } from "react-bootstrap";
 import PaginationComponent from "../../../../shared/pagination";
-import { Suspense, useState } from "react";
+import { Suspense } from "react";
 import { useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { toast } from "sonner";
-import BootstrapModal from "../../../../shared/modal";
-import { InviteUserForm } from "./inviteUserForm";
 
 interface UserProps {
   _id: string;
@@ -23,7 +21,6 @@ interface UserProps {
 
 const Users = () => {
   const removeUser = useMutation(api.users.deleteUser);
-  const [showInviteModal, setShowInviteModal] = useState(false);
 
   const handleDelete = async (id: string, name: string) => {
     if (!confirm('Are you sure you want to delete user: ' + name)) return;
@@ -99,32 +96,11 @@ const Users = () => {
 
   return (
     <div className='w-full h-full overflow-x-scroll lg:!overflow-x-hidden'>
-      <div className="flex justify-end mb-4">
-        <Button
-          variant="primary"
-          onClick={() => setShowInviteModal(true)}
-          className="bg-blue-600 hover:bg-blue-700 text-white"
-        >
-          Invite User
-        </Button>
-      </div>
-
       <Suspense fallback={<div className="text-center py-8">Loading users...</div>}>
         <PaginationComponent collectionName='users' columns={tableColumns} />
       </Suspense>
-
-      <BootstrapModal
-        show={showInviteModal}
-        onHide={() => setShowInviteModal(false)}
-        heading="Invite New User"
-        body={<InviteUserForm
-          onSuccess={() => setShowInviteModal(false)}
-          onClose={() => setShowInviteModal(false)}
-        />}
-      />
     </div>
   );
 };
 
 export default Users;
-

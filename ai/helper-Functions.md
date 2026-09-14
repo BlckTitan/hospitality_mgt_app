@@ -942,6 +942,28 @@ export function findBestAvailableRoom(
 
 Overtime and extra pay come from extra pay rules (holiday, night, weekend, daily/weekly OT), with Payroll settings `overtimeMultiplier` as fallback daily OT. Unpaid approved Time off days prorate salary. Compensation rates come from Pay history effective on the work date. See `ai/payroll-implementation.md`.
 
+End shift / Finalize drafts Hours from Shift `startTime` / `endTime` (UTC `HH:MM` on the shift calendar date). Overnight sessions wrap: if end is not after start, add 24 hours. Default break is 30 minutes. Daily OT uses Payroll settings `regularHoursLimitDaily` (fallback 8). Live helpers: `hoursFromClockWithOvernight` in `convex/lib/payrollHelpers.ts`. Do not import `convex/lib/shiftHelpers.ts` from the client.
+
+### Hours from Shift clock (overnight wrap)
+
+```typescript
+/**
+ * Maps Shift start/end (HH:MM) onto the work date and subtracts break minutes.
+ * If clock-out is not after clock-in, add 24 hours (overnight).
+ */
+export function hoursFromClockWithOvernight(
+  clockIn?: number,
+  clockOut?: number,
+  breakDuration = 0
+): { clockIn?: number; clockOut?: number; total: number } {
+  if (!clockIn || !clockOut) return { clockIn, clockOut, total: 0 };
+  const wrappedOut = clockOut <= clockIn ? clockOut + 24 * 60 * 60 * 1000 : clockOut;
+  const raw = (wrappedOut - clockIn) / (1000 * 60 * 60);
+  const total = Math.max(0, raw - breakDuration / 60);
+  return { clockIn, clockOut: wrappedOut, total };
+}
+```
+
 ### Calculate Overtime Hours
 
 ```typescript

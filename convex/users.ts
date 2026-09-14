@@ -3,6 +3,7 @@ import { internal } from "./_generated/api";
 import { UserJSON } from "@clerk/backend";
 import { v, Validator } from "convex/values";
 import { requireAuthenticated, requirePermission } from "./lib/rbac";
+import { assertAdministratorAssignmentChange } from "./lib/userRoleAssignment";
 import {
   fulfillPendingInviteForUser,
   normalizeInviteEmail,
@@ -13,6 +14,7 @@ import {
   patchLastLoginAtIfActive,
   userByExternalId,
 } from "./lib/userIdentity";
+import { loginSearchName } from "./lib/searchNames";
 
 const inviteStatusValidator = v.union(
   v.literal("pending"),
@@ -170,7 +172,12 @@ export const updateUser = mutation({
       if (args.phone !== undefined) updateData.phone = args.phone;
       if (args.isActive !== undefined) updateData.isActive = args.isActive;
 
-      await ctx.db.patch(args.userId, updateData);
+      const nextName = updateData.name ?? existingUser.name;
+      const nextEmail = updateData.email ?? existingUser.email;
+      await ctx.db.patch(args.userId, {
+        ...updateData,
+        searchName: loginSearchName(nextName, nextEmail),
+      });
 
       return { success: true, message: "User updated successfully" };
     } catch (error) {
@@ -229,6 +236,7 @@ export const upsertFromClerk = internalMutation({
     } else {
       await ctx.db.patch(user._id, {
         ...syncedFields,
+        searchName: loginSearchName(syncedFields.name, syncedFields.email),
         updatedAt: now,
       });
       if (clerkLastSignInAt !== undefined) {
@@ -333,6 +341,20 @@ export const createPendingInvite = mutation({
   },
   handler: async (ctx, args) => {
     const authContext = await requirePermission(ctx, "users.create", args.propertyId);
+    const role = await ctx.db.get(args.roleId);
+    if (!role) {
+      return { success: false, message: "Role does not exist" };
+    }
+
+    const adminGuard = await assertAdministratorAssignmentChange(ctx, authContext, {
+      propertyId: args.propertyId,
+      existingRoleName: null,
+      newRoleName: role.name,
+    });
+    if (!adminGuard.ok) {
+      return { success: false, message: adminGuard.message };
+    }
+
     const email = normalizeInviteEmail(args.email);
 
     const existingInvites = await ctx.db

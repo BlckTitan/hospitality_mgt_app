@@ -1,5 +1,6 @@
 'use client';
 
+import { BackLink } from '../../../../shared/pageHeader';
 import { useState } from 'react';
 import { useQuery } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
@@ -37,15 +38,18 @@ export default function CoverPage() {
     <div className="w-full p-4 bg-white">
       <header className="w-full border-b flex justify-between items-center mb-4">
         <h3>Cover</h3>
-        <label className="flex items-center gap-2 text-sm">
-          <span>Date</span>
-          <input
-            type="date"
-            className="border rounded p-2"
-            value={shiftDate}
-            onChange={(e) => setShiftDate(e.target.value)}
-          />
-        </label>
+        <div className="flex items-center gap-3">
+          <BackLink />
+          <label className="flex items-center gap-2 text-sm">
+            <span>Date</span>
+            <input
+              type="date"
+              className="border rounded p-2"
+              value={shiftDate}
+              onChange={(e) => setShiftDate(e.target.value)}
+            />
+          </label>
+        </div>
       </header>
       <p className="mb-4 text-sm text-gray-600">
         Reassign a day when someone cannot report. This changes who should attend, not Hours already recorded.

@@ -1,5 +1,6 @@
 'use client'
 
+import { BackLink } from '../../../../../shared/pageHeader';
 import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useQuery } from 'convex/react';
@@ -32,8 +33,9 @@ function ExportInner() {
 
   return (
     <div className="w-full p-4 bg-white">
-      <header className="w-full border-b mb-4">
+      <header className="w-full border-b flex justify-between items-center mb-4">
         <h3>Payment files</h3>
+        <BackLink />
       </header>
       <PayrollPageGuide page="export" />
       {payroll.data.exports.length === 0 && <p>No payment files yet. Use Download payment files on the Payroll.</p>}

@@ -1,5 +1,6 @@
 'use client'
 
+import { BackLink } from '../../../../../shared/pageHeader';
 import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 import { useMutation, useQuery } from 'convex/react';
@@ -51,12 +52,15 @@ function PayrollViewInner() {
 
   return (
     <div className="w-full p-4 bg-white">
-      <header className="w-full border-b mb-4">
-        <h3>
-          Payroll {formatDate(run.payPeriodStart)} – {formatDate(run.payPeriodEnd)}
-        </h3>
-        <p>Status: {run.statusLabel}</p>
-        <p>Gross {run.totalGrossPay} · Deductions {run.totalDeductions} · Net {run.totalNetPay}</p>
+      <header className="w-full border-b flex justify-between items-start mb-4">
+        <div>
+          <h3>
+            Payroll {formatDate(run.payPeriodStart)} – {formatDate(run.payPeriodEnd)}
+          </h3>
+          <p>Status: {run.statusLabel}</p>
+          <p>Gross {run.totalGrossPay} · Deductions {run.totalDeductions} · Net {run.totalNetPay}</p>
+        </div>
+        <BackLink />
       </header>
       <PayrollPageGuide page="payroll-view" />
 

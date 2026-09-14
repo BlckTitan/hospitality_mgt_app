@@ -1,6 +1,7 @@
 import { Doc, Id } from "../_generated/dataModel";
 import { MutationCtx, QueryCtx } from "../_generated/server";
 import { ensureUserFromIdentity } from "./userIdentity";
+import { ADMINISTRATOR_ROLE_NAME } from "./systemRoles";
 import {
   Action,
   GRANULAR_PERMISSIONS,
@@ -14,6 +15,8 @@ export type AuthContext = {
   roles: string[];
   propertyIds: Id<"properties">[];
   permissions: Record<string, boolean>;
+  rolesByProperty: Record<string, string[]>;
+  permissionsByProperty: Record<string, Record<string, boolean>>;
 };
 
 type Ctx = QueryCtx | MutationCtx;
@@ -119,13 +122,26 @@ export async function getAuthContext(ctx: Ctx): Promise<AuthContext | null> {
   const roles: string[] = [];
   const propertyIds: Id<"properties">[] = [];
   const permissions: Record<string, boolean> = {};
+  const rolesByProperty: Record<string, string[]> = {};
+  const permissionsByProperty: Record<string, Record<string, boolean>> = {};
 
   for (const userRole of userRoles) {
-    propertyIds.push(userRole.propertyId);
+    const propertyId = userRole.propertyId;
+    propertyIds.push(propertyId);
     const role = await ctx.db.get(userRole.roleId);
     if (!role) continue;
 
     roles.push(role.name);
+    if (!rolesByProperty[propertyId]) {
+      rolesByProperty[propertyId] = [];
+    }
+    if (!rolesByProperty[propertyId].includes(role.name)) {
+      rolesByProperty[propertyId].push(role.name);
+    }
+
+    if (!permissionsByProperty[propertyId]) {
+      permissionsByProperty[propertyId] = {};
+    }
 
     const rolePermissions = role.permissions as Record<string, unknown> | undefined;
     if (!rolePermissions) continue;
@@ -133,6 +149,7 @@ export async function getAuthContext(ctx: Ctx): Promise<AuthContext | null> {
     for (const [key, value] of Object.entries(rolePermissions)) {
       if (value) {
         permissions[key] = true;
+        permissionsByProperty[propertyId][key] = true;
       }
     }
   }
@@ -142,7 +159,28 @@ export async function getAuthContext(ctx: Ctx): Promise<AuthContext | null> {
     roles,
     propertyIds: [...new Set(propertyIds)],
     permissions,
+    rolesByProperty,
+    permissionsByProperty,
   };
+}
+
+export function scopeAuthContextToProperty(
+  authContext: AuthContext,
+  propertyId: Id<"properties">,
+): AuthContext {
+  return {
+    ...authContext,
+    roles: authContext.rolesByProperty[propertyId] ?? [],
+    permissions: authContext.permissionsByProperty[propertyId] ?? {},
+    propertyIds: authContext.propertyIds.filter((id) => id === propertyId),
+  };
+}
+
+export function isAdministratorAtProperty(
+  authContext: AuthContext,
+  propertyId: Id<"properties">,
+): boolean {
+  return (authContext.rolesByProperty[propertyId] ?? []).includes(ADMINISTRATOR_ROLE_NAME);
 }
 
 export async function requireAuthContext(ctx: Ctx): Promise<AuthContext> {
@@ -164,7 +202,11 @@ export async function requirePermission(
     throw new Error("Unauthorized: no access to this property");
   }
 
-  if (!hasGranularPermission(authContext, granularPermission)) {
+  const scoped = propertyId
+    ? scopeAuthContextToProperty(authContext, propertyId)
+    : authContext;
+
+  if (!hasGranularPermission(scoped, granularPermission)) {
     throw new Error("Unauthorized");
   }
 
@@ -179,7 +221,10 @@ export async function tryRequirePermission(
   const authContext = await getAuthContext(ctx);
   if (!authContext) return null;
   if (propertyId && !authContext.propertyIds.includes(propertyId)) return null;
-  if (!hasGranularPermission(authContext, granularPermission)) return null;
+  const scoped = propertyId
+    ? scopeAuthContextToProperty(authContext, propertyId)
+    : authContext;
+  if (!hasGranularPermission(scoped, granularPermission)) return null;
   return authContext;
 }
 

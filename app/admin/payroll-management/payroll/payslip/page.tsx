@@ -1,5 +1,6 @@
 'use client'
 
+import { BackLink } from '../../../../../shared/pageHeader';
 import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useQuery } from 'convex/react';
@@ -33,14 +34,17 @@ function PayslipInner() {
 
   return (
     <div className="w-full p-4 bg-white">
-      <header className="w-full border-b mb-4">
-        <h3>Payslip</h3>
-        <p>{snapshot.staffName ?? `${staff?.firstName ?? ''} ${staff?.lastName ?? ''}`}</p>
-        <p>
-          Period {snapshot.periodStart ? new Date(snapshot.periodStart).toISOString().slice(0, 10) : ''}
-          {' – '}
-          {snapshot.periodEnd ? new Date(snapshot.periodEnd).toISOString().slice(0, 10) : ''}
-        </p>
+      <header className="w-full border-b flex justify-between items-start mb-4">
+        <div>
+          <h3>Payslip</h3>
+          <p>{snapshot.staffName ?? `${staff?.firstName ?? ''} ${staff?.lastName ?? ''}`}</p>
+          <p>
+            Period {snapshot.periodStart ? new Date(snapshot.periodStart).toISOString().slice(0, 10) : ''}
+            {' – '}
+            {snapshot.periodEnd ? new Date(snapshot.periodEnd).toISOString().slice(0, 10) : ''}
+          </p>
+        </div>
+        <BackLink />
       </header>
       <PayrollPageGuide page="payslip" />
       <p>Gross {snapshot.grossPay} · Deductions {snapshot.totalDeductions} · Net {snapshot.netPay}</p>

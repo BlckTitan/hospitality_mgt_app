@@ -5,6 +5,7 @@ export const fieldRowClassName =
 
 const FIELD_WIDTHS: Record<string, string> = {
   'w-2/12': 'field-w-2',
+  'w-3/12': 'field-w-3',
   'w-4/12': 'field-w-4',
   'w-1/3': 'field-w-third',
   'w-1/2': 'field-w-half',

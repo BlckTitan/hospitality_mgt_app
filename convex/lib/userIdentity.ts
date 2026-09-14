@@ -1,6 +1,7 @@
 import { Doc } from "../_generated/dataModel";
 import { MutationCtx, QueryCtx } from "../_generated/server";
 import { fulfillPendingInviteForUser } from "./pendingInvites";
+import { loginSearchName } from "./searchNames";
 
 function pickCanonicalUser(users: Doc<"users">[]): Doc<"users"> {
   return [...users].sort(
@@ -77,10 +78,24 @@ export async function createUserIfAbsent(
       email: fields.email || user.email,
       userId: user._id,
     });
+    const searchName = loginSearchName(
+      fields.name || user.name,
+      fields.email || user.email,
+    );
+    if (user.searchName !== searchName) {
+      await ctx.db.patch(user._id, { searchName });
+      const refreshed = await ctx.db.get(user._id);
+      if (refreshed) {
+        return refreshed;
+      }
+    }
     return user;
   }
 
-  const insertedUserId = await ctx.db.insert("users", fields);
+  const insertedUserId = await ctx.db.insert("users", {
+    ...fields,
+    searchName: loginSearchName(fields.name, fields.email),
+  });
 
   const matches = await usersByExternalId(ctx, fields.externalId);
   let user: Doc<"users">;
@@ -116,10 +131,13 @@ export async function ensureUserFromIdentity(
   const existingUser = await userByExternalId(ctx, identity.subject);
   
   if (existingUser) {
+    const name = identity.name ?? identity.nickname ?? existingUser.name;
+    const email = identity.email ?? existingUser.email;
     await ctx.db.patch(existingUser._id, {
       updatedAt: timestamp,
-      email: identity.email ?? existingUser.email,
-      name: identity.name ?? identity.nickname ?? existingUser.name,
+      email,
+      name,
+      searchName: loginSearchName(name, email),
     });
     const updatedUser = await ctx.db.get(existingUser._id);
     if (!updatedUser) {

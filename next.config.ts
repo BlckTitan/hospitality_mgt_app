@@ -12,6 +12,12 @@ const nextConfig: NextConfig = {
   },
   compress: true,
   poweredByHeader: false,
+  async redirects() {
+    return [
+      { source: '/admin/userRole', destination: '/admin/user', permanent: false },
+      { source: '/admin/userRole/edit', destination: '/admin/user', permanent: false },
+    ];
+  },
   async headers() {
     return [
       {

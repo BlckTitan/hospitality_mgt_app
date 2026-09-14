@@ -1,5 +1,6 @@
 'use client'
 
+import { BackLink } from '../../../shared/pageHeader';
 import Link from 'next/link';
 import { PayrollPageGuide } from './components/payrollPageGuide';
 import { usePermissions } from '../../../hooks/usePermissions';
@@ -17,8 +18,9 @@ export default function PayrollManagementPage() {
 
   return (
     <div className="w-full p-4 bg-white">
-      <header className="w-full border-b mb-4">
+      <header className="w-full border-b flex justify-between items-center mb-4">
         <h3>Payroll</h3>
+        <BackLink />
       </header>
       <PayrollPageGuide page="hub" />
       {isLoading ? (

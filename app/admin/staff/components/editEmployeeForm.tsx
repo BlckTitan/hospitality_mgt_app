@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import InputComponent from "../../../../shared/input";
 import DatepickerComponent from "../../../../shared/datepicker";
 import SelectComponent from "../../../../shared/select";
+import UserAutocomplete, { applyLinkedUserToStaff } from "../../../../shared/userAutocomplete";
 import { roles, states_lga } from "../../../../lib/data";
 
 type FormData = {
@@ -28,6 +29,7 @@ type FormData = {
     employmentStatus: string
     salary: number;
     department?: string;
+    userId?: string;
   };
 
 export function FormComponent(
@@ -35,14 +37,14 @@ export function FormComponent(
       firstName, lastName, phone, DoB, LGA,
       email, employmentStatus, address,
       dateTerminated, dateRecruited,
-      salary, id, department, role, stateOfOrigin
+      salary, id, department, role, stateOfOrigin, userId
     }) {
   
     const updateStaff = useMutation(api.staff.updateStaff)
   
     const [staffState, setStaffState] = useState<string>('')
   
-    const { control, register, handleSubmit, formState: { errors } } = useForm<FormData>({
+    const { control, register, handleSubmit, setValue, watch, formState: { errors } } = useForm<FormData>({
       resolver: yupResolver(formSchema) as any,
       defaultValues: { 
         dateTerminated: dateTerminated,
@@ -59,8 +61,11 @@ export function FormComponent(
         dateRecruited: dateRecruited,
         role: role,
         department: department || 'other',
+        userId: userId || '',
       },
     });
+
+    const linkedUserId = watch('userId');
   
     const onSubmit: SubmitHandler<FormData | FieldValues> = async (data) => { 
       try {
@@ -79,7 +84,8 @@ export function FormComponent(
           salary: Number(data.salary),
           role: data.role,
           department: data.department,
-          dateTerminated: (data.employmentStatus === 'terminated') ? new Date().toISOString() : ''
+          dateTerminated: (data.employmentStatus === 'terminated') ? new Date().toISOString() : '',
+          userId: data.userId ? data.userId as Id<'users'> : null,
         })
   
         if(response.success === false){
@@ -252,6 +258,25 @@ export function FormComponent(
               ]}
             />
     
+          </div>
+
+          <div
+            className='w-full h-fit flex flex-col lg:flex-row lg:justify-start lg:items-start gap-1
+            [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-4'
+          >
+            <UserAutocomplete
+              value={linkedUserId}
+              excludeStaffId={id as Id<'staffs'>}
+              error={errors.userId}
+              onChange={(nextUserId, user) => {
+                setValue('userId', nextUserId ?? '');
+                if (user) {
+                  applyLinkedUserToStaff(user, {
+                    email: watch('email'),
+                  }, (name, nextValue) => setValue(name, nextValue));
+                }
+              }}
+            />
           </div>
           
             

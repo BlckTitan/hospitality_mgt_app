@@ -146,6 +146,7 @@ input:not([type="checkbox"]):not([type="radio"]), select{
   field-sizing: fixed;
 }
 .field-w-2,
+.field-w-3,
 .field-w-4,
 .field-w-third,
 .field-w-half,
@@ -157,6 +158,7 @@ input:not([type="checkbox"]):not([type="radio"]), select{
 }
 @media (min-width: 1024px) {
   .field-w-2 { width: 16.666%; max-width: 16.666%; flex: 0 0 16.666%; }
+  .field-w-3 { width: 25%; max-width: 25%; flex: 0 0 25%; }
   .field-w-4 { width: 33.333%; max-width: 33.333%; flex: 0 0 33.333%; }
   .field-w-third { width: 33.333%; max-width: 33.333%; flex: 0 0 33.333%; }
   .field-w-half { width: 50%; max-width: 50%; flex: 0 0 50%; }

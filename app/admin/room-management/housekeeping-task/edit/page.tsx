@@ -1,5 +1,6 @@
 'use client';
 
+import { BackLink } from '../../../../../shared/pageHeader';
 import React from 'react';
 import { Spinner } from 'react-bootstrap';
 import { useQuery } from 'convex/react';
@@ -23,6 +24,7 @@ export default function Page() {
     <div className='w-full p-4 bg-white'>
       <header className='w-full border-b flex justify-between items-center'>
         <h3>Update Housekeeping Task - {task.room?.roomNumber || 'N/A'}</h3>
+        <BackLink />
       </header>
 
       <FormComponent

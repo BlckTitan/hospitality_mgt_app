@@ -1,5 +1,6 @@
 'use client'
 
+import { BackLink } from '../../../shared/pageHeader';
 import Link from 'next/link';
 import { usePermissions } from '../../../hooks/usePermissions';
 
@@ -17,8 +18,9 @@ export default function ShiftManagement() {
 
   return (
     <div className="w-full p-4 bg-white">
-      <header className="w-full border-b mb-4">
+      <header className="w-full border-b flex justify-between items-center mb-4">
         <h3>Shift Management</h3>
+        <BackLink />
       </header>
       <p className="mb-4 text-sm text-gray-600">
         Define department shifts, then onboard staff into that department. Staff start and end their shift on Attendance Tracker.

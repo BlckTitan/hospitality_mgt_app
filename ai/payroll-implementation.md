@@ -14,7 +14,7 @@ Related: [prd.md](./prd.md), [ERD.md](./ERD.md), [schema.ts](./schema.ts), [base
 | MVP mode | **Native full cycle**: Prepare pay, generate Payslips, Download payment files, post GL, Mark as paid. |
 | Who is paid | `staffs` rows only (this is the Employee entity). A linked `User` is optional. Casuals and contractors are staff without system access. There is **no** `employees` table. |
 | Gratuity / tips | Defer pooling. Optional **manual** gratuity amount on a Pay item. No POS tip pull, no hours/points pool. |
-| Shifts vs Hours | Department shifts define default hours. Attendance Tracker sign-out (or finalizing an ad-hoc `Shift`) creates a **draft** Hours row (`hours`, `source = shift`). Cover changes who should attend that day and never rewrites Hours. Hours screens live under Shift Management. Payroll still pays only **approved** Hours. |
+| Shifts vs Hours | Department shifts define default hours. Attendance Tracker **End shift** (or finalizing an ad-hoc `Shift`) creates a **draft** Hours row (`hours`, `source = shift`). Logging in does not start a shift. Cover changes who should attend that day and never rewrites Hours. Hours screens live under Shift Management. Payroll still pays only **approved** Hours. |
 | People table | **`staffs` is the only people table.** Live app, housekeeping, POs, and inventory already use `Id<"staffs">`. Widen `staffs`; never create `employees`. Payroll FKs (`hours.employeeId`, etc.) are `v.id("staffs")`. |
 | Time off | Time-off type + Time off. Approved **unpaid** Time off prorates salaried period pay. Paid Time off counts as regular hours (not OT) unless the type sets `countsTowardOvertime`. |
 | Pay cycle | First-class Pay cycle. A Payroll is created from a cycle (period, cutoff, pay date). |
@@ -44,6 +44,7 @@ Use these labels in navigation, headings, buttons, and empty states. Do not show
 | **Pay rate** / **Pay history** | `payHistory` | `PayHistory` |
 | **Payroll settings** | `payrollSettings` | `PayrollSettings` |
 | **Hours** | `hours` | `Hours` |
+| **Shift** | `shifts` | `Shift` |
 | **Department shift** | `shiftTemplates` | `ShiftTemplate` |
 | **Roster day** | `rosterSlots` | `RosterSlot` |
 | **Time off** | `timeOff` | `TimeOff` |
@@ -82,7 +83,7 @@ Example heading: “Payroll 1–14 July” with a table of **Staff pay**, not `p
 
 1. Employee master (pay type, payment method, bank fields when needed, optional User).
 2. Pay cycle, Holidays, extra pay rules, and Pay history.
-3. Hours (manual / CSV / draft-from-shift) with lock after Prepare pay; Time-off types and Time off.
+3. Department shifts, Attendance Tracker Start/End shift, Cover, Hours (manual / CSV / draft-from-shift) with lock after Prepare pay; Time-off types and Time off.
 4. Configurable + country-pack statutory Pay item types.
 5. Payroll from a Pay cycle: Draft → Ready to review → Approved → Payment files ready → Paid, with maker ≠ checker.
 6. Payslips, bank/CSV (and cash/mobile worksheet), balanced GL.
@@ -113,7 +114,8 @@ Required additions beyond today’s `staffs` row:
 - `payType`, `baseSalary`, `hourlyRate`: **current** denormalized copy of the open Pay history row
 - `payCycleId` (optional; default is the property’s default Pay cycle)
 - `paymentMethod`: `bank` | `cash` | `mobile_money` | `check` (bank fields required only for `bank`)
-- `department`: closed set — `front-office` | `housekeeping` | `fnb` | `maintenance` | `finance` | `admin` | `other`
+- `department`: closed set — `front-office` | `housekeeping` | `fnb` | `maintenance` | `finance` | `admin` | `other`. Role maps to department on onboard (`Housekeeper`/`Laundry Attendant` → housekeeping, `Receptionist` → front-office, `Griller` → fnb, `Security` → other, `Manager`/`Assistant Manager`/`Supervisor` → admin).
+- `shiftTemplateId` (optional): default **Department shift**. Inherited on create and when department changes.
 - `position`
 - `employmentStatus`: `active` | `terminated` | `on-leave` (map current `employed` → `active`)
 - Structured bank: `bankName`, `accountName`, `accountNumber` (encrypted), `routingCode`
@@ -166,20 +168,27 @@ Schema tables: `holidayCalendars`, `holidays`, `extraPayRules`. Interfaces: `Hol
 - Hour classification order: public holiday → night/weekend extra pay → daily/weekly OT. Payroll settings `overtimeMultiplier` is used only if no `daily_overtime` rule exists
 - Extra pay is stored as Pay item kinds `overtime` or a `PREMIUM_*` earning code
 
+### Department shift / Roster day / Shift
+Schema tables: `shiftTemplates`, `rosterSlots`, `shifts`. Interfaces: `ShiftTemplate`, `RosterSlot`, `Shift`.
+
+- **Department shift**: one default template per department (`isDefault`). F&B requires `barId`. Template `startTime` / `endTime` are expected hours, not the clock.
+- **Roster day**: Cover patches `workingEmployeeId` only. Reject if the scheduled person already has a `shifts` row or Hours that date, or the covering person already started a shift that day. Never rewrite Hours.
+- **Shift**: actual session. Attendance Tracker **Start shift** / **End shift** and ad-hoc create/Finalize share this table. Login does not insert a row. One session per staff per date. `barId` required only for F&B. End shift / Finalize drafts Hours and, for F&B, finalizes `userStockLogs`.
+
 ### Hours
 Schema table: `hours`. Interface: `Hours`.
 
-- One row per employee per work date in MVP (single clock-in/out).
+- One row per employee per work date in MVP (one session; Hours `clockInTime` / `clockOutTime` copied from Shift `startTime` / `endTime`).
 - Application-level unique `(employeeId, workDate)`.
 - `source`: `manual` | `csv` | `shift`
-- `shiftId` optional (set when drafted from a bar shift)
+- `shiftId` optional (set when drafted from Attendance Tracker End shift or Finalize)
 - `staffPayId` optional (set when included in a payroll after Prepare pay)
 - `lockedAt`, `lockedByPayrollId`: set on Prepare pay; mutations reject edits/status changes while locked
 - Recalculate (payroll still `draft`/`calculated`): unlock those Hours, recompute, relock
 - Returning a payroll to Draft (before Approve payroll) unlocks
 - Hours: classify with extra pay rules + OT at submit/approve time
 - Only **unlocked, approved** Hours in the Pay cycle cutoff window are pulled into a payroll
-- Finalizing a shift creates a draft Hours row (if none exists); does not overwrite submitted/approved/locked Hours
+- End shift or Finalize creates a draft Hours row (if none exists); does not overwrite submitted/approved/locked Hours
 
 ### Country → jurisdiction (property setup)
 
@@ -366,7 +375,7 @@ Widen-migrate-narrow **`staffs` only**. Do not add an `employees` table. Payroll
 6. Approve payroll with **maker ≠ checker** → Payslip + GL.
 7. Download payment files (bank/CSV + cash_sheet) → Mark as paid.
 
-UI pages: see [pageSetup.md](./pageSetup.md) payroll section.
+UI pages: see [pageSetup.md](./pageSetup.md) Staff, Shift Management, and Payroll section.
 
 ---
 
@@ -383,4 +392,4 @@ New granular permissions (see [RBAC.md](./RBAC.md)):
 
 `payroll.run.approve` must be enforced as maker ≠ checker in the mutation, not only in the UI.
 
-HR Manager and Finance Manager: full payroll (two different users still required to Start payroll / Prepare pay vs Approve payroll). Supervisors: own-team Hours and Time off approve. Employees with login: own Hours / Time off create and own Payslip read. Operational staff: none on payrolls.
+HR Manager and Finance Manager: full payroll (two different users still required to Start payroll / Prepare pay vs Approve payroll). Supervisors: own-team Hours and Time off approve; staff.update for Cover and Department shifts. Employees with login linked to Staff: Attendance Tracker Start/End shift, own Shift rows, own Hours / Time off create, own Payslip read. Operational staff without a staff link cannot start a shift.

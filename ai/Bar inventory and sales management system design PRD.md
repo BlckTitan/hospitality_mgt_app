@@ -150,6 +150,8 @@ validate `isActive` before proceeding.
 
 ### 4.2 Shift and Stock Tracking — Waiter View
 
+**Live app:** `shifts` are property-wide staff sessions (`employeeId`), not bar-only. `barId` is required only for F&B. Waiters start and end work on **Attendance Tracker** (`startShift` / `endShift`); logging in does not create a shift. Ad-hoc Shift create/Finalize still exists. End shift also drafts payroll Hours. Stock-log fields and indexes in this section remain the F&B snapshot — see `ai/payroll-implementation.md` for the staff scheduling model.
+
 **FR-SHF-001** — A Convex mutation shall create a `shifts` document when a
 waiter begins a working session, recording `userId`, `barId`, `shiftDate`
 (ISO 8601 string), `startTime`, and setting `isFinalized: false`.

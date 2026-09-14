@@ -105,4 +105,6 @@ export const formSchema = yup.object().shape({
     )
     .positive("Salary must be a positive number")
     .required("Salary is required"),
+
+  userId: yup.string().optional(),
 });

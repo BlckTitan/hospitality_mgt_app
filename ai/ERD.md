@@ -76,9 +76,28 @@ Junction table linking users to roles and properties (many-to-many relationship)
 - `roleId` (FK): Reference to Role
 - `propertyId` (FK): Reference to Property
 - `assignedAt`: Timestamp of assignment
-- `assignedBy`: User ID who assigned the role
+- `assignedBy` (FK): User who created the assignment (always set from the authenticated actor or invite `invitedBy`; never chosen by the client)
 
-**Purpose**: Enables users to have different roles at different properties, supporting multi-property access.
+**Purpose**: Enables users to have different roles at different properties, supporting multi-property access. Uniqueness is (user, role, property). `assignedBy` is the User who created the assignment (set server-side from auth, including invite fulfillment).
+
+---
+
+#### PendingInvite
+Tracks a Clerk invitation before the recipient has a User row.
+
+**Attributes:**
+- `pendingInviteId` (PK): Unique identifier
+- `email`: Invitee email (stored lowercase)
+- `roleId` (FK): Role that will be assigned on accept
+- `propertyId` (FK): Property that will be assigned on accept
+- `invitedBy` (FK): User who sent the invite
+- `clerkInvitationId`: Clerk invitation id (optional)
+- `status`: pending | accepted | revoked | expired
+- `createdAt`: Timestamp of creation
+- `expiresAt`: Local expiry (Clerk has its own email TTL)
+- `lastReminderSentAt`: Optional last reminder timestamp
+
+**Purpose**: First-access onboarding. Accepting the Clerk invite creates the User (via Clerk webhook / ensure-current-user) and inserts the corresponding UserRole. Existing Clerk emails cannot be invited again; further access is granted via UserRole on the user record.
 
 ---
 
@@ -475,6 +494,7 @@ The people record used for payroll, housekeeping, POs, and inventory. **There is
 - `terminationDate`: Termination date (optional)
 - `employmentStatus`: Status (active, terminated, on-leave)
 - `department`: Closed set (front-office, housekeeping, fnb, maintenance, finance, admin, other)
+- `shiftTemplateId` (FK, optional): Default **Department shift** inherited on onboard (or when department changes)
 - `position`: Job title/position
 - `payType`, `baseSalary`, `hourlyRate`: Current denormalized copy of the open `Pay history` row
 - `payCycleId` (FK, optional): Default `Pay cycle` (else property default)
@@ -485,6 +505,60 @@ The people record used for payroll, housekeeping, POs, and inventory. **There is
 - `updatedAt`: Timestamp of last update
 
 **Purpose**: Manages employee information for payroll, scheduling, and task assignment. Soft-delete / terminate only — never hard-delete if Hours or Staff pay exist.
+
+---
+
+#### Department shift
+Schema table: `shiftTemplates`. Default working hours for a department at a property.
+
+**Attributes:**
+- `shiftTemplateId` (PK)
+- `propertyId` (FK)
+- `department`: front-office | housekeeping | fnb | maintenance | finance | admin | other
+- `name`: Display name
+- `startTime`, `endTime`: Expected hours (HH:MM). Not the actual clock.
+- `barId` (FK, optional): Required when department is F&B
+- `isDefault`: One default per department (application-enforced)
+- `isActive`
+- `createdAt`, `updatedAt`
+
+**Purpose**: Admin-defined schedule template. New staff in that department inherit this shift. Screens: `/admin/shift-management/templates`.
+
+---
+
+#### Roster day
+Schema table: `rosterSlots`. One scheduled day for a staff member.
+
+**Attributes:**
+- `rosterSlotId` (PK)
+- `propertyId` (FK)
+- `shiftDate`: YYYY-MM-DD
+- `shiftTemplateId` (FK)
+- `scheduledEmployeeId` (FK): Who is rostered
+- `workingEmployeeId` (FK): Who should attend (equals scheduled unless Cover)
+- `coveredAt`, `coveredBy` (FK User, optional), `notes`
+- `createdAt`, `updatedAt`
+
+**Purpose**: Cover changes `workingEmployeeId` only. Blocked if the scheduled person already started a Shift or has Hours for that date, or if the covering person already started a Shift that day. Never rewrites Hours.
+
+---
+
+#### Shift
+Schema table: `shifts`. One actual working session (any department). Attendance Tracker Start shift and ad-hoc Shift create both insert here.
+
+**Attributes:**
+- `shiftId` (PK)
+- `propertyId` (FK)
+- `employeeId` (FK, optional): Staff who worked (required for payroll Hours)
+- `userId` (FK, optional): Denormalized login when the staff member has one
+- `barId` (FK, optional): Required only for F&B
+- `department`: Same closed set as Department shift
+- `shiftDate`: YYYY-MM-DD
+- `startTime`, `endTime` (optional): Actual clock (UTC HH:MM)
+- `isFinalized`: True after End shift or Finalize
+- `shiftTemplateId` (FK, optional), `rosterSlotId` (FK, optional)
+
+**Purpose**: One session per staff per date (application-enforced). Logging in does not create a Shift. End shift or Finalize drafts Hours (`source = shift`) and, for F&B, finalizes that shift’s `userStockLogs`. Employees see only their own rows; managers with `staff.read` see everyone.
 
 ---
 
@@ -515,13 +589,13 @@ Schema table: `hours`. Tracks employee work hours and attendance.
 - `employeeId` (FK): Reference to Employee
 - `propertyId` (FK): Reference to Property
 - `workDate`: Work date (unique with employeeId at application level)
-- `clockInTime`: Clock-in timestamp
-- `clockOutTime`: Clock-out timestamp
+- `clockInTime`: Clock-in timestamp (from Shift `startTime` when `source = shift`)
+- `clockOutTime`: Clock-out timestamp (from Shift `endTime`; overnight wrap + 24h)
 - `regularHours`: Regular hours worked
 - `overtimeHours`: Overtime hours worked
 - `breakDuration`: Break duration in minutes
 - `source`: manual | csv | shift
-- `shiftId` (FK): Reference to Shift (optional; set when drafted from a finalized bar shift)
+- `shiftId` (FK): Reference to Shift (optional; set when drafted from End shift or Finalize)
 - `staffPayId` (FK): Set when this Hours row is included after Prepare pay
 - `lockedAt`: Set when this Hours row is included after Prepare pay
 - `lockedByPayrollId` (FK): Payroll that locked the sheet
@@ -532,7 +606,7 @@ Schema table: `hours`. Tracks employee work hours and attendance.
 - `createdAt`: Timestamp of creation
 - `updatedAt`: Timestamp of last update
 
-**Purpose**: Records work hours for payroll. Only **unlocked, approved** Hours before Pay cycle cutoff are included. Prepare pay locks included Hours (edits rejected). Recalculate unlocks then relocks. Finalizing a bar shift creates a draft Hours row; it does not overwrite submitted/approved/locked Hours.
+**Purpose**: Records work hours for payroll. Only **unlocked, approved** Hours before Pay cycle cutoff are included. Prepare pay locks included Hours (edits rejected). Recalculate unlocks then relocks. Attendance Tracker **End shift** or **Finalize** on an ad-hoc Shift creates a draft Hours row; it does not overwrite submitted/approved/locked Hours. Cover never rewrites Hours.
 
 ---
 
@@ -1470,7 +1544,11 @@ Tracks all system actions for compliance and security auditing.
 #### User ↔ Role (Many-to-Many via UserRole)
 - **Relationship**: A User can have many Roles, and a Role can be assigned to many Users.
 - **Junction Entity**: UserRole
-- **Explanation**: Implements RBAC where users can have multiple roles (e.g., a person might be both a Housekeeping Supervisor and a Maintenance Coordinator). The UserRole junction also links to Property, enabling role-per-property assignments.
+- **Explanation**: Implements RBAC where users can have multiple roles (e.g., a person might be both a Housekeeping Supervisor and a Maintenance Coordinator). The UserRole junction also links to Property, enabling role-per-property assignments. Permissions are evaluated per property, not as a global union.
+
+#### PendingInvite → Role, Property, User (inviter)
+- **Relationship**: Each pending invite names one Role, one Property, and the inviting User.
+- **Explanation**: Clerk invitation is the only create-user path. On accept, the invite is marked accepted and a UserRole is written. Re-invite / revoke update this row; they do not create a second User.
 
 #### User ↔ Employee (One-to-One, Optional)
 - **Relationship**: A User can optionally be linked to a `staffs` row (the Employee entity).
@@ -1654,7 +1732,23 @@ Tracks all system actions for compliance and security auditing.
 - **Relationship**: A User (supervisor) can approve many Hours records.
 
 #### Shift → Hours (One-to-Many, Optional)
-- **Relationship**: Finalizing a bar Shift creates a draft Hours (`source = shift`). Does not overwrite submitted/approved sheets.
+- **Relationship**: End shift or Finalize creates a draft Hours (`source = shift`). Does not overwrite submitted/approved/locked sheets.
+- **Explanation**: Attendance Tracker and ad-hoc Shift share the `shifts` table. Template times are expected hours; clock times on Shift feed Hours.
+
+#### Property → Department shift / Roster day / Shift (One-to-Many)
+- **Relationship**: All scheduling is property-scoped.
+
+#### Employee → Department shift (Many-to-One, Optional)
+- **Relationship**: Staff inherit the department default template on onboard; department change reassigns the default.
+
+#### Employee → Roster day (One-to-Many)
+- **Relationship**: A staff member can be `scheduledEmployeeId` and/or `workingEmployeeId` on a date.
+
+#### Department shift → Roster day / Shift (One-to-Many)
+- **Relationship**: Roster days and attendance sessions may point at the template.
+
+#### Roster day → Shift (One-to-Many, Optional)
+- **Relationship**: Start shift attaches `rosterSlotId` on the session.
 
 #### Hours → Staff pay (Many-to-One, Optional)
 - **Relationship**: When a payroll is prepared, included Hours point at the Staff pay that paid them.
@@ -1924,11 +2018,11 @@ Tracks all system actions for compliance and security auditing.
 ### Cardinality Overview
 
 **One-to-Many Relationships:**
-- Property → Room, RoomType, Guest, Reservation, HousekeepingTask, FnbMenuItem, Table, Order, InventoryItem, Supplier, PurchaseOrder, Employee, Hours, Pay item type, Pay cycle, Time-off type, Extra pay rule, Payroll, Asset, MaintenanceOrder, Expense, UtilityBill, Payment, ChartOfAccounts, JournalEntry, Report, Document, Integration, AuditLog, Payroll settings (1:1), Holidays (1:1)
+- Property → Room, RoomType, Guest, Reservation, HousekeepingTask, FnbMenuItem, Table, Order, InventoryItem, Supplier, PurchaseOrder, Employee, Department shift, Roster day, Shift, Hours, Pay item type, Pay cycle, Time-off type, Extra pay rule, Payroll, Asset, MaintenanceOrder, Expense, UtilityBill, Payment, ChartOfAccounts, JournalEntry, Report, Document, Integration, AuditLog, Payroll settings (1:1), Holidays (1:1)
 - RoomType → Room, RatePlan
 - Room → Reservation, HousekeepingTask, Asset, MaintenanceOrder
 - Guest → Reservation
-- Employee → HousekeepingTask, Order, Hours, PurchaseOrder, MaintenanceOrder, Expense, Document, This person's pay items, Pay history, Time off, Staff pay
+- Employee → HousekeepingTask, Order, Hours, PurchaseOrder, MaintenanceOrder, Expense, Document, This person's pay items, Pay history, Time off, Staff pay, Roster day, Shift
 - User → Hours (as approver), Time off (as approver), Payroll (as creator/calculator/approver)
 - Pay cycle → Payroll, Employee, Pay history
 - Time-off type → Time off
@@ -1951,6 +2045,9 @@ Tracks all system actions for compliance and security auditing.
 - Property ↔ User (via UserRole)
 - User ↔ Role (via UserRole)
 
+**Onboarding:**
+- PendingInvite → Role, Property, inviting User; accept → UserRole
+
 **One-to-One Relationships:**
 - User ↔ Employee (optional; employee can exist without a user)
 - Property ↔ Payroll settings
@@ -1966,7 +2063,9 @@ Tracks all system actions for compliance and security auditing.
 - JournalEntry → Various entities (via referenceType/referenceId)
 - Payment → Various entities (via referenceType/referenceId)
 - Document → Expense, UtilityBill, PurchaseOrder, Payment, MaintenanceOrder, Payroll, Payslip, Payment file (via referenceType/referenceId)
-- Shift → Hours (draft created on finalize)
+- Shift → Hours (draft created on End shift or Finalize)
+- Department shift → Employee (assigned default), Roster day, Shift
+- Roster day → Shift (optional; Cover changes workingEmployeeId only)
 - Hours → Staff pay (when included in a run)
 - Hours → Payroll (lock after calculate)
 - Pay history → Staff pay (`payHistoryIdUsed`)
