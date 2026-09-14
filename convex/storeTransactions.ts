@@ -1,6 +1,7 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
 import { requirePermission } from './lib/rbac';
+import { findOrCreateFnBShift } from './lib/shiftHelpers';
 
 export const getAllStoreTransactions = query({
   args: { propertyId: v.id('properties') },
@@ -248,30 +249,16 @@ export const createStoreTransaction = mutation({
           const salesQuantity = 0;
           const salesValue = 0;
 
-          // Find or create a shift for today
-          let shift = await ctx.db
-            .query('shifts')
-            .withIndex('by_userId_date', (q) =>
-              q.eq('userId', args.userId!).eq('shiftDate', txnDateKey)
-            )
-            .first();
-
-          if (!shift) {
-            // Create a new shift for today
-            const shiftId = await ctx.db.insert('shifts', {
-              propertyId: args.propertyId,
-              userId: args.userId,
-              barId: args.barId,
-              shiftDate: txnDateKey,
-              startTime: new Date().toTimeString().split(' ')[0].substring(0, 5),
-              isFinalized: false,
-            });
-            shift = await ctx.db.get(shiftId);
-          }
+          const shiftId = await findOrCreateFnBShift(ctx, {
+            propertyId: args.propertyId,
+            userId: args.userId!,
+            barId: args.barId!,
+            shiftDate: txnDateKey,
+          });
 
           await ctx.db.insert('userStockLogs', {
             propertyId: args.propertyId,
-            shiftId: shift!._id,
+            shiftId,
             userId: args.userId!,
             barId: args.barId!,
             beverageId: args.beverageId,

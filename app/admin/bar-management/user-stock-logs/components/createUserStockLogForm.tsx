@@ -105,10 +105,10 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
     }));
 
   const shiftOptions = shifts
-    .filter((shift: any) => !shift.isFinalized)
+    .filter((shift: any) => !shift.isFinalized && shift.barId)
     .map((shift: any) => ({
       value: shift._id,
-      label: `${shift.user?.name || 'Unknown'} - ${shift.bar?.name || 'Unknown'} (${shift.shiftDate})`,
+      label: `${shift.staffName || shift.user?.name || 'Unknown'} - ${shift.bar?.name || 'Unknown'} (${shift.shiftDate})`,
     }));
 
   return (

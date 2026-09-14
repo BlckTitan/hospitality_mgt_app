@@ -27,6 +27,7 @@ type FormData = {
     dateTerminated?: Date | null;
     employmentStatus: string
     salary: number;
+    department?: string;
   };
 
 export function FormComponent(
@@ -34,7 +35,7 @@ export function FormComponent(
       firstName, lastName, phone, DoB, LGA,
       email, employmentStatus, address,
       dateTerminated, dateRecruited,
-      stateOfOrigin, role, salary, id
+      salary, id, department, role, stateOfOrigin
     }) {
   
     const updateStaff = useMutation(api.staff.updateStaff)
@@ -56,7 +57,8 @@ export function FormComponent(
         salary: salary,
         employmentStatus: employmentStatus,
         dateRecruited: dateRecruited,
-        role: role
+        role: role,
+        department: department || 'other',
       },
     });
   
@@ -76,6 +78,7 @@ export function FormComponent(
           dateRecruited: new Date().toISOString(),
           salary: Number(data.salary),
           role: data.role,
+          department: data.department,
           dateTerminated: (data.employmentStatus === 'terminated') ? new Date().toISOString() : ''
         })
   
@@ -232,6 +235,22 @@ export function FormComponent(
     
               {errors.employmentStatus && <span className='text-red-500 text-sm'>This field is required</span>}
             </div>
+
+            <SelectComponent
+              id="department"
+              label="Department"
+              selectWidth="w-1/3"
+              register={register("department")}
+              options={[
+                { value: "front-office", label: "Front office" },
+                { value: "housekeeping", label: "Housekeeping" },
+                { value: "fnb", label: "Food & beverage" },
+                { value: "maintenance", label: "Maintenance" },
+                { value: "finance", label: "Finance" },
+                { value: "admin", label: "Admin" },
+                { value: "other", label: "Other" },
+              ]}
+            />
     
           </div>
           

@@ -1,5 +1,5 @@
 export interface RoutePermission {
-  granular: string;
+  granular: string | string[];
 }
 
 export const ROUTE_PERMISSIONS: Record<string, RoutePermission> = {
@@ -43,7 +43,13 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermission> = {
 
   // Shift Management
   '/admin/shift-management': { granular: 'staff.read' },
-  '/admin/shift-management/shift': { granular: 'staff.read' },
+  '/admin/shift-management/shift': { granular: ['staff.read', 'payroll.timesheet.create', 'fnb.read'] },
+  '/admin/shift-management/templates': { granular: 'staff.read' },
+  '/admin/shift-management/templates/edit': { granular: 'staff.update' },
+  '/admin/shift-management/cover': { granular: 'staff.update' },
+  '/admin/shift-management/attendance': { granular: ['payroll.timesheet.create', 'fnb.read'] },
+  '/admin/shift-management/hours': { granular: 'payroll.timesheet.read' },
+  '/admin/shift-management/hours/edit': { granular: 'payroll.timesheet.update' },
 
   // Payroll Management — screens use Hours / Time off / Payroll / Payroll settings
   '/admin/payroll-management': { granular: 'payroll.run.read' },

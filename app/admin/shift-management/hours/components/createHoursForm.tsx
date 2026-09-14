@@ -61,7 +61,7 @@ export function FormComponent({
     }
     toast.success('Hours recorded');
     onSuccess();
-    window.location.href = '/admin/payroll-management/hours';
+    window.location.href = '/admin/shift-management/hours';
   };
 
   return (

@@ -100,6 +100,16 @@ export default function StaffViewComponent(){
               </div>
 
               <div>
+                <p className='!font-semibold'>Department:</p>
+                <p>{staffData?.department || '—'}</p>
+              </div>
+
+              <div>
+                <p className='!font-semibold'>Department shift:</p>
+                <p>{staffData?.shiftTemplateName || 'Not assigned'}</p>
+              </div>
+
+              <div>
                 <p className='!font-semibold'>Salary:</p>
                 <p>{`#${staffData?.salary} (Naira)`}</p>
               </div>

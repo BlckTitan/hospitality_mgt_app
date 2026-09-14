@@ -8,18 +8,16 @@ import { FormComponent } from './components/createShiftForm';
 import { useQuery } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 import BootstrapModal from '../../../../shared/modal';
+import { usePermissions } from '../../../../hooks/usePermissions';
 
 export default function ShiftPage() {
   const [modalShow, setModalShow] = useState(false);
-  const [propertyId, setPropertyId] = useState<string>('');
+  const { hasGranularPermission } = usePermissions();
+  const canCreate = hasGranularPermission('staff.create');
+  const userContext = useQuery(api.authContext.getCurrentUserContext);
+  const currentPropertyId = userContext?.propertyId || '';
 
-  // Fetch properties to get current property
-  const propertiesResponse = useQuery(api.property.getAllProperties);
-  const properties = propertiesResponse?.data || [];
-  const currentPropertyId = propertyId || properties?.[0]?._id || '';
-
-  // check if property is loading
-  if (!propertiesResponse?.data) {
+  if (userContext === undefined) {
     return (
       <div className='w-full h-full flex justify-center items-center'>
         Loading...
@@ -27,7 +25,7 @@ export default function ShiftPage() {
     );
   }
 
-  if (propertiesResponse.data?.length === 0) {
+  if (!currentPropertyId) {
     return (
       <div className='w-full h-full flex justify-center items-center'>
         <p className='text-xl'>No properties yet!</p>
@@ -39,26 +37,30 @@ export default function ShiftPage() {
     <div className="w-full p-4 bg-white">
       <header className="w-full border-b flex justify-between items-center mb-4">
         <h3>Shifts</h3>
-        <Button
-          variant="light"
-          className="cursor-pointer"
-          style={{ width: 'fit', height: 'fit', padding: '0', borderRadius: '100%' }}
-          onClick={() => setModalShow(true)}
-        >
-          <FcPlus className="w-8 h-8" />
-        </Button>
+        {canCreate && (
+          <Button
+            variant="light"
+            className="cursor-pointer"
+            style={{ width: 'fit', height: 'fit', padding: '0', borderRadius: '100%' }}
+            onClick={() => setModalShow(true)}
+          >
+            <FcPlus className="w-8 h-8" />
+          </Button>
+        )}
       </header>
 
       <Shifts currentPropertyId={currentPropertyId}/>
 
-      <ModalComponent
-        modalShow={modalShow}
-        setModalShow={setModalShow}
-        onSuccess={() => {
-          setModalShow(false);
-        }}
-        propertyId={currentPropertyId}
-      />
+      {canCreate && (
+        <ModalComponent
+          modalShow={modalShow}
+          setModalShow={setModalShow}
+          onSuccess={() => {
+            setModalShow(false);
+          }}
+          propertyId={currentPropertyId}
+        />
+      )}
     </div>
   );
 }

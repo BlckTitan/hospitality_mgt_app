@@ -1,13 +1,20 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
 import { requirePermission } from './lib/rbac';
+import {
+  assignDefaultShiftTemplate,
+  departmentFromRole,
+  normalizeDepartment,
+} from './lib/shiftHelpers';
 
 export const getStaff = query({
   args: {staff_id: v.id('staffs')},
   handler: async (ctx, args) => {
     await requirePermission(ctx, 'staff.read');
     const staff = await ctx.db.get(args.staff_id)
-    return staff;
+    if (!staff) return null;
+    const template = staff.shiftTemplateId ? await ctx.db.get(staff.shiftTemplateId) : null;
+    return { ...staff, shiftTemplateName: template?.name ?? null };
   }
 });
 
@@ -39,6 +46,7 @@ export const createStaff = mutation({
     dateRecruited: v.string(),
     dateTerminated: v.optional(v.string()),
     role: v.string(),
+    department: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const auth = await requirePermission(ctx, 'staff.create');
@@ -53,14 +61,44 @@ export const createStaff = mutation({
         return { success: false, message: "Staff already exists" };
       }
 
+      const propertyId = auth.propertyIds[0];
+      const department = normalizeDepartment(args.department ?? departmentFromRole(args.role));
+      let template = null;
+      if (propertyId) {
+        const rows = await ctx.db
+          .query("shiftTemplates")
+          .withIndex("by_propertyId_department", (q) =>
+            q.eq("propertyId", propertyId).eq("department", department)
+          )
+          .collect();
+        template = rows.find((row) => row.isActive && row.isDefault) ?? rows.find((row) => row.isActive) ?? null;
+      }
+
       await ctx.db.insert('staffs', {
-        ...args,
-        propertyId: auth.propertyIds[0],
+        email: args.email,
+        firstName: args.firstName,
+        lastName: args.lastName,
+        phone: args.phone,
+        DoB: args.DoB,
+        stateOfOrigin: args.stateOfOrigin,
+        salary: args.salary,
+        employmentStatus: args.employmentStatus,
+        LGA: args.LGA,
+        address: args.address,
+        dateRecruited: args.dateRecruited,
+        dateTerminated: args.dateTerminated,
+        role: args.role,
+        propertyId,
+        department,
+        shiftTemplateId: template?._id,
         payType: 'salary',
         baseSalary: args.salary,
         paymentMethod: 'cash',
       });
-      return { success: true, message: "Staff added successfully" };
+      const suffix = template
+        ? ` Assigned ${template.name} (${department}).`
+        : ` No default shift exists yet for ${department} — define one under Shift Management.`;
+      return { success: true, message: `Staff added successfully.${suffix}` };
 
     } catch (error) {
       console.log(`Insert failed ${error}`)
@@ -86,6 +124,7 @@ export const updateStaff = mutation({
     dateRecruited: v.string(),
     dateTerminated: v.optional(v.string()),
     role: v.string(),
+    department: v.optional(v.string()),
   },
 
   handler: async (ctx, args) => {
@@ -96,6 +135,10 @@ export const updateStaff = mutation({
     await requirePermission(ctx, 'staff.update');
     
     try {
+      const department = args.department
+        ? normalizeDepartment(args.department)
+        : normalizeDepartment(existingStaff.department ?? departmentFromRole(args.role));
+      const departmentChanged = department !== existingStaff.department;
 
       await ctx.db.patch(existingStaff._id, {
         email: args.email,
@@ -109,7 +152,12 @@ export const updateStaff = mutation({
         address: args.address,
         LGA: args.LGA,
         dateTerminated: args.dateTerminated,
+        department,
       });
+
+      if (departmentChanged && existingStaff.propertyId) {
+        await assignDefaultShiftTemplate(ctx, existingStaff._id, existingStaff.propertyId, department);
+      }
 
       return { success: true, message: "Staff updated successfully" };
 

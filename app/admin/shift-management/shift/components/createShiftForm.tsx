@@ -1,8 +1,9 @@
 'use client'
 
+import { useEffect } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { SubmitHandler, useForm } from "react-hook-form";
-import { formSchema } from "./validation";
+import { DEPARTMENT_LABELS, formSchema, SHIFT_DEPARTMENTS } from "./validation";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { toast } from "sonner";
 import { Button } from "react-bootstrap";
@@ -11,43 +12,53 @@ import { Id } from "../../../../../convex/_generated/dataModel";
 import { api } from "../../../../../convex/_generated/api";
 
 type FormData = {
-  userId: string;
-  barId: string;
+  employeeId: string;
+  department: (typeof SHIFT_DEPARTMENTS)[number];
+  barId?: string;
   shiftDate: string;
   startTime: string;
   endTime?: string;
-  isFinalized: boolean;
 };
 
 export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: () => void; onClose: () => void; propertyId: string }) {
   const createShift = useMutation(api.shifts.createShift);
-  const usersResponse = useQuery(api.shifts.getActiveUsers, { propertyId: propertyId as Id<'properties'> });
+  const staffResponse = useQuery(api.shifts.listStaffForShifts, { propertyId: propertyId as Id<'properties'> });
   const barsResponse = useQuery(api.shifts.getActiveBars, { propertyId: propertyId as Id<'properties'> });
-  const users = usersResponse?.data || [];
+  const staff = staffResponse?.data || [];
   const bars = barsResponse?.data || [];
 
-  const { register, handleSubmit, formState: { errors }, reset } = useForm<FormData>({
+  const { register, handleSubmit, formState: { errors }, reset, watch, setValue } = useForm<FormData>({
     resolver: yupResolver(formSchema) as any,
     defaultValues: {
-      userId: '',
+      employeeId: '',
+      department: 'other',
       barId: '',
-      shiftDate: new Date().toISOString().split('T')[0], // Today's date in YYYY-MM-DD format
+      shiftDate: new Date().toISOString().split('T')[0],
       startTime: '',
       endTime: '',
-      isFinalized: false,
     },
   });
+
+  const department = watch('department');
+  const employeeId = watch('employeeId');
+
+  useEffect(() => {
+    const selected = staff.find((row) => row._id === employeeId);
+    if (!selected?.department) return;
+    const match = SHIFT_DEPARTMENTS.find((item) => item === selected.department);
+    setValue('department', match ?? 'other');
+  }, [employeeId, staff, setValue]);
 
   const onSubmit: SubmitHandler<FormData> = async (data) => {
     try {
       const response = await createShift({
         propertyId: propertyId as Id<'properties'>,
-        userId: data.userId as Id<'users'>,
-        barId: data.barId as Id<'bars'>,
+        employeeId: data.employeeId as Id<'staffs'>,
+        department: data.department,
+        barId: data.department === 'fnb' && data.barId ? data.barId as Id<'bars'> : undefined,
         shiftDate: data.shiftDate,
         startTime: data.startTime,
-        endTime: data.endTime,
-        isFinalized: data.isFinalized,
+        endTime: data.endTime || undefined,
       });
 
       if (response.success === false) {
@@ -70,45 +81,65 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
     <form onSubmit={handleSubmit(onSubmit)} className="createShiftForm">
       <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-1 mb-4">
         <label className="w-full">
-          <span className="block text-sm font-medium text-gray-700 mb-1">User *</span>
+          <span className="block text-sm font-medium text-gray-700 mb-1">Staff *</span>
           <select
-            id="userId"
-            {...register('userId', { required: true })}
+            id="employeeId"
+            {...register('employeeId', { required: true })}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
-            <option value="">Select a user</option>
-            {users.map((user) => (
-              <option key={user._id} value={user._id}>
-                {user.name} ({user.email})
+            <option value="">Select staff</option>
+            {staff.map((row) => (
+              <option key={row._id} value={row._id}>
+                {row.firstName} {row.lastName}
               </option>
             ))}
           </select>
-          {errors.userId && (
-            <p className="text-red-500 text-sm mt-1">{errors.userId.message}</p>
+          {errors.employeeId && (
+            <p className="text-red-500 text-sm mt-1">{errors.employeeId.message}</p>
           )}
         </label>
       </div>
 
       <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-1 mb-4">
         <label className="w-full">
-          <span className="block text-sm font-medium text-gray-700 mb-1">Bar *</span>
+          <span className="block text-sm font-medium text-gray-700 mb-1">Department *</span>
           <select
-            id="barId"
-            {...register('barId', { required: true })}
+            id="department"
+            {...register('department', { required: true })}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
-            <option value="">Select a bar</option>
-            {bars.map((bar) => (
-              <option key={bar._id} value={bar._id}>
-                {bar.name} - {bar.location}
-              </option>
+            {SHIFT_DEPARTMENTS.map((item) => (
+              <option key={item} value={item}>{DEPARTMENT_LABELS[item]}</option>
             ))}
           </select>
-          {errors.barId && (
-            <p className="text-red-500 text-sm mt-1">{errors.barId.message}</p>
+          {errors.department && (
+            <p className="text-red-500 text-sm mt-1">{errors.department.message}</p>
           )}
         </label>
       </div>
+
+      {department === 'fnb' && (
+        <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-1 mb-4">
+          <label className="w-full">
+            <span className="block text-sm font-medium text-gray-700 mb-1">Bar *</span>
+            <select
+              id="barId"
+              {...register('barId')}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">Select a bar</option>
+              {bars.map((bar) => (
+                <option key={bar._id} value={bar._id}>
+                  {bar.name} - {bar.location}
+                </option>
+              ))}
+            </select>
+            {errors.barId && (
+              <p className="text-red-500 text-sm mt-1">{errors.barId.message}</p>
+            )}
+          </label>
+        </div>
+      )}
 
       <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-1 mb-4">
         <InputComponent id="shiftDate" label="Shift Date *" type="date" inputWidth="w-full" register={register('shiftDate', { required: true })} error={errors.shiftDate} />
@@ -122,12 +153,9 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
         <InputComponent id="endTime" label="End Time" type="time" inputWidth="w-full" register={register('endTime')} error={errors.endTime} />
       </div>
 
-      <div className="w-full h-fit flex flex-col lg:items-center gap-4 mb-4">
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input type="checkbox" {...register('isFinalized')} defaultChecked={false} className="mr-2 w-4 h-3" />
-          <span>Finalized</span>
-        </label>
-      </div>
+      <p className="text-sm text-gray-600 mb-4">
+        Finalize the shift from the list when the session ends. That creates draft Hours for payroll approval.
+      </p>
 
       <div className="flex gap-2 justify-end">
         <Button variant="secondary" onClick={onClose}>Cancel</Button>

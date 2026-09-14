@@ -47,11 +47,14 @@ const navLinks = [
   ]},
   { id: 10, href: "/#", label: "Billing", icon: <FcPhone /> },
   {id: 11, href: "/admin/shift-management", label: "Shift Management", icon: <MdOutlineBedroomChild />,  subLink: [
-    {id: 1101, href: '/admin/shift-management/shift', label: 'Shift'},
+    {id: 1101, href: '/admin/shift-management/templates', label: 'Department shifts'},
+    {id: 1102, href: '/admin/shift-management/attendance', label: 'Attendance Tracker'},
+    {id: 1103, href: '/admin/shift-management/cover', label: 'Cover'},
+    {id: 1104, href: '/admin/shift-management/shift', label: 'Shift'},
+    {id: 1105, href: '/admin/shift-management/hours', label: 'Hours'},
   ]},
   {id: 12, href: "/admin/payroll-management", label: "Payroll Management", icon: <FcMoneyTransfer />, subLink: [
     {id: 1201, href: '/admin/payroll-management/payroll', label: 'Payroll'},
-    {id: 1202, href: '/admin/payroll-management/hours', label: 'Hours'},
     {id: 1203, href: '/admin/payroll-management/time-off', label: 'Time off'},
     {id: 1204, href: '/admin/payroll-management/settings', label: 'Payroll settings'},
   ]},
@@ -149,22 +152,24 @@ function SidebarNavItem({
 
   return (
     <div className="w-full my-2">
-      <div className={`w-full h-12 flex items-center hover:!bg-black ${sectionActive ? '!bg-[#333] text-white' : 'bg-transparent'}`}>
-        <Link href={href} className="!w-auto flex-1 h-12">
+      <div className={`w-full h-12 flex items-center px-4 hover:!bg-black ${sectionActive ? '!bg-[#333] text-white' : 'bg-transparent'}`}>
+        <Link href={href} className="!w-auto flex-1 !px-0 h-12 min-w-0">
           <span>{label}</span>
-          <i className="icon">{icon}</i>
         </Link>
-        {hasChildren && (
-          <button
-            type="button"
-            aria-expanded={open}
-            aria-label={`${open ? 'Collapse' : 'Expand'} ${label}`}
-            onClick={onToggle}
-            className="shrink-0 h-12 px-3"
-          >
-            <RxCaretDown className={`text-xl transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
-          </button>
-        )}
+        <div className="flex items-center shrink-0 gap-1">
+          {hasChildren && (
+            <button
+              type="button"
+              aria-expanded={open}
+              aria-label={`${open ? 'Collapse' : 'Expand'} ${label}`}
+              onClick={onToggle}
+              className="shrink-0 h-12 px-1"
+            >
+              <RxCaretDown className={`text-xl transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+            </button>
+          )}
+          <i className="icon">{icon}</i>
+        </div>
       </div>
       {hasChildren && (
         <div className={`grid transition-[grid-template-rows] duration-200 ease-out ${open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>

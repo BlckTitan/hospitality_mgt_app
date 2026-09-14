@@ -17,8 +17,16 @@ type HoursRow = {
   overtimeHours: number;
   status: string;
   source: string;
+  shiftId?: string;
+  clockInTime?: number;
+  clockOutTime?: number;
   lockedAt?: number;
 };
+
+function formatClock(value?: number) {
+  if (!value) return '—';
+  return new Date(value).toISOString().slice(11, 16);
+}
 
 export default function Hours({ propertyId }: { propertyId: string }) {
   const response = useQuery(api.hours.listHours, {
@@ -46,14 +54,38 @@ export default function Hours({ propertyId }: { propertyId: string }) {
       key: 'workDate',
       render: (value) => new Date(value as number).toISOString().slice(0, 10),
     },
+    {
+      label: 'Clock in',
+      key: 'clockInTime',
+      render: (_value, row) => formatClock(row.clockInTime),
+    },
+    {
+      label: 'Clock out',
+      key: 'clockOutTime',
+      render: (_value, row) => formatClock(row.clockOutTime),
+    },
     { label: 'Regular', key: 'regularHours' },
     { label: 'Overtime', key: 'overtimeHours' },
-    { label: 'Source', key: 'source' },
+    {
+      label: 'Source',
+      key: 'source',
+      render: (_value, row) =>
+        row.shiftId ? (
+          <a
+            href={`/admin/shift-management/shift/edit?shift_id=${row.shiftId}`}
+            className="!text-blue-700"
+          >
+            {row.source}
+          </a>
+        ) : (
+          <span>{row.source}</span>
+        ),
+    },
     {
       label: 'Status',
       key: 'status',
-      render: (value, row) => (
-        <span>{row.lockedAt ? `${value} · Locked for payroll` : value}</span>
+      render: (_value, row) => (
+        <span>{row.lockedAt ? `${row.status} · Locked for payroll` : row.status}</span>
       ),
     },
     {

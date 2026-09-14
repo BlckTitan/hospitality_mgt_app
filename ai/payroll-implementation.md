@@ -14,7 +14,7 @@ Related: [prd.md](./prd.md), [ERD.md](./ERD.md), [schema.ts](./schema.ts), [base
 | MVP mode | **Native full cycle**: Prepare pay, generate Payslips, Download payment files, post GL, Mark as paid. |
 | Who is paid | `staffs` rows only (this is the Employee entity). A linked `User` is optional. Casuals and contractors are staff without system access. There is **no** `employees` table. |
 | Gratuity / tips | Defer pooling. Optional **manual** gratuity amount on a Pay item. No POS tip pull, no hours/points pool. |
-| Bar shifts vs Hours | When a bar `Shift` is finalized, create a **draft** Hours row (`hours`, `source = shift`) for supervisor approval. Payroll hours still come only from **approved** Hours. |
+| Shifts vs Hours | Department shifts define default hours. Attendance Tracker sign-out (or finalizing an ad-hoc `Shift`) creates a **draft** Hours row (`hours`, `source = shift`). Cover changes who should attend that day and never rewrites Hours. Hours screens live under Shift Management. Payroll still pays only **approved** Hours. |
 | People table | **`staffs` is the only people table.** Live app, housekeeping, POs, and inventory already use `Id<"staffs">`. Widen `staffs`; never create `employees`. Payroll FKs (`hours.employeeId`, etc.) are `v.id("staffs")`. |
 | Time off | Time-off type + Time off. Approved **unpaid** Time off prorates salaried period pay. Paid Time off counts as regular hours (not OT) unless the type sets `countsTowardOvertime`. |
 | Pay cycle | First-class Pay cycle. A Payroll is created from a cycle (period, cutoff, pay date). |
@@ -44,6 +44,8 @@ Use these labels in navigation, headings, buttons, and empty states. Do not show
 | **Pay rate** / **Pay history** | `payHistory` | `PayHistory` |
 | **Payroll settings** | `payrollSettings` | `PayrollSettings` |
 | **Hours** | `hours` | `Hours` |
+| **Department shift** | `shiftTemplates` | `ShiftTemplate` |
+| **Roster day** | `rosterSlots` | `RosterSlot` |
 | **Time off** | `timeOff` | `TimeOff` |
 | **Time-off type** | `timeOffTypes` | `TimeOffType` |
 | **Extra pay rules** | `extraPayRules` | `ExtraPayRule` |
@@ -177,7 +179,7 @@ Schema table: `hours`. Interface: `Hours`.
 - Returning a payroll to Draft (before Approve payroll) unlocks
 - Hours: classify with extra pay rules + OT at submit/approve time
 - Only **unlocked, approved** Hours in the Pay cycle cutoff window are pulled into a payroll
-- Finalizing a bar shift creates a draft Hours row (if none exists); does not overwrite submitted/approved/locked Hours
+- Finalizing a shift creates a draft Hours row (if none exists); does not overwrite submitted/approved/locked Hours
 
 ### Country → jurisdiction (property setup)
 
@@ -319,17 +321,22 @@ Labor Cost % for reports: sum Payroll `totalGrossPay` where status is `approved`
 
 ---
 
-## Bar shift → Hours
+## Shift → Hours
 
-When `shifts.isFinalized` becomes true:
+Department **shift templates** define default hours per department. On onboard, staff inherit the department default. **Attendance Tracker** Start shift / End shift creates the day’s `shifts` row from that assignment (actual clock time, not template start). Logging in does not start the shift. **Cover** changes `rosterSlots.workingEmployeeId` for that date only and never rewrites Hours. Cover is rejected if the scheduled person already has a started shift or Hours that day, or if the covering person already started a shift.
 
-1. Resolve `Employee` by `userId` (skip if the shift user has no employee record).
-2. Compute work date from property timezone + shift start.
-3. If no Hours exist for `(employeeId, workDate)`, insert `source = shift`, `status = draft`, clock times from the shift, hours from start/end minus a default break if configured.
-4. If a draft Hours row from this shift already exists, update hours from the finalized shift.
-5. If a submitted/approved/rejected/**locked** Hours row already exists for that date, do not overwrite; leave a note or skip.
+Ad-hoc Shifts remain available for unscheduled sessions. `barId` is required only for F&B. Hours screens live under Shift Management; payroll still pays only **approved** Hours.
 
-Supervisors still approve the Hours before they can be paid.
+When `shifts.isFinalized` becomes true (via Attendance Tracker End shift or `finalizeShift`):
+
+1. Resolve `Employee` from `employeeId` (or `userId` on older rows). If there is no staff record, finalize the shift but return a warning — do not silently skip.
+2. Compute work date from the shift calendar date (`YYYY-MM-DD` as UTC midnight). Overnight shifts (end ≤ start) add 24 hours.
+3. If no Hours exist for `(employeeId, workDate)`, insert `source = shift`, `status = draft`, clock times from the shift, hours from start/end minus a 30-minute default break, split with the daily OT limit.
+4. If a draft Hours row from a shift already exists and is unlocked, update hours from the finalized shift.
+5. If a submitted/approved/rejected/**locked** Hours row already exists for that date, do not overwrite; tell the operator.
+6. F&B shifts also finalize that shift’s `userStockLogs`.
+
+Supervisors still approve the Hours before they can be paid. Manual Hours (no shift) remain allowed.
 
 ---
 
@@ -353,7 +360,7 @@ Widen-migrate-narrow **`staffs` only**. Do not add an `employees` table. Payroll
 
 1. Require `Property.country` on create/setup; seed Payroll settings, default Pay cycle, Holidays, extra pay rules, and statutory Pay item types (`NG` + `generic` first).
 2. Widen `staffs` (property, payment method, Pay history, soft delete). No `employees` table.
-3. Hours + approval + CSV + draft-from-shift + **lock on Prepare pay**.
+3. Hours + approval + CSV + draft-from-shift (property-wide) + **lock on Prepare pay**.
 4. Time-off types / Time off; custom Pay item types.
 5. Payroll from a Pay cycle + Staff pay / Pay items (Pay history + extra pay snapshots).
 6. Approve payroll with **maker ≠ checker** → Payslip + GL.

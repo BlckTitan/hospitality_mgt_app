@@ -2,7 +2,7 @@ import { ROUTE_PERMISSIONS } from './proxy-permissions';
 
 export function matchRoute(
   pathname: string,
-  routePermissions: Record<string, { granular: string }> = ROUTE_PERMISSIONS,
+  routePermissions: Record<string, { granular: string | string[] }> = ROUTE_PERMISSIONS,
 ): string | null {
   if (routePermissions[pathname]) {
     return pathname;

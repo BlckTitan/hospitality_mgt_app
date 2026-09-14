@@ -1,7 +1,14 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { requirePermission } from "./lib/rbac";
-import { hoursFromClock, roundMoney, startOfUtcDay } from "./lib/payrollHelpers";
+import {
+  clockOnWorkDate,
+  hoursFromClock,
+  hoursFromClockWithOvernight,
+  roundMoney,
+  startOfUtcDay,
+  utcDayFromIsoDate,
+} from "./lib/payrollHelpers";
 
 async function rejectIfLocked(sheet: { lockedAt?: number }) {
   if (sheet.lockedAt) {
@@ -24,6 +31,9 @@ export const listHours = query({
         return {
           ...row,
           staffName: staff ? `${staff.firstName} ${staff.lastName}` : "Unknown",
+          shiftId: row.shiftId,
+          clockInTime: row.clockInTime,
+          clockOutTime: row.clockOutTime,
         };
       })
     );
@@ -172,26 +182,39 @@ export const rejectHours = mutation({
   },
 });
 
-/** Called when a bar Shift is finalized. */
+const DEFAULT_BREAK_MINUTES = 30;
+
+export type DraftHoursFromShiftResult = {
+  status: "created" | "updated" | "skipped" | "no_staff";
+  message?: string;
+};
+
+/** Called when a Shift is finalized. Payroll still pays only approved Hours. */
 export async function draftHoursFromShift(
   ctx: import("./_generated/server").MutationCtx,
   shift: {
     _id: import("./_generated/dataModel").Id<"shifts">;
     propertyId: import("./_generated/dataModel").Id<"properties">;
-    userId: import("./_generated/dataModel").Id<"users">;
+    employeeId?: import("./_generated/dataModel").Id<"staffs">;
+    userId?: import("./_generated/dataModel").Id<"users">;
     startTime?: string;
     endTime?: string;
     shiftDate?: string;
   }
-) {
-  const staff = await ctx.db
-    .query("staffs")
-    .withIndex("by_userId", (q) => q.eq("userId", shift.userId))
-    .first();
-  if (!staff) return;
+): Promise<DraftHoursFromShiftResult> {
+  let staff = shift.employeeId ? await ctx.db.get(shift.employeeId) : null;
+  if (!staff && shift.userId) {
+    staff = await ctx.db
+      .query("staffs")
+      .withIndex("by_userId", (q) => q.eq("userId", shift.userId!))
+      .first();
+  }
+  if (!staff) {
+    return { status: "no_staff", message: "No staff record is linked to this shift" };
+  }
 
   const workDate = shift.shiftDate
-    ? startOfUtcDay(new Date(shift.shiftDate).getTime())
+    ? utcDayFromIsoDate(shift.shiftDate)
     : startOfUtcDay(Date.now());
 
   const existing = await ctx.db
@@ -206,17 +229,18 @@ export async function draftHoursFromShift(
     .withIndex("by_propertyId", (q) => q.eq("propertyId", shift.propertyId))
     .first();
   const dailyLimit = settings?.regularHoursLimitDaily ?? 8;
+  const breakDuration = DEFAULT_BREAK_MINUTES;
 
-  const parseClock = (time?: string) => {
-    if (!time) return undefined;
-    const [h, m] = time.split(":").map(Number);
-    if (Number.isNaN(h)) return undefined;
-    return workDate + ((h || 0) * 60 + (m || 0)) * 60 * 1000;
-  };
-  const clockInTime = parseClock(shift.startTime);
-  const clockOutTime = parseClock(shift.endTime);
-  const total = hoursFromClock(clockInTime, clockOutTime, 30);
+  const clockInTime = clockOnWorkDate(workDate, shift.startTime);
+  const parsedOut = clockOnWorkDate(workDate, shift.endTime);
+  const { clockOut, total } = hoursFromClockWithOvernight(
+    clockInTime,
+    parsedOut,
+    breakDuration
+  );
   const now = Date.now();
+  const regularHours = Math.min(total, dailyLimit);
+  const overtimeHours = Math.max(0, total - dailyLimit);
 
   if (!existing) {
     await ctx.db.insert("hours", {
@@ -224,26 +248,33 @@ export async function draftHoursFromShift(
       propertyId: shift.propertyId,
       workDate,
       clockInTime,
-      clockOutTime,
-      regularHours: Math.min(total, dailyLimit),
-      overtimeHours: Math.max(0, total - dailyLimit),
-      breakDuration: 30,
+      clockOutTime: clockOut,
+      regularHours,
+      overtimeHours,
+      breakDuration,
       source: "shift",
       shiftId: shift._id,
       status: "draft",
       createdAt: now,
       updatedAt: now,
     });
-    return;
+    return { status: "created" };
   }
 
   if (existing.status === "draft" && existing.source === "shift" && !existing.lockedAt) {
     await ctx.db.patch(existing._id, {
       clockInTime,
-      clockOutTime,
-      regularHours: Math.min(total, dailyLimit),
-      overtimeHours: Math.max(0, total - dailyLimit),
+      clockOutTime: clockOut,
+      regularHours,
+      overtimeHours,
+      shiftId: shift._id,
       updatedAt: now,
     });
+    return { status: "updated" };
   }
+
+  return {
+    status: "skipped",
+    message: `Shift finalized. Hours already exist for this staff on that date (${existing.status}${existing.lockedAt ? ", locked" : ""}) and were not overwritten`,
+  };
 }

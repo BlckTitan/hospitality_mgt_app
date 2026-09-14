@@ -101,10 +101,12 @@ export default defineSchema({
     accountName: v.optional(v.string()),
     accountNumber: v.optional(v.string()),
     routingCode: v.optional(v.string()),
+    shiftTemplateId: v.optional(v.id("shiftTemplates")),
   })
     .index("email", ["email"])
     .index("by_propertyId", ["propertyId"])
     .index("by_userId", ["userId"])
+    .index("by_shiftTemplateId", ["shiftTemplateId"])
     .searchIndex('search_staff', {
       searchField: 'firstName',
       filterFields: ['employmentStatus', 'role']
@@ -482,21 +484,84 @@ export default defineSchema({
     .index("by_category", ["category"])
     .index("by_isActive", ["isActive"]),
 
-  // Shifts table for working sessions
+  // Shifts table: property-wide working sessions (any department).
+  // barId is required only for F&B. userId is denormalized from staff when they have a login.
   shifts: defineTable({
     propertyId: v.id("properties"),
-    userId: v.id("users"),
-    barId: v.id("bars"),
+    employeeId: v.optional(v.id("staffs")),
+    userId: v.optional(v.id("users")),
+    barId: v.optional(v.id("bars")),
+    department: v.optional(
+      v.union(
+        v.literal("front-office"),
+        v.literal("housekeeping"),
+        v.literal("fnb"),
+        v.literal("maintenance"),
+        v.literal("finance"),
+        v.literal("admin"),
+        v.literal("other")
+      )
+    ),
     shiftDate: v.string(),
     startTime: v.string(),
     endTime: v.optional(v.string()),
     isFinalized: v.boolean(),
+    shiftTemplateId: v.optional(v.id("shiftTemplates")),
+    rosterSlotId: v.optional(v.id("rosterSlots")),
   })
     .index("by_propertyId", ["propertyId"])
     .index("by_userId", ["userId"])
+    .index("by_employeeId", ["employeeId"])
+    .index("by_employeeId_date", ["employeeId", "shiftDate"])
     .index("by_barId", ["barId"])
     .index("by_barId_date", ["barId", "shiftDate"])
-    .index("by_userId_date", ["userId", "shiftDate"]),
+    .index("by_userId_date", ["userId", "shiftDate"])
+    .index("by_propertyId_date", ["propertyId", "shiftDate"])
+    .index("by_rosterSlotId", ["rosterSlotId"]),
+
+  // Department shift definitions (default working hours). Admin/owner owned.
+  shiftTemplates: defineTable({
+    propertyId: v.id("properties"),
+    department: v.union(
+      v.literal("front-office"),
+      v.literal("housekeeping"),
+      v.literal("fnb"),
+      v.literal("maintenance"),
+      v.literal("finance"),
+      v.literal("admin"),
+      v.literal("other")
+    ),
+    name: v.string(),
+    startTime: v.string(),
+    endTime: v.string(),
+    barId: v.optional(v.id("bars")),
+    isDefault: v.boolean(),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_propertyId_department", ["propertyId", "department"])
+    .index("by_propertyId_department_default", ["propertyId", "department", "isDefault"]),
+
+  // One scheduled day for a staff member. Cover changes workingEmployeeId only.
+  rosterSlots: defineTable({
+    propertyId: v.id("properties"),
+    shiftDate: v.string(),
+    shiftTemplateId: v.id("shiftTemplates"),
+    scheduledEmployeeId: v.id("staffs"),
+    workingEmployeeId: v.id("staffs"),
+    coveredAt: v.optional(v.number()),
+    coveredBy: v.optional(v.id("users")),
+    notes: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_propertyId_date", ["propertyId", "shiftDate"])
+    .index("by_scheduled_date", ["scheduledEmployeeId", "shiftDate"])
+    .index("by_working_date", ["workingEmployeeId", "shiftDate"])
+    .index("by_template_date", ["shiftTemplateId", "shiftDate"]),
 
   // User Stock Logs table for per-shift, per-beverage stock and sales reconciliation
   // v2.1: barId, userId, logDate, isFinalized added; recordedAt → lastUpdatedAt
@@ -791,7 +856,8 @@ export default defineSchema({
     .index("by_employeeId_workDate", ["employeeId", "workDate"])
     .index("by_propertyId_workDate", ["propertyId", "workDate"])
     .index("by_propertyId_status", ["propertyId", "status"])
-    .index("by_lockedByPayrollId", ["lockedByPayrollId"]),
+    .index("by_lockedByPayrollId", ["lockedByPayrollId"])
+    .index("by_shiftId", ["shiftId"]),
 
   payrolls: defineTable({
     propertyId: v.id("properties"),

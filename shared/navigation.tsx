@@ -53,11 +53,14 @@ const navItems = [
   ]},
   { id: 10, href: "/#", label: "Billing", icon: <FcPhone /> },
   {id: 11, href: "/admin/shift-management", label: "Shift Management", icon: <MdOutlineBedroomChild />,  subLink: [
-    {id: 1101, href: '/admin/shift-management/shift', label: 'Shift'},
+    {id: 1101, href: '/admin/shift-management/templates', label: 'Department shifts'},
+    {id: 1102, href: '/admin/shift-management/attendance', label: 'Attendance Tracker'},
+    {id: 1103, href: '/admin/shift-management/cover', label: 'Cover'},
+    {id: 1104, href: '/admin/shift-management/shift', label: 'Shift'},
+    {id: 1105, href: '/admin/shift-management/hours', label: 'Hours'},
   ]},
   {id: 12, href: "/admin/payroll-management", label: "Payroll Management", icon: <FcMoneyTransfer />, subLink: [
     {id: 1201, href: '/admin/payroll-management/payroll', label: 'Payroll'},
-    {id: 1202, href: '/admin/payroll-management/hours', label: 'Hours'},
     {id: 1203, href: '/admin/payroll-management/time-off', label: 'Time off'},
     {id: 1204, href: '/admin/payroll-management/settings', label: 'Payroll settings'},
   ]},
@@ -124,26 +127,28 @@ export default function Navigation() {
                     
                     <Card.Header 
                       className={`
-                        flex justify-between items-center !p-0 !border-0
+                        flex items-center !py-0 !px-4 !border-0
                         ${isPathInSection(path, href) ? "!bg-[#333] text-white" : "bg-transparent"}
                       `}
                     >
                       <NavLink
                         href={href}
-                        className={`main_nav_link ${isPathInSection(path, href) ? "!bg-[#333] text-white" : "bg-transparent"}`}
+                        className={`main_nav_link !w-auto flex-1 !px-0 min-w-0 ${isPathInSection(path, href) ? "!bg-[#333] text-white" : "bg-transparent"}`}
                       >
                         <span>{label}</span>
-                        <i className="icon">{icon}</i>
                       </NavLink>
 
-                      {subLink?.length ? (
-                          <CustomToggle
-                            eventKey={label}
-                            className="!bg-transparent"
-                          >
-                            <i className='icon'><RxCaretDown /></i>
-                          </CustomToggle>
-                      ) : null}
+                      <div className="flex items-center shrink-0 gap-1">
+                        {subLink?.length ? (
+                            <CustomToggle
+                              eventKey={label}
+                              className="!bg-transparent shrink-0 h-12 px-1"
+                            >
+                              <RxCaretDown className="text-xl" />
+                            </CustomToggle>
+                        ) : null}
+                        <i className="icon">{icon}</i>
+                      </div>
 
                     </Card.Header>
 

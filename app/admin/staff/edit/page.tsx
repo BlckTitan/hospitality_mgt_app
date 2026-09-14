@@ -41,6 +41,7 @@ export default function Page() {
         role={response.role}
         dateRecruited={response.dateRecruited}
         dateTerminated={response.dateTerminated}
+        department={response.department}
       />
 
     </div>

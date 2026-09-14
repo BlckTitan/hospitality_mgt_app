@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as attendance from "../attendance.js";
 import type * as authContext from "../authContext.js";
 import type * as bars from "../bars.js";
 import type * as beverages from "../beverages.js";
@@ -25,6 +26,7 @@ import type * as lib_payrollPacks from "../lib/payrollPacks.js";
 import type * as lib_pendingInvites from "../lib/pendingInvites.js";
 import type * as lib_permissionsData from "../lib/permissionsData.js";
 import type * as lib_rbac from "../lib/rbac.js";
+import type * as lib_shiftHelpers from "../lib/shiftHelpers.js";
 import type * as lib_systemRoles from "../lib/systemRoles.js";
 import type * as lib_userIdentity from "../lib/userIdentity.js";
 import type * as payrollConfig from "../payrollConfig.js";
@@ -38,7 +40,9 @@ import type * as reservations from "../reservations.js";
 import type * as roles from "../roles.js";
 import type * as roomTypes from "../roomTypes.js";
 import type * as rooms from "../rooms.js";
+import type * as roster from "../roster.js";
 import type * as salesSummaries from "../salesSummaries.js";
+import type * as shiftTemplates from "../shiftTemplates.js";
 import type * as shifts from "../shifts.js";
 import type * as staff from "../staff.js";
 import type * as storeInventories from "../storeInventories.js";
@@ -56,6 +60,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  attendance: typeof attendance;
   authContext: typeof authContext;
   bars: typeof bars;
   beverages: typeof beverages;
@@ -73,6 +78,7 @@ declare const fullApi: ApiFromModules<{
   "lib/pendingInvites": typeof lib_pendingInvites;
   "lib/permissionsData": typeof lib_permissionsData;
   "lib/rbac": typeof lib_rbac;
+  "lib/shiftHelpers": typeof lib_shiftHelpers;
   "lib/systemRoles": typeof lib_systemRoles;
   "lib/userIdentity": typeof lib_userIdentity;
   payrollConfig: typeof payrollConfig;
@@ -86,7 +92,9 @@ declare const fullApi: ApiFromModules<{
   roles: typeof roles;
   roomTypes: typeof roomTypes;
   rooms: typeof rooms;
+  roster: typeof roster;
   salesSummaries: typeof salesSummaries;
+  shiftTemplates: typeof shiftTemplates;
   shifts: typeof shifts;
   staff: typeof staff;
   storeInventories: typeof storeInventories;

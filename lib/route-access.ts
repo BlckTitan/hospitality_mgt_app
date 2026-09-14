@@ -18,12 +18,20 @@ export function isPathInSection(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
+function routeAllows(
+  permission: { granular: string | string[] },
+  hasGranularPermission: (granular: string) => boolean,
+): boolean {
+  const keys = Array.isArray(permission.granular) ? permission.granular : [permission.granular];
+  return keys.some((key) => hasGranularPermission(key));
+}
+
 export function canAccessPath(
   pathname: string,
   hasGranularPermission: (granular: string) => boolean,
 ): boolean {
   const matchedRoute = matchRoute(pathname, ROUTE_PERMISSIONS);
-  if (matchedRoute && hasGranularPermission(ROUTE_PERMISSIONS[matchedRoute].granular)) {
+  if (matchedRoute && routeAllows(ROUTE_PERMISSIONS[matchedRoute], hasGranularPermission)) {
     return true;
   }
 
@@ -31,7 +39,7 @@ export function canAccessPath(
     const prefix = `${pathname}/`;
     return Object.entries(ROUTE_PERMISSIONS).some(
       ([route, permission]) =>
-        route.startsWith(prefix) && hasGranularPermission(permission.granular),
+        route.startsWith(prefix) && routeAllows(permission, hasGranularPermission),
     );
   }
 

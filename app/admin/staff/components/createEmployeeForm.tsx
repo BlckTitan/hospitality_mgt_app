@@ -17,6 +17,7 @@ type FormData = {
     firstName: string;
     lastName: string;
     role: "Manager" | "Assistant Manager" | "Supervisor" | "Griller" | "Housekeeper" | "Laundry Attendant" | "Security" | 'Receptionist' | null;
+    department?: string;
     address: string;
     phone: string;
     email: string
@@ -45,7 +46,8 @@ export function FormComponent() {
       stateOfOrigin: '',
       LGA: '',
       dateRecruited: null,
-      salary: 0 
+      salary: 0,
+      department: 'other',
     },
   });
 
@@ -63,14 +65,15 @@ export function FormComponent() {
         employmentStatus: 'employed',
         dateRecruited: new Date().toISOString(),
         salary: Number(data.salary),
-        role: data.role
+        role: data.role,
+        department: data.department,
       })
 
       if(response.success === false){
         toast.error(response.message);
       }else{          
 
-        toast.success("New staff created successfully!");
+        toast.success(response.message);
         console.log("Staff created with ID:", response);
 
         //reload page form on submission
@@ -205,6 +208,23 @@ export function FormComponent() {
 
           {errors.role && <span className='text-red-500 text-sm'>This field is required</span>}
         </div>
+
+        <SelectComponent
+          id="department"
+          label="Department"
+          selectWidth="w-1/3"
+          defaultText="select department"
+          register={register("department")}
+          options={[
+            { value: "front-office", label: "Front office" },
+            { value: "housekeeping", label: "Housekeeping" },
+            { value: "fnb", label: "Food & beverage" },
+            { value: "maintenance", label: "Maintenance" },
+            { value: "finance", label: "Finance" },
+            { value: "admin", label: "Admin" },
+            { value: "other", label: "Other" },
+          ]}
+        />
 
       </div>
       

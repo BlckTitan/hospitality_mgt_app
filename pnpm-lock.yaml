@@ -94,8 +94,8 @@ importers:
         specifier: ^19.2.4
         version: 19.2.4(@types/react@19.2.18)
       convex:
-        specifier: ^1.44.0
-        version: 1.44.0(@clerk/clerk-react@5.59.3(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@clerk/react@6.14.5(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react@19.2.8)
+        specifier: ^1.45.0
+        version: 1.45.0(@clerk/clerk-react@5.59.3(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@clerk/react@6.14.5(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react@19.2.8)
       tailwindcss:
         specifier: ^4.3.3
         version: 4.3.3
@@ -984,9 +984,9 @@ packages:
     resolution: {integrity: sha512-QrWXB+ZQSVPmIWIhtEO9H+gwHaMGYiF5ChvoJ+K9ZGHG/sVsa6yiesAD1GC/x46sET00Xlwo1u49RVVVzvcSkw==}
     engines: {node: '>= 10'}
 
-  convex@1.44.0:
-    resolution: {integrity: sha512-84bBa1ufSX4qohXdycXuQl2c2kAmfVpTCpypcmIgxpS5rUBgv5qjhArYugTkJVbljMs5SH2mW30bjJo+SQwe1w==}
-    engines: {node: '>=18.0.0', npm: '>=7.0.0'}
+  convex@1.45.0:
+    resolution: {integrity: sha512-AV3B56Ptu/14d76g3urBJ50dwpiZa6uJaLT84OWox5aCwZIJiuAamdjv3lLHDzs8vv5kC31anEZohhUe3qJ2bA==}
+    engines: {node: '>=20.0.0', npm: '>=7.0.0'}
     hasBin: true
     peerDependencies:
       '@auth0/auth0-react': ^2.0.1
@@ -2061,7 +2061,7 @@ snapshots:
 
   commander@7.2.0: {}
 
-  convex@1.44.0(@clerk/clerk-react@5.59.3(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@clerk/react@6.14.5(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react@19.2.8):
+  convex@1.45.0(@clerk/clerk-react@5.59.3(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(@clerk/react@6.14.5(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react@19.2.8):
     dependencies:
       esbuild: 0.27.0
       prettier: 3.9.6

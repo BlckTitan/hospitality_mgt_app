@@ -124,6 +124,41 @@ export function hoursFromClock(
   return Math.max(0, roundMoney(raw - breakDuration / 60));
 }
 
+/** Calendar date `YYYY-MM-DD` → UTC midnight. Avoids timezone shifts from `new Date(iso)`. */
+export function utcDayFromIsoDate(isoDate: string): number {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate);
+  if (!match) return startOfUtcDay(Date.now());
+  return Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+}
+
+/** `HH:MM` or `HH:MM:SS` on a UTC calendar day. */
+export function clockOnWorkDate(workDate: number, time?: string): number | undefined {
+  if (!time) return undefined;
+  const [h, m] = time.split(":").map(Number);
+  if (Number.isNaN(h)) return undefined;
+  return workDate + ((h || 0) * 60 + (m || 0)) * 60 * 1000;
+}
+
+/** Overnight shifts: if clock-out is not after clock-in, add 24 hours. */
+export function hoursFromClockWithOvernight(
+  clockIn?: number,
+  clockOut?: number,
+  breakDuration = 0
+): { clockIn?: number; clockOut?: number; total: number } {
+  if (!clockIn || !clockOut) return { clockIn, clockOut, total: 0 };
+  const wrappedOut = clockOut <= clockIn ? clockOut + 24 * 60 * 60 * 1000 : clockOut;
+  return {
+    clockIn,
+    clockOut: wrappedOut,
+    total: hoursFromClock(clockIn, wrappedOut, breakDuration),
+  };
+}
+
+export function currentUtcHHmm(): string {
+  const d = new Date();
+  return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
+}
+
 export async function seedPayrollForProperty(
   ctx: MutationCtx,
   propertyId: Id<"properties">,

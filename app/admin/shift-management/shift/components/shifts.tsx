@@ -1,6 +1,6 @@
 'use client'
 
-import { FcDocument, FcEmptyTrash } from "react-icons/fc";
+import { FcEmptyTrash } from "react-icons/fc";
 import { MdEditDocument } from "react-icons/md";
 import { Button } from "react-bootstrap";
 import { Suspense } from "react";
@@ -10,17 +10,22 @@ import { api } from "../../../../../convex/_generated/api";
 import { TableColumn } from "../../../../../shared/table";
 import PaginationComponent from "../../../../../shared/pagination";
 import { Id } from "../../../../../convex/_generated/dataModel";
+import { DEPARTMENT_LABELS, SHIFT_DEPARTMENTS } from "./validation";
 
 interface ShiftProps {
   _id: string;
   propertyId: string;
-  userId: string;
-  barId: string;
+  employeeId?: string;
+  userId?: string;
+  barId?: string;
+  department?: string;
   shiftDate: string;
   startTime: string;
   endTime?: string;
   isFinalized: boolean;
-  createdAt: number;
+  staffName?: string;
+  hoursStatus?: string;
+  hoursId?: string;
   user?: {
     _id: string;
     name: string;
@@ -33,26 +38,30 @@ interface ShiftProps {
   };
 }
 
+function departmentLabel(value?: string) {
+  if (value && SHIFT_DEPARTMENTS.includes(value as (typeof SHIFT_DEPARTMENTS)[number])) {
+    return DEPARTMENT_LABELS[value as (typeof SHIFT_DEPARTMENTS)[number]];
+  }
+  return value || "—";
+}
+
 const Shifts = ({ currentPropertyId }: { currentPropertyId: Id<"properties"> }) => {
   const shiftData = useQuery(
     api.shifts.getAllShifts,
     currentPropertyId ? { propertyId: currentPropertyId } : 'skip',
   );
+  const canManage = shiftData?.canManage === true;
   const removeShift = useMutation(api.shifts.deleteShift);
+  const finalizeShift = useMutation(api.shifts.finalizeShift);
 
   const handleDelete = async (id: string, shiftDate: string) => {
     if (!confirm('Are you sure you want to delete shift: ' + shiftDate + '?')) return;
     try {
       const response = await removeShift({ shiftId: id as Id<'shifts'> });
-
       if (response.success === true) {
         toast.success(response.message);
-        // Reload page after deletion
-        setTimeout(() => {
-          window.location.href = "/admin/shift-management/shift";
-        }, 2000);
       } else {
-        return toast.error(response.message);
+        toast.error(response.message);
       }
     } catch (error) {
       console.log(`Failed to delete shift! ${error}`);
@@ -60,8 +69,19 @@ const Shifts = ({ currentPropertyId }: { currentPropertyId: Id<"properties"> }) 
     }
   };
 
-  const formatDate = (timestamp: number) => {
-    return new Date(timestamp).toLocaleString();
+  const handleFinalize = async (id: string) => {
+    if (!confirm('Finalize this shift? This creates draft Hours for payroll approval and cannot be undone.')) return;
+    try {
+      const response = await finalizeShift({ shiftId: id as Id<'shifts'> });
+      if (response.success === true) {
+        toast.success(response.message);
+      } else {
+        toast.error(response.message);
+      }
+    } catch (error) {
+      console.log(`Failed to finalize shift! ${error}`);
+      toast.error("Failed to finalize shift. Please try again.");
+    }
   };
 
   const getStatusBadge = (isFinalized: boolean) => {
@@ -75,67 +95,95 @@ const Shifts = ({ currentPropertyId }: { currentPropertyId: Id<"properties"> }) 
   const tableColumns: TableColumn<ShiftProps>[] = [
     { label: 'Shift Date', key: 'shiftDate' },
     {
-      label: 'User',
-      key: 'user',
-      render: (value, row) => (
-        <span>{row.user?.name || 'N/A'}</span>
+      label: 'Staff',
+      key: 'staffName',
+      render: (_value, row) => (
+        <span>{row.staffName || row.user?.name || 'N/A'}</span>
       )
+    },
+    {
+      label: 'Department',
+      key: 'department',
+      render: (_value, row) => <span>{departmentLabel(row.department)}</span>
     },
     {
       label: 'Bar',
       key: 'bar',
-      render: (value, row) => (
-        <span>{row.bar?.name || 'N/A'}</span>
+      render: (_value, row) => (
+        <span>{row.bar?.name || '—'}</span>
       )
     },
     {
       label: 'Start Time',
       key: 'startTime',
-      render: (value, row) => (
+      render: (_value, row) => (
         <span>{row.startTime}</span>
       )
     },
     {
       label: 'End Time',
       key: 'endTime',
-      render: (value, row) => (
+      render: (_value, row) => (
         <span>{row.endTime || 'N/A'}</span>
       )
     },
     {
       label: 'Status',
       key: 'isFinalized',
-      render: (value, row) => getStatusBadge(row.isFinalized)
+      render: (_value, row) => getStatusBadge(row.isFinalized)
     },
     {
-      label: 'Created At',
-      key: 'createdAt',
-      render: (value, row) => (
-        <span>{formatDate(row.createdAt)}</span>
+      label: 'Hours',
+      key: 'hoursStatus',
+      render: (_value, row) => (
+        row.hoursId ? (
+          <a href="/admin/shift-management/hours" className="!text-blue-700">
+            {row.hoursStatus}
+          </a>
+        ) : (
+          <span>{row.isFinalized ? 'Not created' : '—'}</span>
+        )
       )
     },
     {
       label: 'Action',
       key: '_id',
-      render: (value, row) => (
+      render: (_value, row) => (
+        canManage ? (
         <div className='flex justify-evenly lg:justify-start items-center gap-1'>
-          <a
-            href={`/admin/shift-management/shift/edit?shift_id=${row._id}`}
-            className='!mr-2 !no-underline !text-amber-400'
-          >
-            <i className='icon'><MdEditDocument /></i>
-          </a>
-
-          <Button
-            variant='white'
-            onClick={() => handleDelete(row._id, row.shiftDate)}
-            title='Delete shift'
-          >
-            <i className='icon'>
-              <FcEmptyTrash />
-            </i>
-          </Button>
+          {!row.isFinalized && (
+            <Button
+              variant="dark"
+              size="sm"
+              onClick={() => handleFinalize(row._id)}
+              title="Finalize shift"
+            >
+              Finalize
+            </Button>
+          )}
+          {!row.isFinalized && (
+            <a
+              href={`/admin/shift-management/shift/edit?shift_id=${row._id}`}
+              className='!mr-2 !no-underline !text-amber-400'
+            >
+              <i className='icon'><MdEditDocument /></i>
+            </a>
+          )}
+          {!row.isFinalized && (
+            <Button
+              variant='white'
+              onClick={() => handleDelete(row._id, row.shiftDate)}
+              title='Delete shift'
+            >
+              <i className='icon'>
+                <FcEmptyTrash />
+              </i>
+            </Button>
+          )}
         </div>
+        ) : (
+          <span>—</span>
+        )
       ),
     },
   ];
