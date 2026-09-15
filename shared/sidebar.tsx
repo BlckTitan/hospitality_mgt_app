@@ -29,7 +29,9 @@ const navLinks = [
   },
   {id: 5, href: "/#", label: "Expenditure", icon: <FcMoneyTransfer /> },
   {id: 6, href: "/#", label: "Report and Analytics", icon: <FcSalesPerformance /> },
-  {id: 7, href: "/admin/staff", label: "Staff", icon: <FcConferenceCall /> },
+  {id: 7, href: "/admin/staff", label: "Staff", icon: <FcConferenceCall />, subLink: [
+    {id: 701, href: '/admin/staff/myProfile', label: 'My profile'},
+  ]},
   {id: 8, href: "/admin/inventory-management", label: "Inventory Management", icon: <FcList /> ,  subLink: [
     {id: 801, href: '/admin/inventory-management/inventory-item', label: 'Inventory Item'},
     {id: 802, href: '/admin/inventory-management/inventory-transaction', label: 'Inventory Transaction'},

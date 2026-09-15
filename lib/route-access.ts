@@ -83,6 +83,7 @@ export function filterNavByAccess<TItem extends NavBranch<TLeaf>, TLeaf extends 
     return [
       {
         ...item,
+        href: canVisitHub ? item.href : children[0].href,
         subLink: children.length > 0 ? children : undefined,
       },
     ];

@@ -1,6 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { requirePermission } from "./lib/rbac";
+import { assertCanApproveStaff, restrictToDirectReports } from "./lib/staffAccess";
 import {
   clockOnWorkDate,
   hoursFromClock,
@@ -20,11 +21,15 @@ async function rejectIfLocked(sheet: { lockedAt?: number }) {
 export const listHours = query({
   args: { propertyId: v.id("properties") },
   handler: async (ctx, args) => {
-    await requirePermission(ctx, "payroll.timesheet.read", args.propertyId);
-    const rows = await ctx.db
-      .query("hours")
-      .withIndex("by_propertyId", (q) => q.eq("propertyId", args.propertyId))
-      .collect();
+    const auth = await requirePermission(ctx, "payroll.timesheet.read", args.propertyId);
+    const rows = await restrictToDirectReports(
+      ctx,
+      auth,
+      await ctx.db
+        .query("hours")
+        .withIndex("by_propertyId", (q) => q.eq("propertyId", args.propertyId))
+        .collect(),
+    );
     const enriched = await Promise.all(
       rows.map(async (row) => {
         const staff = await ctx.db.get(row.employeeId);
@@ -152,6 +157,8 @@ export const approveHours = mutation({
     const row = await ctx.db.get(args.hoursId);
     if (!row) return { success: false, message: "Hours not found" };
     const auth = await requirePermission(ctx, "payroll.timesheet.approve", row.propertyId);
+    const teamError = await assertCanApproveStaff(ctx, auth, row.employeeId);
+    if (teamError) return { success: false, message: teamError };
     const locked = await rejectIfLocked(row);
     if (locked) return { success: false, message: locked };
     await ctx.db.patch(args.hoursId, {
@@ -170,6 +177,8 @@ export const rejectHours = mutation({
     const row = await ctx.db.get(args.hoursId);
     if (!row) return { success: false, message: "Hours not found" };
     const auth = await requirePermission(ctx, "payroll.timesheet.approve", row.propertyId);
+    const teamError = await assertCanApproveStaff(ctx, auth, row.employeeId);
+    if (teamError) return { success: false, message: teamError };
     const locked = await rejectIfLocked(row);
     if (locked) return { success: false, message: locked };
     await ctx.db.patch(args.hoursId, {

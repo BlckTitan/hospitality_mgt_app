@@ -129,6 +129,26 @@ export class PermissionChecker {
       return true;
     }
 
+    if (granularPerm === 'staff.self.read') {
+      return true;
+    }
+
+    if (
+      granularPerm === 'staff.compensation.read' ||
+      granularPerm === 'staff.compensation.update'
+    ) {
+      const compensationRoles = [
+        'Administrator',
+        'Director',
+        'General Manager',
+        'HR Manager',
+        'Finance Manager',
+      ];
+      if (this.userContext.roles.some((role) => compensationRoles.includes(role))) {
+        return true;
+      }
+    }
+
     for (const permissions of Object.values(GRANULAR_PERMISSIONS)) {
       const mapped = permissions[granularPerm as keyof typeof permissions];
       if (mapped) {

@@ -71,6 +71,10 @@ function hasCustomModulePermission(
 }
 
 export function hasGranularPermission(authContext: AuthContext, granularPerm: string): boolean {
+  if (granularPerm === "staff.self.read") {
+    return true;
+  }
+
   if (authContext.permissions[granularPerm]) {
     return true;
   }

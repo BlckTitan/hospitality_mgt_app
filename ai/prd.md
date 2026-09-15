@@ -27,7 +27,8 @@ Hospitality operators juggle siloed systems for reservations, POS, payroll, proc
 ## Target Users & Personas
 
 - **Hotel Owners / General Managers**: need holistic business visibility, profitability tracking, and forecasting.
-- **Finance & Accounting Teams**: own GL, AP/AR, payroll, taxes, vendor payments.
+- **HR Managers**: own the staff directory, onboarding, employment lifecycle, contracts/IDs, and self-service approvals. They do not grant login Roles (that stays Users & Roles).
+- **Finance & Accounting Teams**: own GL, AP/AR, payroll, taxes, vendor payments. They may view staff compensation (salary, tax ID, bank) but not necessarily edit identity.
 - **Front Office & Reservations Leads**: manage room inventory, rates, promotions, upsell flows.
 - **Housekeeping & Maintenance Supervisors**: schedule tasks, monitor completion, log expenses.
 - **Food & Beverage Managers & Storekeepers**: track menu performance, inventory, restocking, wastage.
@@ -49,24 +50,28 @@ Hospitality operators juggle siloed systems for reservations, POS, payroll, proc
    - POS integrations for sales ingestion (for businesses with existing POS systems).
    - Inventory counts, reorder points, supplier management, restocking workflows.
    - Document management for inventory purchases: supplier invoices, delivery receipts, and payment confirmations must be uploaded and linked to purchase orders.
-3. **Payroll Management**
-   - Staff profiles, roles, pay types (hourly / salary / mixed), pay rates, Hours, configurable allowances and deductions.
+3. **Staff Management**
+   - Property-scoped people master (`staffs` only — no `employees` table). Existing `/admin/staff` and `Id<"staffs">` FKs stay.
+   - Directory, onboard, terminate, optional User login link, employment type, manager line, documents, onboarding checklist, and self-service profile.
+   - Compensation is edited as Pay history on the staff record; salary/tax/bank are visible only to Administrator, Director, General Manager, HR Manager, and Finance Manager.
+4. **Payroll Management**
+   - Pay types (hourly / salary / mixed), pay rates, Hours, configurable allowances and deductions.
    - Native Payroll: Prepare pay, Approve payroll, generate Payslips, Download payment files, post GL, Mark as paid.
    - Implementation decisions and target model: `ai/payroll-implementation.md`.
-4. **Maintenance Management**
+5. **Maintenance Management**
    - Asset registry, preventive schedules, work orders, cost tracking.
-5. **Expenses & Financial Management**
+6. **Expenses & Financial Management**
    - Expense capture (manual + scanned invoices), approvals, GL mapping.
    - **Mandatory document attachment**: All expenses must include supporting documents (invoices, receipts, payment confirmations) as evidence of payment.
    - Utility bill management with usage tracking and reminders.
    - **Document requirement**: Utility bills must have original bill documents and payment receipts attached for verification and compliance.
    - General inventory (linen, amenities, cleaning supplies, spare parts).
    - **Purchase documentation**: All inventory purchases require supplier invoices, delivery notes, and payment receipts to be uploaded and linked.
-6. **Reporting & Analytics**
+7. **Reporting & Analytics**
    - Daily flash reports, monthly statements, yearly trend analysis.
    - Custom report builder with filters by department, cost center, channel.
    - Real-time dashboards for cash flow, occupancy, ADR, labor cost %, food cost %, etc.
-7. **Platform Foundations**
+8. **Platform Foundations**
    - Role-based access control, audit logs, SOC2-ready security controls.
    - **User onboarding**: new users are created only via Clerk invitation. The admin selects a defined Role and Property; on accept, the system writes a `UserRole` row. Existing users cannot be re-invited — additional roles or properties are assigned on the user record.
    - Multi-channel accessibility: responsive web, optimized tablet/mobile web, future native apps.
@@ -83,7 +88,8 @@ Hospitality operators juggle siloed systems for reservations, POS, payroll, proc
 - Dynamic pricing engine (pull rates from external partners for now).
 - Country payroll packs that are not implemented at launch (those properties use generic/custom components only). Changing `Property.country` after approved/paid payroll is blocked.
 - Gratuity / tip pooling from POS or hours/points (manual gratuity on a pay line is in scope).
-- Multi-property shared employees (one person employed at several properties).
+- Multi-property shared employees (one person employed at several properties). Extra UserRoles on other properties are access-only, not a second Staff row.
+- GDPR anonymize/erase of staff with payroll history.
 - Hardware / biometric time clocks.
 - Direct payroll processor APIs (Gusto, ADP, Paychex) — bank/CSV export is the MVP path.
 
@@ -125,9 +131,24 @@ Hospitality operators juggle siloed systems for reservations, POS, payroll, proc
   - Documents must be linked to purchase orders for three-way matching (PO, invoice, receipt).
 - Upsell prompts (e.g., breakfast add-ons) at check-in/checkout + F&B dashboards for attach rates.
 
+### Staff Management
+
+- **People master** (`staffs` only): property-scoped employment records. Job title is the staff `role` enum; optional free-text `position`. Platform **UserRole** is login permission and is not synced from job title.
+- **User vs Staff**: a User is created only via Clerk invite. Linking a login requires an existing UserRole on that property. One Staff row per User globally; extra property logins are access-only. Casuals/contractors may have no login.
+- **Employment type** (required): `full-time` | `part-time` | `casual` | `contractor`.
+- **Employee number**: required, auto-generated per property (`{PREFIX}-{NNNN}`), immutable after create.
+- **Status**: `active` | `terminated`. On-leave is derived from approved Time off overlapping today, not a stored status.
+- **Terminate**: set status + date; hide from default lists; never hard-delete. Unlink `userId` so Attendance Tracker cannot start; the User and other UserRoles remain.
+- **Team**: `managerId` on Staff (same property, not self). Supervisors approve Hours and Time off for **direct reports** only.
+- **Pay setup**: opening Pay history on create; later rate changes write a new Pay history row (denormalized `payType` / `baseSalary` / `hourlyRate`). Bank fields required only when `paymentMethod = bank`. This person’s pay items (`staffPayItems`) are assigned on the staff record.
+- **HR files** (Staff-only, not the full DMS): contracts, ID copies, tax forms, bank letters, policies. Emergency contact and national ID on the profile.
+- **Onboarding checklist**: seeded on create (personal details, emergency contact, ID, contract, payment method, tax ID, login link, department shift).
+- **Self-service** (`/admin/staff/myProfile`): linked staff read own profile, Hours, Time off, Payslips; request Time off; propose contact/bank/emergency edits for HR approval. They cannot edit job, status, or pay.
+- **PII**: salary, tax ID, and bank details are returned only to Administrator, Director, General Manager, HR Manager, and Finance Manager (`staff.compensation.read` / `update`). Supervisors see identity and roster fields only.
+
 ### Payroll
 
-- Staff master (`staffs` table only — no separate `employees` table): property-scoped profiles; optional User login; `paymentMethod` (`bank` | `cash` | `mobile_money` | `check`); compensation **history**; soft delete only. Existing `/admin/staff` and `Id<"staffs">` FKs stay.
+- Staff master is defined under Staff Management. Payroll consumes `staffs`, Pay history, Hours, Time off, and Pay item types.
 - **Pay cycle**: payrolls are created from a cycle (period, cutoff, pay date). Hours and Time off approved after cutoff are excluded.
 - Time tracking: department shifts (default hours per department, inherited on onboard), Attendance Tracker Start/End shift (actual clock; login does not start work), Cover for a roster day, ad-hoc Shift create/Finalize, plus manual Hours and CSV. Ending or finalizing a shift creates **draft** Hours. Only **unlocked, approved** Hours are paid. Prepare pay **locks** included Hours. Cover never rewrites Hours.
 - **Time off**: Time-off types + Time off. Approved unpaid Time off prorates salary. Paid Time off counts as regular hours (not OT) unless the type allows OT.
@@ -229,9 +250,10 @@ Hospitality operators juggle siloed systems for reservations, POS, payroll, proc
 
 ## Data & ERD Considerations
 
-- Core entities: `Property` (includes required `country` for payroll jurisdiction), `User`, `Role`, `Room`, `Reservation`, `HousekeepingTask`, `FnbMenuItem`, `InventoryItem`, `Supplier`, `PurchaseOrder`, `Employee`, Department shift (`shiftTemplates`), Roster day (`rosterSlots`), Shift (`shifts`), Pay history, Pay cycle, Time-off type, Time off, Holidays, Extra pay rules, Hours, Payroll settings, Pay item type, Payroll, Staff pay, Pay item, Payslip, Payment file, `MaintenanceOrder`, `Asset`, `Expense`, `UtilityBill`, `JournalEntry`, `Report`. Schema table names stay `payHistory`, `payCycles`, `timeOffTypes`, `timeOff`, `holidayCalendars`, `extraPayRules`, `hours`, `payrollSettings`, `payItemTypes`, `payrolls`, `staffPay`, `payItems`, `payslips`, `paymentFiles`, plus live `shiftTemplates`, `rosterSlots`, `shifts`.
+- Core entities: `Property` (includes required `country` for payroll jurisdiction), `User`, `Role`, `staffs` (Employee; no `employees` table), `staffDocuments`, `staffOnboardingItems`, `staffChangeRequests`, `Room`, `Reservation`, `HousekeepingTask`, `FnbMenuItem`, `InventoryItem`, `Supplier`, `PurchaseOrder`, Department shift (`shiftTemplates`), Roster day (`rosterSlots`), Shift (`shifts`), Pay history, Pay cycle, Time-off type, Time off, Holidays, Extra pay rules, Hours, Payroll settings, Pay item type, Payroll, Staff pay, Pay item, Payslip, Payment file, `MaintenanceOrder`, `Asset`, `Expense`, `UtilityBill`, `JournalEntry`, `Report`. Schema table names stay `payHistory`, `payCycles`, `timeOffTypes`, `timeOff`, `holidayCalendars`, `extraPayRules`, `hours`, `payrollSettings`, `payItemTypes`, `payrolls`, `staffPay`, `payItems`, `payslips`, `paymentFiles`, plus live `shiftTemplates`, `rosterSlots`, `shifts`.
 - Relationships:
-  - `Property` 1:N `Room`, `Employee`, `InventoryItem`, `Asset`.
+  - `Property` 1:N `staffs`, `Room`, `InventoryItem`, `Asset`.
+  - User 1:1 Staff globally (optional). Staff `managerId` self-FK (direct reports).
   - `Reservation` links `Room`, `Guest`, and yields `JournalEntries`.
   - `HousekeepingTask` + `MaintenanceOrder` reference rooms/assets, produce expenses.
   - `FnbMenuItem` consumes `InventoryItems` via recipe lines.

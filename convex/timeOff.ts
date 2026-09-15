@@ -1,16 +1,21 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { requirePermission } from "./lib/rbac";
+import { assertCanApproveStaff, restrictToDirectReports } from "./lib/staffAccess";
 import { startOfUtcDay, workingDaysInclusive } from "./lib/payrollHelpers";
 
 export const listTimeOff = query({
   args: { propertyId: v.id("properties") },
   handler: async (ctx, args) => {
-    await requirePermission(ctx, "payroll.leave.read", args.propertyId);
-    const rows = await ctx.db
-      .query("timeOff")
-      .withIndex("by_propertyId", (q) => q.eq("propertyId", args.propertyId))
-      .collect();
+    const auth = await requirePermission(ctx, "payroll.leave.read", args.propertyId);
+    const rows = await restrictToDirectReports(
+      ctx,
+      auth,
+      await ctx.db
+        .query("timeOff")
+        .withIndex("by_propertyId", (q) => q.eq("propertyId", args.propertyId))
+        .collect(),
+    );
     const enriched = await Promise.all(
       rows.map(async (row) => {
         const staff = await ctx.db.get(row.employeeId);
@@ -67,6 +72,8 @@ export const approveTimeOff = mutation({
     const row = await ctx.db.get(args.timeOffId);
     if (!row) return { success: false, message: "Time off not found" };
     const auth = await requirePermission(ctx, "payroll.leave.approve", row.propertyId);
+    const teamError = await assertCanApproveStaff(ctx, auth, row.employeeId);
+    if (teamError) return { success: false, message: teamError };
     await ctx.db.patch(args.timeOffId, {
       status: "approved",
       approvedBy: auth.user._id,
@@ -83,6 +90,8 @@ export const rejectTimeOff = mutation({
     const row = await ctx.db.get(args.timeOffId);
     if (!row) return { success: false, message: "Time off not found" };
     const auth = await requirePermission(ctx, "payroll.leave.approve", row.propertyId);
+    const teamError = await assertCanApproveStaff(ctx, auth, row.employeeId);
+    if (teamError) return { success: false, message: teamError };
     await ctx.db.patch(args.timeOffId, {
       status: "rejected",
       approvedBy: auth.user._id,

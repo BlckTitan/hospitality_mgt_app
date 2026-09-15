@@ -124,10 +124,28 @@ Permission keys stay technical. Screens use Hours, Time off, Payroll, Payslip, P
 - payroll.payslip.read
 - payroll.settings.update
 
+- staff.read
+- staff.create
+- staff.update
+- staff.delete (terminate only; no hard delete)
+- staff.compensation.read
+- staff.compensation.update
+- staff.self.read (own linked Staff row; My profile)
+
+Salary, tax ID, and bank: Administrator, Director, General Manager, HR Manager, Finance Manager only (`staff.compensation.*`). Supervisors with `staff.read` / `staff.update` see identity and roster fields.
+
+| Screen | Path | Permission |
+|---|---|---|
+| Staff directory | `/admin/staff` | `staff.read` |
+| Staff create | `/admin/staff` (+) | `staff.create` |
+| Staff edit | `/admin/staff/edit` | `staff.update` |
+| Staff view | `/admin/staff/view` | `staff.read` |
+| My profile | `/admin/staff/myProfile` | `staff.self.read` (any linked User) |
+
 **Role mapping (see `ai/payroll-implementation.md`):**
 - HR Manager, Finance Manager, Administrator, Director, General Manager: full payroll. Approve mutation still requires a **different user** than creator/calculator (maker ≠ checker).
-- Supervisor / Assistant Manager: Hours (`payroll.timesheet.read` + `approve`) and Time off (`payroll.leave.read` + `approve`) for their team; Department shifts (`staff.read` / `staff.update`) and Cover (`staff.update`)
-- Employees with a User login linked to Staff: Attendance Tracker Start/End shift (`payroll.timesheet.create` or `fnb.read`), own Shift rows, own Hours / Time off create, own Payslip (`payroll.payslip.read`)
+- Supervisor / Assistant Manager: Hours (`payroll.timesheet.read` + `approve`) and Time off (`payroll.leave.read` + `approve`) for **direct reports** (`staffs.managerId`); Department shifts (`staff.read` / `staff.update`) and Cover (`staff.update`). No compensation fields.
+- Employees with a User login linked to Staff: My profile (`staff.self.read`), Attendance Tracker Start/End shift (`payroll.timesheet.create` or `fnb.read`), own Shift rows, own Hours / Time off create, own Payslip (`payroll.payslip.read`); contact/bank/emergency change requests for HR approval
 - F&B operational roles with `fnb.read` can open Attendance Tracker and own Shift rows; they still need a Staff link to start a shift
 - Other operational staff: none on runs or other employees' pay
 

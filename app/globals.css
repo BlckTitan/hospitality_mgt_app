@@ -138,9 +138,9 @@ body {
 main{
   @apply bg-[var(--secondary)];
 }
-footer{
+/* footer{
   @apply w-full h-10;
-}
+} */
 input:not([type="checkbox"]):not([type="radio"]), select{
   @apply w-full max-w-full min-w-0 h-10 p-2 border rounded-sm;
   field-sizing: fixed;

@@ -117,11 +117,14 @@ Required additions beyond today’s `staffs` row:
 - `department`: closed set — `front-office` | `housekeeping` | `fnb` | `maintenance` | `finance` | `admin` | `other`. Role maps to department on onboard (`Housekeeper`/`Laundry Attendant` → housekeeping, `Receptionist` → front-office, `Griller` → fnb, `Security` → other, `Manager`/`Assistant Manager`/`Supervisor` → admin).
 - `shiftTemplateId` (optional): default **Department shift**. Inherited on create and when department changes.
 - `position`
-- `employmentStatus`: `active` | `terminated` | `on-leave` (map current `employed` → `active`)
+- `employmentStatus`: `active` | `terminated` (map current `employed` → `active`; do not store `on-leave` — derive from approved Time off)
+- `employmentType`: full-time | part-time | casual | contractor
+- `managerId` (optional): same-property Staff; team = direct reports
+- `role` remains the job-title enum; `position` is optional free text; UserRole is login-only
 - Structured bank: `bankName`, `accountName`, `accountNumber` (encrypted), `routingCode`
 - `taxId` (employee tax identifier; required when the country pack has statutory deductions)
 - Keep existing locale fields (`stateOfOrigin`, `LGA`) as optional
-- Soft delete: never hard-delete if Hours or Staff pay exist
+- Terminate only: never hard-delete
 
 `payType` rules:
 
@@ -359,7 +362,7 @@ Widen-migrate-narrow **`staffs` only**. Do not add an `employees` table. Payroll
 2. Add new fields on `staffs` as **optional**; backfill `propertyId` (single-property default if needed).
 3. Keep `employed` in the status union until rows are mapped to `active`; then drop `employed`.
 4. Map `salary` → `baseSalary`; set `payType = salary` unless an hourly rate is later entered. Keep `salary` optional until backfill.
-5. Stop `removeStaff` hard deletes; set `terminated` + `terminationDate`.
+5. Stop `removeStaff` hard deletes; terminate (`active` + `dateTerminated`) and unlink `userId`.
 6. Keep `/admin/staff` and `api.staff.*`. New payroll modules query `staffs`.
 7. Index `(propertyId, employeeNumber)` and `(propertyId, employmentStatus)`.
 
@@ -383,6 +386,9 @@ UI pages: see [pageSetup.md](./pageSetup.md) Staff, Shift Management, and Payrol
 
 New granular permissions (see [RBAC.md](./RBAC.md)):
 
+- `staff.read` / `create` / `update` / `delete` (delete = terminate)
+- `staff.compensation.read` / `update` (Administrator, Director, GM, HR Manager, Finance Manager)
+- `staff.self.read` (linked User; My profile)
 - `payroll.employee.read` / `create` / `update`
 - `payroll.timesheet.read` / `create` / `update` / `approve`
 - `payroll.leave.read` / `create` / `approve`
@@ -392,4 +398,4 @@ New granular permissions (see [RBAC.md](./RBAC.md)):
 
 `payroll.run.approve` must be enforced as maker ≠ checker in the mutation, not only in the UI.
 
-HR Manager and Finance Manager: full payroll (two different users still required to Start payroll / Prepare pay vs Approve payroll). Supervisors: own-team Hours and Time off approve; staff.update for Cover and Department shifts. Employees with login linked to Staff: Attendance Tracker Start/End shift, own Shift rows, own Hours / Time off create, own Payslip read. Operational staff without a staff link cannot start a shift.
+HR Manager and Finance Manager: full payroll (two different users still required to Start payroll / Prepare pay vs Approve payroll). Supervisors: Hours and Time off approve for **direct reports** (`managerId`); staff.update for Cover and Department shifts; no compensation fields. Employees with login linked to Staff: My profile, Attendance Tracker Start/End shift, own Shift rows, own Hours / Time off create, own Payslip read. Operational staff without a staff link cannot start a shift.

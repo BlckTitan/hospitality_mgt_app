@@ -597,7 +597,10 @@ export const PERMISSION_GROUPS = [
       { key: "staff.read", label: "View Staff" },
       { key: "staff.create", label: "Create Staff" },
       { key: "staff.update", label: "Update Staff" },
-      { key: "staff.delete", label: "Delete Staff" },
+      { key: "staff.delete", label: "Terminate Staff" },
+      { key: "staff.compensation.read", label: "View staff pay and bank details" },
+      { key: "staff.compensation.update", label: "Update staff pay and bank details" },
+      { key: "staff.self.read", label: "View own staff profile" },
     ],
   },
   {

@@ -17,6 +17,7 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermission> = {
 
   // Staff Management
   '/admin/staff': { granular: 'staff.read' },
+  '/admin/staff/myProfile': { granular: 'staff.self.read' },
 
   // Bar Management (Food & Beverage)
   '/admin/bar-management': { granular: 'fnb.read' },

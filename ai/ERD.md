@@ -479,32 +479,57 @@ The people record used for payroll, housekeeping, POs, and inventory. **There is
 
 **Attributes:**
 - `employeeId` (PK): `staffs._id`
-- `propertyId` (FK): Reference to Property
-- `userId` (FK): Reference to User (optional; casuals/contractors may have no login)
-- `employeeNumber`: Unique per property
-- `firstName`: First name
-- `lastName`: Last name
-- `email`: Email address (optional)
-- `phone`: Phone number
-- `dateOfBirth`: Date of birth
-- `address`: Physical address
-- `stateOfOrigin`: Optional locale field
-- `LGA`: Optional locale field
-- `hireDate`: Hire date
-- `terminationDate`: Termination date (optional)
-- `employmentStatus`: Status (active, terminated, on-leave)
+- `propertyId` (FK): Reference to Property (required after backfill)
+- `userId` (FK): Reference to User (optional, unique globally; casuals/contractors may have no login)
+- `employeeNumber`: Unique per property; auto-generated `{PREFIX}-{NNNN}`; immutable after create
+- `firstName`, `lastName`
+- `email`: Optional; unique per property when set
+- `phone`
+- `dateOfBirth`: Stored as `DoB` (ISO string) in Convex
+- `address`
+- `stateOfOrigin`, `LGA`: Optional locale fields
+- `hireDate`: Stored as `dateRecruited` in Convex
+- `terminationDate`: Stored as `dateTerminated` (optional)
+- `employmentStatus`: `active` | `terminated` (legacy `employed` / `on-leave` remain in the schema union until backfill; writers use only active/terminated). On-leave is derived from approved Time off.
+- `employmentType`: full-time | part-time | casual | contractor
 - `department`: Closed set (front-office, housekeeping, fnb, maintenance, finance, admin, other)
+- `role`: Job-title enum (Housekeeper, Receptionist, …). Not a UserRole.
+- `position`: Optional free-text job title
+- `managerId` (FK, optional): Another `staffs` row at the same property (not self). Direct reports = team.
 - `shiftTemplateId` (FK, optional): Default **Department shift** inherited on onboard (or when department changes)
-- `position`: Job title/position
-- `payType`, `baseSalary`, `hourlyRate`: Current denormalized copy of the open `Pay history` row
+- `payType`, `baseSalary`, `hourlyRate`: Current denormalized copy of the open `Pay history` row. Legacy `salary` is a deprecated copy of `baseSalary`.
 - `payCycleId` (FK, optional): Default `Pay cycle` (else property default)
 - `paymentMethod`: bank | cash | mobile_money | check (bank fields required only for bank)
 - `taxId`: Employee tax identifier (required when the property country pack has statutory deductions)
 - `bankName`, `accountName`, `accountNumber` (encrypted), `routingCode`: Structured payout fields
+- `nationalId`, `idType`: nin | passport | drivers_license | other
+- `emergencyName`, `emergencyPhone`, `emergencyRelationship`
+- `contractStartDate`, `contractEndDate`, `probationEndDate`
 - `createdAt`: Timestamp of creation
 - `updatedAt`: Timestamp of last update
 
-**Purpose**: Manages employee information for payroll, scheduling, and task assignment. Soft-delete / terminate only — never hard-delete if Hours or Staff pay exist.
+**Purpose**: Manages employee information for HR, payroll, scheduling, and task assignment. **Terminate only** — never hard-delete. Extra UserRoles on other properties are access-only (one Staff per User globally).
+
+---
+
+#### Staff document
+Schema table: `staffDocuments`. Staff-only files until the full Document Management System exists.
+
+**Attributes:** `staffDocumentId` (PK), `propertyId`, `employeeId`, `kind` (contract | id | tax_form | bank_letter | policy | other), `storageId`, `fileName`, `mimeType`, `fileSize`, `uploadedBy` (User), `createdAt`
+
+---
+
+#### Staff onboarding item
+Schema table: `staffOnboardingItems`. Seeded on create from a fixed checklist.
+
+**Attributes:** `staffOnboardingItemId` (PK), `propertyId`, `employeeId`, `code`, `label`, `required`, `completedAt`, `completedBy` (User, optional), `skipped`, `createdAt`, `updatedAt`
+
+---
+
+#### Staff change request
+Schema table: `staffChangeRequests`. Self-service proposals for HR approval.
+
+**Attributes:** `staffChangeRequestId` (PK), `propertyId`, `employeeId`, `kind` (contact | bank | emergency), `payload` (JSON), `status` (pending | approved | rejected), `requestedBy` (User), `reviewedBy` (User, optional), `reviewedAt`, `notes`, `createdAt`, `updatedAt`
 
 ---
 
@@ -1476,7 +1501,7 @@ Represents uploaded documents (invoices, receipts, contracts, etc.) that serve a
 - `uploadedBy` (FK): Reference to Employee
 - `uploadedAt`: Upload timestamp
 - `description`: Document description/notes
-- `referenceType`: Reference entity type (Expense, UtilityBill, PurchaseOrder, Payment, MaintenanceOrder, Payroll, Payslip, PaymentFile, etc.)
+- `referenceType`: Reference entity type (Expense, UtilityBill, PurchaseOrder, Payment, MaintenanceOrder, Payroll, Payslip, PaymentFile, Staff / Employee, etc.)
 - `referenceId`: Reference entity ID
 - `documentDate`: Document date (from the document itself, e.g., invoice date)
 - `amount`: Amount shown on document (for invoices/receipts)
@@ -1710,8 +1735,14 @@ Tracks all system actions for compliance and security auditing.
 - **Relationship**: A Property has many Employees.
 - **Explanation**: All employees are scoped to a single property in this phase (no shared multi-property employment).
 
-#### User → Employee (One-to-One, Optional)
-- **Relationship**: An Employee may link to a User for login. Casuals/contractors can be paid without a User.
+#### User ↔ Employee (One-to-One, Optional)
+- **Relationship**: An Employee may link to a User for login. Casuals/contractors can be paid without a User. `userId` is unique globally — one Staff row per User. Extra UserRoles on other properties are access-only, not paid employment.
+
+#### Employee → Employee (manager, Optional)
+- **Relationship**: `managerId` points at another Staff row at the same property. Hours and Time off “own team” = direct reports.
+
+#### Employee → Staff document / Onboarding item / Change request (One-to-Many)
+- **Relationship**: HR files, checklist, and self-service edit proposals are scoped to the staff row and property.
 
 #### Property → Payroll settings (One-to-One)
 - **Relationship**: Each property has one overtime/export settings row, created when `country` is set at setup and seeded from that country’s jurisdiction pack.
@@ -2098,7 +2129,7 @@ Tracks all system actions for compliance and security auditing.
 
 1. **Indexing Strategy**: Create indexes on foreign keys, date fields, and frequently queried fields (status, propertyId, etc.) for performance optimization.
 
-2. **Soft Deletes**: Use soft deletes / terminate for Employee (and isActive flags elsewhere). Never hard-delete employees with Hours or Staff pay.
+2. **Soft Deletes**: Terminate Employee (`employmentStatus = terminated`). Never hard-delete staff.
 
 3. **Data Encryption**: Sensitive fields (`accountNumber`, tax IDs, API keys) should be encrypted at rest. Do not store a single opaque `bankAccount` string — use structured bank fields.
 

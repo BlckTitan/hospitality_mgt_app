@@ -91,6 +91,30 @@ export default defineSchema({
     employeeNumber: v.optional(v.string()),
     department: v.optional(v.string()),
     position: v.optional(v.string()),
+    employmentType: v.optional(
+      v.union(
+        v.literal("full-time"),
+        v.literal("part-time"),
+        v.literal("casual"),
+        v.literal("contractor")
+      )
+    ),
+    managerId: v.optional(v.id("staffs")),
+    nationalId: v.optional(v.string()),
+    idType: v.optional(
+      v.union(
+        v.literal("nin"),
+        v.literal("passport"),
+        v.literal("drivers_license"),
+        v.literal("other")
+      )
+    ),
+    emergencyName: v.optional(v.string()),
+    emergencyPhone: v.optional(v.string()),
+    emergencyRelationship: v.optional(v.string()),
+    contractStartDate: v.optional(v.string()),
+    contractEndDate: v.optional(v.string()),
+    probationEndDate: v.optional(v.string()),
     payType: v.optional(v.union(v.literal("hourly"), v.literal("salary"), v.literal("mixed"))),
     baseSalary: v.optional(v.number()),
     hourlyRate: v.optional(v.number()),
@@ -114,12 +138,67 @@ export default defineSchema({
   })
     .index("email", ["email"])
     .index("by_propertyId", ["propertyId"])
+    .index("by_propertyId_employeeNumber", ["propertyId", "employeeNumber"])
+    .index("by_propertyId_employmentStatus", ["propertyId", "employmentStatus"])
     .index("by_userId", ["userId"])
+    .index("by_managerId", ["managerId"])
     .index("by_shiftTemplateId", ["shiftTemplateId"])
     .searchIndex('search_staff', {
       searchField: 'searchName',
       filterFields: ['employmentStatus', 'role']
     }),
+
+  staffDocuments: defineTable({
+    propertyId: v.id("properties"),
+    employeeId: v.id("staffs"),
+    kind: v.union(
+      v.literal("contract"),
+      v.literal("id"),
+      v.literal("tax_form"),
+      v.literal("bank_letter"),
+      v.literal("policy"),
+      v.literal("other")
+    ),
+    storageId: v.id("_storage"),
+    fileName: v.string(),
+    mimeType: v.optional(v.string()),
+    fileSize: v.optional(v.number()),
+    uploadedBy: v.id("users"),
+    createdAt: v.number(),
+  })
+    .index("by_employeeId", ["employeeId"])
+    .index("by_propertyId", ["propertyId"]),
+
+  staffOnboardingItems: defineTable({
+    propertyId: v.id("properties"),
+    employeeId: v.id("staffs"),
+    code: v.string(),
+    label: v.string(),
+    required: v.boolean(),
+    completedAt: v.optional(v.number()),
+    completedBy: v.optional(v.id("users")),
+    skipped: v.optional(v.boolean()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_employeeId", ["employeeId"])
+    .index("by_employeeId_code", ["employeeId", "code"]),
+
+  staffChangeRequests: defineTable({
+    propertyId: v.id("properties"),
+    employeeId: v.id("staffs"),
+    kind: v.union(v.literal("contact"), v.literal("bank"), v.literal("emergency")),
+    payload: v.any(),
+    status: v.union(v.literal("pending"), v.literal("approved"), v.literal("rejected")),
+    requestedBy: v.id("users"),
+    reviewedBy: v.optional(v.id("users")),
+    reviewedAt: v.optional(v.number()),
+    notes: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_employeeId", ["employeeId"])
+    .index("by_propertyId_status", ["propertyId", "status"]),
 
   // Properties table for multiple hospitality locations
   properties: defineTable({

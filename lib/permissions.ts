@@ -371,5 +371,8 @@ export const GRANULAR_PERMISSIONS = {
     'payroll.run.mark_paid': 'payroll.approve',
     'payroll.payslip.read': 'payroll.read',
     'payroll.settings.update': 'payroll.settings'
+  },
+  staff: {
+    'staff.self.read': 'staff.read',
   }
 } as const;

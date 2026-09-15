@@ -651,52 +651,50 @@ This document outlines which entities should have dedicated pages and the data f
 
 ## Staff, Shift Management, and Payroll Pages
 
-Sidebar: **Staff**; **Shift Management** → Department shifts, Attendance Tracker, Cover, Shift, Hours; **Payroll** → Payroll, Time off, Payroll settings.
+Sidebar: **Staff** (`staff.read`); **My profile** (`/admin/staff/myProfile`, linked login); **Shift Management** → Department shifts, Attendance Tracker, Cover, Shift, Hours; **Payroll** → Payroll, Time off, Payroll settings.
 
 ### 33. Staff Page (`/admin/staff`)
 **Purpose**: Manage staff records (Convex table `staffs`; no `employees` table)
 
 **Data Fetching:**
-- Fetch all `staffs` records for current property (with pagination)
-- Include joined `User` data (if linked)
-- Include employment status, department, and assigned Department shift (`shiftTemplateName`)
-- Filter by: `employmentStatus`, `department`, `position`, `payType`, name
-- Sort by: lastName, firstName, `hireDate`
-- Create (`+`) and edit (`/admin/staff/edit?staff_id=`) set **department**. On create and department change, the backend assigns the department’s default **Department shift** (`staffs.shiftTemplateId`). Link a User login before the person can use Attendance Tracker.
+- Fetch `staffs` for current property (pagination). Default `employmentStatus = active`; toggle to include terminated.
+- Include joined `User` (if linked), department, employment type, employee number, manager name, assigned Department shift, pending change-request count
+- Filter by: `employmentStatus`, `department`, `employmentType`, name
+- Sort by: lastName, firstName, `dateRecruited`
+- Create (`+`) and edit (`/admin/staff/edit?staff_id=`). On create and department change, assign the department’s default **Department shift**. Auto-generate `employeeNumber`. Link a User login before Attendance Tracker.
+- Terminate replaces delete. Compensation columns only when `staff.compensation.read`.
 
 **Related Entities to Include:**
-- `User` (joined, optional, where `userId` matches)
-- This person’s pay items with Pay item type (optional summary; `staffPayItems`, `payItemTypes`)
+- `User` (joined, optional)
+- This person’s pay items (`staffPayItems`, `payItemTypes`) — compensation permission
 - Department shift (`shiftTemplates`, via `shiftTemplateId`)
+- Pending `staffChangeRequests`
 
-**Rendering Strategy: SSR**
-- **Reason**: Contains sensitive employee data (PII), employment status changes, requires authentication and data privacy compliance, HR-sensitive information
+**Rendering Strategy: SSR** — `staff.read`
 
 ---
 
-### 34. Staff Detail Page (`/admin/staff/view` or `/admin/staff/[staffId]`)
+### 34. Staff Detail Page (`/admin/staff/view?staff_id=`)
 **Purpose**: View staff profile and history (`staffs._id`)
 
 **Data Fetching:**
-- Fetch single `staffs` row by id
-- Fetch joined `User` and `Property` data
-- Fetch recent Hours (`hours`, last 10)
-- Fetch Pay history (`payHistory`)
-- Fetch recent Time off (`timeOff`)
-- Fetch recent Staff pay (`staffPay`, last 5 payrolls)
-- Show payment method, current compensation, assigned Department shift, and assignments
+- Fetch single `staffs` row; strip pay/tax/bank unless `staff.compensation.read`
+- On-leave badge if approved Time off overlaps today
+- Recent Hours (last 10), Pay history, Time off, Staff pay (last 5), documents, onboarding checklist, this person’s pay items, pending change requests
 
 **Related Entities to Include:**
-- `User` (joined, optional, where `userId` matches)
-- `Property` (joined)
-- Department shift (`shiftTemplates`, via `shiftTemplateId`; show `shiftTemplateName`)
-- Hours (`hours` where `employeeId` matches, ordered by `workDate` DESC, limit 10)
-- Pay history (`payHistory` where `employeeId` matches, ordered by `effectiveFrom` DESC)
-- Time off with Time-off type (`timeOff`, `timeOffTypes`)
-- Staff pay with Payroll (`staffPay` where `employeeId` matches, ordered by `payrollId` DESC, limit 5)
+- `User`, `Property`, Department shift, Hours, Pay history, Time off, Staff pay, `staffDocuments`, `staffOnboardingItems`, `staffChangeRequests`, `staffPayItems`
 
-**Rendering Strategy: SSR**
-- **Reason**: Contains highly sensitive PII and payroll data, Hours and payroll history updates, requires strict authentication and authorization, GDPR/HIPAA compliance critical
+**Rendering Strategy: SSR** — `staff.read`
+
+---
+
+### 34z. My profile (`/admin/staff/myProfile`)
+**Purpose**: Self-service for a User linked to Staff.
+
+**Data Fetching:** Resolve `staffs` by current `userId`. Own identity (read-only), emergency/contact, masked bank, onboarding, recent Hours, Time off, Payslips. Submit contact/bank/emergency change requests. Request Time off via `payroll.leave.create`.
+
+**Rendering Strategy: SSR** — `staff.self.read` (linked login; not `staff.read`)
 
 ---
 

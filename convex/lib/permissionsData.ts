@@ -215,4 +215,7 @@ export const GRANULAR_PERMISSIONS: Record<string, Record<string, string>> = {
     "payroll.payslip.read": "payroll.read",
     "payroll.settings.update": "payroll.settings",
   },
+  staff: {
+    "staff.self.read": "staff.read",
+  },
 };

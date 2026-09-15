@@ -2,18 +2,19 @@
 
 import { BackLink } from '../../../shared/pageHeader';
 import React, { useState } from 'react'
-import { Button, Modal } from 'react-bootstrap'
+import { Button } from 'react-bootstrap'
 import { FcPlus} from "react-icons/fc";
 import BootstrapModal from '../../../shared/modal'
 import Staff from './components/staffs'
 import 'react-datepicker/dist/react-datepicker.css';
 import { FormComponent } from './components/createEmployeeForm';
+import { usePermissions } from '../../../hooks/usePermissions';
 
  export default function Page() {
   
   const [modalShow, setModalShow] = useState(false);
-
-  console.log('staff page modalShow '+modalShow);
+  const { hasGranularPermission } = usePermissions();
+  const canCreate = hasGranularPermission('staff.create');
 
   return (
     <div className='w-full p-4 bg-white'>
@@ -21,6 +22,7 @@ import { FormComponent } from './components/createEmployeeForm';
         <h3>Staffs</h3>
         <div className="flex items-center gap-3">
           <BackLink />
+        {canCreate && (
         <Button 
           variant='light' 
           className='cursor-pointer' 
@@ -29,6 +31,7 @@ import { FormComponent } from './components/createEmployeeForm';
         >
           <FcPlus className='w-8 h-8'/>
         </Button>
+        )}
       
         </div>
       </header>
