@@ -2,6 +2,7 @@ import { mutation, query, MutationCtx, QueryCtx } from './_generated/server';
 import { v } from 'convex/values';
 import { Doc, Id } from './_generated/dataModel';
 import { requireAuthenticated, requirePermission } from './lib/rbac';
+import { unassignStaffFromOpenWork } from './lib/taskAssignment';
 import {
   assignDefaultShiftTemplate,
   departmentFromRole,
@@ -173,6 +174,7 @@ async function terminateStaffRecord(ctx: MutationCtx, staffId: Id<'staffs'>) {
     return { success: false, message: 'Staff does not exist' };
   }
   await requirePermission(ctx, 'staff.delete');
+  await unassignStaffFromOpenWork(ctx, staffId);
   await ctx.db.patch(existingStaff._id, {
     employmentStatus: 'terminated' as const,
     dateTerminated: new Date().toISOString(),

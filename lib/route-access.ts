@@ -8,6 +8,8 @@ export const SECTION_HUBS = [
   '/admin/room-management',
   '/admin/shift-management',
   '/admin/payroll-management',
+  '/admin/maintenance',
+  '/admin/tasks',
 ] as const;
 
 export function isSectionHub(pathname: string): boolean {

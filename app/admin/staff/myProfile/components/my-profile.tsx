@@ -47,6 +47,11 @@ export default function MyProfileComponent() {
 
   return (
     <div className='w-full h-full'>
+      <section className='py-2'>
+        <h5>Onboarding</h5>
+        <OnboardingStepper compact items={detail.onboarding} />
+      </section>
+
       <section>
         <h4>{detail.lastName} {detail.firstName}</h4>
         <p className='text-sm text-slate-600'>
@@ -67,11 +72,6 @@ export default function MyProfileComponent() {
         <Button variant='dark' size='sm' onClick={() => setModal('emergency')}>Emergency contact change</Button>
         <Button variant='dark' size='sm' onClick={() => setModal('bank')}>Bank details change</Button>
         <Button variant='dark' size='sm' onClick={() => setModal('timeOff')}>Request time off</Button>
-      </section>
-
-      <section className='py-2'>
-        <h5>Onboarding</h5>
-        <OnboardingStepper compact items={detail.onboarding} />
       </section>
 
       <div className='flex flex-col lg:flex-row gap-4 items-start'>

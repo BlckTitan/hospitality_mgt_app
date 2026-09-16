@@ -138,7 +138,7 @@ Represents individual physical rooms within a property.
 - `createdAt`: Timestamp of creation
 - `updatedAt`: Timestamp of last update
 
-**Purpose**: Tracks individual room inventory, status, and maintenance needs.
+**Purpose**: Tracks individual room inventory, status, and maintenance needs. Status is `available | occupied | out-of-order | maintenance`. Room readiness is inferred from open `HousekeepingTask` rows, not extra status values.
 
 ---
 
@@ -212,27 +212,95 @@ Defines pricing plans and promotional rates.
 ---
 
 #### HousekeepingTask
-Represents housekeeping assignments and task tracking.
+Represents housekeeping work and room-readiness tracking. Assignees live on `taskAssignments`, not on this row.
 
 **Attributes:**
 - `taskId` (PK): Unique identifier
 - `propertyId` (FK): Reference to Property
 - `roomId` (FK): Reference to Room
-- `assignedTo` (FK): Reference to Employee
 - `taskType`: Type (checkout, stayover, deep-clean, inspection)
 - `status`: Status (pending, in-progress, completed, skipped)
-- `priority`: Priority level
-- `scheduledAt`: Scheduled start time
-- `startedAt`: Actual start time
-- `completedAt`: Actual completion time
-- `estimatedDuration`: Estimated duration in minutes
-- `actualDuration`: Actual duration in minutes
-- `notes`: Task notes
-- `checklist`: JSON array of checklist items
+- `priority`: Priority level (low, medium, high, urgent)
+- `source`: Origin (manual, reservation_checkout, reservation_stayover)
+- `reservationId` (FK, optional): Reservation that triggered auto-create
+- `templateId` (FK, optional): Task template used at create
+- `createdBy` (FK, optional): User who created the task (null on auto-create)
+- `dueAt`: SLA deadline snapshot (`taskSlaDefaults.dueMinutes` from trigger/create)
+- `scheduledAt`: Scheduled start time (optional)
+- `startedAt`: Actual start time (optional)
+- `completedAt`: Actual completion time (optional)
+- `estimatedDuration`: Estimated duration in minutes (productivity-only; does not post Hours)
+- `actualDuration`: Actual duration in minutes (from startedAt on complete)
+- `notes`: Task notes (required reason on skip)
+- `checklist`: Snapshot of template steps `{ id, label, isComplete }[]`
 - `createdAt`: Timestamp of creation
 - `updatedAt`: Timestamp of last update
 
-**Purpose**: Tracks housekeeping operations, productivity, and room readiness for revenue optimization.
+**Uniqueness**: at most one **open** checkout task per room; at most one **open** stayover per room per calendar day.
+
+**Purpose**: Tracks housekeeping operations, productivity, and room readiness. Room status is not `dirty`/`cleaning`; front desk infers unreadiness from open housekeeping tasks. Completing a checkout-clean task sets `Room.lastCleanedAt`.
+
+---
+
+#### TaskTemplate
+Reusable checklist for housekeeping, maintenance, or inventory work. Schema table: `taskTemplates`.
+
+**Attributes:**
+- `taskTemplateId` (PK)
+- `propertyId` (FK)
+- `module`: housekeeping | maintenance | inventory
+- `typeKey`: Matches work type (checkout, stayover, deep-clean, inspection, preventive, corrective, emergency, restock, putaway, …)
+- `roomTypeId` (FK, optional): Housekeeping templates may be room-type specific
+- `steps`: Ordered `{ id, label }[]`
+- `isActive`: Active flag
+- `createdAt`, `updatedAt`
+
+**Purpose**: At work-record create, copy `steps` onto `checklist` as `{ id, label, isComplete }[]`. Later template edits do not rewrite existing checklists. Putaway may seed from PO lines instead of (or in addition to) a template.
+
+---
+
+#### TaskSlaDefault
+Property-level SLA minutes by module and type. Schema table: `taskSlaDefaults`.
+
+**Attributes:**
+- `taskSlaDefaultId` (PK)
+- `propertyId` (FK)
+- `module`: housekeeping | maintenance | inventory
+- `typeKey`: Same keys as templates
+- `dueMinutes`: Minutes from trigger/create to `dueAt`
+- `createdAt`, `updatedAt`
+
+**Uniqueness**: `(propertyId, module, typeKey)`.
+
+**Seeded defaults**: checkout 45, stayover 180, emergency 120, restock 480, putaway 120, preventive 1440.
+
+**Purpose**: `dueAt` is stored on the work record at create (snapshot). Editing defaults does not rewrite open work. G3 uses `completedAt <= dueAt` on completed work; skipped/cancelled excluded.
+
+---
+
+#### TaskAssignment
+Lead and helpers for one work record. Schema table: `taskAssignments`. Replaces `HousekeepingTask.assignedTo`.
+
+**Attributes:**
+- `taskAssignmentId` (PK)
+- `propertyId` (FK)
+- `housekeepingTaskId` (FK, optional)
+- `maintenanceOrderId` (FK, optional)
+- `inventoryTaskId` (FK, optional)
+- `staffId` (FK): Employee
+- `role`: lead | helper
+- `assignedAt`
+- `assignedBy` (FK): User who assigned (auto-create uses system actor / triggering user when present)
+- `createdAt`
+
+**Constraints:**
+- Exactly one parent FK set (xor).
+- One row per `(parent, staffId)`.
+- At most one `lead` per parent.
+- Assignee must be `active` and same `propertyId`.
+- On terminate: delete that staff’s assignment rows; if they were lead, work stays `pending` with no lead.
+
+**Purpose**: Shared assignment for all three modules. Any assignee may start; only the lead or a supervisor may complete.
 
 ---
 
@@ -394,7 +462,7 @@ Tracks all inventory movements (additions, removals, adjustments).
 - `quantity`: Quantity change (positive for additions, negative for removals)
 - `unitCost`: Unit cost at time of transaction
 - `totalCost`: Total cost (quantity × unitCost)
-- `referenceType`: Reference entity type (PurchaseOrder, OrderLine, HousekeepingTask, etc.)
+- `referenceType`: Reference entity type (PurchaseOrder, OrderLine, HousekeepingTask, InventoryTask, etc.)
 - `referenceId`: Reference entity ID
 - `reason`: Reason/notes
 - `performedBy` (FK): Reference to Employee
@@ -470,6 +538,33 @@ Represents individual items in a purchase order.
 
 ---
 
+#### InventoryTask
+Assignable restock or putaway work. Schema table: `inventoryTasks`. Not a cycle count. Purchase orders stay procurement (`createdBy` / `approvedBy` only).
+
+**Attributes:**
+- `inventoryTaskId` (PK)
+- `propertyId` (FK)
+- `taskType`: restock | putaway
+- `inventoryItemId` (FK): Item to restock (restock) or primary item context
+- `suggestedQuantity`: Suggested qty (`reorderQuantity` on restock)
+- `source`: reorder_point | purchase_order_received | manual
+- `purchaseOrderId` (FK, optional): Required for putaway
+- `templateId` (FK, optional)
+- `createdBy` (FK, optional)
+- `status`: pending | in-progress | completed | cancelled
+- `priority`: low | medium | high | urgent
+- `dueAt`: SLA snapshot
+- `startedAt`, `completedAt` (optional)
+- `notes`: Required reason on cancel
+- `checklist`: Snapshot `{ id, label, isComplete }[]` (putaway may seed from PO lines: item + qty)
+- `createdAt`, `updatedAt`
+
+**Uniqueness**: at most one **open restock** per `inventoryItemId`; at most one **open putaway** per received PO.
+
+**Purpose**: Operational restock/putaway. Completing restock does not create a PO. Completing putaway does not change PO status beyond `received`. Bar `reorderAlerts` are out of scope.
+
+---
+
 ### Payroll Management Entities
 
 Implementation rules, lifecycle, GL template, and `staffs` migration: `ai/payroll-implementation.md`.
@@ -508,7 +603,7 @@ The people record used for payroll, housekeeping, POs, and inventory. **There is
 - `createdAt`: Timestamp of creation
 - `updatedAt`: Timestamp of last update
 
-**Purpose**: Manages employee information for HR, payroll, scheduling, and task assignment. **Terminate only** — never hard-delete. Extra UserRoles on other properties are access-only (one Staff per User globally).
+**Purpose**: Manages employee information for HR, payroll, scheduling, and task assignment (`taskAssignments`). **Terminate only** — never hard-delete. Extra UserRoles on other properties are access-only (one Staff per User globally). On terminate, unassign open `taskAssignments`.
 
 ---
 
@@ -918,31 +1013,38 @@ Represents physical assets (equipment, furniture, fixtures) requiring maintenanc
 ---
 
 #### MaintenanceOrder
-Represents maintenance work orders/requests.
+Represents maintenance work orders/requests. Staff lead/helpers live on `taskAssignments`. Optional vendor is `supplierId`.
 
 **Attributes:**
 - `maintenanceOrderId` (PK): Unique identifier
 - `propertyId` (FK): Reference to Property
-- `assetId` (FK): Reference to Asset
-- `roomId` (FK): Reference to Room (optional)
-- `requestedBy` (FK): Reference to Employee
-- `assignedTo` (FK): Reference to Employee (maintenance staff)
+- `assetId` (FK, optional): Reference to Asset (room-only work allowed)
+- `roomId` (FK, optional): Reference to Room
+- `supplierId` (FK, optional): Vendor in addition to the staff lead/helpers
+- `requestedBy` (FK, optional): Employee who requested
+- `createdBy` (FK, optional): User who created (null on auto-create)
+- `templateId` (FK, optional)
 - `orderType`: Type (preventive, corrective, emergency, inspection)
+- `source`: Origin (manual, preventive_schedule)
 - `priority`: Priority level (low, medium, high, urgent)
 - `title`: Order title
 - `description`: Detailed description
-- `status`: Status (open, assigned, in-progress, completed, cancelled)
-- `scheduledDate`: Scheduled date
-- `startedAt`: Start timestamp
-- `completedAt`: Completion timestamp
+- `status`: Status (pending, in-progress, completed, cancelled)
+- `scheduledDate`: Scheduled date (optional)
+- `dueAt`: SLA deadline snapshot (replaces `slaDeadline`)
+- `startedAt`: Start timestamp (optional)
+- `completedAt`: Completion timestamp (optional)
 - `estimatedCost`: Estimated cost
 - `actualCost`: Actual cost
-- `slaDeadline`: SLA deadline timestamp
 - `resolutionNotes`: Resolution notes
+- `checklist`: Snapshot of template steps `{ id, label, isComplete }[]`
+- `notes`: Required reason on cancel
 - `createdAt`: Timestamp of creation
 - `updatedAt`: Timestamp of last update
 
-**Purpose**: Manages maintenance workflows, tracks costs, and ensures asset reliability. **Document Requirement**: Maintenance work orders should include vendor invoices, work completion certificates, warranty documents, and payment receipts linked via the Document entity for cost verification and warranty tracking.
+**Uniqueness**: at most one **open** preventive order per asset. Completing preventive updates `Asset.lastMaintenanceDate` / `nextMaintenanceDate`.
+
+**Purpose**: Manages maintenance workflows, tracks costs, and ensures asset reliability. The staff lead owns in-app completion even when a vendor is named. **Document Requirement**: Maintenance work orders should include vendor invoices, work completion certificates, warranty documents, and payment receipts linked via the Document entity for cost verification and warranty tracking.
 
 ---
 
@@ -1577,7 +1679,7 @@ Tracks all system actions for compliance and security auditing.
 
 #### User ↔ Employee (One-to-One, Optional)
 - **Relationship**: A User can optionally be linked to a `staffs` row (the Employee entity).
-- **Explanation**: Not all users are staff (e.g., external auditors). When linked, `staffs.userId` connects login to payroll and task assignment. There is no separate `employees` table.
+- **Explanation**: When linked, `staffs.userId` connects login to payroll and task assignment (`taskAssignments` via the staff row). There is no separate `employees` table.
 
 ---
 
@@ -1617,15 +1719,39 @@ Tracks all system actions for compliance and security auditing.
 
 #### Room → HousekeepingTask (One-to-Many)
 - **Relationship**: A Room can have many HousekeepingTasks.
-- **Explanation**: Tracks all housekeeping activities for each room (checkout cleaning, stayover service, deep cleaning, inspections). Enables productivity tracking and room readiness management.
+- **Explanation**: Tracks all housekeeping activities for each room (checkout cleaning, stayover service, deep cleaning, inspections). Open tasks on the room are how front desk infers unreadiness.
 
 #### Property → HousekeepingTask (One-to-Many)
 - **Relationship**: A Property has many HousekeepingTasks.
 - **Explanation**: All housekeeping tasks are scoped to a property for operational management.
 
-#### Employee → HousekeepingTask (One-to-Many)
-- **Relationship**: An Employee can be assigned many HousekeepingTasks.
-- **Explanation**: Tracks which staff member is assigned to each task, enabling workload distribution and performance monitoring.
+#### Reservation → HousekeepingTask (One-to-Many, Optional)
+- **Relationship**: A Reservation can trigger HousekeepingTasks (`source` checkout or stayover).
+- **Explanation**: Check-in creates stayover; checkout creates checkout-clean. Duplicate open tasks are blocked by uniqueness rules.
+
+---
+
+### Task Assignment Relationships
+
+#### Property → TaskTemplate / TaskSlaDefault (One-to-Many)
+- **Relationship**: Each property owns templates and SLA defaults per module/`typeKey`.
+- **Explanation**: `dueAt` and checklists are snapshotted onto work records at create.
+
+#### TaskTemplate → HousekeepingTask / MaintenanceOrder / InventoryTask (One-to-Many, Optional)
+- **Relationship**: A template can be copied onto many work records.
+- **Explanation**: `templateId` is informational after snapshot.
+
+#### HousekeepingTask / MaintenanceOrder / InventoryTask → TaskAssignment (One-to-Many)
+- **Relationship**: Each work record has zero or more assignments (at most one lead).
+- **Explanation**: Shared assignment pattern. Completion requires a lead (or a supervisor acting as completer).
+
+#### Employee → TaskAssignment (One-to-Many)
+- **Relationship**: An Employee can be lead or helper on many assignments.
+- **Explanation**: Replaces `assignedTo` on HousekeepingTask / MaintenanceOrder.
+
+#### User → TaskAssignment (One-to-Many, as assigner)
+- **Relationship**: A User records who assigned the lead/helper.
+- **Explanation**: `assignedBy` is the authenticated actor, not chosen by the client.
 
 ---
 
@@ -1707,6 +1833,10 @@ Tracks all system actions for compliance and security auditing.
 - **Relationship**: An InventoryTransaction can reference a HousekeepingTask (via referenceType and referenceId).
 - **Explanation**: When housekeeping uses supplies (e.g., cleaning products, linens), the inventory deduction links to the task for cost tracking.
 
+#### InventoryTransaction → InventoryTask (Many-to-One, Optional)
+- **Relationship**: An InventoryTransaction can reference an InventoryTask.
+- **Explanation**: Restock/putaway movements can link to the operational task. Completing restock still does not create a PurchaseOrder.
+
 #### Property → PurchaseOrder (One-to-Many)
 - **Relationship**: A Property has many PurchaseOrders.
 - **Explanation**: All purchase orders are scoped to a property for procurement management.
@@ -1725,7 +1855,19 @@ Tracks all system actions for compliance and security auditing.
 
 #### Employee → PurchaseOrder (One-to-Many)
 - **Relationship**: An Employee can create many PurchaseOrders.
-- **Explanation**: Tracks who created and approved each purchase order for accountability and workflow management.
+- **Explanation**: Tracks who created and approved each purchase order for accountability and workflow management. Assignees are **not** stored on the PO.
+
+#### Property → InventoryTask (One-to-Many)
+- **Relationship**: A Property has many InventoryTasks.
+- **Explanation**: Restock and putaway work is property-scoped operational work, separate from procurement.
+
+#### InventoryItem → InventoryTask (One-to-Many)
+- **Relationship**: An InventoryItem can have many InventoryTasks over time.
+- **Explanation**: At most one **open restock** per item.
+
+#### PurchaseOrder → InventoryTask (One-to-Many, Optional)
+- **Relationship**: A received PurchaseOrder can have a putaway InventoryTask (`purchaseOrderId` required when `taskType = putaway`).
+- **Explanation**: At most one **open putaway** per received PO.
 
 ---
 
@@ -1858,9 +2000,9 @@ Tracks all system actions for compliance and security auditing.
 - **Relationship**: An Employee can request many MaintenanceOrders.
 - **Explanation**: Tracks who requested each maintenance order for communication and workflow management.
 
-#### Employee → MaintenanceOrder (One-to-Many, as Assignee)
-- **Relationship**: An Employee (maintenance staff) can be assigned many MaintenanceOrders.
-- **Explanation**: Tracks which maintenance staff member is assigned to each work order for workload distribution and performance tracking.
+#### Supplier → MaintenanceOrder (One-to-Many, Optional)
+- **Relationship**: A Supplier can be named on many MaintenanceOrders.
+- **Explanation**: Vendor in addition to the staff lead/helpers. The staff lead still owns in-app completion.
 
 ---
 
@@ -2049,25 +2191,26 @@ Tracks all system actions for compliance and security auditing.
 ### Cardinality Overview
 
 **One-to-Many Relationships:**
-- Property → Room, RoomType, Guest, Reservation, HousekeepingTask, FnbMenuItem, Table, Order, InventoryItem, Supplier, PurchaseOrder, Employee, Department shift, Roster day, Shift, Hours, Pay item type, Pay cycle, Time-off type, Extra pay rule, Payroll, Asset, MaintenanceOrder, Expense, UtilityBill, Payment, ChartOfAccounts, JournalEntry, Report, Document, Integration, AuditLog, Payroll settings (1:1), Holidays (1:1)
-- RoomType → Room, RatePlan
+- Property → Room, RoomType, Guest, Reservation, HousekeepingTask, TaskTemplate, TaskSlaDefault, TaskAssignment, FnbMenuItem, Table, Order, InventoryItem, InventoryTask, Supplier, PurchaseOrder, Employee, Department shift, Roster day, Shift, Hours, Pay item type, Pay cycle, Time-off type, Extra pay rule, Payroll, Asset, MaintenanceOrder, Expense, UtilityBill, Payment, ChartOfAccounts, JournalEntry, Report, Document, Integration, AuditLog, Payroll settings (1:1), Holidays (1:1)
+- RoomType → Room, RatePlan, TaskTemplate (optional)
 - Room → Reservation, HousekeepingTask, Asset, MaintenanceOrder
 - Guest → Reservation
-- Employee → HousekeepingTask, Order, Hours, PurchaseOrder, MaintenanceOrder, Expense, Document, This person's pay items, Pay history, Time off, Staff pay, Roster day, Shift
-- User → Hours (as approver), Time off (as approver), Payroll (as creator/calculator/approver)
+- Employee → TaskAssignment, Order, Hours, PurchaseOrder, MaintenanceOrder (as requester), Expense, Document, This person's pay items, Pay history, Time off, Staff pay, Roster day, Shift
+- User → Hours (as approver), Time off (as approver), Payroll (as creator/calculator/approver), TaskAssignment (as assigner)
 - Pay cycle → Payroll, Employee, Pay history
 - Time-off type → Time off
 - Holidays → Holiday
 - FnbMenuItem → Recipe, OrderLine
 - Recipe → RecipeLine
-- InventoryItem → RecipeLine, InventoryTransaction, PurchaseOrderLine
-- Supplier → InventoryItem, PurchaseOrder
-- PurchaseOrder → PurchaseOrderLine
+- InventoryItem → RecipeLine, InventoryTransaction, PurchaseOrderLine, InventoryTask
+- Supplier → InventoryItem, PurchaseOrder, MaintenanceOrder (optional vendor)
+- PurchaseOrder → PurchaseOrderLine, InventoryTask (putaway)
 - Order → OrderLine
 - Payroll → Staff pay, Payment file
 - Staff pay → Pay item, Payslip (1:1)
 - Pay item type → This person's pay items, Pay item
 - Asset → MaintenanceOrder
+- HousekeepingTask / MaintenanceOrder / InventoryTask → TaskAssignment
 - ChartOfAccounts → ChartOfAccounts (self-referential), JournalEntryLine, Expense, UtilityBill
 - JournalEntry → JournalEntryLine
 - Report → ReportSnapshot
@@ -2111,17 +2254,19 @@ Tracks all system actions for compliance and security auditing.
 
 4. **Hierarchical Structures**: ChartOfAccounts uses self-referential relationships for account hierarchies.
 
-5. **Workflow Management**: Approval workflows are embedded in entities (Expense, PurchaseOrder, Payroll, Hours, Time off). Payroll enforces maker ≠ checker. Hours records lock after calculate.
+5. **Workflow Management**: Approval workflows are embedded in entities (Expense, PurchaseOrder, Payroll, Hours, Time off). Payroll enforces maker ≠ checker. Hours records lock after calculate. Operational work uses `taskAssignments` (lead + helpers) on HousekeepingTask, MaintenanceOrder, and InventoryTask.
 
 6. **Cost Tracking**: Recipe costing, inventory costing, and asset depreciation are supported through relationships between InventoryItem, Recipe, RecipeLine, and Asset.
 
 7. **Revenue Recognition**: Reservation and Order entities link to JournalEntry for automatic revenue posting to GL.
 
-8. **Labor Cost Tracking**: Employee, Pay history, Hours, Time off, extra pay rules, Pay item type, Payroll, Staff pay, and Pay item enable labor cost analysis. Only approved / payment-files-ready / paid Payrolls feed Labor Cost %.
+8. **Labor Cost Tracking**: Employee, Pay history, Hours, Time off, extra pay rules, Pay item type, Payroll, Staff pay, and Pay item enable labor cost analysis. Only approved / payment-files-ready / paid Payrolls feed Labor Cost %. Task duration does not post Hours.
 
 9. **Document Management**: Document entity provides centralized storage for payment evidence (invoices, receipts, payslips, bank exports) linked to Expense, UtilityBill, PurchaseOrder, Payment, MaintenanceOrder, Payroll, Payslip, and Payment file.
 
-10. **Comprehensive Reporting & Analytics**: Report and ReportSnapshot entities enable calculation of all four metric categories (Operational Performance, Profitability, Cost & Efficiency, Liquidity & Solvency) from entity data. Reports aggregate data from Reservation, Order, JournalEntry, Payroll, InventoryTransaction, Asset, and ChartOfAccounts entities. Persona-based access control ensures appropriate metric visibility (daily, monthly, yearly) for different user roles. All metrics are derived from transactional data, ensuring accuracy and real-time availability.
+10. **Comprehensive Reporting & Analytics**: Report and ReportSnapshot entities enable calculation of all four metric categories (Operational Performance, Profitability, Cost & Efficiency, Liquidity & Solvency) from entity data. Reports aggregate data from Reservation, Order, JournalEntry, Payroll, InventoryTransaction, Asset, and ChartOfAccounts entities. Persona-based access control ensures appropriate metric visibility (daily, monthly, yearly) for different user roles. All metrics are derived from transactional data, ensuring accuracy and real-time availability. G3 uses completed housekeeping + maintenance + inventory tasks with `completedAt <= dueAt`.
+
+11. **Task Assignment**: Shared `taskAssignments` / `taskTemplates` / `taskSlaDefaults`. No generic Task table. Room readiness is inferred from open housekeeping tasks.
 
 ---
 

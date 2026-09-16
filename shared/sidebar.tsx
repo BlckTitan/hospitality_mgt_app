@@ -38,13 +38,16 @@ const navLinks = [
     {id: 803, href: '/admin/inventory-management/supplier', label: 'Supplier'},
     {id: 804, href: '/admin/inventory-management/purchase-order', label: 'Purchase Order'},
     {id: 805, href: '/admin/inventory-management/purchase-order-line', label: 'Purchase Order Line'},
+    {id: 806, href: '/admin/inventory-management/tasks', label: 'Inventory Tasks'},
   ]},
   {id: 9, href: "/admin/room-management", label: "Room Management", icon: <MdOutlineBedroomChild />,  subLink: [
     {id: 901, href: '/admin/room-management/room-type', label: 'Room Types'},
     {id: 902, href: '/admin/room-management/room', label: 'Room'},
     {id: 903, href: '/admin/room-management/reservation', label: 'Reservation'},
     {id: 904, href: '/admin/room-management/guest', label: 'Guest'},
-    {id: 905, href: '/admin/room-management/housekeeping-task', label: 'Housekeeping Task'}
+      {id: 905, href: '/admin/room-management/housekeeping-task', label: 'Housekeeping Task'},
+      {id: 906, href: '/admin/tasks/mine', label: 'My tasks'},
+      {id: 907, href: '/admin/tasks/templates', label: 'Task templates'},
   ]},
   { id: 10, href: "/#", label: "Billing", icon: <FcPhone /> },
   {id: 11, href: "/admin/shift-management", label: "Shift Management", icon: <MdOutlineBedroomChild />,  subLink: [
@@ -58,6 +61,9 @@ const navLinks = [
     {id: 1201, href: '/admin/payroll-management/payroll', label: 'Payroll'},
     {id: 1203, href: '/admin/payroll-management/time-off', label: 'Time off'},
     {id: 1204, href: '/admin/payroll-management/settings', label: 'Payroll settings'},
+  ]},
+  {id: 13, href: "/admin/maintenance", label: "Maintenance", icon: <FcList />, subLink: [
+    {id: 1301, href: '/admin/maintenance', label: 'Work orders'},
   ]},
 ];
 
@@ -180,9 +186,9 @@ function SidebarNavItem({
                 <Link
                   key={link.id}
                   href={link.href}
-                  className={`h-10 pl-8 ml-6 hover:!bg-black ${isPathInSection(path, link.href) ? '!bg-[#333] text-white' : 'bg-transparent'}`}
+                  className={`h-10 pl-8 hover:!bg-black ${isPathInSection(path, link.href) ? '!bg-[#333] text-white' : 'bg-transparent'}`}
                 >
-                  <span>{link.label}</span>
+                  <span className='ml-6'>{link.label}</span>
                 </Link>
               ))}
             </div>

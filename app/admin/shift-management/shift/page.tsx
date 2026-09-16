@@ -10,6 +10,7 @@ import { useQuery } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 import BootstrapModal from '../../../../shared/modal';
 import { usePermissions } from '../../../../hooks/usePermissions';
+import { ShiftPageGuide } from '../components/shiftPageGuide';
 
 export default function ShiftPage() {
   const [modalShow, setModalShow] = useState(false);
@@ -53,6 +54,8 @@ export default function ShiftPage() {
       
         </div>
       </header>
+
+      <ShiftPageGuide page="shift" />
 
       <Shifts currentPropertyId={currentPropertyId}/>
 

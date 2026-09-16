@@ -7,6 +7,7 @@ import { useQuery } from 'convex/react';
 import { api } from '../../../../../convex/_generated/api';
 import BootstrapModal from '../../../../../shared/modal';
 import EditTemplateForm from '../components/editTemplateForm';
+import { ShiftPageGuide } from '../../components/shiftPageGuide';
 
 export default function EditTemplatePage() {
   const [modalShow, setModalShow] = useState(true);
@@ -71,6 +72,7 @@ export default function EditTemplatePage() {
           ×
         </Button>
       </header>
+      <ShiftPageGuide page="templates-edit" />
       <ModalComponent
         modalShow={modalShow}
         setModalShow={setModalShow}

@@ -181,15 +181,19 @@ interface HousekeepingTask {
   taskId: string;
   propertyId: string;
   roomId: string;
-  assignedTo: string; // Employee ID
   taskType: 'checkout' | 'stayover' | 'deep-clean' | 'inspection';
   status: 'pending' | 'in-progress' | 'completed' | 'skipped';
-  priority: 'low' | 'medium' | 'high';
-  scheduledAt: Date;
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  source: 'manual' | 'reservation_checkout' | 'reservation_stayover';
+  reservationId?: string;
+  templateId?: string;
+  createdBy?: string;
+  dueAt: Date;
+  scheduledAt?: Date;
   startedAt?: Date;
   completedAt?: Date;
-  estimatedDuration?: number; // minutes
-  actualDuration?: number; // minutes
+  estimatedDuration?: number; // minutes; productivity-only
+  actualDuration?: number;
   notes?: string;
   checklist?: ChecklistItem[];
   createdAt: Date;
@@ -198,8 +202,43 @@ interface HousekeepingTask {
 
 interface ChecklistItem {
   id: string;
-  name: string;
+  label: string;
   isComplete: boolean;
+}
+
+interface TaskTemplate {
+  taskTemplateId: string;
+  propertyId: string;
+  module: 'housekeeping' | 'maintenance' | 'inventory';
+  typeKey: string;
+  roomTypeId?: string;
+  steps: { id: string; label: string }[];
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface TaskSlaDefault {
+  taskSlaDefaultId: string;
+  propertyId: string;
+  module: 'housekeeping' | 'maintenance' | 'inventory';
+  typeKey: string;
+  dueMinutes: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface TaskAssignment {
+  taskAssignmentId: string;
+  propertyId: string;
+  housekeepingTaskId?: string;
+  maintenanceOrderId?: string;
+  inventoryTaskId?: string;
+  staffId: string;
+  role: 'lead' | 'helper';
+  assignedAt: Date;
+  assignedBy: string;
+  createdAt: Date;
 }
 ```
 
@@ -403,6 +442,30 @@ interface PurchaseOrderLine {
   unitPrice: number;
   totalPrice: number;
   receivedQuantity?: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+```
+
+### InventoryTask
+```typescript
+interface InventoryTask {
+  inventoryTaskId: string;
+  propertyId: string;
+  taskType: 'restock' | 'putaway';
+  inventoryItemId: string;
+  suggestedQuantity?: number;
+  source: 'reorder_point' | 'purchase_order_received' | 'manual';
+  purchaseOrderId?: string;
+  templateId?: string;
+  createdBy?: string;
+  status: 'pending' | 'in-progress' | 'completed' | 'cancelled';
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  dueAt: Date;
+  startedAt?: Date;
+  completedAt?: Date;
+  notes?: string;
+  checklist?: ChecklistItem[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -850,20 +913,25 @@ interface MaintenanceOrder {
   propertyId: string;
   assetId?: string;
   roomId?: string;
-  requestedBy: string;
-  assignedTo?: string;
+  supplierId?: string;
+  requestedBy?: string;
+  createdBy?: string;
+  templateId?: string;
   orderType: 'preventive' | 'corrective' | 'emergency' | 'inspection';
+  source: 'manual' | 'preventive_schedule';
   priority: 'low' | 'medium' | 'high' | 'urgent';
   title: string;
   description?: string;
-  status: 'open' | 'assigned' | 'in-progress' | 'completed' | 'cancelled';
+  status: 'pending' | 'in-progress' | 'completed' | 'cancelled';
   scheduledDate?: Date;
+  dueAt: Date;
   startedAt?: Date;
   completedAt?: Date;
   estimatedCost?: number;
   actualCost?: number;
-  slaDeadline?: Date;
   resolutionNotes?: string;
+  checklist?: ChecklistItem[];
+  notes?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -1324,6 +1392,7 @@ type InventoryTransactionReference =
   | 'PurchaseOrder'
   | 'OrderLine'
   | 'HousekeepingTask'
+  | 'InventoryTask'
   | 'Adjustment'
   | 'Other';
 

@@ -2,6 +2,7 @@
 
 import { BackLink } from '../../../../shared/pageHeader';
 import Attendance from './components/attendance';
+import { ShiftPageGuide } from '../components/shiftPageGuide';
 
 export default function AttendancePage() {
   return (
@@ -10,10 +11,7 @@ export default function AttendancePage() {
         <h3>Attendance Tracker</h3>
         <BackLink />
       </header>
-      <p className="mb-4 text-sm text-gray-600">
-        Logging in does not start your shift. Open this page, then click Start shift when you begin work
-        and End shift when you finish. Hours are recorded when you end the shift and still need supervisor approval before payroll.
-      </p>
+      <ShiftPageGuide page="attendance" />
       <Attendance />
     </div>
   );

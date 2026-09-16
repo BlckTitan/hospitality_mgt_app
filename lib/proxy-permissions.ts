@@ -41,7 +41,7 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermission> = {
   '/admin/room-management/room': { granular: 'rooms.read' },
   '/admin/room-management/reservation': { granular: 'reservations.read' },
   '/admin/room-management/guest': { granular: 'reservations.read' },
-  '/admin/room-management/housekeeping-task': { granular: 'system.admin' },
+  '/admin/room-management/housekeeping-task': { granular: 'housekeeping.task.read' },
 
   // Shift Management
   '/admin/shift-management': { granular: 'staff.read' },
@@ -95,8 +95,8 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermission> = {
   '/admin/room-management/room-type/[id]/edit': { granular: 'rooms.update' },
   '/admin/room-management/guest/create': { granular: 'reservations.create' },
   '/admin/room-management/guest/[id]/edit': { granular: 'reservations.update' },
-  '/admin/room-management/housekeeping-task/create': { granular: 'system.admin' },
-  '/admin/room-management/housekeeping-task/[id]/edit': { granular: 'system.admin' },
+  '/admin/room-management/housekeeping-task/create': { granular: 'housekeeping.task.assign' },
+  '/admin/room-management/housekeeping-task/[id]/edit': { granular: 'housekeeping.task.update' },
 
   // Food & Beverage
   '/admin/bar-management/bar/create': { granular: 'fnb.create' },
@@ -139,5 +139,11 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermission> = {
   '/admin/room-management/reservation/edit': { granular: 'reservations.update' },
   '/admin/room-management/reservation/guest/edit': { granular: 'reservations.update' },
   '/admin/room-management/guest/edit': { granular: 'reservations.update' },
-  '/admin/room-management/housekeeping-task/edit': { granular: 'system.admin' },
+  '/admin/room-management/housekeeping-task/edit': { granular: 'housekeeping.task.update' },
+  '/admin/tasks/mine': { granular: ['housekeeping.task.read', 'maintenance.order.read', 'inventory.task.read'] },
+  '/admin/tasks/templates': { granular: ['housekeeping.task.assign', 'maintenance.order.assign', 'inventory.task.assign'] },
+  '/admin/maintenance': { granular: 'maintenance.order.read' },
+  '/admin/maintenance/edit': { granular: 'maintenance.order.update' },
+  '/admin/inventory-management/tasks': { granular: 'inventory.task.read' },
+  '/admin/inventory-management/tasks/edit': { granular: 'inventory.task.update' },
 };

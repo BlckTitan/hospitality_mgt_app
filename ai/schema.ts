@@ -185,25 +185,107 @@ export default defineSchema({
   housekeepingTasks: defineTable({
     propertyId: v.id("properties"),
     roomId: v.id("rooms"),
-    assignedTo: v.optional(v.id("staffs")),
-    taskType: v.string(), // cleaning, inspection, maintenance
-    status: v.string(), // pending, in-progress, completed
-    priority: v.string(), // low, medium, high, urgent
+    taskType: v.union(
+      v.literal("checkout"),
+      v.literal("stayover"),
+      v.literal("deep-clean"),
+      v.literal("inspection")
+    ),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("in-progress"),
+      v.literal("completed"),
+      v.literal("skipped")
+    ),
+    priority: v.union(
+      v.literal("low"),
+      v.literal("medium"),
+      v.literal("high"),
+      v.literal("urgent")
+    ),
+    source: v.union(
+      v.literal("manual"),
+      v.literal("reservation_checkout"),
+      v.literal("reservation_stayover")
+    ),
+    reservationId: v.optional(v.id("reservations")),
+    templateId: v.optional(v.id("taskTemplates")),
+    createdBy: v.optional(v.id("users")),
+    dueAt: v.number(),
     scheduledAt: v.optional(v.number()),
     startedAt: v.optional(v.number()),
     completedAt: v.optional(v.number()),
     estimatedDuration: v.optional(v.number()),
     actualDuration: v.optional(v.number()),
     notes: v.optional(v.string()),
-    checklist: v.optional(v.any()), // JSON array
+    checklist: v.optional(
+      v.array(
+        v.object({
+          id: v.string(),
+          label: v.string(),
+          isComplete: v.boolean(),
+        })
+      )
+    ),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_propertyId", ["propertyId"])
     .index("by_roomId", ["roomId"])
-    .index("by_assignedTo", ["assignedTo"])
     .index("by_propertyId_status", ["propertyId", "status"])
-    .index("by_propertyId_priority", ["propertyId", "priority"]),
+    .index("by_propertyId_priority", ["propertyId", "priority"])
+    .index("by_roomId_taskType_status", ["roomId", "taskType", "status"])
+    .index("by_reservationId", ["reservationId"]),
+
+  taskTemplates: defineTable({
+    propertyId: v.id("properties"),
+    module: v.union(
+      v.literal("housekeeping"),
+      v.literal("maintenance"),
+      v.literal("inventory")
+    ),
+    typeKey: v.string(),
+    roomTypeId: v.optional(v.id("roomTypes")),
+    steps: v.array(v.object({ id: v.string(), label: v.string() })),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_propertyId_module_typeKey", ["propertyId", "module", "typeKey"]),
+
+  taskSlaDefaults: defineTable({
+    propertyId: v.id("properties"),
+    module: v.union(
+      v.literal("housekeeping"),
+      v.literal("maintenance"),
+      v.literal("inventory")
+    ),
+    typeKey: v.string(),
+    dueMinutes: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_propertyId_module_typeKey", ["propertyId", "module", "typeKey"]),
+
+  taskAssignments: defineTable({
+    propertyId: v.id("properties"),
+    housekeepingTaskId: v.optional(v.id("housekeepingTasks")),
+    maintenanceOrderId: v.optional(v.id("maintenanceOrders")),
+    inventoryTaskId: v.optional(v.id("inventoryTasks")),
+    staffId: v.id("staffs"),
+    role: v.union(v.literal("lead"), v.literal("helper")),
+    assignedAt: v.number(),
+    assignedBy: v.id("users"),
+    createdAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_staffId", ["staffId"])
+    .index("by_housekeepingTaskId", ["housekeepingTaskId"])
+    .index("by_maintenanceOrderId", ["maintenanceOrderId"])
+    .index("by_inventoryTaskId", ["inventoryTaskId"])
+    .index("by_staffId_role", ["staffId", "role"]),
 
   // ============================================
   // Food & Beverage
@@ -406,6 +488,57 @@ export default defineSchema({
   })
     .index("by_purchaseOrderId", ["purchaseOrderId"])
     .index("by_inventoryItemId", ["inventoryItemId"]),
+
+  inventoryTasks: defineTable({
+    propertyId: v.id("properties"),
+    taskType: v.union(v.literal("restock"), v.literal("putaway")),
+    inventoryItemId: v.id("inventoryItems"),
+    suggestedQuantity: v.optional(v.number()),
+    source: v.union(
+      v.literal("reorder_point"),
+      v.literal("purchase_order_received"),
+      v.literal("manual")
+    ),
+    purchaseOrderId: v.optional(v.id("purchaseOrders")),
+    templateId: v.optional(v.id("taskTemplates")),
+    createdBy: v.optional(v.id("users")),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("in-progress"),
+      v.literal("completed"),
+      v.literal("cancelled")
+    ),
+    priority: v.union(
+      v.literal("low"),
+      v.literal("medium"),
+      v.literal("high"),
+      v.literal("urgent")
+    ),
+    dueAt: v.number(),
+    startedAt: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+    notes: v.optional(v.string()),
+    checklist: v.optional(
+      v.array(
+        v.object({
+          id: v.string(),
+          label: v.string(),
+          isComplete: v.boolean(),
+        })
+      )
+    ),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_inventoryItemId", ["inventoryItemId"])
+    .index("by_purchaseOrderId", ["purchaseOrderId"])
+    .index("by_propertyId_status", ["propertyId", "status"])
+    .index("by_inventoryItemId_taskType_status", [
+      "inventoryItemId",
+      "taskType",
+      "status",
+    ]),
 
   // ============================================
   // Payroll Management
@@ -883,30 +1016,59 @@ export default defineSchema({
     propertyId: v.id("properties"),
     assetId: v.optional(v.id("assets")),
     roomId: v.optional(v.id("rooms")),
-    requestedBy: v.id("staffs"),
-    assignedTo: v.optional(v.id("staffs")),
-    orderType: v.string(), // preventive, corrective, emergency
-    priority: v.string(), // low, medium, high, urgent
+    supplierId: v.optional(v.id("suppliers")),
+    requestedBy: v.optional(v.id("staffs")),
+    createdBy: v.optional(v.id("users")),
+    templateId: v.optional(v.id("taskTemplates")),
+    orderType: v.union(
+      v.literal("preventive"),
+      v.literal("corrective"),
+      v.literal("emergency"),
+      v.literal("inspection")
+    ),
+    source: v.union(v.literal("manual"), v.literal("preventive_schedule")),
+    priority: v.union(
+      v.literal("low"),
+      v.literal("medium"),
+      v.literal("high"),
+      v.literal("urgent")
+    ),
     title: v.string(),
     description: v.optional(v.string()),
-    status: v.string(), // pending, assigned, in-progress, completed, cancelled
+    status: v.union(
+      v.literal("pending"),
+      v.literal("in-progress"),
+      v.literal("completed"),
+      v.literal("cancelled")
+    ),
     scheduledDate: v.optional(v.number()),
+    dueAt: v.number(),
     startedAt: v.optional(v.number()),
     completedAt: v.optional(v.number()),
     estimatedCost: v.optional(v.number()),
     actualCost: v.optional(v.number()),
-    slaDeadline: v.optional(v.number()),
     resolutionNotes: v.optional(v.string()),
+    checklist: v.optional(
+      v.array(
+        v.object({
+          id: v.string(),
+          label: v.string(),
+          isComplete: v.boolean(),
+        })
+      )
+    ),
+    notes: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_propertyId", ["propertyId"])
     .index("by_assetId", ["assetId"])
     .index("by_roomId", ["roomId"])
+    .index("by_supplierId", ["supplierId"])
     .index("by_requestedBy", ["requestedBy"])
-    .index("by_assignedTo", ["assignedTo"])
     .index("by_propertyId_status", ["propertyId", "status"])
-    .index("by_propertyId_priority", ["propertyId", "priority"]),
+    .index("by_propertyId_priority", ["propertyId", "priority"])
+    .index("by_assetId_orderType_status", ["assetId", "orderType", "status"]),
 
   // ============================================
   // Financial Management

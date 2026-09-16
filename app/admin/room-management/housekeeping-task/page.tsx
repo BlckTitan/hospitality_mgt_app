@@ -1,25 +1,24 @@
-'use client';
+'use client'
 
 import { BackLink } from '../../../../shared/pageHeader';
-import React, { useState } from 'react';
-import { Button } from 'react-bootstrap';
-import { FcPlus } from 'react-icons/fc';
-import BootstrapModal from '../../../../shared/modal';
-import HousekeepingTasks from './components/housekeepingTasks';
+import React, { useState } from 'react'
+import { Button } from 'react-bootstrap'
+import { FcPlus} from "react-icons/fc";
+import BootstrapModal from '../../../../shared/modal'
+import HousekeepingTasks from './components/housekeepingTasks'
 import { FormComponent } from './components/createHousekeepingTaskForm';
 import { useQuery } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
+import { usePermissions } from '../../../../hooks/usePermissions';
+import { TaskAssignmentPageGuide } from '../../../../shared/taskAssignmentPageGuide';
 
-export default function HousekeepingTaskPage() {
+export default function Page() {
   const [modalShow, setModalShow] = useState(false);
-  const [propertyId, setPropertyId] = useState<string>('');
-
-  // Fetch properties to get the current property
+  const { hasGranularPermission } = usePermissions();
+  const canCreate = hasGranularPermission('housekeeping.task.assign');
   const propertiesResponse = useQuery(api.property.getAllProperties);
-  const properties = propertiesResponse?.data || [];
-  const currentPropertyId = propertyId || properties?.[0]?._id || '';
+  const currentPropertyId = propertiesResponse?.data?.[0]?._id || '';
 
-  // check if property is loading
   if (!propertiesResponse?.data) {
     return (
       <div className='w-full h-full flex justify-center items-center'>
@@ -28,7 +27,7 @@ export default function HousekeepingTaskPage() {
     );
   }
 
-  if (propertiesResponse.data?.length === 0) {
+  if (propertiesResponse.data.length === 0) {
     return (
       <div className='w-full h-full flex justify-center items-center'>
         <p className='text-xl'>No properties yet!</p>
@@ -37,46 +36,49 @@ export default function HousekeepingTaskPage() {
   }
 
   return (
-    <div className="w-full p-4 bg-white">
-      <header className="w-full border-b flex justify-between items-center mb-4">
+    <div className='w-full p-4 bg-white'>
+      <header className='w-full border-b flex justify-between items-center'>
         <h3>Housekeeping Tasks</h3>
         <div className="flex items-center gap-3">
           <BackLink />
+        {canCreate && (
         <Button
-          variant="light"
-          className="cursor-pointer"
-          style={{ width: 'fit', height: 'fit', padding: '0', borderRadius: '100%' }}
+          variant='light'
+          className='cursor-pointer'
+          style={{width: 'fit', height: 'fit', padding: '0', borderRadius: '100%',}}
           onClick={() => setModalShow(true)}
         >
-          <FcPlus className="w-8 h-8" />
+          <FcPlus className='w-8 h-8'/>
         </Button>
-      
+        )}
         </div>
       </header>
 
+      <TaskAssignmentPageGuide page="housekeeping" />
+
       <HousekeepingTasks currentPropertyId={currentPropertyId}/>
 
-      <ModalComponent
-        modalShow={modalShow}
-        setModalShow={setModalShow}
-        onSuccess={() => {
-          setModalShow(false);
-        }}
-        propertyId={currentPropertyId}
-      />
+      <ModalComponent modalShow={modalShow} setModalShow={setModalShow} propertyId={currentPropertyId}/>
     </div>
-  );
+  )
 }
 
-function ModalComponent(props: { modalShow: boolean; setModalShow: (show: boolean) => void; onSuccess: () => void; propertyId: string }) {
+function ModalComponent(props: { modalShow: boolean; setModalShow: (show: boolean) => void; propertyId: string }) {
   return (
-    <BootstrapModal
-      show={props.modalShow}
-      onHide={() => props.setModalShow(false)}
-      backdrop="static"
-      keyboard={false}
-      heading="Add New Housekeeping Task"
-      body={<FormComponent onSuccess={props.onSuccess} onClose={() => props.setModalShow(false)} propertyId={props.propertyId} />}
-    />
+    <>
+      <BootstrapModal
+        show={props.modalShow}
+        onHide={() => props.setModalShow(false)}
+        backdrop="static"
+        keyboard={false}
+        heading="Add New Housekeeping Task"
+        body={
+          <FormComponent
+            onClose={() => props.setModalShow(false)}
+            propertyId={props.propertyId}
+          />
+        }
+      />
+    </>
   );
 }

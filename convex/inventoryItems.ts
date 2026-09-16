@@ -1,6 +1,7 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
 import { requirePermission } from './lib/rbac';
+import { maybeCreateRestockTask } from './lib/taskAssignment';
 
 export const getAllInventoryItems = query({
   args: { propertyId: v.id('properties') },
@@ -107,6 +108,9 @@ export const createInventoryItem = mutation({
         updatedAt: now,
       });
 
+      const createdItem = await ctx.db.get(inventoryItemId);
+      if (createdItem) await maybeCreateRestockTask(ctx, createdItem);
+
       return { success: true, message: 'Inventory item created successfully', id: inventoryItemId };
     } catch (error) {
       console.log(`Failed to create inventory item: ${error}`);
@@ -183,6 +187,9 @@ export const updateInventoryItem = mutation({
       }
 
       await ctx.db.patch(args.inventoryItemId, updateData);
+
+      const updatedItem = await ctx.db.get(args.inventoryItemId);
+      if (updatedItem) await maybeCreateRestockTask(ctx, updatedItem);
 
       return { success: true, message: 'Inventory item updated successfully' };
     } catch (error) {

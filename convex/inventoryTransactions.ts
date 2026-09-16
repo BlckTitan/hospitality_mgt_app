@@ -1,6 +1,14 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
 import { requirePermission } from './lib/rbac';
+import { maybeCreateRestockTask } from './lib/taskAssignment';
+import { MutationCtx } from './_generated/server';
+import { Id } from './_generated/dataModel';
+
+async function restockIfNeeded(ctx: MutationCtx, inventoryItemId: Id<'inventoryItems'>) {
+  const item = await ctx.db.get(inventoryItemId);
+  if (item) await maybeCreateRestockTask(ctx, item);
+}
 
 export const getAllInventoryTransactions = query({
   args: { 
@@ -184,6 +192,7 @@ export const createInventoryTransaction = mutation({
         currentQuantity: updatedQuantity,
         updatedAt: now,
       });
+      await restockIfNeeded(ctx, args.inventoryItemId);
 
       // Update unit cost if provided and it's a purchase transaction
       if (args.transactionType === 'purchase' && args.unitCost !== undefined && args.unitCost !== null) {
@@ -299,6 +308,7 @@ export const updateInventoryTransaction = mutation({
         currentQuantity: newQuantity,
         updatedAt: now,
       });
+      await restockIfNeeded(ctx, existingTransaction.inventoryItemId);
 
       // Update unit cost if it's a purchase transaction
       if (args.transactionType === 'purchase' && args.unitCost !== undefined && args.unitCost !== null) {
@@ -365,6 +375,7 @@ export const deleteInventoryTransaction = mutation({
         currentQuantity: newQuantity,
         updatedAt: now,
       });
+      await restockIfNeeded(ctx, existingTransaction.inventoryItemId);
 
       return { success: true, message: 'Inventory transaction deleted successfully' };
     } catch (error) {

@@ -7,6 +7,7 @@ import { api } from '../../../../convex/_generated/api';
 import BootstrapModal from '../../../../shared/modal';
 import Cover from './components/cover';
 import { FormComponent } from './components/createCoverForm';
+import { ShiftPageGuide } from '../components/shiftPageGuide';
 
 export default function CoverPage() {
   const [shiftDate, setShiftDate] = useState(new Date().toISOString().slice(0, 10));
@@ -51,10 +52,7 @@ export default function CoverPage() {
           </label>
         </div>
       </header>
-      <p className="mb-4 text-sm text-gray-600">
-        Reassign a day when someone cannot report. This changes who should attend, not Hours already recorded.
-        Cover is blocked if the scheduled person already started a shift or has Hours for that date.
-      </p>
+      <ShiftPageGuide page="cover" />
       {propertyId && (
         <Cover
           currentPropertyId={propertyId}

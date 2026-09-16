@@ -9,6 +9,7 @@ import { api } from '../../../../convex/_generated/api';
 import BootstrapModal from '../../../../shared/modal';
 import Hours from './components/hours';
 import { FormComponent } from './components/createHoursForm';
+import { ShiftPageGuide } from '../components/shiftPageGuide';
 
 export default function HoursPage() {
   const [modalShow, setModalShow] = useState(false);
@@ -40,11 +41,7 @@ export default function HoursPage() {
       
         </div>
       </header>
-      <p className="mb-4 text-sm text-gray-600">
-        Record a day’s Hours with +, end a shift on Attendance Tracker, or finalize an ad-hoc Shift to create a draft.
-        Approve Hours before they can be paid. After Prepare pay, included Hours are locked until Recalculate
-        (while the Payroll is still Draft or Ready to review).
-      </p>
+      <ShiftPageGuide page="hours" />
       <Hours propertyId={currentPropertyId} />
       <BootstrapModal
         show={modalShow}

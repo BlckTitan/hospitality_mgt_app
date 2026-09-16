@@ -52,6 +52,7 @@ This document defines a comprehensive Role-Based Access Control (RBAC) model for
 11. System Settings
 12. Maintenance & Facilities
 13. Security & Access Logs
+14. Task Assignment (housekeeping, maintenance orders, inventory restock/putaway)
 
 ---
 
@@ -164,6 +165,43 @@ Route access (`lib/proxy-permissions.ts`; `granular` may be a string or string[]
 - fnb.order.create
 - fnb.order.manage
 - fnb.menu.update
+
+### Task Assignment
+Permission keys stay technical. Work records stay `HousekeepingTask`, `MaintenanceOrder`, and `InventoryTask`. Assignment is `taskAssignments` (lead + helpers).
+
+- housekeeping.task.read
+- housekeeping.task.assign
+- housekeeping.task.update
+- housekeeping.task.complete
+- maintenance.order.read
+- maintenance.order.assign
+- maintenance.order.update
+- maintenance.order.complete
+- inventory.task.read
+- inventory.task.assign
+- inventory.task.update
+- inventory.task.complete
+
+Staff (Housekeeping Staff / Maintenance Staff / storekeepers with `fnb` or inventory access): `read` + `update` on **assigned** rows; `complete` only if they are **lead**. Supervisors: `assign` and `complete` any work in the module. Do **not** gate these screens on `system.admin`.
+
+| Screen | Path | Permission |
+|---|---|---|
+| Housekeeping board | `/admin/room-management/housekeeping-task` | `housekeeping.task.read` |
+| Housekeeping create | `/admin/room-management/housekeeping-task/create` | `housekeeping.task.assign` |
+| Housekeeping edit | `/admin/room-management/housekeeping-task/edit` | `housekeeping.task.update` |
+| My tasks | `/admin/tasks/mine` | `housekeeping.task.read` or `maintenance.order.read` or `inventory.task.read` |
+| Maintenance orders | `/admin/maintenance` | `maintenance.order.read` |
+| Inventory tasks | `/admin/inventory/tasks` | `inventory.task.read` |
+| Task templates | `/admin/tasks/templates` | `housekeeping.task.assign` or `maintenance.order.assign` or `inventory.task.assign` |
+| SLA defaults | `/admin/tasks/sla` | `housekeeping.task.assign` or `maintenance.order.assign` or `inventory.task.assign` |
+
+**Role mapping:**
+- Administrator, Director, General Manager, Operations Manager: full `*.read|assign|update|complete` for all three modules
+- Supervisor: assign + complete in their module (housekeeping / maintenance / inventory via F&B)
+- Housekeeping Staff: `housekeeping.task.read` + `update`; complete only as lead
+- Maintenance Staff: `maintenance.order.read` + `update`; complete only as lead
+- Bartender / Cook / Kitchen Assistant / F&B Manager (storekeeper): `inventory.task.read` + `update`; complete only as lead
+- Receptionist: `housekeeping.task.read` (room readiness from open tasks); no assign/complete
 
 ---
 

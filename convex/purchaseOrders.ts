@@ -1,6 +1,7 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
 import { requirePermission } from './lib/rbac';
+import { maybeCreatePutawayTask } from './lib/taskAssignment';
 
 export const getAllPurchaseOrders = query({
   args: { 
@@ -144,7 +145,7 @@ export const updatePurchaseOrder = mutation({
       return { success: false, message: 'Purchase order does not exist' };
     }
 
-    await requirePermission(ctx, 'inventory.update', existingOrder.propertyId);
+    const auth = await requirePermission(ctx, 'inventory.update', existingOrder.propertyId);
 
     try {
       // Check if order number is being changed and if new number already exists
@@ -176,6 +177,13 @@ export const updatePurchaseOrder = mutation({
         receivedAt: args.receivedAt,
         updatedAt: now,
       });
+
+      if (args.status === 'received' && existingOrder.status !== 'received') {
+        const updated = await ctx.db.get(args.purchaseOrderId);
+        if (updated) {
+          await maybeCreatePutawayTask(ctx, updated, auth.user._id);
+        }
+      }
 
       return { success: true, message: 'Purchase order updated successfully' };
     } catch (error) {

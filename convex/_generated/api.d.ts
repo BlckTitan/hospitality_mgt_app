@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as assets from "../assets.js";
 import type * as attendance from "../attendance.js";
 import type * as authContext from "../authContext.js";
 import type * as bars from "../bars.js";
@@ -20,6 +21,7 @@ import type * as hours from "../hours.js";
 import type * as housekeepingTasks from "../housekeepingTasks.js";
 import type * as http from "../http.js";
 import type * as inventoryItems from "../inventoryItems.js";
+import type * as inventoryTasks from "../inventoryTasks.js";
 import type * as inventoryTransactions from "../inventoryTransactions.js";
 import type * as lib_payrollHelpers from "../lib/payrollHelpers.js";
 import type * as lib_payrollPacks from "../lib/payrollPacks.js";
@@ -30,8 +32,10 @@ import type * as lib_searchNames from "../lib/searchNames.js";
 import type * as lib_shiftHelpers from "../lib/shiftHelpers.js";
 import type * as lib_staffAccess from "../lib/staffAccess.js";
 import type * as lib_systemRoles from "../lib/systemRoles.js";
+import type * as lib_taskAssignment from "../lib/taskAssignment.js";
 import type * as lib_userIdentity from "../lib/userIdentity.js";
 import type * as lib_userRoleAssignment from "../lib/userRoleAssignment.js";
+import type * as maintenanceOrders from "../maintenanceOrders.js";
 import type * as payrollConfig from "../payrollConfig.js";
 import type * as payrolls from "../payrolls.js";
 import type * as property from "../property.js";
@@ -53,6 +57,8 @@ import type * as staffMigrations from "../staffMigrations.js";
 import type * as storeInventories from "../storeInventories.js";
 import type * as storeTransactions from "../storeTransactions.js";
 import type * as suppliers from "../suppliers.js";
+import type * as taskBoards from "../taskBoards.js";
+import type * as taskConfig from "../taskConfig.js";
 import type * as timeOff from "../timeOff.js";
 import type * as userRoles from "../userRoles.js";
 import type * as userStockLogs from "../userStockLogs.js";
@@ -65,6 +71,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  assets: typeof assets;
   attendance: typeof attendance;
   authContext: typeof authContext;
   bars: typeof bars;
@@ -77,6 +84,7 @@ declare const fullApi: ApiFromModules<{
   housekeepingTasks: typeof housekeepingTasks;
   http: typeof http;
   inventoryItems: typeof inventoryItems;
+  inventoryTasks: typeof inventoryTasks;
   inventoryTransactions: typeof inventoryTransactions;
   "lib/payrollHelpers": typeof lib_payrollHelpers;
   "lib/payrollPacks": typeof lib_payrollPacks;
@@ -87,8 +95,10 @@ declare const fullApi: ApiFromModules<{
   "lib/shiftHelpers": typeof lib_shiftHelpers;
   "lib/staffAccess": typeof lib_staffAccess;
   "lib/systemRoles": typeof lib_systemRoles;
+  "lib/taskAssignment": typeof lib_taskAssignment;
   "lib/userIdentity": typeof lib_userIdentity;
   "lib/userRoleAssignment": typeof lib_userRoleAssignment;
+  maintenanceOrders: typeof maintenanceOrders;
   payrollConfig: typeof payrollConfig;
   payrolls: typeof payrolls;
   property: typeof property;
@@ -110,6 +120,8 @@ declare const fullApi: ApiFromModules<{
   storeInventories: typeof storeInventories;
   storeTransactions: typeof storeTransactions;
   suppliers: typeof suppliers;
+  taskBoards: typeof taskBoards;
+  taskConfig: typeof taskConfig;
   timeOff: typeof timeOff;
   userRoles: typeof userRoles;
   userStockLogs: typeof userStockLogs;

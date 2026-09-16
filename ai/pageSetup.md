@@ -177,14 +177,15 @@ This document outlines which entities should have dedicated pages and the data f
 - Fetch all `Room` records for current property (with pagination)
 - Include joined `RoomType` data
 - Include current `Reservation` status (if occupied)
-- Include latest `HousekeepingTask` status
+- Include latest **open** `HousekeepingTask` (room is not ready while any checkout/stayover task is pending or in-progress)
 - Filter by: `status`, `roomTypeId`, `floor`, `isActive`
 - Sort by: roomNumber, floor, status
 
 **Related Entities to Include:**
 - `RoomType` (joined)
 - Current `Reservation` (where `roomId` matches and `status IN ('confirmed', 'checked-in')`, limit 1)
-- Latest `HousekeepingTask` (where `roomId` matches, ordered by `scheduledAt` DESC, limit 1)
+- Open `HousekeepingTask` (where `roomId` matches and `status IN ('pending', 'in-progress')`)
+- `taskAssignments` for those tasks (lead + helpers)
 
 **Rendering Strategy: SSR**
 - **Reason**: Room status changes frequently (occupied/available), includes real-time reservation and housekeeping data, critical for operational decisions, requires current data accuracy
@@ -313,42 +314,59 @@ This document outlines which entities should have dedicated pages and the data f
 
 ---
 
-### 16. Housekeeping Dashboard (`/housekeeping`)
-**Purpose**: Manage housekeeping tasks and room readiness
+### 16. Housekeeping Dashboard (`/admin/room-management/housekeeping-task`)
+**Purpose**: Manage housekeeping tasks and room readiness. Boards: unassigned (no lead), mine, overdue (`dueAt` passed, not completed).
+
+**Permission:** `housekeeping.task.read` (assign: `housekeeping.task.assign`)
 
 **Data Fetching:**
 - Fetch all `HousekeepingTask` records for current property (with pagination)
-- Include joined `Room`, `RoomType`, and `Employee` data
-- Filter by: `status`, `taskType`, `priority`, `assignedTo`, `scheduledAt`
-- Sort by: `priority`, `scheduledAt`, `status`
-- Include task completion statistics
+- Include joined `Room`, `RoomType`, and `taskAssignments` + `Employee`
+- Filter by: `status`, `taskType`, `priority`, lead/helper `staffId`, `dueAt`, board (`unassigned` | `mine` | `overdue`)
+- Sort by: `priority`, `dueAt`, `status`
+- Include task completion statistics and G3-style on-time %
 
 **Related Entities to Include:**
 - `Room` with `RoomType` (joined)
-- `Employee` (joined, where `assignedTo` matches)
+- `taskAssignments` with `Employee` (lead + helpers)
 
 **Rendering Strategy: SSR**
 - **Reason**: Task status changes frequently (pending/in-progress/completed), real-time operational dashboard, critical for room readiness, requires current data for scheduling decisions
 
 ---
 
-### 17. Housekeeping Task Detail Page (`/housekeeping/[taskId]`)
-**Purpose**: View/edit housekeeping task details
+### 17. Housekeeping Task Detail Page (`/admin/room-management/housekeeping-task/edit`)
+**Purpose**: View/edit housekeeping task details, checklist, lead/helpers
+
+**Permission:** `housekeeping.task.update` (complete: `housekeeping.task.complete` and must be lead or supervisor)
 
 **Data Fetching:**
-- Fetch single `HousekeepingTask` by `taskId`
-- Fetch joined `Room`, `RoomType`, `Property`, and `Employee` data
+- Fetch single `HousekeepingTask` by id
+- Fetch joined `Room`, `RoomType`, `Property`, `taskAssignments` + `Employee`
 - Fetch related `InventoryTransaction` records (supplies used)
-- Show task checklist and completion status
+- Show task checklist and completion status, `dueAt` vs now
 
 **Related Entities to Include:**
 - `Room` with `RoomType` (joined)
 - `Property` (joined)
-- `Employee` (joined, where `assignedTo` matches)
+- `taskAssignments` with `Employee`
 - `InventoryTransaction` (where `referenceType = 'HousekeepingTask'` and `referenceId` matches, optional)
 
 **Rendering Strategy: SSR**
 - **Reason**: Task status and completion updates in real-time, checklist progress changes frequently, operational page requiring fresh data, inventory transactions are time-sensitive
+
+---
+
+### 17b. My tasks (`/admin/tasks/mine`)
+**Purpose**: Work assigned to the current user's linked staff (lead or helper) across housekeeping, maintenance, and inventory
+
+**Permission:** `housekeeping.task.read` or `maintenance.order.read` or `inventory.task.read`
+
+**Data Fetching:**
+- `taskAssignments` where `staffId` = linked staff
+- Join parent work record; filter open vs completed; highlight overdue
+
+**Rendering Strategy: SSR**
 
 ---
 
@@ -643,9 +661,24 @@ This document outlines which entities should have dedicated pages and the data f
 - `PurchaseOrderLine` with `InventoryItem` (where `purchaseOrderId` matches)
 - `Document` (where `referenceType = 'PurchaseOrder'` and `referenceId` matches)
 - `InventoryTransaction` (where `referenceType = 'PurchaseOrder'` and `referenceId` matches, optional)
+- Open `InventoryTask` putaway (where `purchaseOrderId` matches and `status IN ('pending', 'in-progress')`)
 
 **Rendering Strategy: SSR**
 - **Reason**: PO status and approval workflows update in real-time, received quantities change, document attachments are time-sensitive, requires fresh data for procurement operations
+
+---
+
+### 32b. Inventory Tasks (`/admin/inventory/tasks`)
+**Purpose**: Restock and putaway boards (unassigned / mine / overdue)
+
+**Permission:** `inventory.task.read`
+
+**Data Fetching:**
+- Fetch `InventoryTask` for current property
+- Join `InventoryItem`, `PurchaseOrder` (putaway), `taskAssignments` + `Employee`
+- Filter by `taskType`, `status`, board, `dueAt`
+
+**Rendering Strategy: SSR**
 
 ---
 
@@ -939,43 +972,49 @@ Sidebar: **Staff** (`staff.read`); **My profile** (`/admin/staff/myProfile`, lin
 
 ---
 
-### 41. Maintenance Orders Page (`/maintenance`)
-**Purpose**: Manage maintenance work orders
+### 41. Maintenance Orders Page (`/admin/maintenance`)
+**Purpose**: Manage maintenance work orders. Boards: unassigned (no lead), mine, overdue.
+
+**Permission:** `maintenance.order.read`
 
 **Data Fetching:**
 - Fetch all `MaintenanceOrder` records for current property (with pagination)
-- Include joined `Asset`, `Room`, and `Employee` data
+- Include joined `Asset`, `Room`, `Supplier`, and `taskAssignments` + `Employee`
 - Include `Document` records (invoices, completion certificates)
-- Filter by: `status`, `orderType`, `priority`, `assetId`, `roomId`, `assignedTo`
-- Sort by: `priority`, `scheduledDate`, `status`
+- Filter by: `status`, `orderType`, `priority`, `assetId`, `roomId`, lead `staffId`, `dueAt`
+- Sort by: `priority`, `dueAt`, `status`
 
 **Related Entities to Include:**
 - `Asset` (joined, optional)
 - `Room` (joined, optional)
+- `Supplier` (joined, optional vendor)
 - `Employee` as requester (joined, where `requestedBy` matches)
-- `Employee` as assignee (joined, where `assignedTo` matches, optional)
+- `taskAssignments` with `Employee` (lead + helpers)
 - `Document` (where `referenceType = 'MaintenanceOrder'` and `referenceId` matches, optional)
 
 **Rendering Strategy: SSR**
-- **Reason**: Maintenance order status changes frequently (open/assigned/in-progress/completed), priority and assignment updates are real-time, critical for operations, requires fresh data
+- **Reason**: Maintenance order status changes frequently, priority and assignment updates are real-time, critical for operations, requires fresh data
 
 ---
 
-### 42. Maintenance Order Detail Page (`/maintenance/[maintenanceOrderId]`)
-**Purpose**: View/edit maintenance work order details
+### 42. Maintenance Order Detail Page (`/admin/maintenance/[maintenanceOrderId]`)
+**Purpose**: View/edit maintenance work order details, vendor, lead/helpers, checklist, SLA
+
+**Permission:** `maintenance.order.update` (complete: `maintenance.order.complete` as lead or supervisor)
 
 **Data Fetching:**
 - Fetch single `MaintenanceOrder` by `maintenanceOrderId`
-- Fetch joined `Asset`, `Room`, `Property`, and `Employee` data
+- Fetch joined `Asset`, `Room`, `Property`, `Supplier`, `taskAssignments` + `Employee`
 - Fetch related `Document` records (invoices, completion certificates, warranty docs)
-- Show cost breakdown and SLA status
+- Show cost breakdown and `dueAt` status
 
 **Related Entities to Include:**
 - `Asset` (joined, optional)
 - `Room` (joined, optional)
 - `Property` (joined)
+- `Supplier` (joined, optional)
 - `Employee` as requester (joined, where `requestedBy` matches)
-- `Employee` as assignee (joined, where `assignedTo` matches, optional)
+- `taskAssignments` with `Employee`
 - `Document` (where `referenceType = 'MaintenanceOrder'` and `referenceId` matches)
 
 **Rendering Strategy: SSR**
@@ -1358,9 +1397,10 @@ Sidebar: **Staff** (`staff.read`); **My profile** (`/admin/staff/myProfile`, lin
 - `Reservation` (where `checkInDate` = today or `status IN ('confirmed', 'checked-in')`, limit 10)
 - `Order` (where `createdAt` >= today, limit 10)
 - `Reservation` (where `checkInDate` BETWEEN today AND today+7 days)
-- `HousekeepingTask` (where `status = 'pending'`, count)
-- `InventoryItem` (where `currentQuantity < reorderPoint`, count)
-- `MaintenanceOrder` (where `status IN ('open', 'assigned')`, count)
+- `HousekeepingTask` (where `status IN ('pending', 'in-progress')`, count)
+- `InventoryTask` (where `status IN ('pending', 'in-progress')`, count)
+- `InventoryItem` (where `currentQuantity <= reorderPoint`, count)
+- `MaintenanceOrder` (where `status IN ('pending', 'in-progress')`, count)
 - Latest `ReportSnapshot` (for key metrics)
 
 **Rendering Strategy: SSR**
@@ -1370,17 +1410,18 @@ Sidebar: **Staff** (`staff.read`); **My profile** (`/admin/staff/myProfile`, lin
 
 ## Summary
 
-### Total Pages: 70
+### Total Pages: 74
 
 **Breakdown by Category:**
 - Core Platform: 6 pages
 - Room Management: 11 pages
 - Food & Beverage: 8 pages
-- Inventory Management: 7 pages
+- Inventory Management: 8 pages (includes inventory tasks)
 - Staff: 2 pages
 - Shift Management: 7 pages (hub, Department shifts, Attendance Tracker, Cover, Shift, Hours, Hours edit)
 - Payroll Management: 6 pages (Time off, Payroll, Payroll detail, Payslip, Payment files, Payroll settings)
 - Maintenance Management: 4 pages
+- Task Assignment: 3 pages (My tasks, templates, SLA defaults)
 - Financial Management: 10 pages
 - Reporting & Analytics: 3 pages
 - Document Management: 2 pages

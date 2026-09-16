@@ -125,12 +125,11 @@ On July 15th, John arrives. The front desk:
 1. Updates **Reservation**: `status: "checked-in"`, `checkedInAt: 2024-07-15 14:30:00`
 2. Updates **Room**: `status: "occupied"`, `roomId: 205`
 3. Creates a **HousekeepingTask** for stayover service:
-   - `taskId: 4001`
-   - `roomId: 205`
    - `taskType: "stayover"`
    - `status: "pending"`
-   - `scheduledAt: 2024-07-16 10:00:00`
-   - `assignedTo: 201` (Mike Chen, housekeeping supervisor)
+   - `source: "reservation_stayover"`
+   - `dueAt`: now + stayover SLA default (180 minutes)
+   - Lead `taskAssignment` to the housekeeping department supervisor (Mike Chen)
 
 **Step 5: Room Service Order**
 
@@ -158,12 +157,8 @@ On July 18th, John checks out:
 1. **Reservation** updated: `status: "checked-out"`, `checkedOutAt: 2024-07-18 11:00:00`
 2. Final payment processed: Remaining balance ($205) charged to card
 3. **Payment** record created: `paymentId: 3002`, `amount: $205`, `referenceType: "Reservation"`, `referenceId: 10001`
-4. **Room** updated: `status: "available"` (after cleaning)
-5. **HousekeepingTask** created for checkout cleaning:
-   - `taskId: 4002`
-   - `roomId: 205`
-   - `taskType: "checkout"`
-   - `priority: "high"` (room needs to be ready for next guest)
+4. **Room** updated: `status: "available"` (room status is not set to dirty/cleaning)
+5. **HousekeepingTask** created for checkout cleaning (`source: reservation_checkout`, high priority). Front desk treats the room as **not ready** while this task is open (`pending` or `in-progress`). Lead is the housekeeping department supervisor.
 
 **Step 7: Financial Posting**
 
@@ -193,16 +188,16 @@ The housekeeping supervisor (Mike Chen) logs into the system and sees a dashboar
 - Room 301: Stayover service (medium priority)
 - Room 412: Deep clean (scheduled)
 
-Mike assigns tasks to his team:
-- **HousekeepingTask** `taskId: 4002` (Room 205 checkout):
-  - `assignedTo: 203` (Maria Garcia, housekeeper)
-  - `status: "assigned"`
-  - `scheduledAt: 2024-07-18 08:00:00`
+Mike assigns a **lead** (and optional helpers) via **taskAssignments**:
+- **HousekeepingTask** checkout for Room 205:
+  - Lead `staffId: 203` (Maria Garcia, housekeeper)
+  - `status` stays `"pending"` until she starts
+  - `dueAt` from checkout SLA default (45 minutes)
 
 **Task Execution (8:15 AM)**
 
 Maria starts cleaning Room 205:
-1. Updates **HousekeepingTask**: `status: "in-progress"`, `startedAt: 2024-07-18 08:15:00`
+1. Updates **HousekeepingTask**: `status: "in-progress"`, `startedAt: 2024-07-18 08:15:00` (any assignee may start)
 2. Uses cleaning supplies. The system tracks inventory usage:
    - Creates **InventoryTransaction** records:
      - `transactionId: 6001`: `inventoryItemId: 1001` (Cleaning Solution), `quantity: -0.5` (liters), `referenceType: "HousekeepingTask"`, `referenceId: 4002`
@@ -211,25 +206,27 @@ Maria starts cleaning Room 205:
 
 **Task Completion (9:30 AM)**
 
-Maria finishes cleaning:
+Maria is the **lead**, so she can complete:
 1. Updates **HousekeepingTask**: 
    - `status: "completed"`
    - `completedAt: 2024-07-18 09:30:00`
-   - `actualDuration: 75` minutes (vs. `estimatedDuration: 60`)
+   - `actualDuration: 75` minutes (vs. `estimatedDuration: 60`) — productivity-only; does not post Hours
    - `notes: "Room in excellent condition"`
 2. Updates **Room**: 
-   - `status: "available"`
    - `lastCleanedAt: 2024-07-18 09:30:00`
+   - `status` remains `"available"` (it was already available at checkout). The room is now ready because no open housekeeping task remains.
 
-The system tracks productivity: Maria completed the task in 75 minutes, which is 15 minutes over estimate. This data feeds into performance reports.
+The system tracks productivity: Maria completed the task in 75 minutes, which is 15 minutes over estimate. This data feeds into performance reports. On-time vs SLA uses `completedAt <= dueAt` (G3).
 
 ### Room Status Management
 
-The **Room** entity's `status` field drives availability:
-- `"available"`: Ready for guests
+The **Room** entity's `status` field drives sellability:
+- `"available"`: Can be sold. **Not the same as housekeeping-ready.** If an open checkout (or other) housekeeping task exists, front desk still treats the room as not ready.
 - `"occupied"`: Currently has guests
 - `"out-of-order"`: Cannot be sold (maintenance issue)
 - `"maintenance"`: Under repair
+
+There is no `dirty` / `cleaning` status. Readiness = no open housekeeping tasks on the room.
 
 When a room goes out of order:
 1. **Room** updated: `status: "out-of-order"`
@@ -564,12 +561,12 @@ The HVAC system in Room 205 requires quarterly maintenance:
    - `roomId: 205`
    - `orderType: "preventive"`
    - `priority: "medium"`
-   - `scheduledDate: 2024-07-20`
-   - `status: "open"`
+   - `source: "preventive_schedule"`
+   - `status: "pending"`
+   - `dueAt`: trigger + preventive SLA default (1440 minutes)
+   - Lead `taskAssignment` to the maintenance department supervisor
 
-3. Maintenance supervisor assigns:
-   - `assignedTo: 210` (Maintenance Technician)
-   - `status: "assigned"`
+3. Supervisor may add helpers or keep the default lead.
 
 ### Corrective Maintenance
 
@@ -585,13 +582,12 @@ A guest reports a broken AC in Room 301:
    - `title: "AC Not Working - Room 301"`
    - `description: "Guest reports AC not cooling"`
    - `requestedBy: 207`
-   - `status: "open"`
+   - `status: "pending"`
+   - optional `supplierId` if a vendor will do the physical work
 
 2. **Room** updated: `status: "out-of-order"` (if room cannot be sold)
 
-3. Maintenance technician (`employeeId: 210`) assigned:
-   - `assignedTo: 210`
-   - `status: "assigned"`
+3. Lead `taskAssignment` to `employeeId: 210` (Maintenance Technician); optional helpers. Status stays `"pending"` until start.
 
 4. Technician starts work:
    - `status: "in-progress"`

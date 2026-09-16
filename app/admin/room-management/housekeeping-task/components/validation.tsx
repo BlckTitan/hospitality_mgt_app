@@ -8,6 +8,10 @@ export const formSchema = yup.object().shape({
   assignedTo: yup
     .string(),
 
+  helperIds: yup
+    .array()
+    .of(yup.string()),
+
   taskType: yup
     .string()
     .oneOf(["checkout", "stayover", "deep-clean", "inspection"], "Invalid task type")

@@ -9,6 +9,7 @@ import { FormComponent } from './components/createTemplateForm';
 import { useQuery } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 import BootstrapModal from '../../../../shared/modal';
+import { ShiftPageGuide } from '../components/shiftPageGuide';
 
 export default function ShiftTemplatesPage() {
   const [modalShow, setModalShow] = useState(false);
@@ -49,10 +50,7 @@ export default function ShiftTemplatesPage() {
       
         </div>
       </header>
-      <p className="mb-4 text-sm text-gray-600">
-        Define default working hours per department. New staff in that department inherit this shift.
-        Employees start and end their shift on Attendance Tracker; use Cover when someone else works the day.
-      </p>
+      <ShiftPageGuide page="templates" />
       <Templates currentPropertyId={currentPropertyId} />
       <ModalComponent
         modalShow={modalShow}

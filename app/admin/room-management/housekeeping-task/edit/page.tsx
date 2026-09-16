@@ -1,22 +1,26 @@
-'use client';
+'use client'
 
 import { BackLink } from '../../../../../shared/pageHeader';
-import React from 'react';
+import React from 'react'
 import { Spinner } from 'react-bootstrap';
-import { useQuery } from 'convex/react';
+import { useQuery, useConvexAuth } from 'convex/react';
 import { api } from '../../../../../convex/_generated/api';
 import { Id } from '../../../../../convex/_generated/dataModel';
 import { useSearchParams } from 'next/navigation';
 import { FormComponent } from '../components/editHousekeepingTaskForm';
+import { TaskAssignmentPageGuide } from '../../../../../shared/taskAssignmentPageGuide';
 
 export default function Page() {
+  const { isAuthenticated } = useConvexAuth()
   const searchParams = useSearchParams();
-  const id = searchParams.get("task_id") ?? null;
-  const response = useQuery(api.housekeepingTasks.getHousekeepingTask, { taskId: id as Id<'housekeepingTasks'> });
+  const id = searchParams.get("task_id") ?? searchParams.get("id") ?? null
+  const response = useQuery(
+    api.housekeepingTasks.getHousekeepingTask,
+    isAuthenticated && id ? { taskId: id as Id<'housekeepingTasks'> } : 'skip'
+  )
 
-  // Check response for data
-  if (response === undefined) return <div className='w-full h-screen flex items-center justify-center'><Spinner animation="border" size='sm' variant="dark" /></div>;
-  if (!response.success || !response.data) return <div>No data available!</div>;
+  if (response === undefined) return <div className='w-full h-screen flex justify-center items-center'><Spinner animation="border" size='sm' variant="dark" /></div>
+  if (!response?.success || !response.data) return <div>No data available!</div>
 
   const task = response.data;
 
@@ -27,10 +31,13 @@ export default function Page() {
         <BackLink />
       </header>
 
+      <TaskAssignmentPageGuide page="housekeeping-edit" />
+
       <FormComponent
-        id={id as Id<'housekeepingTasks'>}
+        id={task._id}
         roomId={task.roomId}
-        assignedTo={task.assignedTo}
+        assignedTo={task.lead?.staffId ?? task.assignedTo}
+        helperIds={task.helpers?.map((row) => row.staffId) ?? []}
         taskType={task.taskType}
         status={task.status}
         priority={task.priority}
@@ -43,5 +50,5 @@ export default function Page() {
         propertyId={task.propertyId}
       />
     </div>
-  );
+  )
 }

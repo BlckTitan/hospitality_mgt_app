@@ -18,7 +18,7 @@ Hospitality operators juggle siloed systems for reservations, POS, payroll, proc
 - **G2**: Reduce manual accounting workload.
   - *KPI*: ≥60% of journal entries auto-generated via rules and integrations.
 - **G3**: Improve operational coordination.
-  - *KPI*: 90% of tasks (housekeeping, maintenance, inventory) completed within SLA using in-app workflows.
+  - *KPI*: 90% of tasks (housekeeping, maintenance, inventory restock/putaway) completed within SLA using in-app workflows. Skipped/cancelled tasks are excluded. See Task Assignment.
 - **G4**: Ensure compliance & audit readiness.
   - *KPI*: Immutable audit logs for 100% financial events; SOC 2 aligned controls.
 - **G5**: Accelerate onboarding & adoption.
@@ -43,12 +43,12 @@ Hospitality operators juggle siloed systems for reservations, POS, payroll, proc
    - PMS integrations for reservation ingestion and synchronization (for businesses with existing PMS).
    - Room inventory, status, rates, occupancy forecasts.
    - Revenue tracking: room sales, discounts, net revPAR metrics.
-   - Housekeeping assignments, checklists, supplies usage.
+   - Housekeeping assignments, checklists, supplies usage (lead + helpers; see Task Assignment).
 2. **Food & Beverage Management**
    - Menu catalog, recipe costing, upsell recommendations.
    - Native POS functionality for order taking, payment processing, and sales tracking (for businesses without existing POS systems).
    - POS integrations for sales ingestion (for businesses with existing POS systems).
-   - Inventory counts, reorder points, supplier management, restocking workflows.
+   - Inventory counts, reorder points, supplier management, restocking workflows (restock/putaway are assignable tasks; purchase orders stay procurement — see Task Assignment).
    - Document management for inventory purchases: supplier invoices, delivery receipts, and payment confirmations must be uploaded and linked to purchase orders.
 3. **Staff Management**
    - Property-scoped people master (`staffs` only — no `employees` table). Existing `/admin/staff` and `Id<"staffs">` FKs stay.
@@ -59,7 +59,7 @@ Hospitality operators juggle siloed systems for reservations, POS, payroll, proc
    - Native Payroll: Prepare pay, Approve payroll, generate Payslips, Download payment files, post GL, Mark as paid.
    - Implementation decisions and target model: `ai/payroll-implementation.md`.
 5. **Maintenance Management**
-   - Asset registry, preventive schedules, work orders, cost tracking.
+   - Asset registry, preventive schedules, work orders, cost tracking (staff lead + optional helpers and optional vendor; see Task Assignment).
 6. **Expenses & Financial Management**
    - Expense capture (manual + scanned invoices), approvals, GL mapping.
    - **Mandatory document attachment**: All expenses must include supporting documents (invoices, receipts, payment confirmations) as evidence of payment.
@@ -92,6 +92,11 @@ Hospitality operators juggle siloed systems for reservations, POS, payroll, proc
 - GDPR anonymize/erase of staff with payroll history.
 - Hardware / biometric time clocks.
 - Direct payroll processor APIs (Gusto, ADP, Paychex) — bank/CSV export is the MVP path.
+- Cycle counts as assignable tasks (stock takes stay inventory operations, not Task Assignment).
+- A generic `Task` table as the work record (housekeeping, maintenance, and inventory keep separate work entities).
+- Task duration posting to Hours / payroll (duration on the work record is productivity-only).
+- SMS/WhatsApp task notifications (Twilio); in-app only this phase.
+- Bar `reorderAlerts` / beverage restock as Task Assignment (bar keeps its own alert flow; restock tasks use `inventoryItems`).
 
 ## Functional Requirements
 
@@ -109,7 +114,8 @@ Hospitality operators juggle siloed systems for reservations, POS, payroll, proc
 - CRUD for rooms, room types, amenities, rate plans.
 - Calendar view of occupancy, maintenance blocks, housekeeping status.
 - Revenue module aggregating bookings by source, promotions, taxes.
-- Housekeeping workflow with task templates, time tracking, supply usage deduction from inventory.
+- Housekeeping workflow with task templates, productivity time tracking, and supply usage deduction from inventory. Assignment, SLA, auto-create, and completion rules: Task Assignment.
+- Room status stays `available | occupied | out-of-order | maintenance`. Front desk infers unreadiness from **open housekeeping tasks** on the room (do not add `dirty` / `cleaning`). Completing a checkout-clean task sets `Room.lastCleanedAt`.
 
 ### Food & Beverage Management
 
@@ -123,7 +129,7 @@ Hospitality operators juggle siloed systems for reservations, POS, payroll, proc
   - Sales ingestion via API/webhooks with mapping to GL accounts.
   - Menu synchronization and price updates.
 - Recipe builder linking ingredients to inventory SKUs, auto-cost updates.
-- Inventory cycle counts, variance detection, reorder automation, supplier price history.
+- Inventory cycle counts, variance detection, reorder automation, supplier price history. Restock (below reorder point) and putaway (PO received) are assignable inventory tasks; the purchase order itself is not assigned — see Task Assignment.
 - **Inventory Purchase Documentation**: All inventory purchases require:
   - Supplier invoices (original or digital copies)
   - Delivery notes/receipts
@@ -138,7 +144,7 @@ Hospitality operators juggle siloed systems for reservations, POS, payroll, proc
 - **Employment type** (required): `full-time` | `part-time` | `casual` | `contractor`.
 - **Employee number**: required, auto-generated per property (`{PREFIX}-{NNNN}`), immutable after create.
 - **Status**: `active` | `terminated`. On-leave is derived from approved Time off overlapping today, not a stored status.
-- **Terminate**: set status + date; hide from default lists; never hard-delete. Unlink `userId` so Attendance Tracker cannot start; the User and other UserRoles remain.
+- **Terminate**: set status + date; hide from default lists; never hard-delete. Unlink `userId` so Attendance Tracker cannot start; the User and other UserRoles remain. Unassign that person from open `taskAssignments`; if they were lead, the work stays `pending` with no lead until a supervisor assigns.
 - **Team**: `managerId` on Staff (same property, not self). Supervisors approve Hours and Time off for **direct reports** only.
 - **Pay setup**: opening Pay history on create; later rate changes write a new Pay history row (denormalized `payType` / `baseSalary` / `hourlyRate`). Bank fields required only when `paymentMethod = bank`. This person’s pay items (`staffPayItems`) are assigned on the staff record.
 - **HR files** (Staff-only, not the full DMS): contracts, ID copies, tax forms, bank letters, policies. Emergency contact and national ID on the profile.
@@ -165,14 +171,38 @@ Hospitality operators juggle siloed systems for reservations, POS, payroll, proc
 ### Maintenance
 
 - Asset registry with depreciation schedules.
-- Work order intake (manual, schedule-driven, or triggered by inspections).
-- Cost tracking per work order, parts usage, vendor assignment, SLA monitoring.
+- Work order intake (manual or schedule-driven preventive). Inspection-triggered intake is later.
+- Cost tracking per work order, parts usage, optional vendor (`Supplier`) **in addition to** the staff lead/helpers, SLA via `dueAt`. Assignment and completion: Task Assignment.
 - **Maintenance Documentation**: Maintenance work orders must include:
   - Vendor invoices for maintenance services
   - Work completion certificates
   - Warranty documents (where applicable)
   - Payment receipts for maintenance expenses
   - Documents linked to maintenance orders for cost verification and warranty tracking.
+
+### Task Assignment
+
+Shared assignment, SLA, templates, and checklists across housekeeping, maintenance, and inventory restock/putaway. There is **no generic `Task` table** — each module keeps its own work record (`HousekeepingTask`, `MaintenanceOrder`, `InventoryTask`) and shares `taskAssignments`, `taskTemplates`, and `taskSlaDefaults`.
+
+- **Assignees**: one **lead** plus optional **helpers** (`taskAssignments.role`). Any assignee may start the work. **Only the lead or a supervisor may complete.** Skip (housekeeping) and cancel (maintenance / inventory) are supervisor-only; reason goes in `notes`.
+- **Lead requirement**: completion is blocked without a lead. Auto-created work gets the **department supervisor** as lead when one can be resolved; otherwise it stays `pending` with no lead on the supervisor board.
+- **Department for default lead**: housekeeping → `housekeeping`; maintenance → `maintenance`; inventory restock/putaway → `fnb` (storekeeper / F&B). Resolution: active staff at the property in that department who have at least one direct report (`managerId`); if several, prefer the one with no `managerId`.
+- **Assignee constraints**: `active`, same property. Manual create: lead defaults to the acting supervisor’s linked staff if they are in-department, else the department supervisor. Optional helpers. Maintenance may also name a `Supplier` (vendor does the physical work; the staff lead still owns in-app completion).
+- **Status**: `pending` → `in-progress` → `completed`. Housekeeping may `skipped`; maintenance and inventory may `cancelled`.
+- **SLA**: every work record has `dueAt` = trigger/create time + property `taskSlaDefaults.dueMinutes` for that module/`typeKey`. Snapshot; later default edits do not rewrite open work. Seeded defaults: checkout 45, stayover 180, emergency WO 120, restock 480, putaway 120, preventive 1440.
+- **G3**: percent of **completed** housekeeping + maintenance + inventory tasks in the period with `completedAt <= dueAt`. Skipped/cancelled excluded.
+- **Templates**: reusable checklists per property + module + `typeKey` (optional `roomTypeId` for housekeeping). At create, snapshot steps onto the work record as `{ id, label, isComplete }[]`. Putaway may seed checklist from PO lines (item + qty).
+- **Auto-create**:
+  - Reservation checkout → housekeeping `checkout` task (open checkout task is what blocks “room ready”; room status is not changed to dirty/cleaning).
+  - Reservation check-in → housekeeping `stayover` task.
+  - `inventoryItems.currentQuantity <= reorderPoint` → inventory `restock` task (`suggestedQuantity = reorderQuantity`). Completing restock does **not** create a purchase order.
+  - Purchase order status `received` → inventory `putaway` task. Completing putaway does not change PO status beyond `received`.
+  - Asset `nextMaintenanceDate` due → maintenance preventive work order; completing updates `lastMaintenanceDate` / `nextMaintenanceDate`.
+- **Uniqueness (open work only)**: one checkout task per room; one stayover per room per calendar day; one restock per inventory item; one putaway per received PO; one preventive work order per asset.
+- **Duration**: `estimatedDuration` / `actualDuration` on housekeeping are productivity-only; they do not post Hours.
+- **Notifications**: in-app this phase.
+- **Boards**: unassigned (no lead), mine (current user’s linked staff), overdue (`dueAt` passed, not completed).
+- **Permissions**: `housekeeping.task.*`, `maintenance.order.*`, `inventory.task.*` with `read | assign | update | complete`. Staff: read/update assigned rows; complete only if lead. Supervisors: assign and complete any in module. Do not gate these screens on `system.admin`.
 
 ### Expenses & Utilities
 
@@ -250,12 +280,12 @@ Hospitality operators juggle siloed systems for reservations, POS, payroll, proc
 
 ## Data & ERD Considerations
 
-- Core entities: `Property` (includes required `country` for payroll jurisdiction), `User`, `Role`, `staffs` (Employee; no `employees` table), `staffDocuments`, `staffOnboardingItems`, `staffChangeRequests`, `Room`, `Reservation`, `HousekeepingTask`, `FnbMenuItem`, `InventoryItem`, `Supplier`, `PurchaseOrder`, Department shift (`shiftTemplates`), Roster day (`rosterSlots`), Shift (`shifts`), Pay history, Pay cycle, Time-off type, Time off, Holidays, Extra pay rules, Hours, Payroll settings, Pay item type, Payroll, Staff pay, Pay item, Payslip, Payment file, `MaintenanceOrder`, `Asset`, `Expense`, `UtilityBill`, `JournalEntry`, `Report`. Schema table names stay `payHistory`, `payCycles`, `timeOffTypes`, `timeOff`, `holidayCalendars`, `extraPayRules`, `hours`, `payrollSettings`, `payItemTypes`, `payrolls`, `staffPay`, `payItems`, `payslips`, `paymentFiles`, plus live `shiftTemplates`, `rosterSlots`, `shifts`.
+- Core entities: `Property` (includes required `country` for payroll jurisdiction), `User`, `Role`, `staffs` (Employee; no `employees` table), `staffDocuments`, `staffOnboardingItems`, `staffChangeRequests`, `Room`, `Reservation`, `HousekeepingTask`, `taskAssignments`, `taskTemplates`, `taskSlaDefaults`, `FnbMenuItem`, `InventoryItem`, `InventoryTask`, `Supplier`, `PurchaseOrder`, Department shift (`shiftTemplates`), Roster day (`rosterSlots`), Shift (`shifts`), Pay history, Pay cycle, Time-off type, Time off, Holidays, Extra pay rules, Hours, Payroll settings, Pay item type, Payroll, Staff pay, Pay item, Payslip, Payment file, `MaintenanceOrder`, `Asset`, `Expense`, `UtilityBill`, `JournalEntry`, `Report`. Schema table names stay `payHistory`, `payCycles`, `timeOffTypes`, `timeOff`, `holidayCalendars`, `extraPayRules`, `hours`, `payrollSettings`, `payItemTypes`, `payrolls`, `staffPay`, `payItems`, `payslips`, `paymentFiles`, plus live `shiftTemplates`, `rosterSlots`, `shifts`, `housekeepingTasks`, `taskAssignments`, `taskTemplates`, `taskSlaDefaults`, `maintenanceOrders`, `inventoryTasks`.
 - Relationships:
   - `Property` 1:N `staffs`, `Room`, `InventoryItem`, `Asset`.
   - User 1:1 Staff globally (optional). Staff `managerId` self-FK (direct reports).
   - `Reservation` links `Room`, `Guest`, and yields `JournalEntries`.
-  - `HousekeepingTask` + `MaintenanceOrder` reference rooms/assets, produce expenses.
+  - `HousekeepingTask` + `MaintenanceOrder` + `InventoryTask` share `taskAssignments` (lead + helpers). Room readiness is inferred from open housekeeping tasks; room status is not `dirty`/`cleaning`.
   - `FnbMenuItem` consumes `InventoryItems` via recipe lines.
   - Department shift → Employee (default on onboard); Roster day (Cover) → who should attend; Shift (Attendance Tracker or ad-hoc) → Hours on End shift / Finalize.
   - A Payroll is created from a Pay cycle, aggregates approved/unlocked Hours, Time off, Pay history, and Pay item types for `staffs` into Staff pay / Pay items, then posts a `JournalEntry` and produces Payslips + Payment files.
@@ -304,7 +334,7 @@ Hospitality operators juggle siloed systems for reservations, POS, payroll, proc
 
 ## Glossary
 
-- **SLA (Service Level Agreement)**: A commitment between a service provider and a client regarding the level of service expected, including response times, uptime guarantees, and resolution timeframes. In this PRD, SLA refers to task completion timeframes (e.g., housekeeping tasks completed within agreed time windows).
+- **SLA (Service Level Agreement)**: Task completion window. Stored as `dueAt` on each work record from property `taskSlaDefaults`. G3 = percent of completed housekeeping, maintenance, and inventory restock/putaway tasks with `completedAt <= dueAt` (skipped/cancelled excluded).
 
 - **SOC (System and Organization Controls)**: A framework for reporting on controls at service organizations, particularly SOC 2 which focuses on security, availability, processing integrity, confidentiality, and privacy. SOC 2 compliance demonstrates that the platform has robust security controls and audit trails.
 

@@ -11,4 +11,11 @@ crons.cron(
   {},
 );
 
+crons.cron(
+  "create preventive maintenance orders",
+  "0 6 * * *",
+  internal.assets.createPreventiveOrdersDue,
+  {},
+);
+
 export default crons;

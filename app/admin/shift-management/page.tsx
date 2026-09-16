@@ -3,6 +3,7 @@
 import { BackLink } from '../../../shared/pageHeader';
 import Link from 'next/link';
 import { usePermissions } from '../../../hooks/usePermissions';
+import { ShiftPageGuide } from './components/shiftPageGuide';
 
 const hubLinks = [
   { href: '/admin/shift-management/templates', label: 'Open Department shifts' },
@@ -22,11 +23,8 @@ export default function ShiftManagement() {
         <h3>Shift Management</h3>
         <BackLink />
       </header>
-      <p className="mb-4 text-sm text-gray-600">
-        Define department shifts, then onboard staff into that department. Staff start and end their shift on Attendance Tracker.
-        Use Cover when someone else works the day. Ad-hoc Shifts remain available. Finalize or sign out creates draft Hours for payroll.
-      </p>
-      {isLoading ? (
+      <ShiftPageGuide page="hub" />
+        {isLoading ? (
         <p>Loading...</p>
       ) : (
         <div className="flex flex-col gap-2">

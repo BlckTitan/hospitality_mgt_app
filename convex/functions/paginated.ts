@@ -37,6 +37,9 @@ const TABLE_READ_PERMISSIONS = {
   extraPayRules: "payroll.settings.update",
   payslips: "payroll.payslip.read",
   paymentFiles: "payroll.run.export",
+  housekeepingTasks: "housekeeping.task.read",
+  maintenanceOrders: "maintenance.order.read",
+  inventoryTasks: "inventory.task.read",
 } as const;
 
 export const getPaginatedData = query({
@@ -76,7 +79,10 @@ export const getPaginatedData = query({
       v.literal('holidays'),
       v.literal('extraPayRules'),
       v.literal('payslips'),
-      v.literal('paymentFiles')
+      v.literal('paymentFiles'),
+      v.literal('housekeepingTasks'),
+      v.literal('maintenanceOrders'),
+      v.literal('inventoryTasks')
     ),
     limit: v.number(), //items per page
     cursor: v.optional(v.string()), //current page cursor

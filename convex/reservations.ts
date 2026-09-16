@@ -1,6 +1,7 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
 import { requirePermission } from './lib/rbac';
+import { maybeCreateCheckoutOnCheckOut, maybeCreateStayoverOnCheckIn } from './lib/taskAssignment';
 
 // Generate unique confirmation number
 function generateConfirmationNumber(propertyId: string, timestamp: number): string {
@@ -91,7 +92,7 @@ export const createReservation = mutation({
     specialRequests: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    await requirePermission(ctx, 'reservations.create', args.propertyId);
+    const auth = await requirePermission(ctx, 'reservations.create', args.propertyId);
     try {
       // Validate dates
       if (args.checkOutDate <= args.checkInDate) {
@@ -175,6 +176,14 @@ export const createReservation = mutation({
         });
       }
 
+      const created = await ctx.db.get(reservationId);
+      if (created && args.status === 'checked-in') {
+        await maybeCreateStayoverOnCheckIn(ctx, created, auth.user._id);
+      }
+      if (created && args.status === 'checked-out') {
+        await maybeCreateCheckoutOnCheckOut(ctx, created, auth.user._id);
+      }
+
       return { success: true, message: 'Reservation created successfully', id: reservationId, confirmationNumber };
     } catch (error) {
       console.log(`Failed to create reservation: ${error}`);
@@ -204,7 +213,7 @@ export const updateReservation = mutation({
       return { success: false, message: 'Reservation does not exist' };
     }
 
-    await requirePermission(ctx, 'reservations.update', existingReservation.propertyId);
+    const auth = await requirePermission(ctx, 'reservations.update', existingReservation.propertyId);
 
     try {
       // Validate dates
@@ -288,6 +297,16 @@ export const updateReservation = mutation({
             status: 'occupied',
             updatedAt: now,
           });
+        }
+      }
+
+      const updated = await ctx.db.get(args.reservationId);
+      if (updated) {
+        if (args.status === 'checked-in' && existingReservation.status !== 'checked-in') {
+          await maybeCreateStayoverOnCheckIn(ctx, updated, auth.user._id);
+        }
+        if (args.status === 'checked-out' && existingReservation.status !== 'checked-out') {
+          await maybeCreateCheckoutOnCheckOut(ctx, updated, auth.user._id);
         }
       }
 

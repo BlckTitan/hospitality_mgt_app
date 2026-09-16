@@ -191,7 +191,7 @@ export const ROLE_PERMISSION_MATRIX: Record<string, UserPermissions> = {
     finance: 'NONE',
     reports: 'LIMITED',
     system: 'NONE',
-    maintenance: 'NONE',
+    maintenance: 'LIMITED',
     security: 'NONE',
     payroll: 'LIMITED'
   },
@@ -374,5 +374,26 @@ export const GRANULAR_PERMISSIONS = {
   },
   staff: {
     'staff.self.read': 'staff.read',
-  }
+  },
+  housekeeping: {
+    'housekeeping.task.read': 'reservations.read',
+    'housekeeping.task.assign': 'reservations.update',
+    'housekeeping.task.update': 'reservations.update',
+    'housekeeping.task.complete': 'reservations.update',
+  },
+  rooms: {
+    'rooms.read': 'reservations.read',
+  },
+  maintenance: {
+    'maintenance.order.read': 'maintenance.read',
+    'maintenance.order.assign': 'maintenance.update',
+    'maintenance.order.update': 'maintenance.update',
+    'maintenance.order.complete': 'maintenance.update',
+  },
+  inventory: {
+    'inventory.task.read': 'inventory.read',
+    'inventory.task.assign': 'inventory.update',
+    'inventory.task.update': 'inventory.update',
+    'inventory.task.complete': 'inventory.update',
+  },
 } as const;

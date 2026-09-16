@@ -9,6 +9,7 @@ import { useDebounce } from 'use-debounce';
 
 const PEOPLE_SEARCH_TABLES = new Set(['staffs', 'guests']);
 const LOGIN_SEARCH_TABLES = new Set(['users']);
+const CLIENT_DATA_TABLES = new Set(['housekeepingTasks', 'maintenanceOrders', 'inventoryTasks']);
 
 function searchPlaceholder(collectionName: string) {
   if (PEOPLE_SEARCH_TABLES.has(collectionName)) {
@@ -30,7 +31,7 @@ interface SearchComponentProps {
   value: string;
 }
 
-export default function PaginationComponent({ collectionName, columns, jointTableData = [] }) {
+export default function PaginationComponent({ collectionName, columns, jointTableData }) {
   const limit = 10;
   const [cursorHistory, setCursorHistory] = useState<(string | null)[]>([null]);
   const [currentPage, setCurrentPage] = useState(1);
@@ -39,6 +40,9 @@ export default function PaginationComponent({ collectionName, columns, jointTabl
   const [query] = useDebounce(searchQuery, 300);
   const searchTerm = query.trim().length >= 2 ? query.trim() : undefined;
   const showSearch = supportsNameSearch(collectionName);
+  const usesClientData = Array.isArray(jointTableData);
+  const skipPaginated =
+    usesClientData || CLIENT_DATA_TABLES.has(collectionName) || !collectionName;
   const needsBackfill = useQuery(
     api.searchBackfill.needsSearchNameBackfill,
     showSearch ? {} : "skip",
@@ -52,12 +56,17 @@ export default function PaginationComponent({ collectionName, columns, jointTabl
   }, [needsBackfill, backfillSearchNames]);
   const currentCursor = cursorHistory[currentPage - 1] ?? undefined;
 
-  const response = useQuery(api.functions.paginated.getPaginatedData, {
-    table: collectionName,
-    limit,
-    cursor: currentCursor,
-    ...(searchTerm ? { searchTerm } : {}),
-  });
+  const response = useQuery(
+    api.functions.paginated.getPaginatedData,
+    skipPaginated
+      ? 'skip'
+      : {
+          table: collectionName,
+          limit,
+          cursor: currentCursor,
+          ...(searchTerm ? { searchTerm } : {}),
+        },
+  );
 
   useEffect(() => {
     setCursorHistory([null]);
@@ -106,10 +115,9 @@ export default function PaginationComponent({ collectionName, columns, jointTabl
   };
 
   const currentData = pageCache[currentPage] || [];
-  const hasJointData = Array.isArray(jointTableData) && jointTableData.length > 0;
   const emptyMessage = searchTerm ? 'No matching results were found.' : 'No data available!';
 
-  if (response === undefined && !hasJointData) {
+  if (!usesClientData && (skipPaginated || response === undefined)) {
     return (
       <div className="w-full h-screen flex justify-center items-center">
         <Spinner animation="border" size="sm" variant="dark" />
@@ -117,7 +125,9 @@ export default function PaginationComponent({ collectionName, columns, jointTabl
     );
   }
 
-  const isEmpty = !hasJointData && (!response?.page || response.page.length === 0);
+  const isEmpty = usesClientData
+    ? jointTableData.length === 0
+    : !response?.page || response.page.length === 0;
 
   return (
     <>
@@ -134,9 +144,7 @@ export default function PaginationComponent({ collectionName, columns, jointTabl
         </div>
       ) : (
         <TableComponent
-          data={(jointTableData && jointTableData.length > 0) || collectionName === ''
-            ? jointTableData
-            : currentData}
+          data={usesClientData ? jointTableData : currentData}
           columns={columns}
         />
       )}

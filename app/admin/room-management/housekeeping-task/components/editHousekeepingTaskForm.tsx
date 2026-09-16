@@ -14,6 +14,7 @@ type FormData = {
   id: Id<'housekeepingTasks'>;
   roomId: string;
   assignedTo?: string;
+  helperIds?: string[];
   taskType: 'checkout' | 'stayover' | 'deep-clean' | 'inspection';
   status: 'pending' | 'in-progress' | 'completed' | 'skipped';
   priority: 'low' | 'medium' | 'high' | 'urgent';
@@ -29,6 +30,7 @@ export function FormComponent({
   id,
   roomId,
   assignedTo,
+  helperIds,
   taskType,
   status,
   priority,
@@ -43,6 +45,7 @@ export function FormComponent({
   id: Id<'housekeepingTasks'>;
   roomId: string;
   assignedTo?: string;
+  helperIds?: string[];
   taskType: string;
   status: string;
   priority: string;
@@ -56,6 +59,7 @@ export function FormComponent({
 }) {
   const updateTask = useMutation(api.housekeepingTasks.updateHousekeepingTask);
   const roomsResponse = useQuery(api.rooms.getAllRooms, { propertyId: propertyId as Id<'properties'> });
+  const staffList = useQuery(api.housekeepingTasks.listAssignableStaff, { propertyId: propertyId as Id<'properties'> });
   
   const rooms = roomsResponse?.data || [];
 
@@ -75,6 +79,7 @@ export function FormComponent({
     defaultValues: {
       roomId: roomId,
       assignedTo: assignedTo || '',
+      helperIds: helperIds ?? [],
       taskType: taskType as 'checkout' | 'stayover' | 'deep-clean' | 'inspection',
       status: status as 'pending' | 'in-progress' | 'completed' | 'skipped',
       priority: priority as 'low' | 'medium' | 'high' | 'urgent',
@@ -97,6 +102,9 @@ export function FormComponent({
         taskId: id,
         roomId: data.roomId as Id<'rooms'>,
         assignedTo: data.assignedTo ? (data.assignedTo as Id<'staffs'>) : undefined,
+        helperIds: (data.helperIds ?? [])
+          .filter((helperId) => helperId && helperId !== data.assignedTo)
+          .map((helperId) => helperId as Id<'staffs'>),
         taskType: data.taskType as 'checkout' | 'stayover' | 'deep-clean' | 'inspection',
         status: data.status as 'pending' | 'in-progress' | 'completed' | 'skipped',
         priority: data.priority as 'low' | 'medium' | 'high' | 'urgent',
@@ -152,7 +160,10 @@ export function FormComponent({
     label: `${room.roomNumber}${room.roomType ? ` - ${room.roomType.name}` : ''} (${room.status})`,
   }));
 
-  const staffOptions: { value: string; label: string }[] = [];
+  const staffOptions = (staffList ?? []).map((row) => ({
+    value: row._id,
+    label: `${row.firstName} ${row.lastName}${row.department ? ` (${row.department})` : ''}`,
+  }));
 
   return (
     <>
@@ -174,7 +185,7 @@ export function FormComponent({
             {errors.roomId && <span className="text-red-500 text-sm">{errors.roomId.message}</span>}
           </div>
           <div className="flex-1">
-            <label htmlFor="assignedTo" className="block mb-2">Assigned To</label>
+            <label htmlFor="assignedTo" className="block mb-2">Lead</label>
             <select
               id="assignedTo"
               {...register('assignedTo')}
@@ -188,6 +199,18 @@ export function FormComponent({
               ))}
             </select>
             {errors.assignedTo && <span className="text-red-500 text-sm">{errors.assignedTo.message}</span>}
+          </div>
+        </div>
+
+        <div className="w-full mb-2 lg:mb-4">
+          <label className="block mb-2">Helpers (optional)</label>
+          <div className="flex flex-col gap-1 max-h-32 overflow-y-auto border rounded p-2">
+            {staffOptions.filter((option) => option.value !== assignedTo).map((option) => (
+              <label key={option.value} className="flex items-center gap-2">
+                <input type="checkbox" value={option.value} {...register('helperIds')} />
+                {option.label}
+              </label>
+            ))}
           </div>
         </div>
 

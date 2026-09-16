@@ -13,6 +13,7 @@ import { Id } from "../../../../../convex/_generated/dataModel";
 type FormData = {
   roomId: string;
   assignedTo?: string;
+  helperIds?: string[];
   taskType: 'checkout' | 'stayover' | 'deep-clean' | 'inspection';
   status: 'pending' | 'in-progress' | 'completed' | 'skipped';
   priority: 'low' | 'medium' | 'high' | 'urgent';
@@ -24,14 +25,16 @@ type FormData = {
 export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess?: () => void; onClose?: () => void; propertyId: string }) {
   const createTask = useMutation(api.housekeepingTasks.createHousekeepingTask);
   const roomsResponse = useQuery(api.rooms.getAllRooms, { propertyId: propertyId as Id<'properties'> });
+  const staffList = useQuery(api.housekeepingTasks.listAssignableStaff, { propertyId: propertyId as Id<'properties'> });
   
   const rooms = roomsResponse?.data || [];
 
-  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, watch, formState: { errors } } = useForm<FormData>({
     resolver: yupResolver(formSchema) as any,
     defaultValues: {
       roomId: '',
       assignedTo: '',
+      helperIds: [],
       taskType: 'checkout',
       status: 'pending',
       priority: 'medium',
@@ -49,6 +52,9 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess?: 
         propertyId: propertyId as Id<'properties'>,
         roomId: data.roomId as Id<'rooms'>,
         assignedTo: data.assignedTo ? (data.assignedTo as Id<'staffs'>) : undefined,
+        helperIds: (data.helperIds ?? [])
+          .filter((id) => id && id !== data.assignedTo)
+          .map((id) => id as Id<'staffs'>),
         taskType: data.taskType,
         status: data.status,
         priority: data.priority,
@@ -61,7 +67,9 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess?: 
         toast.error(response.message);
       } else {
         toast.success("Housekeeping task created successfully!");
-        console.log("Task created with ID:", response.id);
+        if ('id' in response) {
+          console.log("Task created with ID:", response.id);
+        }
 
         if (onSuccess) onSuccess();
         if (onClose) onClose();
@@ -104,9 +112,11 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess?: 
     label: `${room.roomNumber}${room.roomType ? ` - ${room.roomType.name}` : ''} (${room.status})`,
   }));
 
-  // Note: Staff options would need to be fetched from a staff API
-  // For now, we'll make it optional
-  const staffOptions: { value: string; label: string }[] = [];
+  const staffOptions = (staffList ?? []).map((row) => ({
+    value: row._id,
+    label: `${row.firstName} ${row.lastName}${row.department ? ` (${row.department})` : ''}`,
+  }));
+  const selectedLead = watch('assignedTo');
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className='createHousekeepingTaskForm'>
@@ -129,14 +139,14 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess?: 
           {errors.roomId && <span className="text-red-500 text-sm">{errors.roomId.message}</span>}
         </div>
         <div className="flex-1">
-          <label htmlFor="assignedTo" className="block mb-2">Assigned To</label>
+          <label htmlFor="assignedTo" className="block mb-2">Lead</label>
           <select
             id="assignedTo"
             {...register('assignedTo')}
             className="w-full border rounded p-2"
             defaultValue=""
           >
-            <option value="">Unassigned</option>
+            <option value="">Default department supervisor</option>
             {staffOptions.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
@@ -144,6 +154,18 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess?: 
             ))}
           </select>
           {errors.assignedTo && <span className="text-red-500 text-sm">{errors.assignedTo.message}</span>}
+        </div>
+      </div>
+
+      <div className="w-full mb-2 lg:mb-4">
+        <label className="block mb-2">Helpers (optional)</label>
+        <div className="flex flex-col gap-1 max-h-32 overflow-y-auto border rounded p-2">
+          {staffOptions.filter((option) => option.value !== selectedLead).map((option) => (
+            <label key={option.value} className="flex items-center gap-2">
+              <input type="checkbox" value={option.value} {...register('helperIds')} />
+              {option.label}
+            </label>
+          ))}
         </div>
       </div>
 
