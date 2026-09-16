@@ -180,7 +180,7 @@ function SidebarNavItem({
                 <Link
                   key={link.id}
                   href={link.href}
-                  className={`h-10 pl-8 hover:!bg-black ${isPathInSection(path, link.href) ? '!bg-[#333] text-white' : 'bg-transparent'}`}
+                  className={`h-10 pl-8 ml-6 hover:!bg-black ${isPathInSection(path, link.href) ? '!bg-[#333] text-white' : 'bg-transparent'}`}
                 >
                   <span>{link.label}</span>
                 </Link>

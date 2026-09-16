@@ -121,8 +121,8 @@
   * {
     @apply border-border outline-ring/50;
   }
-  body {
-    @apply bg-background text-foreground;
+  html, body {
+    @apply min-h-dvh bg-[var(--secondary)] text-foreground;
   }
 }
 
@@ -133,7 +133,7 @@
   /* "Open Sans" */
 }
 body {
-  @apply m-0 p-0 text-base bg-[var(--secondary)] text-[var(--primary)];
+  @apply m-0 p-0 text-base !bg-[var(--secondary)] text-[var(--primary)];
 }
 main{
   @apply bg-[var(--secondary)];
