@@ -52,6 +52,7 @@ export const ROLE_PERMISSION_MATRIX: Record<string, UserPermissions> = {
     maintenance: "FULL",
     security: "FULL",
     payroll: "FULL",
+    expenses: "FULL",
   },
   Director: {
     users: "NONE",
@@ -66,6 +67,7 @@ export const ROLE_PERMISSION_MATRIX: Record<string, UserPermissions> = {
     maintenance: "VIEW",
     security: "VIEW",
     payroll: "FULL",
+    expenses: "FULL",
   },
   "General Manager": {
     users: "NONE",
@@ -80,6 +82,7 @@ export const ROLE_PERMISSION_MATRIX: Record<string, UserPermissions> = {
     maintenance: "LIMITED",
     security: "VIEW",
     payroll: "FULL",
+    expenses: "FULL",
   },
   "Operations Manager": {
     users: "NONE",
@@ -94,6 +97,7 @@ export const ROLE_PERMISSION_MATRIX: Record<string, UserPermissions> = {
     maintenance: "FULL",
     security: "VIEW",
     payroll: "LIMITED",
+    expenses: "VIEW",
   },
   "Finance Manager": {
     users: "NONE",
@@ -108,6 +112,7 @@ export const ROLE_PERMISSION_MATRIX: Record<string, UserPermissions> = {
     maintenance: "NONE",
     security: "VIEW",
     payroll: "FULL",
+    expenses: "FULL",
   },
   "HR Manager": {
     users: "LIMITED",
@@ -164,6 +169,7 @@ export const ROLE_PERMISSION_MATRIX: Record<string, UserPermissions> = {
     maintenance: "LIMITED",
     security: "NONE",
     payroll: "LIMITED",
+    expenses: "VIEW",
   },
   Bartender: {
     users: "NONE",
@@ -238,5 +244,13 @@ export const GRANULAR_PERMISSIONS: Record<string, Record<string, string>> = {
     "inventory.task.assign": "inventory.update",
     "inventory.task.update": "inventory.update",
     "inventory.task.complete": "inventory.update",
+  },
+  billing: {
+    "billing.account.read": "finance.read",
+    "billing.account.create": "finance.create",
+    "billing.account.update": "finance.update",
+    "billing.period.read": "finance.read",
+    "billing.period.update": "finance.update",
+    "billing.pay": "finance.approve",
   },
 };

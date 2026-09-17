@@ -9,40 +9,68 @@ import { SubmitHandler, useForm } from "react-hook-form";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { toast } from "sonner";
 import InputComponent from "../../../../shared/input";
+import SelectComponent from "../../../../shared/select";
+import { Field, fieldRowClassName, fieldWidthClass } from "../../../../shared/field";
+import { useState } from "react";
+import {
+  MaintenancePartsFields,
+  emptyPart,
+  optionalMoney,
+  serializeParts,
+  type MaintenancePartDraft,
+} from "./maintenancePartsFields";
 
 type FormData = {
   title: string;
+  description: string;
   orderType: 'preventive' | 'corrective' | 'emergency' | 'inspection';
   status: 'pending' | 'in-progress' | 'completed' | 'cancelled';
   priority: 'low' | 'medium' | 'high' | 'urgent';
+  estimatedCost?: number;
+  actualCost?: number;
   leadId?: string;
   helperIds?: string[];
   supplierId?: string;
   notes?: string;
 };
 
+type ExistingPart = {
+  inventoryItemId?: Id<'inventoryItems'>;
+  name: string;
+  quantity: number;
+  unitCost: number;
+};
+
 export function FormComponent({
   id,
   title,
+  description,
   orderType,
   status,
   priority,
+  estimatedCost,
+  actualCost,
   leadId,
   helperIds,
   supplierId,
   notes,
   propertyId,
+  parts: existingParts,
 }: {
   id: Id<'maintenanceOrders'>;
   title: string;
+  description?: string;
   orderType: string;
   status: string;
   priority: string;
+  estimatedCost?: number;
+  actualCost?: number;
   leadId?: string;
   helperIds?: string[];
   supplierId?: string;
   notes?: string;
   propertyId: string;
+  parts?: ExistingPart[];
 }) {
   const updateOrder = useMutation(api.maintenanceOrders.updateMaintenanceOrder);
   const staffList = useQuery(api.housekeepingTasks.listAssignableStaff, { propertyId: propertyId as Id<'properties'> });
@@ -50,14 +78,29 @@ export function FormComponent({
     propertyId: propertyId as Id<'properties'>,
     activeOnly: true,
   });
+  const catalog = useQuery(api.maintenanceOrders.listPartsCatalog, {
+    propertyId: propertyId as Id<'properties'>,
+  }) ?? [];
+  const [parts, setParts] = useState<MaintenancePartDraft[]>(
+    (existingParts ?? []).map((part) => ({
+      ...emptyPart(),
+      inventoryItemId: part.inventoryItemId ?? '',
+      name: part.name,
+      quantity: String(part.quantity),
+      unitCost: String(part.unitCost),
+    })),
+  );
 
   const { register, handleSubmit, watch, formState: { errors } } = useForm<FormData>({
     resolver: yupResolver(formSchema) as any,
     defaultValues: {
       title,
+      description: description || '',
       orderType: orderType as FormData['orderType'],
       status: status as FormData['status'],
       priority: priority as FormData['priority'],
+      estimatedCost,
+      actualCost,
       leadId: leadId || '',
       helperIds: helperIds ?? [],
       supplierId: supplierId || '',
@@ -72,15 +115,19 @@ export function FormComponent({
       const response = await updateOrder({
         maintenanceOrderId: id,
         title: data.title,
+        description: data.description,
         orderType: data.orderType,
         status: data.status,
         priority: data.priority,
+        estimatedCost: optionalMoney(data.estimatedCost),
+        actualCost: optionalMoney(data.actualCost),
         supplierId: data.supplierId ? (data.supplierId as Id<'suppliers'>) : undefined,
         leadId: data.leadId ? (data.leadId as Id<'staffs'>) : undefined,
         helperIds: (data.helperIds ?? [])
           .filter((helperId) => helperId && helperId !== data.leadId)
           .map((helperId) => helperId as Id<'staffs'>),
         notes: data.notes || undefined,
+        parts: serializeParts(parts),
       });
 
       if (response.success === false) {
@@ -99,92 +146,156 @@ export function FormComponent({
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className='mt-4'>
-      <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-start gap-2 mb-2 lg:mb-4">
-        <div className="flex-1">
-          <InputComponent
-            id="title"
-            label="Title *"
-            type="text"
-            inputWidth="w-full"
-            register={register('title')}
-            error={errors.title}
-          />
-        </div>
-        <div className="flex-1">
-          <label htmlFor="orderType" className="block mb-2">Order type *</label>
-          <select id="orderType" {...register('orderType')} className="w-full border rounded p-2">
-            <option value="preventive">Preventive</option>
-            <option value="corrective">Corrective</option>
-            <option value="emergency">Emergency</option>
-            <option value="inspection">Inspection</option>
-          </select>
-        </div>
-      </div>
-
-      <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-start gap-2 mb-2 lg:mb-4">
-        <div className="flex-1">
-          <label htmlFor="status" className="block mb-2">Status *</label>
-          <select id="status" {...register('status')} className="w-full border rounded p-2">
-            <option value="pending">Pending</option>
-            <option value="in-progress">In progress</option>
-            <option value="completed">Completed</option>
-            <option value="cancelled">Cancelled</option>
-          </select>
-        </div>
-        <div className="flex-1">
-          <label htmlFor="priority" className="block mb-2">Priority *</label>
-          <select id="priority" {...register('priority')} className="w-full border rounded p-2">
-            <option value="low">Low</option>
-            <option value="medium">Medium</option>
-            <option value="high">High</option>
-            <option value="urgent">Urgent</option>
-          </select>
-        </div>
-      </div>
-
-      <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-start gap-2 mb-2 lg:mb-4">
-        <div className="flex-1">
-          <label htmlFor="leadId" className="block mb-2">Lead</label>
-          <select id="leadId" {...register('leadId')} className="w-full border rounded p-2">
-            <option value="">Unassigned</option>
-            {(staffList ?? []).map((row) => (
-              <option key={row._id} value={row._id}>{row.firstName} {row.lastName}</option>
-            ))}
-          </select>
-        </div>
-        <div className="flex-1">
-          <label htmlFor="supplierId" className="block mb-2">Vendor (optional)</label>
-          <select id="supplierId" {...register('supplierId')} className="w-full border rounded p-2">
-            <option value="">None</option>
-            {(suppliers?.data ?? []).map((supplier: { _id: string; name: string }) => (
-              <option key={supplier._id} value={supplier._id}>{supplier.name}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      <div className="w-full mb-2 lg:mb-4">
-        <label className="block mb-2">Helpers (optional)</label>
-        <div className="flex flex-col gap-1 max-h-32 overflow-y-auto border rounded p-2">
-          {(staffList ?? []).filter((row) => row._id !== selectedLead).map((row) => (
-            <label key={row._id} className="flex items-center gap-2">
-              <input type="checkbox" value={row._id} {...register('helperIds')} />
-              {row.firstName} {row.lastName}
-            </label>
-          ))}
-        </div>
-      </div>
-
-      <div className="w-full mb-2 lg:mb-4">
-        <label htmlFor="notes">Notes</label>
-        <textarea
-          id="notes"
-          {...register('notes')}
-          rows={3}
-          className="w-full border rounded p-2"
-          placeholder="Required when cancelling"
+      <div className={fieldRowClassName}>
+        <InputComponent
+          id="title"
+          label="Title *"
+          type="text"
+          inputWidth="w-4/12"
+          register={register('title')}
+          error={errors.title}
         />
-        {errors.notes && <span className="text-red-500 text-sm">{errors.notes.message}</span>}
+        <SelectComponent
+          id="orderType"
+          label="Order type *"
+          selectWidth="w-4/12"
+          register={register('orderType')}
+          error={errors.orderType}
+          options={[
+            { value: 'preventive', label: 'Preventive' },
+            { value: 'corrective', label: 'Corrective' },
+            { value: 'emergency', label: 'Emergency' },
+            { value: 'inspection', label: 'Inspection' },
+          ]}
+        />
+      </div>
+
+      <div className={fieldRowClassName}>
+        <Field id="description" label="Description *" widthClass={fieldWidthClass('w-8/12')}>
+          <textarea
+            id="description"
+            {...register('description')}
+            rows={3}
+            className="w-full max-w-full lg:max-w-8/12 min-w-0 p-2 border rounded-sm"
+            placeholder="What needs to be repaired or inspected, and where?"
+          />
+          {errors.description && <span className="text-red-500 text-sm">{errors.description.message}</span>}
+        </Field>
+      </div>
+
+      <div className={fieldRowClassName}>
+        <SelectComponent
+          id="status"
+          label="Status *"
+          selectWidth="w-4/12"
+          register={register('status')}
+          error={errors.status}
+          options={[
+            { value: 'pending', label: 'Pending' },
+            { value: 'in-progress', label: 'In progress' },
+            { value: 'completed', label: 'Completed' },
+            { value: 'cancelled', label: 'Cancelled' },
+          ]}
+        />
+        <SelectComponent
+          id="priority"
+          label="Priority *"
+          selectWidth="w-4/12"
+          register={register('priority')}
+          error={errors.priority}
+          options={[
+            { value: 'low', label: 'Low' },
+            { value: 'medium', label: 'Medium' },
+            { value: 'high', label: 'High' },
+            { value: 'urgent', label: 'Urgent' },
+          ]}
+        />
+      </div>
+
+      <div className={fieldRowClassName}>
+        <InputComponent
+          id="estimatedCost"
+          label="Estimated cost"
+          type="number"
+          inputWidth="w-4/12"
+          step="0.01"
+          register={register('estimatedCost')}
+          error={errors.estimatedCost}
+          placeholder="0.00"
+        />
+        <InputComponent
+          id="actualCost"
+          label="Actual cost"
+          type="number"
+          inputWidth="w-4/12"
+          step="0.01"
+          register={register('actualCost')}
+          error={errors.actualCost}
+          placeholder="Leave blank to use items total"
+        />
+      </div>
+
+      <div className={fieldRowClassName}>
+        <SelectComponent
+          id="leadId"
+          label="Lead"
+          selectWidth="w-4/12"
+          register={register('leadId')}
+          error={errors.leadId}
+          options={[
+            { value: '', label: 'Unassigned' },
+            ...(staffList ?? []).map((row) => ({
+              value: row._id,
+              label: `${row.firstName} ${row.lastName}`,
+            })),
+          ]}
+        />
+        <SelectComponent
+          id="supplierId"
+          label="Vendor (optional)"
+          selectWidth="w-4/12"
+          register={register('supplierId')}
+          error={errors.supplierId}
+          options={[
+            { value: '', label: 'None' },
+            ...(suppliers?.data ?? []).map((supplier: { _id: string; name: string }) => ({
+              value: supplier._id,
+              label: supplier.name,
+            })),
+          ]}
+        />
+      </div>
+
+      <div className={fieldRowClassName}>
+        <Field id="helpers" label="Helpers (optional)" widthClass={fieldWidthClass('w-full')}>
+          <div className="w-full max-w-full lg:max-w-8/12 min-w-0 flex flex-col gap-1 max-h-32 overflow-y-auto border rounded-sm p-2">
+            {(staffList ?? []).filter((row) => row._id !== selectedLead).map((row) => (
+              <label key={row._id} className="flex items-center gap-2">
+                <input type="checkbox" value={row._id} {...register('helperIds')} />
+                <span className='ml-2'>{row.firstName} {row.lastName}</span>
+              </label>
+            ))}
+          </div>
+        </Field>
+      </div>
+
+      <MaintenancePartsFields
+        parts={parts}
+        onChange={setParts}
+        catalog={catalog}
+      />
+
+      <div className={fieldRowClassName}>
+        <Field id="notes" label="Notes" widthClass={fieldWidthClass('w-full')}>
+          <textarea
+            id="notes"
+            {...register('notes')}
+            rows={3}
+            className="w-full max-w-full lg:max-w-8/12 min-w-0 p-2 border rounded-sm"
+            placeholder="Required when cancelling"
+          />
+          {errors.notes && <span className="text-red-500 text-sm">{errors.notes.message}</span>}
+        </Field>
       </div>
 
       <Button type="submit" variant='dark'>Submit</Button>

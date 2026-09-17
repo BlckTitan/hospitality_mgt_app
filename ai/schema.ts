@@ -1070,6 +1070,20 @@ export default defineSchema({
     .index("by_propertyId_priority", ["propertyId", "priority"])
     .index("by_assetId_orderType_status", ["assetId", "orderType", "status"]),
 
+  maintenanceOrderParts: defineTable({
+    propertyId: v.id("properties"),
+    maintenanceOrderId: v.id("maintenanceOrders"),
+    inventoryItemId: v.optional(v.id("inventoryItems")),
+    name: v.string(),
+    quantity: v.number(),
+    unitCost: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_maintenanceOrderId", ["maintenanceOrderId"])
+    .index("by_inventoryItemId", ["inventoryItemId"]),
+
   // ============================================
   // Financial Management
   // ============================================
@@ -1132,9 +1146,12 @@ export default defineSchema({
     description: v.optional(v.string()),
     vendor: v.optional(v.string()),
     invoiceNumber: v.optional(v.string()),
-    status: v.string(), // draft, submitted, approved, rejected, paid
-    submittedBy: v.id("staffs"),
-    approvedBy: v.optional(v.id("staffs")),
+    status: v.optional(v.string()), // billed rows: paid. Later: draft, submitted, approved, rejected
+    sourceType: v.optional(v.string()), // PropertyBill
+    sourceId: v.optional(v.string()), // billPeriods._id
+    submittedBy: v.optional(v.id("users")), // billed: user who marked paid
+    paidBy: v.optional(v.id("users")),
+    approvedBy: v.optional(v.id("users")),
     approvedAt: v.optional(v.number()),
     glAccountId: v.optional(v.id("chartOfAccounts")),
     createdAt: v.number(),
@@ -1144,36 +1161,85 @@ export default defineSchema({
     .index("by_submittedBy", ["submittedBy"])
     .index("by_propertyId_status", ["propertyId", "status"])
     .index("by_propertyId_expenseDate", ["propertyId", "expenseDate"])
-    .index("by_propertyId_category", ["propertyId", "category"]),
+    .index("by_propertyId_category", ["propertyId", "category"])
+    .index("by_sourceType_sourceId", ["sourceType", "sourceId"]),
 
-  utilityBills: defineTable({
+  billAccounts: defineTable({
     propertyId: v.id("properties"),
-    utilityType: v.string(), // electricity, water, gas, internet, phone
+    name: v.string(),
+    billType: v.union(
+      v.literal("electricity"),
+      v.literal("water"),
+      v.literal("gas"),
+      v.literal("internet"),
+      v.literal("cable"),
+      v.literal("waste"),
+      v.literal("local_government"),
+      v.literal("other"),
+    ),
+    frequency: v.union(
+      v.literal("weekly"),
+      v.literal("monthly"),
+      v.literal("annually"),
+    ),
+    isMetered: v.boolean(),
     provider: v.string(),
     accountNumber: v.optional(v.string()),
-    billingPeriodStart: v.number(),
-    billingPeriodEnd: v.number(),
-    dueDate: v.number(),
-    amount: v.number(),
-    usageAmount: v.optional(v.number()),
-    unitRate: v.optional(v.number()),
-    meterReading: v.optional(v.number()),
-    previousMeterReading: v.optional(v.number()),
-    status: v.string(), // pending, paid, overdue
-    paidAt: v.optional(v.number()),
-    glAccountId: v.optional(v.id("chartOfAccounts")),
+    supplierId: v.optional(v.id("suppliers")),
+    expectedAmount: v.optional(v.number()),
+    contractEndDate: v.optional(v.number()),
+    glAccountCode: v.optional(v.string()),
+    isActive: v.boolean(),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_propertyId", ["propertyId"])
+    .index("by_propertyId_isActive", ["propertyId", "isActive"]),
+
+  billPeriods: defineTable({
+    accountId: v.id("billAccounts"),
+    propertyId: v.id("properties"),
+    periodStart: v.number(),
+    periodEnd: v.number(),
+    dueDate: v.number(),
+    status: v.union(
+      v.literal("expected"),
+      v.literal("pending"),
+      v.literal("paid"),
+      v.literal("overdue"),
+    ),
+    amount: v.optional(v.number()),
+    usageAmount: v.optional(v.number()),
+    unitRate: v.optional(v.number()),
+    meterReading: v.optional(v.number()),
+    previousMeterReading: v.optional(v.number()),
+    invoiceNumber: v.optional(v.string()),
+    expenseId: v.optional(v.id("expenses")),
+    paidAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
     .index("by_propertyId_status", ["propertyId", "status"])
-    .index("by_propertyId_dueDate", ["propertyId", "dueDate"])
-    .index("by_propertyId_utilityType", ["propertyId", "utilityType"]),
+    .index("by_accountId", ["accountId"])
+    .index("by_accountId_periodStart", ["accountId", "periodStart"])
+    .index("by_dueDate", ["dueDate"]),
+
+  billDocuments: defineTable({
+    periodId: v.id("billPeriods"),
+    kind: v.union(v.literal("bill"), v.literal("receipt")),
+    storageId: v.id("_storage"),
+    fileName: v.string(),
+    mimeType: v.optional(v.string()),
+    fileSize: v.optional(v.number()),
+    uploadedBy: v.id("users"),
+    createdAt: v.number(),
+  })
+    .index("by_periodId", ["periodId"]),
 
   payments: defineTable({
     propertyId: v.id("properties"),
-    paymentType: v.string(), // reservation, order, expense, payroll, other
-    referenceType: v.string(), // reservation, order, expense, payroll
+    paymentType: v.string(), // reservation, order, expense, payroll, PropertyBill, other
+    referenceType: v.string(), // reservation, order, expense, payroll, PropertyBill
     referenceId: v.string(),
     amount: v.number(),
     paymentMethod: v.string(), // cash, card, bank_transfer, check, other
@@ -1204,7 +1270,7 @@ export default defineSchema({
     uploadedBy: v.id("staffs"),
     uploadedAt: v.number(),
     description: v.optional(v.string()),
-    referenceType: v.optional(v.string()), // Expense, UtilityBill, PurchaseOrder, Payment, MaintenanceOrder, Payroll, Payslip, PaymentFile
+    referenceType: v.optional(v.string()), // Expense, BillPeriod, PurchaseOrder, Payment, MaintenanceOrder, Payroll, Payslip, PaymentFile
     referenceId: v.optional(v.string()),
     documentDate: v.optional(v.number()),
     amount: v.optional(v.number()),

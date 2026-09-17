@@ -1224,7 +1224,7 @@ export function detectDocumentType(content: string): string {
       'transaction id',
       'payment received',
     ],
-    'utility-bill': ['electricity', 'water', 'gas', 'utility', 'meter reading'],
+    'utility-bill': ['electricity', 'water', 'gas', 'utility', 'meter reading', 'dstv', 'internet'],
   };
 
   let bestMatch = 'other';

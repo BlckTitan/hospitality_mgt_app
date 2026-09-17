@@ -2,10 +2,10 @@
 
 import { MdEditDocument } from "react-icons/md";
 import { useQuery, useConvexAuth } from "convex/react";
-import { api } from "../../../convex/_generated/api";
-import { Id } from "../../../convex/_generated/dataModel";
+import { api } from "../../../../convex/_generated/api";
+import { Id } from "../../../../convex/_generated/dataModel";
 import { useState } from "react";
-import { usePermissions } from "../../../hooks/usePermissions";
+import { usePermissions } from "../../../../hooks/usePermissions";
 
 type Board = "" | "unassigned" | "mine" | "overdue";
 
@@ -54,6 +54,7 @@ export default function MaintenanceOrders({ currentPropertyId }: { currentProper
               <th className="p-2">Lead</th>
               <th className="p-2">Status</th>
               <th className="p-2">Priority</th>
+              <th className="p-2">Cost</th>
               <th className="p-2">Due</th>
               <th className="p-2">Action</th>
             </tr>
@@ -61,7 +62,7 @@ export default function MaintenanceOrders({ currentPropertyId }: { currentProper
           <tbody>
             {rows.length === 0 && (
               <tr>
-                <td className="p-3" colSpan={7}>
+                <td className="p-3" colSpan={8}>
                   No maintenance orders found.
                 </td>
               </tr>
@@ -81,6 +82,9 @@ export default function MaintenanceOrders({ currentPropertyId }: { currentProper
                   </span>
                 </td>
                 <td className="p-2">{row.priority}</td>
+                <td className="p-2">
+                  {formatCost(row)}
+                </td>
                 <td className="p-2">
                   <span className={row.overdue ? "text-red-600 font-semibold" : ""}>
                     {new Date(row.dueAt).toLocaleString()}
@@ -104,6 +108,22 @@ export default function MaintenanceOrders({ currentPropertyId }: { currentProper
       </div>
     </div>
   );
+}
+
+function formatCost(row: {
+  actualCost?: number;
+  estimatedCost?: number;
+  partsCost?: number;
+}) {
+  const formatted = (amount: number) =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+    }).format(amount);
+  if (row.actualCost != null) return formatted(row.actualCost);
+  if (row.estimatedCost != null) return `Est. ${formatted(row.estimatedCost)}`;
+  if (row.partsCost && row.partsCost > 0) return formatted(row.partsCost);
+  return "—";
 }
 
 function statusClass(status: string) {

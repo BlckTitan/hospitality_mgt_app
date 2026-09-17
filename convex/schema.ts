@@ -277,9 +277,92 @@ export default defineSchema({
     amount: v.number(),
     expenseDate: v.number(),
     description: v.optional(v.string()),
+    vendor: v.optional(v.string()),
+    invoiceNumber: v.optional(v.string()),
+    status: v.optional(v.string()),
+    sourceType: v.optional(v.string()),
+    sourceId: v.optional(v.string()),
+    submittedBy: v.optional(v.id("users")),
+    paidBy: v.optional(v.id("users")),
+    approvedBy: v.optional(v.id("users")),
+    approvedAt: v.optional(v.number()),
   })
     .index("by_propertyId_expenseDate", ["propertyId", "expenseDate"])
-    .index("by_category", ["category"]),
+    .index("by_category", ["category"])
+    .index("by_sourceType_sourceId", ["sourceType", "sourceId"]),
+
+  billAccounts: defineTable({
+    propertyId: v.id("properties"),
+    name: v.string(),
+    billType: v.union(
+      v.literal("electricity"),
+      v.literal("water"),
+      v.literal("gas"),
+      v.literal("internet"),
+      v.literal("cable"),
+      v.literal("waste"),
+      v.literal("local_government"),
+      v.literal("other"),
+    ),
+    frequency: v.union(
+      v.literal("weekly"),
+      v.literal("monthly"),
+      v.literal("annually"),
+    ),
+    isMetered: v.boolean(),
+    provider: v.string(),
+    accountNumber: v.optional(v.string()),
+    supplierId: v.optional(v.id("suppliers")),
+    expectedAmount: v.optional(v.number()),
+    contractEndDate: v.optional(v.number()),
+    glAccountCode: v.optional(v.string()),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_propertyId_isActive", ["propertyId", "isActive"]),
+
+  billPeriods: defineTable({
+    accountId: v.id("billAccounts"),
+    propertyId: v.id("properties"),
+    periodStart: v.number(),
+    periodEnd: v.number(),
+    dueDate: v.number(),
+    status: v.union(
+      v.literal("expected"),
+      v.literal("pending"),
+      v.literal("paid"),
+      v.literal("overdue"),
+    ),
+    amount: v.optional(v.number()),
+    usageAmount: v.optional(v.number()),
+    unitRate: v.optional(v.number()),
+    meterReading: v.optional(v.number()),
+    previousMeterReading: v.optional(v.number()),
+    invoiceNumber: v.optional(v.string()),
+    expenseId: v.optional(v.id("expenses")),
+    paidAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_propertyId_status", ["propertyId", "status"])
+    .index("by_accountId", ["accountId"])
+    .index("by_accountId_periodStart", ["accountId", "periodStart"])
+    .index("by_dueDate", ["dueDate"]),
+
+  billDocuments: defineTable({
+    periodId: v.id("billPeriods"),
+    kind: v.union(v.literal("bill"), v.literal("receipt")),
+    storageId: v.id("_storage"),
+    fileName: v.string(),
+    mimeType: v.optional(v.string()),
+    fileSize: v.optional(v.number()),
+    uploadedBy: v.id("users"),
+    createdAt: v.number(),
+  })
+    .index("by_periodId", ["periodId"]),
 
   // Inventory items for stock management (legacy - keeping for backward compatibility)
   inventory: defineTable({
@@ -666,6 +749,20 @@ export default defineSchema({
     .index("by_supplierId", ["supplierId"])
     .index("by_propertyId_status", ["propertyId", "status"])
     .index("by_assetId_orderType_status", ["assetId", "orderType", "status"]),
+
+  maintenanceOrderParts: defineTable({
+    propertyId: v.id("properties"),
+    maintenanceOrderId: v.id("maintenanceOrders"),
+    inventoryItemId: v.optional(v.id("inventoryItems")),
+    name: v.string(),
+    quantity: v.number(),
+    unitCost: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_maintenanceOrderId", ["maintenanceOrderId"])
+    .index("by_inventoryItemId", ["inventoryItemId"]),
 
   inventoryTasks: defineTable({
     propertyId: v.id("properties"),

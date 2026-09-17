@@ -973,16 +973,21 @@ Sidebar: **Staff** (`staff.read`); **My profile** (`/admin/staff/myProfile`, lin
 ---
 
 ### 41. Maintenance Orders Page (`/admin/maintenance`)
-**Purpose**: Manage maintenance work orders. Boards: unassigned (no lead), mine, overdue.
+**Purpose**: Manage maintenance work orders. Boards: unassigned (no lead), mine, overdue. Create is a modal on this page.
 
-**Permission:** `maintenance.order.read`
+**Permission:** `maintenance.order.read` (create: `maintenance.order.assign`)
 
 **Data Fetching:**
 - Fetch all `MaintenanceOrder` records for current property (with pagination)
 - Include joined `Asset`, `Room`, `Supplier`, and `taskAssignments` + `Employee`
+- Include per-order `partsCost` (sum of `maintenanceOrderParts` quantity × unitCost) and `displayCost` (actual, else estimated, else parts total)
 - Include `Document` records (invoices, completion certificates)
 - Filter by: `status`, `orderType`, `priority`, `assetId`, `roomId`, lead `staffId`, `dueAt`
 - Sort by: `priority`, `dueAt`, `status`
+
+**List columns:** title, type, priority, status, due, Cost (`displayCost`: actual, else `Est.` estimated, else parts total), lead.
+
+**Create form:** required title; required description (min 5 chars); order type; priority; optional estimated cost (falls back to parts total); optional vendor; lead + helpers; purchased items (`maintenanceOrderParts`: inventory catalog or custom name, quantity, unit cost). Parts catalog query uses `maintenance.order.read`.
 
 **Related Entities to Include:**
 - `Asset` (joined, optional)
@@ -990,6 +995,8 @@ Sidebar: **Staff** (`staff.read`); **My profile** (`/admin/staff/myProfile`, lin
 - `Supplier` (joined, optional vendor)
 - `Employee` as requester (joined, where `requestedBy` matches)
 - `taskAssignments` with `Employee` (lead + helpers)
+- `MaintenanceOrderPart` (aggregated as `partsCost` / `displayCost`)
+- `InventoryItem` (catalog picker on create, optional)
 - `Document` (where `referenceType = 'MaintenanceOrder'` and `referenceId` matches, optional)
 
 **Rendering Strategy: SSR**
@@ -997,16 +1004,19 @@ Sidebar: **Staff** (`staff.read`); **My profile** (`/admin/staff/myProfile`, lin
 
 ---
 
-### 42. Maintenance Order Detail Page (`/admin/maintenance/[maintenanceOrderId]`)
-**Purpose**: View/edit maintenance work order details, vendor, lead/helpers, checklist, SLA
+### 42. Maintenance Order Detail Page (`/admin/maintenance/edit?order_id=`)
+**Purpose**: View/edit maintenance work order details, description, estimated/actual cost, purchased items, vendor, lead/helpers, checklist, SLA
 
 **Permission:** `maintenance.order.update` (complete: `maintenance.order.complete` as lead or supervisor)
 
 **Data Fetching:**
 - Fetch single `MaintenanceOrder` by `maintenanceOrderId`
+- Fetch `maintenanceOrderParts` for the order (`parts` + `partsCost`)
 - Fetch joined `Asset`, `Room`, `Property`, `Supplier`, `taskAssignments` + `Employee`
 - Fetch related `Document` records (invoices, completion certificates, warranty docs)
-- Show cost breakdown and `dueAt` status
+- Show cost breakdown: estimated, actual, parts total; `dueAt` status
+
+**Edit form:** required description (min 5 chars); estimated cost; actual cost (falls back to parts total when blank if parts exist); purchased items (inventory or custom); status/priority; lead/vendor; notes.
 
 **Related Entities to Include:**
 - `Asset` (joined, optional)
@@ -1015,6 +1025,8 @@ Sidebar: **Staff** (`staff.read`); **My profile** (`/admin/staff/myProfile`, lin
 - `Supplier` (joined, optional)
 - `Employee` as requester (joined, where `requestedBy` matches)
 - `taskAssignments` with `Employee`
+- `MaintenanceOrderPart` (lines: name, quantity, unitCost, optional `inventoryItemId`)
+- `InventoryItem` (catalog picker, optional)
 - `Document` (where `referenceType = 'MaintenanceOrder'` and `referenceId` matches)
 
 **Rendering Strategy: SSR**
@@ -1100,89 +1112,99 @@ Sidebar: **Staff** (`staff.read`); **My profile** (`/admin/staff/myProfile`, lin
 
 ---
 
-### 47. Expenses Page (`/expenses`)
-**Purpose**: Manage business expenses
+### 47. Expenses Page (`/admin/expenses`)
+**Purpose**: Read-only list of paid expenses (including rows created from billing mark-paid). Manual create/approve is later.
 
 **Data Fetching:**
-- Fetch all `Expense` records for current property (with pagination)
-- Include joined `Employee` and `ChartOfAccounts` data
-- Include `Document` records (invoices, receipts)
-- Filter by: `status`, `category`, `subcategory`, `expenseDate`, `submittedBy`, `approvedBy`
-- Sort by: `expenseDate` DESC, `status`
+- Fetch `Expense` records for current property (pagination)
+- Include source period when `sourceType = PropertyBill`
+- Filter by: `status`, `category`, `expenseDate`, `vendor`
+- Sort by: `expenseDate` DESC
 
 **Related Entities to Include:**
-- `Employee` as submitter (joined, where `submittedBy` matches)
-- `Employee` as approver (joined, where `approvedBy` matches, optional)
-- `ChartOfAccounts` (joined, where `glAccountId` matches)
-- `Document` (where `referenceType = 'Expense'` and `referenceId` matches, optional)
+- `billPeriods` (when `sourceId` matches)
+- `billAccounts` (via period `accountId`)
+- `payments` (`referenceType = PropertyBill` or Expense)
 
 **Rendering Strategy: SSR**
-- **Reason**: Expense status changes frequently (draft/submitted/approved/paid), approval workflows require real-time updates, critical for financial operations, requires fresh data
+- **Reason**: Paid status and new billed rows update as finance marks periods paid; property-scoped finance data.
+
+**Permissions:** `expenses.read`
 
 ---
 
-### 48. Expense Detail Page (`/expenses/[expenseId]`)
-**Purpose**: View/edit expense details and documents
+### 48. Expense Detail Page (`/admin/expenses` row / later `[expenseId]`)
+**Purpose**: View a paid expense and its source bill (read-only this ship)
 
 **Data Fetching:**
-- Fetch single `Expense` by `expenseId`
-- Fetch joined `Property`, `Employee`, and `ChartOfAccounts` data
-- Fetch all related `Document` records (invoices, receipts, payment confirmations)
-- Fetch related `Payment` records (if paid)
-- Fetch related `JournalEntry` (if posted to GL)
-
-**Related Entities to Include:**
-- `Property` (joined)
-- `Employee` as submitter (joined, where `submittedBy` matches)
-- `Employee` as approver (joined, where `approvedBy` matches, optional)
-- `ChartOfAccounts` (joined, where `glAccountId` matches)
-- `Document` (where `referenceType = 'Expense'` and `referenceId` matches)
-- `Payment` (where `referenceType = 'Expense'` and `referenceId` matches, optional)
-- `JournalEntry` (where `referenceType = 'Expense'` and `referenceId` matches, optional)
+- Fetch single `Expense`
+- If billed: fetch `BillPeriod`, `BillAccount`, `billDocuments`, `Payment` (`referenceType = PropertyBill`)
 
 **Rendering Strategy: SSR**
-- **Reason**: Expense status and approval updates in real-time, payment status changes, document attachments are time-sensitive, requires fresh data for financial operations
+- **Reason**: Linked bill documents and payment confirmation must be current.
 
 ---
 
-### 49. Utility Bills Page (`/utility-bills`)
-**Purpose**: Manage utility bills and payments
+### 49. Billing Hub (`/admin/billing`)
+**Purpose**: Due this week, overdue, links to accounts and bills
 
 **Data Fetching:**
-- Fetch all `UtilityBill` records for current property (with pagination)
-- Include joined `ChartOfAccounts` data
-- Include `Document` records (bill documents, payment receipts)
-- Filter by: `utilityType`, `status`, `billingPeriodStart`, `billingPeriodEnd`, `dueDate`
-- Sort by: `billingPeriodEnd` DESC, `status`
+- Fetch `billPeriods` for current property where due this week or `status = overdue`
+- Include joined `billAccounts` (name, type, frequency, provider)
 
 **Related Entities to Include:**
-- `ChartOfAccounts` (joined, where `glAccountId` matches)
-- `Document` (where `referenceType = 'UtilityBill'` and `referenceId` matches, optional)
+- `billAccounts`
+- `billPeriods`
 
 **Rendering Strategy: SSR**
-- **Reason**: Bill status changes (pending/paid/overdue), payment status updates in real-time, due date tracking is time-sensitive, requires fresh data for financial management
+- **Reason**: Cron stamps overdue daily; due window is operational.
+
+**Permissions:** `billing.period.read`
 
 ---
 
-### 50. Utility Bill Detail Page (`/utility-bills/[utilityBillId]`)
-**Purpose**: View utility bill details and documents
+### 50. Bill Accounts Page (`/admin/billing/accounts`)
+**Purpose**: Admin configures standing obligations (not per-invoice)
 
 **Data Fetching:**
-- Fetch single `UtilityBill` by `utilityBillId`
-- Fetch joined `Property` and `ChartOfAccounts` data
-- Fetch all related `Document` records (bill documents, payment receipts)
-- Fetch related `Payment` records (if paid)
-- Fetch related `JournalEntry` (if posted to GL)
+- Fetch `billAccounts` for current property
+- Filter by: `billType`, `frequency`, `isActive`
+- Sort by: name
 
 **Related Entities to Include:**
-- `Property` (joined)
-- `ChartOfAccounts` (joined, where `glAccountId` matches)
-- `Document` (where `referenceType = 'UtilityBill'` and `referenceId` matches)
-- `Payment` (where `referenceType = 'UtilityBill'` and `referenceId` matches, optional)
-- `JournalEntry` (where `referenceType = 'UtilityBill'` and `referenceId` matches, optional)
+- `Supplier` (optional `supplierId`)
 
 **Rendering Strategy: SSR**
-- **Reason**: Bill payment status updates in real-time, document attachments are time-sensitive, requires fresh data for financial operations and compliance
+- **Reason**: Account setup is property-scoped and gated by `billing.account.*`.
+
+**Permissions:** `billing.account.read` (create/update as listed in RBAC)
+
+---
+
+### 50a. Bills Page (`/admin/billing/bills`)
+**Purpose**: Capture period amounts/documents and mark paid
+
+**Data Fetching:**
+- Fetch `billPeriods` for current property (pagination)
+- Include joined `billAccounts`
+- Include `billDocuments`
+- Filter by: `status`, `billType` (via account), `dueDate`, `periodStart`
+- Sort by: `dueDate` ASC, `status`
+
+**Actions:**
+- Capture: amount, invoice number, meters if metered, upload bill (`kind = bill`)
+- Mark paid: payment method; requires amount + bill document; inserts `Payment` + `Expense` after duplicate check; optional receipt upload
+
+**Related Entities to Include:**
+- `billAccounts`
+- `billDocuments`
+- `payments` (`referenceType = PropertyBill`)
+- `expenses` (after pay)
+
+**Rendering Strategy: SSR**
+- **Reason**: Status (`expected` / `pending` / `paid` / `overdue`) and cron-generated rows must be current.
+
+**Permissions:** `billing.period.read` / `update` / `billing.pay`
 
 ---
 

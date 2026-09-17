@@ -36,14 +36,18 @@ export default function Page() {
       <FormComponent
         id={row._id}
         title={row.title}
+        description={row.description}
         orderType={row.orderType}
         status={row.status}
         priority={row.priority}
+        estimatedCost={row.estimatedCost}
+        actualCost={row.actualCost}
         leadId={row.lead?.staffId}
         helperIds={row.helpers?.map((helper) => helper.staffId) ?? []}
         supplierId={row.supplierId}
         notes={row.notes}
         propertyId={row.propertyId}
+        parts={row.parts}
       />
     </div>
   )

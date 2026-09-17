@@ -146,4 +146,9 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermission> = {
   '/admin/maintenance/edit': { granular: 'maintenance.order.update' },
   '/admin/inventory-management/tasks': { granular: 'inventory.task.read' },
   '/admin/inventory-management/tasks/edit': { granular: 'inventory.task.update' },
+  '/admin/billing': { granular: 'billing.period.read' },
+  '/admin/billing/accounts': { granular: 'billing.account.read' },
+  '/admin/billing/accounts/edit': { granular: 'billing.account.update' },
+  '/admin/billing/bills': { granular: 'billing.period.read' },
+  '/admin/expenses': { granular: 'expenses.read' },
 };

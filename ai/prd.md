@@ -3,7 +3,7 @@
 ## Project Overview
 
 - **Product name**: Hospitality Management Suite (working title)
-- **Project Vision**: To develop a comprehensive software that empowers hospitality businesses (hotels, motels, resorts, B&Bs) to streamline operations, ensure profitability, maximize revenue and ultimately ensure efficient financial management. Hospitality manager will serve as a central hub for managing reservation, front-desk activities, housekeeping, billing and guest relations.
+- **Project Vision**: To develop a comprehensive software that empowers hospitality businesses (hotels, motels, resorts, B&Bs) to streamline operations, ensure profitability, maximize revenue and ultimately ensure efficient financial management. Hospitality manager will serve as a central hub for managing reservation, front-desk activities, housekeeping, organizational billing (utilities and subscriptions), and guest relations.
 - **Purpose**: Provide a finance-first operations platform for hospitality businesses—especially small/medium hotels, guest houses, and boutique resorts—so they can monitor profitability, automate accounting workflows, and coordinate operational teams from a single source of truth.
 - **Primary value props**: real-time financial visibility, user-friendly cross-platform experience, automated compliance-ready records, and streamlined integrations with POS, payroll, and booking channels.
 
@@ -59,12 +59,11 @@ Hospitality operators juggle siloed systems for reservations, POS, payroll, proc
    - Native Payroll: Prepare pay, Approve payroll, generate Payslips, Download payment files, post GL, Mark as paid.
    - Implementation decisions and target model: `ai/payroll-implementation.md`.
 5. **Maintenance Management**
-   - Asset registry, preventive schedules, work orders, cost tracking (staff lead + optional helpers and optional vendor; see Task Assignment).
-6. **Expenses & Financial Management**
-   - Expense capture (manual + scanned invoices), approvals, GL mapping.
-   - **Mandatory document attachment**: All expenses must include supporting documents (invoices, receipts, payment confirmations) as evidence of payment.
-   - Utility bill management with usage tracking and reminders.
-   - **Document requirement**: Utility bills must have original bill documents and payment receipts attached for verification and compliance.
+   - Asset registry, preventive schedules, work orders, cost tracking, and purchased parts (`maintenanceOrderParts`; staff lead + optional helpers and optional vendor; see Task Assignment).
+6. **Billing, Expenses & Financial Management**
+   - **Organizational billing** (`billAccounts` + `billPeriods`): admin configures recurring property bills (electricity, water, gas, internet, cable, waste, local government, other) with a cadence (`weekly` | `monthly` | `annually`). A daily cron opens the current expected period. Staff capture the invoice (amount, meters if metered, bill PDF). Mark as paid records a `Payment` (`referenceType = PropertyBill`) and inserts one `Expense` (`status = paid`) after a duplicate check. There is **no** separate `UtilityBill` table.
+   - **Expenses this ship**: read-only list of paid expenses (including billed rows). Manual expense create/approve is later. Do not enter the same invoice as both a period bill and an ad-hoc expense.
+   - **Documents**: bill PDF required before mark-paid; receipt stored on the period (`billDocuments`, Convex `_storage`).
    - General inventory (linen, amenities, cleaning supplies, spare parts).
    - **Purchase documentation**: All inventory purchases require supplier invoices, delivery notes, and payment receipts to be uploaded and linked.
 7. **Reporting & Analytics**
@@ -97,6 +96,11 @@ Hospitality operators juggle siloed systems for reservations, POS, payroll, proc
 - Task duration posting to Hours / payroll (duration on the work record is productivity-only).
 - SMS/WhatsApp task notifications (Twilio); in-app only this phase.
 - Bar `reorderAlerts` / beverage restock as Task Assignment (bar keeps its own alert flow; restock tasks use `inventoryItems`).
+- Guest folio / in-stay guest invoicing (organizational billing only this phase).
+- Partial bill payments, refunds, and GL journal posting from billing (cash `Expense` + `Payment` only; `chartOfAccounts` is not live).
+- Billing anomaly-alert and contract-reminder jobs (`contractEndDate` / `expectedAmount` are stored only).
+- Manual expense create/approve UI (billed expenses appear read-only after mark-paid).
+- Legacy `invoices` / `invoiceItems` / `receipts` / `sales` tables (unused; do not attach billing to them).
 
 ## Functional Requirements
 
@@ -172,7 +176,10 @@ Hospitality operators juggle siloed systems for reservations, POS, payroll, proc
 
 - Asset registry with depreciation schedules.
 - Work order intake (manual or schedule-driven preventive). Inspection-triggered intake is later.
-- Cost tracking per work order, parts usage, optional vendor (`Supplier`) **in addition to** the staff lead/helpers, SLA via `dueAt`. Assignment and completion: Task Assignment.
+- Manual create/edit requires a **description** of the work. Auto-created preventive orders may omit it.
+- Cost tracking per work order: optional `estimatedCost` on create (falls back to purchased-items total when omitted); optional `actualCost` on edit (falls back to purchased-items total when omitted). The list Cost column shows actual, else `Est.` estimated, else parts total.
+- Purchased items live on `maintenanceOrderParts` (not an array on the order): name, quantity, unit cost, optional `inventoryItemId` when the item is in inventory, or a custom name when it is a one-off purchase. Catalog picker uses `maintenance.order.read` so maintenance staff do not need `inventory.read`.
+- Optional vendor (`Supplier`) **in addition to** the staff lead/helpers, SLA via `dueAt`. Assignment and completion: Task Assignment.
 - **Maintenance Documentation**: Maintenance work orders must include:
   - Vendor invoices for maintenance services
   - Work completion certificates
@@ -204,15 +211,19 @@ Shared assignment, SLA, templates, and checklists across housekeeping, maintenan
 - **Boards**: unassigned (no lead), mine (current user’s linked staff), overdue (`dueAt` passed, not completed).
 - **Permissions**: `housekeeping.task.*`, `maintenance.order.*`, `inventory.task.*` with `read | assign | update | complete`. Staff: read/update assigned rows; complete only if lead. Supervisors: assign and complete any in module. Do not gate these screens on `system.admin`.
 
-### Expenses & Utilities
+### Billing & Expenses
 
-- Multi-channel expense capture (mobile upload, email forwarding, email forwarding with automatic document extraction).
-- **Document Management**: All expenses must have supporting documents (invoices, receipts, payment confirmations) attached. Documents are required before expense approval and payment processing.
-- Document verification workflow: documents can be marked as verified by authorized personnel.
-- OCR (Optical Character Recognition) for automatic data extraction from invoices and receipts (vendor, amount, date, invoice number).
-- Approval matrix by amount/category with document verification checkpoints.
-- Utility meter readings, anomaly alerts, contract reminders.
-- **Utility Bill Documentation**: Original utility bills and payment receipts must be uploaded and linked to utility bill records for audit compliance.
+Organizational billing is the inbox and calendar for standing property obligations. Expenses is the paid ledger.
+
+- **Bill types** (closed): `electricity` | `water` | `gas` | `internet` | `cable` | `waste` | `local_government` | `other`. Admin does not invent types; they configure **accounts**.
+- **Bill account** (admin, per property): name, type, frequency, metered vs flat, provider, optional account number / supplier / expected amount / contract end / `glAccountCode` (string until COA exists), `isActive`. Deactivate stops new periods; paid history stays.
+- **Period bill**: one cycle (`expected` → `pending` after capture → `paid` | `overdue`). Daily cron creates the current period for each active account (property timezone, else UTC). Due date defaults to period end. Uniqueness: one row per `(accountId, periodStart)` (application-enforced).
+- **Capture**: amount (required before pay), optional invoice number, usage/meters if `isMetered`, bill document (`billDocuments.kind = bill`).
+- **Mark as paid**: full amount only. Requires bill document and payment method. Inserts `Payment` (`paymentType` / `referenceType` = `PropertyBill`). Duplicate check then inserts `Expense` (`status = paid`, `expenseDate` = payment time, `sourceType = PropertyBill`, `sourceId` = period id). Confirm-paid **is** approval — no draft/submit on these rows. Journals/COA skipped this ship.
+- **Duplicate check** (same mutation): (1) hard — period already has `expenseId`, or an expense with that `sourceType`/`sourceId` → no-op success; (2) soft — same property + invoice number + vendor + amount on another expense → fail (no merge UI).
+- **Category mapping** on funnel: electricity/water/gas/internet/cable/waste → `utilities`; `local_government` / `other` → `other`.
+- **Screens**: `/admin/billing` (due this week, overdue), `/admin/billing/accounts`, `/admin/billing/bills`, `/admin/expenses` (read-only). Permissions: `billing.account.read|create|update`, `billing.period.read|update`, `billing.pay`; list uses `expenses.read`.
+- Later: multi-channel expense capture, OCR, approval matrix, anomaly alerts, contract reminder jobs, GL posting.
 
 ### Financial Core
 
@@ -241,7 +252,7 @@ Shared assignment, SLA, templates, and checklists across housekeeping, maintenan
 - **Mandatory Document Requirements**:
   - All expenses must include supporting documents (invoices, receipts) before approval.
   - All purchase orders must have supplier invoices, delivery notes, and payment receipts attached.
-  - All utility bills must have original bill documents and payment confirmations.
+  - Period bills must have the original bill document before mark-paid; a receipt is stored on the period after payment (`billDocuments`).
   - All maintenance work orders must include vendor invoices and work completion certificates.
   - All payments must have payment receipts or bank confirmations linked.
   - Payrolls should have generated Payslips and, when marked paid, a bank confirmation or Payment file linked (`Payslip`, `Payroll`, `PaymentFile` as stored `referenceType` values).
@@ -254,7 +265,7 @@ Shared assignment, SLA, templates, and checklists across housekeeping, maintenan
   - OCR (Optical Character Recognition) for automatic data extraction from invoices and receipts (vendor name, amount, date, invoice number, tax amount).
   - Automatic document type detection (invoice, receipt, contract, etc.).
   - Document verification workflow with reviewer assignment and verification status tracking.
-- **Document Linking**: Documents can be linked to multiple entity types (Expense, PurchaseOrder, UtilityBill, Payment, MaintenanceOrder, Payroll, Payslip, Payment file). Stored `referenceType` values stay `Payroll`, `Payslip`, `PaymentFile`.
+- **Document Linking**: DMS `Document` can link to Expense, PurchaseOrder, Payment, MaintenanceOrder, Payroll, Payslip, Payment file. Billing this ship uses `billDocuments` on the period (not the DMS `Document` table). Stored payroll `referenceType` values stay `Payroll`, `Payslip`, `PaymentFile`. Payment for a period bill uses `referenceType = PropertyBill`.
 - **Document Security**:
   - Role-based access control for document viewing and downloading.
   - Encryption at rest and in transit.
@@ -280,15 +291,17 @@ Shared assignment, SLA, templates, and checklists across housekeeping, maintenan
 
 ## Data & ERD Considerations
 
-- Core entities: `Property` (includes required `country` for payroll jurisdiction), `User`, `Role`, `staffs` (Employee; no `employees` table), `staffDocuments`, `staffOnboardingItems`, `staffChangeRequests`, `Room`, `Reservation`, `HousekeepingTask`, `taskAssignments`, `taskTemplates`, `taskSlaDefaults`, `FnbMenuItem`, `InventoryItem`, `InventoryTask`, `Supplier`, `PurchaseOrder`, Department shift (`shiftTemplates`), Roster day (`rosterSlots`), Shift (`shifts`), Pay history, Pay cycle, Time-off type, Time off, Holidays, Extra pay rules, Hours, Payroll settings, Pay item type, Payroll, Staff pay, Pay item, Payslip, Payment file, `MaintenanceOrder`, `Asset`, `Expense`, `UtilityBill`, `JournalEntry`, `Report`. Schema table names stay `payHistory`, `payCycles`, `timeOffTypes`, `timeOff`, `holidayCalendars`, `extraPayRules`, `hours`, `payrollSettings`, `payItemTypes`, `payrolls`, `staffPay`, `payItems`, `payslips`, `paymentFiles`, plus live `shiftTemplates`, `rosterSlots`, `shifts`, `housekeepingTasks`, `taskAssignments`, `taskTemplates`, `taskSlaDefaults`, `maintenanceOrders`, `inventoryTasks`.
+- Core entities: `Property` (includes required `country` for payroll jurisdiction), `User`, `Role`, `staffs` (Employee; no `employees` table), `staffDocuments`, `staffOnboardingItems`, `staffChangeRequests`, `Room`, `Reservation`, `HousekeepingTask`, `taskAssignments`, `taskTemplates`, `taskSlaDefaults`, `FnbMenuItem`, `InventoryItem`, `InventoryTask`, `Supplier`, `PurchaseOrder`, Department shift (`shiftTemplates`), Roster day (`rosterSlots`), Shift (`shifts`), Pay history, Pay cycle, Time-off type, Time off, Holidays, Extra pay rules, Hours, Payroll settings, Pay item type, Payroll, Staff pay, Pay item, Payslip, Payment file, `MaintenanceOrder`, `maintenanceOrderParts`, `Asset`, `Expense`, Bill account (`billAccounts`), Period bill (`billPeriods`), Bill document (`billDocuments`), `JournalEntry`, `Report`. There is **no** `UtilityBill` / `utilityBills` table. Schema table names stay `payHistory`, `payCycles`, `timeOffTypes`, `timeOff`, `holidayCalendars`, `extraPayRules`, `hours`, `payrollSettings`, `payItemTypes`, `payrolls`, `staffPay`, `payItems`, `payslips`, `paymentFiles`, plus live `shiftTemplates`, `rosterSlots`, `shifts`, `housekeepingTasks`, `taskAssignments`, `taskTemplates`, `taskSlaDefaults`, `maintenanceOrders`, `maintenanceOrderParts`, `inventoryTasks`, `billAccounts`, `billPeriods`, `billDocuments`.
 - Relationships:
   - `Property` 1:N `staffs`, `Room`, `InventoryItem`, `Asset`.
   - User 1:1 Staff globally (optional). Staff `managerId` self-FK (direct reports).
   - `Reservation` links `Room`, `Guest`, and yields `JournalEntries`.
   - `HousekeepingTask` + `MaintenanceOrder` + `InventoryTask` share `taskAssignments` (lead + helpers). Room readiness is inferred from open housekeeping tasks; room status is not `dirty`/`cleaning`.
+  - `MaintenanceOrder` 1:N `maintenanceOrderParts` (purchased/used items; optional `inventoryItemId`).
   - `FnbMenuItem` consumes `InventoryItems` via recipe lines.
   - Department shift → Employee (default on onboard); Roster day (Cover) → who should attend; Shift (Attendance Tracker or ad-hoc) → Hours on End shift / Finalize.
   - A Payroll is created from a Pay cycle, aggregates approved/unlocked Hours, Time off, Pay history, and Pay item types for `staffs` into Staff pay / Pay items, then posts a `JournalEntry` and produces Payslips + Payment files.
+  - Property → Bill account → Period bill → Payment + Expense (on mark-paid). One invoice, one expense.
   - `Report` entities store configuration + cached snapshots for analytics.
 - ERD deliverable: diagram showing above entities, primary keys, and cardinalities to be hosted in `docs/erd/` (format TBD—likely Draw.io or Mermaid).
 
@@ -308,7 +321,8 @@ Shared assignment, SLA, templates, and checklists across housekeeping, maintenan
 - Properties may operate with or without existing PMS/POS systems:
   - **With existing systems**: Platform will integrate via APIs/webhooks/CSV imports.
   - **Without existing systems**: Platform provides native POS/PMS functionality as core features.
-- Finance teams follow accrual accounting and require GAAP-compliant outputs.
+- Finance teams follow accrual accounting and require GAAP-compliant outputs. **This billing ship is cash-basis**: the expense is created when the period is marked paid (`expenseDate` = payment time). Accrual on bill capture is later.
+- Recurring utilities and subscriptions are bill accounts; true one-offs stay as (future) manual `Expense` rows.
 - Users tolerate web-first experience for MVP.
 - Multi-currency support required for phase 2 (not MVP).
 
@@ -333,6 +347,10 @@ Shared assignment, SLA, templates, and checklists across housekeeping, maintenan
 5. **Scale & Optimize (post GA)**: advanced analytics, mobile apps, marketplace integrations.
 
 ## Glossary
+
+- **Bill account**: Standing property obligation (provider + cadence). Admin-configured; not seeded per vendor.
+
+- **Period bill**: One billing cycle for an account (week, month, or year). Cron opens `expected` rows; staff capture the invoice; mark-paid posts `Payment` + `Expense`.
 
 - **SLA (Service Level Agreement)**: Task completion window. Stored as `dueAt` on each work record from property `taskSlaDefaults`. G3 = percent of completed housekeeping, maintenance, and inventory restock/putaway tasks with `completedAt <= dueAt` (skipped/cancelled excluded).
 

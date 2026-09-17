@@ -18,4 +18,11 @@ crons.cron(
   {},
 );
 
+crons.cron(
+  "open current bill periods",
+  "0 6 * * *",
+  internal.billing.generateCurrentPeriods,
+  {},
+);
+
 export default crons;

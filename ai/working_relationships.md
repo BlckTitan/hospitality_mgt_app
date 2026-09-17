@@ -564,6 +564,7 @@ The HVAC system in Room 205 requires quarterly maintenance:
    - `source: "preventive_schedule"`
    - `status: "pending"`
    - `dueAt`: trigger + preventive SLA default (1440 minutes)
+   - `description` may be omitted (schema optional; required only on manual create/edit)
    - Lead `taskAssignment` to the maintenance department supervisor
 
 3. Supervisor may add helpers or keep the default lead.
@@ -580,10 +581,12 @@ A guest reports a broken AC in Room 301:
    - `orderType: "corrective"`
    - `priority: "urgent"`
    - `title: "AC Not Working - Room 301"`
-   - `description: "Guest reports AC not cooling"`
+   - `description: "Guest reports AC not cooling"` (required on manual create)
+   - `estimatedCost: 85` (optional; omitted values use purchased-items total)
    - `requestedBy: 207`
    - `status: "pending"`
    - optional `supplierId` if a vendor will do the physical work
+   - optional **MaintenanceOrderPart** lines, e.g. compressor from inventory (`inventoryItemId` + quantity + `unitCost`) or a custom name for a one-off purchase
 
 2. **Room** updated: `status: "out-of-order"` (if room cannot be sold)
 
@@ -596,7 +599,8 @@ A guest reports a broken AC in Room 301:
 5. Technician completes repair:
    - `status: "completed"`
    - `completedAt: 2024-07-18 17:30:00`
-   - `actualCost: $150` (replacement part)
+   - `actualCost: $150` (replacement part; if left blank while parts exist, stored as the parts total)
+   - List Cost shows `$150` (actual preferred over estimated `$85` and over parts total)
    - `resolutionNotes: "Replaced compressor. System tested and working."`
 
 6. **Room** updated: `status: "available"`
@@ -684,43 +688,43 @@ When payment is made:
    - Line 1: `accountId: 2100` (Accounts Payable), `debitAmount: $380`
    - Line 2: `accountId: 1000` (Cash/Bank), `creditAmount: $380`
 
-### Utility Bill Management
+### Organizational Billing
 
-**Monthly Utility Processing**
+**Setup (once)**
 
-Electricity bill arrives:
-1. **UtilityBill** created:
-   - `utilityBillId: 8001`
-   - `propertyId: 1`
-   - `utilityType: "electricity"`
-   - `provider: "City Power Co."`
-   - `billingPeriodStart: 2024-06-01`
-   - `billingPeriodEnd: 2024-06-30`
-   - `amount: $2,500`
-   - `usageAmount: 5000` (kWh)
-   - `unitRate: $0.50` (per kWh)
-   - `meterReading: 125000`
-   - `previousMeterReading: 120000`
-   - `status: "pending"`
-   - `glAccountId: 5400` (Utilities Expense)
+Sarah (Finance Manager) opens `/admin/billing/accounts` and creates bill accounts for Grand Hotel Downtown:
 
-2. Bill document uploaded:
-   - **Document** `documentId: 9004`
-   - `documentType: "utility-bill"`
-   - `referenceType: "UtilityBill"`
-   - `referenceId: 8001`
+| Account | Type | Cadence | Metered |
+|---|---|---|---|
+| PHCN meter 441-88 | electricity | monthly | yes |
+| Spectranet | internet | monthly | no |
+| DSTV Business | cable | monthly | no |
+| LAWMA | waste | weekly | no |
+| Local government tenement | local_government | annually | no |
 
-3. Finance Manager approves and pays:
-   - `status: "paid"`
-   - `paidAt: 2024-07-15 10:00:00`
+These are **accounts**, not invoices. Types come from the closed catalog.
 
-4. **JournalEntry** created:
-   - `entryId: 5006`
-   - `referenceType: "UtilityBill"`
-   - `referenceId: 8001`
-   - **JournalEntryLine** records:
-     - `accountId: 5400` (Utilities Expense), `debitAmount: $2,500`
-     - `accountId: 1000` (Cash/Bank), `creditAmount: $2,500`
+**Daily cron**
+
+The same pattern as preventive maintenance: for each **active** account, if the current cycle (property timezone, else UTC) has no `billPeriods` row, insert `status: "expected"` with `periodStart` / `periodEnd` / `dueDate` (= period end). Existing `expected`/`pending` rows with `dueDate < now` become `overdue`.
+
+**Capture and pay (monthly electricity)**
+
+1. Cron opened September: `periodStart` 1 Sep, `periodEnd` 30 Sep, `status: "expected"`.
+2. Invoice arrives. Sarah captures on `/admin/billing/bills`: `amount: 185000`, meters, invoice number, uploads `billDocuments.kind = "bill"`. Status → `pending`.
+3. She marks paid (full amount, payment method bank). Mutation:
+   - Hard duplicate: skip if `expenseId` already set
+   - Soft duplicate: fail if another expense matches property + invoice number + vendor + amount
+   - Insert `payments` (`referenceType: "PropertyBill"`)
+   - Insert `expenses` (`status: "paid"`, `category: "utilities"`, `sourceType: "PropertyBill"`, `expenseDate` = now)
+   - Patch period `paid`, `expenseId`, `paidAt`
+4. No journal / COA this ship. The expense appears on `/admin/expenses` (read-only).
+
+She does **not** also file a manual utilities expense for the same PHCN invoice.
+
+**Weekly waste / annual levy**
+
+Same entities, different `frequency`. LAWMA gets a new expected row each week; the levy only in January. Week / month / year dashboards **sum** `billPeriods` (or the posted expenses), they do not store a third row type.
 
 ---
 
@@ -803,7 +807,7 @@ The report aggregates:
 - **ChartOfAccounts** balances: Account-level summaries
 - **Reservation** revenue: Room sales
 - **Order** revenue: F&B sales
-- **Expense** records: All expenses
+- **Expense** records: All expenses (including billed `sourceType = PropertyBill` rows)
 - **Payroll** records: Labor costs
 
 **ReportSnapshot** stores the results for historical comparison.
@@ -845,7 +849,7 @@ The report aggregates:
 **End of Month:**
 - All transactions aggregated in **Report** (monthly statement)
 - **Payroll** processes all employee Hours
-- **UtilityBill** records processed
+- **billPeriods** marked paid (utilities, subscriptions, levies) → `Expense`
 - Complete financial picture in **ChartOfAccounts**
 
 ---
@@ -862,7 +866,7 @@ The report aggregates:
 
 5. **Cost Tracking**: Recipe costing, inventory costing, and labor costing provide comprehensive cost analysis.
 
-6. **Document Management**: All financial transactions link to **Document** records for compliance and audit purposes.
+6. **Document Management**: Payroll/PO/maintenance use DMS **Document**. Billing this ship stores bill/receipt files on **billDocuments** (period `_storage`).
 
 7. **Real-Time Operations**: Room status, inventory levels, and task assignments update in real-time, enabling efficient operations.
 

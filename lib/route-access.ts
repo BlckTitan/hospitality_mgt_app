@@ -9,6 +9,7 @@ export const SECTION_HUBS = [
   '/admin/shift-management',
   '/admin/payroll-management',
   '/admin/maintenance',
+  '/admin/billing',
   '/admin/tasks',
 ] as const;
 

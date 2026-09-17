@@ -661,6 +661,12 @@ export const PERMISSION_GROUPS = [
       { key: "expenses.read", label: "View Expenses" },
       { key: "expenses.create", label: "Create Expenses" },
       { key: "expenses.approve", label: "Approve Expenses" },
+      { key: "billing.account.read", label: "View bill accounts" },
+      { key: "billing.account.create", label: "Create bill accounts" },
+      { key: "billing.account.update", label: "Update bill accounts" },
+      { key: "billing.period.read", label: "View bills" },
+      { key: "billing.period.update", label: "Capture bills" },
+      { key: "billing.pay", label: "Mark bills paid" },
     ],
   },
   {

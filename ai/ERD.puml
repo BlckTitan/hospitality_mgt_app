@@ -439,20 +439,36 @@ package "Maintenance Management" {
         + propertyId : FK
         + assetId : FK
         + roomId : FK
+        + supplierId : FK
         + requestedBy : FK
-        + assignedTo : FK
+        + createdBy : FK
+        + templateId : FK
         + orderType : String
+        + source : String
         + priority : String
         + title : String
         + description : String
         + status : String
         + scheduledDate : Date
+        + dueAt : Timestamp
         + startedAt : Timestamp
         + completedAt : Timestamp
         + estimatedCost : Decimal
         + actualCost : Decimal
-        + slaDeadline : Timestamp
         + resolutionNotes : String
+        + notes : String
+        + createdAt : Timestamp
+        + updatedAt : Timestamp
+    }
+
+    class MaintenanceOrderPart {
+        + maintenanceOrderPartId : PK
+        + propertyId : FK
+        + maintenanceOrderId : FK
+        + inventoryItemId : FK
+        + name : String
+        + quantity : Decimal
+        + unitCost : Decimal
         + createdAt : Timestamp
         + updatedAt : Timestamp
     }
@@ -695,11 +711,14 @@ Employee ||--o{ Payroll : "approves"
 ' Maintenance Management Relationships
 Property ||--o{ Asset : "has"
 Property ||--o{ MaintenanceOrder : "has"
+Property ||--o{ MaintenanceOrderPart : "has"
 Room ||--o{ Asset : "contains"
 Room ||--o{ MaintenanceOrder : "requires"
 Asset ||--o{ MaintenanceOrder : "requires"
 Employee ||--o{ MaintenanceOrder : "requests"
-Employee ||--o{ MaintenanceOrder : "assigned to"
+MaintenanceOrder ||--o{ MaintenanceOrderPart : "uses"
+InventoryItem ||--o{ MaintenanceOrderPart : "used as"
+Supplier ||--o{ MaintenanceOrder : "vendor for"
 
 ' Financial Management Relationships
 Property ||--o{ ChartOfAccounts : "has"

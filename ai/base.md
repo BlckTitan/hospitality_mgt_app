@@ -921,17 +921,37 @@ interface MaintenanceOrder {
   source: 'manual' | 'preventive_schedule';
   priority: 'low' | 'medium' | 'high' | 'urgent';
   title: string;
+  /** Optional on auto-created preventive orders; required (min 5 chars) on manual create/edit. */
   description?: string;
   status: 'pending' | 'in-progress' | 'completed' | 'cancelled';
   scheduledDate?: Date;
   dueAt: Date;
   startedAt?: Date;
   completedAt?: Date;
+  /** Falls back to purchased-items total on create when omitted. */
   estimatedCost?: number;
+  /** Falls back to purchased-items total on update when omitted. List Cost prefers this over estimated. */
   actualCost?: number;
   resolutionNotes?: string;
   checklist?: ChecklistItem[];
   notes?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+```
+
+### MaintenanceOrderPart
+Purchased or used items for a work order. Child table — not an array on `MaintenanceOrder`.
+
+```typescript
+interface MaintenanceOrderPart {
+  maintenanceOrderPartId: string;
+  propertyId: string;
+  maintenanceOrderId: string;
+  inventoryItemId?: string;
+  name: string;
+  quantity: number;
+  unitCost: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -1000,11 +1020,14 @@ interface Expense {
   subcategory?: string;
   amount: number;
   expenseDate: Date;
-  description: string;
+  description?: string;
   vendor?: string;
   invoiceNumber?: string;
-  status: 'draft' | 'submitted' | 'approved' | 'paid' | 'rejected';
-  submittedBy?: string;
+  status?: 'draft' | 'submitted' | 'approved' | 'paid' | 'rejected';
+  sourceType?: 'PropertyBill';
+  sourceId?: string;
+  submittedBy?: string; // User id on billed rows
+  paidBy?: string;
   approvedBy?: string;
   approvedAt?: Date;
   glAccountId?: string;
@@ -1013,27 +1036,70 @@ interface Expense {
 }
 ```
 
-### UtilityBill
+### BillAccount
 ```typescript
-interface UtilityBill {
-  utilityBillId: string;
+interface BillAccount {
+  billAccountId: string;
   propertyId: string;
-  utilityType: 'electricity' | 'water' | 'gas' | 'internet' | 'phone' | 'other';
+  name: string;
+  billType:
+    | 'electricity'
+    | 'water'
+    | 'gas'
+    | 'internet'
+    | 'cable'
+    | 'waste'
+    | 'local_government'
+    | 'other';
+  frequency: 'weekly' | 'monthly' | 'annually';
+  isMetered: boolean;
   provider: string;
   accountNumber?: string;
-  billingPeriodStart: Date;
-  billingPeriodEnd: Date;
+  supplierId?: string;
+  expectedAmount?: number;
+  contractEndDate?: Date;
+  glAccountCode?: string;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+```
+
+### BillPeriod
+```typescript
+interface BillPeriod {
+  billPeriodId: string;
+  accountId: string;
+  propertyId: string;
+  periodStart: Date;
+  periodEnd: Date;
   dueDate: Date;
-  amount: number;
+  status: 'expected' | 'pending' | 'paid' | 'overdue';
+  amount?: number;
   usageAmount?: number;
   unitRate?: number;
   meterReading?: number;
   previousMeterReading?: number;
-  status: 'pending' | 'paid' | 'overdue';
+  invoiceNumber?: string;
+  expenseId?: string;
   paidAt?: Date;
-  glAccountId?: string;
   createdAt: Date;
   updatedAt: Date;
+}
+```
+
+### BillDocument
+```typescript
+interface BillDocument {
+  billDocumentId: string;
+  periodId: string;
+  kind: 'bill' | 'receipt';
+  storageId: string;
+  fileName: string;
+  mimeType?: string;
+  fileSize?: number;
+  uploadedBy: string;
+  createdAt: Date;
 }
 ```
 
@@ -1042,7 +1108,7 @@ interface UtilityBill {
 interface Payment {
   paymentId: string;
   propertyId: string;
-  paymentType: 'reservation' | 'order' | 'expense' | 'payroll' | 'other';
+  paymentType: 'reservation' | 'order' | 'expense' | 'payroll' | 'PropertyBill' | 'other';
   referenceType: string;
   referenceId: string;
   amount: number;
@@ -1315,6 +1381,33 @@ enum JournalEntryType {
   REVERSAL = 'reversal',
 }
 
+// Bill type (closed catalog)
+enum BillType {
+  ELECTRICITY = 'electricity',
+  WATER = 'water',
+  GAS = 'gas',
+  INTERNET = 'internet',
+  CABLE = 'cable',
+  WASTE = 'waste',
+  LOCAL_GOVERNMENT = 'local_government',
+  OTHER = 'other',
+}
+
+// Bill cadence
+enum BillFrequency {
+  WEEKLY = 'weekly',
+  MONTHLY = 'monthly',
+  ANNUALLY = 'annually',
+}
+
+// Period bill status
+enum BillPeriodStatus {
+  EXPECTED = 'expected',
+  PENDING = 'pending',
+  PAID = 'paid',
+  OVERDUE = 'overdue',
+}
+
 // Expense Status
 enum ExpenseStatus {
   DRAFT = 'draft',
@@ -1349,6 +1442,7 @@ enum DocumentType {
   DELIVERY_NOTE = 'delivery-note',
   PAYMENT_CONFIRMATION = 'payment-confirmation',
   UTILITY_BILL = 'utility-bill',
+  BILL = 'bill',
   OTHER = 'other',
 }
 
@@ -1370,7 +1464,7 @@ enum AccountType {
 // Financial entities that can have documents
 type DocumentReferenceable =
   | 'Expense'
-  | 'UtilityBill'
+  | 'BillPeriod'
   | 'PurchaseOrder'
   | 'Payment'
   | 'MaintenanceOrder'
@@ -1384,7 +1478,7 @@ type JournalEntryReference =
   | 'Order'
   | 'Payroll'
   | 'Expense'
-  | 'UtilityBill'
+  | 'PropertyBill'
   | 'Manual';
 
 // Inventory transaction reference types

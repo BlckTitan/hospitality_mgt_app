@@ -48,11 +48,12 @@ This document defines a comprehensive Role-Based Access Control (RBAC) model for
 7. Food & Beverage (F&B)
 8. Inventory Management
 9. Financial Management
-10. Reports & Analytics
-11. System Settings
-12. Maintenance & Facilities
-13. Security & Access Logs
-14. Task Assignment (housekeeping, maintenance orders, inventory restock/putaway)
+10. Billing (bill accounts, period bills, mark-paid → expense)
+11. Reports & Analytics
+12. System Settings
+13. Maintenance & Facilities
+14. Security & Access Logs
+15. Task Assignment (housekeeping, maintenance orders, inventory restock/putaway)
 
 ---
 
@@ -103,6 +104,30 @@ Legend:
 - finance.charge
 - finance.refund
 - finance.reports
+
+### Billing (organizational utilities / subscriptions)
+Permission keys stay technical. Screens: Billing hub, Bill accounts, Bills, Expenses (read-only list).
+
+- billing.account.read
+- billing.account.create
+- billing.account.update
+- billing.period.read
+- billing.period.update
+- billing.pay
+
+Expenses list uses existing `expenses.read`. Mark-paid inserts the expense; do not require `expenses.create` / `expenses.approve` for billed rows.
+
+| Screen | Path | Permission |
+|---|---|---|
+| Billing hub | `/admin/billing` | `billing.period.read` |
+| Bill accounts | `/admin/billing/accounts` | `billing.account.read` (create/edit: `create` / `update`) |
+| Bills | `/admin/billing/bills` | `billing.period.read` (capture: `billing.period.update`; mark paid: `billing.pay`) |
+| Expenses | `/admin/expenses` | `expenses.read` |
+
+**Role mapping:**
+- Administrator, Director, General Manager, Finance Manager: full `billing.*` plus `expenses.read`
+- Operations Manager / Manager: `billing.period.read` (view dues); account setup and pay stay Finance unless granted
+- Other operational staff: none
 
 ### Payroll
 Permission keys stay technical. Screens use Hours, Time off, Payroll, Payslip, Payroll settings, Department shifts, Attendance Tracker, Cover, and Shift (see `ai/payroll-implementation.md` User-facing names).
@@ -190,7 +215,7 @@ Staff (Housekeeping Staff / Maintenance Staff / storekeepers with `fnb` or inven
 | Housekeeping create | `/admin/room-management/housekeeping-task/create` | `housekeeping.task.assign` |
 | Housekeeping edit | `/admin/room-management/housekeeping-task/edit` | `housekeeping.task.update` |
 | My tasks | `/admin/tasks/mine` | `housekeeping.task.read` or `maintenance.order.read` or `inventory.task.read` |
-| Maintenance orders | `/admin/maintenance` | `maintenance.order.read` |
+| Maintenance orders | `/admin/maintenance` | `maintenance.order.read` (parts catalog picker included; `inventory.read` not required) |
 | Inventory tasks | `/admin/inventory/tasks` | `inventory.task.read` |
 | Task templates | `/admin/tasks/templates` | `housekeeping.task.assign` or `maintenance.order.assign` or `inventory.task.assign` |
 | SLA defaults | `/admin/tasks/sla` | `housekeeping.task.assign` or `maintenance.order.assign` or `inventory.task.assign` |

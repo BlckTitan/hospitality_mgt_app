@@ -1,6 +1,7 @@
-import { mutation, query } from './_generated/server';
+﻿import { mutation, query, MutationCtx, QueryCtx } from './_generated/server';
 import { v } from 'convex/values';
 import { requirePermission } from './lib/rbac';
+import { Id } from './_generated/dataModel';
 import {
   addHelper,
   assignLeadAndHelpers,
@@ -36,6 +37,112 @@ const priorityValidator = v.union(
   v.literal('high'),
   v.literal('urgent'),
 );
+const partInputValidator = v.object({
+  inventoryItemId: v.optional(v.id('inventoryItems')),
+  name: v.string(),
+  quantity: v.number(),
+  unitCost: v.number(),
+});
+
+type PartInput = {
+  inventoryItemId?: Id<'inventoryItems'>;
+  name: string;
+  quantity: number;
+  unitCost: number;
+};
+
+async function listParts(ctx: QueryCtx | MutationCtx, maintenanceOrderId: Id<'maintenanceOrders'>) {
+  // Child rows for cost tracking; not stored as an array on the work order.
+  return await ctx.db
+    .query('maintenanceOrderParts')
+    .withIndex('by_maintenanceOrderId', (q) => q.eq('maintenanceOrderId', maintenanceOrderId))
+    .collect();
+}
+
+function partsCostOf(parts: Array<{ quantity: number; unitCost: number }>) {
+  return parts.reduce((sum, part) => sum + part.quantity * part.unitCost, 0);
+}
+
+async function normalizeParts(
+  ctx: MutationCtx,
+  propertyId: Id<'properties'>,
+  parts: PartInput[],
+) {
+  const normalized: PartInput[] = [];
+  for (const part of parts) {
+    const name = part.name.trim();
+    if (!name) {
+      throw new Error('Each purchased item needs a name');
+    }
+    if (!Number.isFinite(part.quantity) || part.quantity <= 0) {
+      throw new Error('Each purchased item needs a quantity greater than 0');
+    }
+    if (!Number.isFinite(part.unitCost) || part.unitCost < 0) {
+      throw new Error('Each purchased item needs a unit cost of 0 or more');
+    }
+    let inventoryItemId = part.inventoryItemId;
+    if (inventoryItemId) {
+      const item = await ctx.db.get(inventoryItemId);
+      if (!item || item.propertyId !== propertyId) {
+        throw new Error('A purchased item is not in this property inventory');
+      }
+    }
+    normalized.push({
+      inventoryItemId,
+      name,
+      quantity: part.quantity,
+      unitCost: part.unitCost,
+    });
+  }
+  return normalized;
+}
+
+async function replaceParts(
+  ctx: MutationCtx,
+  args: {
+    propertyId: Id<'properties'>;
+    maintenanceOrderId: Id<'maintenanceOrders'>;
+    parts: PartInput[];
+  },
+) {
+  const existing = await listParts(ctx, args.maintenanceOrderId);
+  for (const part of existing) {
+    await ctx.db.delete(part._id);
+  }
+  const now = Date.now();
+  for (const part of args.parts) {
+    await ctx.db.insert('maintenanceOrderParts', {
+      propertyId: args.propertyId,
+      maintenanceOrderId: args.maintenanceOrderId,
+      inventoryItemId: part.inventoryItemId,
+      name: part.name,
+      quantity: part.quantity,
+      unitCost: part.unitCost,
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
+}
+
+export const listPartsCatalog = query({
+  args: { propertyId: v.id('properties') },
+  handler: async (ctx, args) => {
+    await requirePermission(ctx, MODULE_PERMS.maintenance.read, args.propertyId);
+    const items = await ctx.db
+      .query('inventoryItems')
+      .withIndex('by_propertyId', (q) => q.eq('propertyId', args.propertyId))
+      .collect();
+    return items
+      .filter((item) => item.isActive)
+      .map((item) => ({
+        _id: item._id,
+        name: item.name,
+        sku: item.sku,
+        unit: item.unit,
+        unitCost: item.unitCost,
+      }));
+  },
+});
 
 export const getAllMaintenanceOrders = query({
   args: {
@@ -55,12 +162,16 @@ export const getAllMaintenanceOrders = query({
       const asset = row.assetId ? await ctx.db.get(row.assetId) : null;
       const room = row.roomId ? await ctx.db.get(row.roomId) : null;
       const supplier = row.supplierId ? await ctx.db.get(row.supplierId) : null;
+      const parts = await listParts(ctx, row._id);
+      const partsCost = partsCostOf(parts);
       return {
         ...row,
         ...assignmentInfo,
         asset,
         room,
         supplier,
+        partsCost,
+        displayCost: row.actualCost ?? (partsCost > 0 ? partsCost : row.estimatedCost),
         overdue: isOpenStatus(row.status) && row.dueAt < now,
       };
     }));
@@ -89,7 +200,19 @@ export const getMaintenanceOrder = query({
     const asset = row.assetId ? await ctx.db.get(row.assetId) : null;
     const room = row.roomId ? await ctx.db.get(row.roomId) : null;
     const supplier = row.supplierId ? await ctx.db.get(row.supplierId) : null;
-    return { success: true, data: { ...row, ...assignmentInfo, asset, room, supplier } };
+    const parts = await listParts(ctx, row._id);
+    return {
+      success: true,
+      data: {
+        ...row,
+        ...assignmentInfo,
+        asset,
+        room,
+        supplier,
+        parts,
+        partsCost: partsCostOf(parts),
+      },
+    };
   },
 });
 
@@ -107,6 +230,7 @@ export const createMaintenanceOrder = mutation({
     estimatedCost: v.optional(v.number()),
     leadId: v.optional(v.id('staffs')),
     helperIds: v.optional(v.array(v.id('staffs'))),
+    parts: v.optional(v.array(partInputValidator)),
   },
   handler: async (ctx, args) => {
     const auth = await requirePermission(ctx, MODULE_PERMS.maintenance.assign, args.propertyId);
@@ -127,11 +251,18 @@ export const createMaintenanceOrder = mutation({
         return { success: false, message: 'An open preventive work order already exists for this asset' };
       }
     }
+    let parts: PartInput[] = [];
+    try {
+      parts = await normalizeParts(ctx, args.propertyId, args.parts ?? []);
+    } catch (error) {
+      return { success: false, message: error instanceof Error ? error.message : 'Invalid purchased items' };
+    }
     const now = Date.now();
     const dueAt = await dueAtFor(ctx, args.propertyId, 'maintenance', args.orderType, now);
     const snap = await snapshotChecklist(ctx, args.propertyId, 'maintenance', args.orderType);
     const leadId = args.leadId ?? await defaultLeadStaffId(ctx, args.propertyId, 'maintenance', auth.user._id);
     const requestedBy = await linkedStaffForUser(ctx, auth.user._id);
+    const partsCost = partsCostOf(parts);
     const id = await ctx.db.insert('maintenanceOrders', {
       propertyId: args.propertyId,
       assetId: args.assetId,
@@ -148,7 +279,7 @@ export const createMaintenanceOrder = mutation({
       status: 'pending',
       scheduledDate: args.scheduledDate,
       dueAt,
-      estimatedCost: args.estimatedCost,
+      estimatedCost: args.estimatedCost ?? (partsCost > 0 ? partsCost : undefined),
       checklist: snap.checklist,
       createdAt: now,
       updatedAt: now,
@@ -160,6 +291,7 @@ export const createMaintenanceOrder = mutation({
       helperIds: args.helperIds,
       assignedBy: auth.user._id,
     });
+    await replaceParts(ctx, { propertyId: args.propertyId, maintenanceOrderId: id, parts });
     return { success: true, message: 'Maintenance order created', id };
   },
 });
@@ -183,6 +315,7 @@ export const updateMaintenanceOrder = mutation({
     checklist: v.optional(v.any()),
     leadId: v.optional(v.id('staffs')),
     helperIds: v.optional(v.array(v.id('staffs'))),
+    parts: v.optional(v.array(partInputValidator)),
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db.get(args.maintenanceOrderId);
@@ -226,6 +359,22 @@ export const updateMaintenanceOrder = mutation({
       }
     }
 
+    let partsCost: number | undefined;
+    if (args.parts) {
+      let parts: PartInput[] = [];
+      try {
+        parts = await normalizeParts(ctx, existing.propertyId, args.parts);
+      } catch (error) {
+        return { success: false, message: error instanceof Error ? error.message : 'Invalid purchased items' };
+      }
+      await replaceParts(ctx, {
+        propertyId: existing.propertyId,
+        maintenanceOrderId: args.maintenanceOrderId,
+        parts,
+      });
+      partsCost = partsCostOf(parts);
+    }
+
     const now = Date.now();
     const patch: Record<string, unknown> = { updatedAt: now };
     for (const key of [
@@ -234,6 +383,9 @@ export const updateMaintenanceOrder = mutation({
       'resolutionNotes', 'notes', 'checklist',
     ] as const) {
       if (args[key] !== undefined) patch[key] = args[key];
+    }
+    if (args.actualCost === undefined && partsCost !== undefined && partsCost > 0) {
+      patch.actualCost = partsCost;
     }
     if (args.status === 'in-progress' && existing.status !== 'in-progress') {
       patch.startedAt = now;

@@ -27,7 +27,7 @@ const navLinks = [
       { id: 405, href: '/admin/bar-management/store-transactions', label: 'Store Transactions'},
     ]
   },
-  {id: 5, href: "/#", label: "Expenditure", icon: <FcMoneyTransfer /> },
+  {id: 5, href: "/admin/expenses", label: "Expenditure", icon: <FcMoneyTransfer /> },
   {id: 6, href: "/#", label: "Report and Analytics", icon: <FcSalesPerformance /> },
   {id: 7, href: "/admin/staff", label: "Staff", icon: <FcConferenceCall />, subLink: [
     {id: 701, href: '/admin/staff/myProfile', label: 'My profile'},
@@ -49,7 +49,10 @@ const navLinks = [
       {id: 906, href: '/admin/tasks/mine', label: 'My tasks'},
       {id: 907, href: '/admin/tasks/templates', label: 'Task templates'},
   ]},
-  { id: 10, href: "/#", label: "Billing", icon: <FcPhone /> },
+  { id: 10, href: "/admin/billing", label: "Billing", icon: <FcPhone />, subLink: [
+    { id: 1001, href: "/admin/billing/accounts", label: "Bill accounts" },
+    { id: 1002, href: "/admin/billing/bills", label: "Bills" },
+  ]},
   {id: 11, href: "/admin/shift-management", label: "Shift Management", icon: <MdOutlineBedroomChild />,  subLink: [
     {id: 1101, href: '/admin/shift-management/templates', label: 'Department shifts'},
     {id: 1102, href: '/admin/shift-management/attendance', label: 'Attendance Tracker'},

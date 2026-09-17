@@ -1028,14 +1028,14 @@ Represents maintenance work orders/requests. Staff lead/helpers live on `taskAss
 - `source`: Origin (manual, preventive_schedule)
 - `priority`: Priority level (low, medium, high, urgent)
 - `title`: Order title
-- `description`: Detailed description
+- `description`: Detailed description (optional on schema / auto-created preventive orders; required on manual create/edit)
 - `status`: Status (pending, in-progress, completed, cancelled)
 - `scheduledDate`: Scheduled date (optional)
 - `dueAt`: SLA deadline snapshot (replaces `slaDeadline`)
 - `startedAt`: Start timestamp (optional)
 - `completedAt`: Completion timestamp (optional)
-- `estimatedCost`: Estimated cost
-- `actualCost`: Actual cost
+- `estimatedCost`: Estimated cost (optional; defaults to purchased-items total on create when omitted)
+- `actualCost`: Actual cost (optional; defaults to purchased-items total on update when omitted)
 - `resolutionNotes`: Resolution notes
 - `checklist`: Snapshot of template steps `{ id, label, isComplete }[]`
 - `notes`: Required reason on cancel
@@ -1044,7 +1044,25 @@ Represents maintenance work orders/requests. Staff lead/helpers live on `taskAss
 
 **Uniqueness**: at most one **open** preventive order per asset. Completing preventive updates `Asset.lastMaintenanceDate` / `nextMaintenanceDate`.
 
-**Purpose**: Manages maintenance workflows, tracks costs, and ensures asset reliability. The staff lead owns in-app completion even when a vendor is named. **Document Requirement**: Maintenance work orders should include vendor invoices, work completion certificates, warranty documents, and payment receipts linked via the Document entity for cost verification and warranty tracking.
+**Purpose**: Manages maintenance workflows, tracks estimated and actual costs, purchased items (`MaintenanceOrderPart`), and ensures asset reliability. List Cost shows actual, else `Est.` estimated, else parts total. The staff lead owns in-app completion even when a vendor is named. **Document Requirement**: Maintenance work orders should include vendor invoices, work completion certificates, warranty documents, and payment receipts linked via the Document entity for cost verification and warranty tracking.
+
+---
+
+#### MaintenanceOrderPart
+Line items purchased or used for a maintenance work order. Unbounded child table (not an array on `MaintenanceOrder`).
+
+**Attributes:**
+- `maintenanceOrderPartId` (PK): Unique identifier
+- `propertyId` (FK): Reference to Property
+- `maintenanceOrderId` (FK): Parent work order
+- `inventoryItemId` (FK, optional): Inventory catalog item when the part is stocked
+- `name`: Display name (from inventory or a custom one-off purchase)
+- `quantity`: Quantity used or purchased
+- `unitCost`: Unit cost at time of recording
+- `createdAt`: Timestamp of creation
+- `updatedAt`: Timestamp of last update
+
+**Purpose**: Tracks parts and materials against a work order for cost roll-up. Catalog picker is available to users with `maintenance.order.read` so staff can choose inventory items without `inventory.read`.
 
 ---
 
@@ -1110,54 +1128,92 @@ Represents individual debit/credit lines within a journal entry.
 ---
 
 #### Expense
-Represents business expenses (utilities, supplies, maintenance, etc.).
+Represents a paid (or, later, workflowed) business cost. This ship: rows are created from **mark-paid** on a period bill (`sourceType = PropertyBill`). Manual create/approve is later.
 
 **Attributes:**
 - `expenseId` (PK): Unique identifier
 - `propertyId` (FK): Reference to Property
-- `category`: Category (utilities, supplies, staff, maintenance, other)
-- `subcategory`: Subcategory
-- `amount`: Expense amount
-- `expenseDate`: Expense date
-- `description`: Description
-- `vendor`: Vendor name
-- `invoiceNumber`: Invoice number
-- `status`: Status (draft, submitted, approved, paid, rejected)
-- `submittedBy` (FK): Reference to Employee
-- `approvedBy` (FK): Reference to Employee
-- `approvedAt`: Approval timestamp
-- `glAccountId` (FK): Reference to ChartOfAccounts
+- `category`: Category (utilities, supplies, staff, maintenance, other). Billed rows: electricity/water/gas/internet/cable/waste → `utilities`; `local_government` / `other` → `other`
+- `subcategory`: Subcategory (optional)
+- `amount`: Expense amount (full period amount; partial pay is out of scope)
+- `expenseDate`: For billed rows, payment timestamp (cash)
+- `description`: Description (optional)
+- `vendor`: Provider name from the bill account
+- `invoiceNumber`: Invoice number from the period (optional)
+- `status`: `paid` for billed rows. Later: draft, submitted, approved, rejected. Legacy rows without status are unknown
+- `sourceType`: `PropertyBill` when created from billing (optional)
+- `sourceId`: Period bill id when `sourceType = PropertyBill` (optional)
+- `submittedBy` (FK): User who marked paid (billed rows; matches `payments.createdBy`)
+- `paidBy` (FK): User who marked paid (optional; same actor this ship)
+- `approvedBy` (FK): Not set on billed rows (confirm-paid is approval)
+- `approvedAt`: Approval timestamp (optional)
+- `glAccountId` (FK): ChartOfAccounts when COA is live; billed rows may store `glAccountCode` on the account only this ship
 - `createdAt`: Timestamp of creation
 - `updatedAt`: Timestamp of last update
 
-**Purpose**: Tracks business expenses with approval workflows and GL mapping. **Document Requirement**: All expenses must have supporting documents (invoices, receipts, payment confirmations) attached via the Document entity before approval and payment processing. Documents serve as mandatory evidence of payment for audit compliance.
+**Purpose**: Paid ledger for P&L and the read-only Expenses list. **One invoice, one Expense.** Duplicate check: hard key `(sourceType, sourceId)` / `billPeriods.expenseId`; soft match property + invoice number + vendor + amount.
 
 ---
 
-#### UtilityBill
-Represents utility bills (electricity, water, gas, internet, etc.).
+#### BillAccount
+Schema table: `billAccounts`. Standing property obligation. Admin-configured (not seeded per vendor). Replaces the former `UtilityBill`-only model.
 
 **Attributes:**
-- `utilityBillId` (PK): Unique identifier
-- `propertyId` (FK): Reference to Property
-- `utilityType`: Type (electricity, water, gas, internet, phone, etc.)
-- `provider`: Utility provider name
-- `accountNumber`: Account number
-- `billingPeriodStart`: Billing period start date
-- `billingPeriodEnd`: Billing period end date
-- `dueDate`: Due date
-- `amount`: Bill amount
-- `usageAmount`: Usage amount (kWh, gallons, etc.)
-- `unitRate`: Rate per unit
-- `meterReading`: Meter reading
-- `previousMeterReading`: Previous meter reading
-- `status`: Status (pending, paid, overdue)
-- `paidAt`: Payment timestamp
-- `glAccountId` (FK): Reference to ChartOfAccounts
-- `createdAt`: Timestamp of creation
-- `updatedAt`: Timestamp of last update
+- `billAccountId` (PK)
+- `propertyId` (FK)
+- `name`: Display name (e.g. "PHCN meter 441-88")
+- `billType`: electricity | water | gas | internet | cable | waste | local_government | other
+- `frequency`: weekly | monthly | annually
+- `isMetered`: If true, period capture may include usage/meters
+- `provider`: Provider / vendor name
+- `accountNumber` (optional)
+- `supplierId` (FK, optional): Supplier when the provider is in the vendor master
+- `expectedAmount` (optional): Informational; stored only — no anomaly job this ship
+- `contractEndDate` (optional): Stored only — no reminder job this ship
+- `glAccountCode` (optional): String until ChartOfAccounts is live
+- `isActive`: Inactive accounts do not get new cron periods; history remains
+- `createdAt`, `updatedAt`
 
-**Purpose**: Tracks utility consumption, costs, and payment status for expense management. **Document Requirement**: Original utility bill documents and payment receipts must be uploaded and linked via the Document entity for verification and audit compliance.
+**Purpose**: Cadence and identity for electricity, subscriptions, levies, and similar. Types are a closed product list; accounts are per property.
+
+---
+
+#### BillPeriod
+Schema table: `billPeriods`. One billing cycle for an account.
+
+**Attributes:**
+- `billPeriodId` (PK)
+- `accountId` (FK): BillAccount
+- `propertyId` (FK)
+- `periodStart`, `periodEnd`: Cycle bounds (computed in property timezone, else UTC)
+- `dueDate`: Defaults to `periodEnd`
+- `status`: expected | pending | paid | overdue
+- `amount` (optional): Required before mark-paid
+- `usageAmount`, `unitRate`, `meterReading`, `previousMeterReading` (optional; metered accounts)
+- `invoiceNumber` (optional)
+- `expenseId` (FK, optional): Set after a successful funnel
+- `paidAt` (optional)
+- `createdAt`, `updatedAt`
+
+**Uniqueness**: one row per `(accountId, periodStart)` (application-enforced). Daily cron inserts `expected` for the current cycle of each active account and stamps `expected`/`pending` as `overdue` when `dueDate < now`. Staff may capture amount/docs on the expected row (`pending`) or, if the invoice arrived first, create the period against the account.
+
+**Purpose**: The bill instance. Mark-paid inserts `Payment` (`referenceType = PropertyBill`) and one `Expense`.
+
+---
+
+#### BillDocument
+Schema table: `billDocuments`. Convex `_storage` files on a period (same pattern as `staffDocuments`). Not the DMS `Document` table this ship.
+
+**Attributes:**
+- `billDocumentId` (PK)
+- `periodId` (FK): BillPeriod
+- `kind`: bill | receipt
+- `storageId`: Convex file id
+- `fileName`, `mimeType` (optional), `fileSize` (optional)
+- `uploadedBy` (FK): User
+- `createdAt`
+
+**Purpose**: Original bill required before mark-paid; receipt after payment.
 
 ---
 
@@ -1167,7 +1223,7 @@ Represents payments received or made (for reservations, orders, expenses, etc.).
 **Attributes:**
 - `paymentId` (PK): Unique identifier
 - `propertyId` (FK): Reference to Property
-- `paymentType`: Type (reservation, order, expense, payroll, etc.)
+- `paymentType`: Type (reservation, order, expense, payroll, PropertyBill, etc.)
 - `referenceType`: Reference entity type
 - `referenceId`: Reference entity ID
 - `amount`: Payment amount
@@ -1376,7 +1432,7 @@ These ratios highlight cost control and resource management efficiency.
 - **Data Sources**:
   - `HousekeepingTask` linked to `InventoryTransaction` (cleaning supplies cost)
   - `InventoryTransaction` with `referenceType = 'HousekeepingTask'` (room service costs)
-  - `UtilityBill.amount` (prorated per room or total utility costs)
+  - Paid `Expense` rows from billing (`sourceType = PropertyBill`, category `utilities`) and other operational costs; prorate per room or use property total
   - `Reservation` count (where `status IN ('checked-in', 'checked-out')`) for rooms sold
 - **Available For**: Daily, Monthly, Yearly
 - **Persona Access**: Hotel Owners/General Managers, Finance Teams, Housekeeping Supervisors
@@ -1510,7 +1566,7 @@ These ratios assess the enterprise's ability to meet short-term and long-term fi
 ### Monthly Reports
 - **Generation Time**: Generated on 1st of each month for previous month's data
 - **Metrics Included**: All operational, profitability, cost efficiency, and liquidity metrics
-- **Data Sources**: Aggregated `JournalEntry`, `Reservation`, `Order`, `Payroll`, `Expense`, `UtilityBill`, `Asset` depreciation
+- **Data Sources**: Aggregated `JournalEntry`, `Reservation`, `Order`, `Payroll`, `Expense`, `billPeriods` (paid), `Asset` depreciation
 - **Storage**: `ReportSnapshot` with `periodType = 'monthly'`
 
 ### Yearly Reports
@@ -1603,7 +1659,7 @@ Represents uploaded documents (invoices, receipts, contracts, etc.) that serve a
 - `uploadedBy` (FK): Reference to Employee
 - `uploadedAt`: Upload timestamp
 - `description`: Document description/notes
-- `referenceType`: Reference entity type (Expense, UtilityBill, PurchaseOrder, Payment, MaintenanceOrder, Payroll, Payslip, PaymentFile, Staff / Employee, etc.)
+- `referenceType`: Reference entity type (Expense, BillPeriod, PurchaseOrder, Payment, MaintenanceOrder, Payroll, Payslip, PaymentFile, Staff / Employee, etc.)
 - `referenceId`: Reference entity ID
 - `documentDate`: Document date (from the document itself, e.g., invoice date)
 - `amount`: Amount shown on document (for invoices/receipts)
@@ -2004,6 +2060,18 @@ Tracks all system actions for compliance and security auditing.
 - **Relationship**: A Supplier can be named on many MaintenanceOrders.
 - **Explanation**: Vendor in addition to the staff lead/helpers. The staff lead still owns in-app completion.
 
+#### Property → MaintenanceOrderPart (One-to-Many)
+- **Relationship**: A Property has many MaintenanceOrderParts.
+- **Explanation**: Parts lines are property-scoped like their parent work orders.
+
+#### MaintenanceOrder → MaintenanceOrderPart (One-to-Many)
+- **Relationship**: A MaintenanceOrder has many MaintenanceOrderParts.
+- **Explanation**: Purchased/used items are stored as child rows, replaced as a set on create/update. Unbounded — not an array on the order.
+
+#### InventoryItem → MaintenanceOrderPart (One-to-Many, Optional)
+- **Relationship**: An InventoryItem can appear on many MaintenanceOrderParts.
+- **Explanation**: Optional — one-off purchases use `name` without `inventoryItemId`.
+
 ---
 
 ### Financial Management Relationships
@@ -2053,16 +2121,28 @@ Tracks all system actions for compliance and security auditing.
 - **Explanation**: Each expense is mapped to a GL account for proper categorization and reporting.
 
 #### Employee → Expense (One-to-Many, as Submitter/Approver)
-- **Relationship**: An Employee can submit and approve many Expenses.
-- **Explanation**: Tracks who submitted and approved each expense for workflow management and accountability.
+- **Relationship**: An Employee can submit and approve many Expenses (manual workflow, later).
+- **Explanation**: Billed expenses this ship record the **User** who marked paid (`submittedBy` / `paidBy`), matching `payments.createdBy`.
 
-#### Property → UtilityBill (One-to-Many)
-- **Relationship**: A Property has many UtilityBills.
-- **Explanation**: All utility bills are scoped to a property for property-level utility cost tracking.
+#### Property → BillAccount (One-to-Many)
+- **Relationship**: A Property has many BillAccounts.
+- **Explanation**: Each standing obligation (meter, subscription, levy) is property-scoped.
 
-#### ChartOfAccounts → UtilityBill (One-to-Many)
-- **Relationship**: A ChartOfAccounts entry can be mapped to many UtilityBills.
-- **Explanation**: Each utility bill is mapped to a GL account (typically an expense account) for proper categorization.
+#### BillAccount → BillPeriod (One-to-Many)
+- **Relationship**: A BillAccount has many BillPeriods.
+- **Explanation**: One row per cadence cycle. Cron opens the current period; staff capture and pay.
+
+#### BillPeriod → BillDocument (One-to-Many)
+- **Relationship**: A BillPeriod has many BillDocuments (bill and/or receipt).
+- **Explanation**: Convex `_storage`. Bill kind required before mark-paid.
+
+#### BillPeriod → Expense (One-to-One, Optional)
+- **Relationship**: A paid BillPeriod points at one Expense (`expenseId`); Expense `sourceType`/`sourceId` point back.
+- **Explanation**: Funnel on mark-paid. Hard duplicate key.
+
+#### Supplier → BillAccount (One-to-Many, Optional)
+- **Relationship**: A Supplier can be named on many BillAccounts.
+- **Explanation**: Optional; provider may be a free-text name only.
 
 #### Property → Payment (One-to-Many)
 - **Relationship**: A Property has many Payments.
@@ -2084,6 +2164,10 @@ Tracks all system actions for compliance and security auditing.
 - **Relationship**: A Payment can reference a Payroll (via referenceType and referenceId).
 - **Explanation**: Tracks payments made for payroll. Enables payroll payment reconciliation.
 
+#### Payment → BillPeriod (Many-to-One, Optional)
+- **Relationship**: A Payment can reference a BillPeriod (`referenceType = PropertyBill`).
+- **Explanation**: Written on mark-paid together with the Expense. Full amount only this ship.
+
 ---
 
 ### Document Management Relationships
@@ -2094,11 +2178,10 @@ Tracks all system actions for compliance and security auditing.
 
 #### Document → Expense (Many-to-One, Optional but Recommended)
 - **Relationship**: A Document can reference an Expense (via referenceType and referenceId).
-- **Explanation**: Links invoices, receipts, and other payment evidence to expenses. **Document Requirement**: All expenses should have at least one supporting document (invoice or receipt) attached before approval and payment processing. An expense can have multiple documents (e.g., invoice, receipt, approval form, payment confirmation). Enables complete audit trail for expense claims and reimbursements, and is mandatory for compliance and audit purposes.
+- **Explanation**: Links invoices, receipts, and other payment evidence to expenses for the future DMS. **This ship:** billed rows use `billDocuments` on the period, not DMS `Document`.
 
-#### Document → UtilityBill (Many-to-One, Optional but Recommended)
-- **Relationship**: A Document can reference a UtilityBill (via referenceType and referenceId).
-- **Explanation**: Links utility bill documents (invoices, payment confirmations) to utility bill records. **Document Requirement**: All utility bills should have original bill documents and payment receipts attached for verification and audit compliance. Enables verification of utility charges and payment evidence for compliance and reconciliation.
+#### BillPeriod → BillDocument (see Financial relationships)
+- Period bill and receipt files live on `billDocuments`, not `referenceType = UtilityBill`.
 
 #### Document → PurchaseOrder (Many-to-One, Optional but Recommended)
 - **Relationship**: A Document can reference a PurchaseOrder (via referenceType and referenceId).
@@ -2191,7 +2274,7 @@ Tracks all system actions for compliance and security auditing.
 ### Cardinality Overview
 
 **One-to-Many Relationships:**
-- Property → Room, RoomType, Guest, Reservation, HousekeepingTask, TaskTemplate, TaskSlaDefault, TaskAssignment, FnbMenuItem, Table, Order, InventoryItem, InventoryTask, Supplier, PurchaseOrder, Employee, Department shift, Roster day, Shift, Hours, Pay item type, Pay cycle, Time-off type, Extra pay rule, Payroll, Asset, MaintenanceOrder, Expense, UtilityBill, Payment, ChartOfAccounts, JournalEntry, Report, Document, Integration, AuditLog, Payroll settings (1:1), Holidays (1:1)
+- Property → Room, RoomType, Guest, Reservation, HousekeepingTask, TaskTemplate, TaskSlaDefault, TaskAssignment, FnbMenuItem, Table, Order, InventoryItem, InventoryTask, Supplier, PurchaseOrder, Employee, Department shift, Roster day, Shift, Hours, Pay item type, Pay cycle, Time-off type, Extra pay rule, Payroll, Asset, MaintenanceOrder, MaintenanceOrderPart, Expense, BillAccount, BillPeriod, BillDocument, Payment, ChartOfAccounts, JournalEntry, Report, Document, Integration, AuditLog, Payroll settings (1:1), Holidays (1:1)
 - RoomType → Room, RatePlan, TaskTemplate (optional)
 - Room → Reservation, HousekeepingTask, Asset, MaintenanceOrder
 - Guest → Reservation
@@ -2202,8 +2285,9 @@ Tracks all system actions for compliance and security auditing.
 - Holidays → Holiday
 - FnbMenuItem → Recipe, OrderLine
 - Recipe → RecipeLine
-- InventoryItem → RecipeLine, InventoryTransaction, PurchaseOrderLine, InventoryTask
+- InventoryItem → RecipeLine, InventoryTransaction, PurchaseOrderLine, InventoryTask, MaintenanceOrderPart (optional)
 - Supplier → InventoryItem, PurchaseOrder, MaintenanceOrder (optional vendor)
+- MaintenanceOrder → MaintenanceOrderPart
 - PurchaseOrder → PurchaseOrderLine, InventoryTask (putaway)
 - Order → OrderLine
 - Payroll → Staff pay, Payment file
@@ -2211,7 +2295,9 @@ Tracks all system actions for compliance and security auditing.
 - Pay item type → This person's pay items, Pay item
 - Asset → MaintenanceOrder
 - HousekeepingTask / MaintenanceOrder / InventoryTask → TaskAssignment
-- ChartOfAccounts → ChartOfAccounts (self-referential), JournalEntryLine, Expense, UtilityBill
+- ChartOfAccounts → ChartOfAccounts (self-referential), JournalEntryLine, Expense
+- BillAccount → BillPeriod
+- BillPeriod → BillDocument, Expense (optional 1:1 after pay)
 - JournalEntry → JournalEntryLine
 - Report → ReportSnapshot
 
@@ -2233,10 +2319,12 @@ Tracks all system actions for compliance and security auditing.
 - Reservation → Order (room service)
 - Room → Asset (room-specific assets)
 - Room → MaintenanceOrder (room-specific maintenance)
+- InventoryItem → MaintenanceOrderPart (stocked parts; custom purchases omit `inventoryItemId`)
 - InventoryTransaction → Various entities (via referenceType/referenceId)
 - JournalEntry → Various entities (via referenceType/referenceId)
 - Payment → Various entities (via referenceType/referenceId)
-- Document → Expense, UtilityBill, PurchaseOrder, Payment, MaintenanceOrder, Payroll, Payslip, Payment file (via referenceType/referenceId)
+- Document → Expense, PurchaseOrder, Payment, MaintenanceOrder, Payroll, Payslip, Payment file (via referenceType/referenceId)
+- BillPeriod → Payment (`referenceType = PropertyBill`)
 - Shift → Hours (draft created on End shift or Finalize)
 - Department shift → Employee (assigned default), Roster day, Shift
 - Roster day → Shift (optional; Cover changes workingEmployeeId only)
@@ -2262,11 +2350,13 @@ Tracks all system actions for compliance and security auditing.
 
 8. **Labor Cost Tracking**: Employee, Pay history, Hours, Time off, extra pay rules, Pay item type, Payroll, Staff pay, and Pay item enable labor cost analysis. Only approved / payment-files-ready / paid Payrolls feed Labor Cost %. Task duration does not post Hours.
 
-9. **Document Management**: Document entity provides centralized storage for payment evidence (invoices, receipts, payslips, bank exports) linked to Expense, UtilityBill, PurchaseOrder, Payment, MaintenanceOrder, Payroll, Payslip, and Payment file.
+9. **Document Management**: Document entity provides centralized storage for payment evidence (invoices, receipts, payslips, bank exports) linked to Expense, PurchaseOrder, Payment, MaintenanceOrder, Payroll, Payslip, and Payment file. Billing this ship stores bill/receipt files on `billDocuments` (period-scoped `_storage`).
 
 10. **Comprehensive Reporting & Analytics**: Report and ReportSnapshot entities enable calculation of all four metric categories (Operational Performance, Profitability, Cost & Efficiency, Liquidity & Solvency) from entity data. Reports aggregate data from Reservation, Order, JournalEntry, Payroll, InventoryTransaction, Asset, and ChartOfAccounts entities. Persona-based access control ensures appropriate metric visibility (daily, monthly, yearly) for different user roles. All metrics are derived from transactional data, ensuring accuracy and real-time availability. G3 uses completed housekeeping + maintenance + inventory tasks with `completedAt <= dueAt`.
 
 11. **Task Assignment**: Shared `taskAssignments` / `taskTemplates` / `taskSlaDefaults`. No generic Task table. Room readiness is inferred from open housekeeping tasks.
+
+12. **Organizational billing**: BillAccount (cadence) → BillPeriod (cycle) → Payment + Expense on mark-paid. No `UtilityBill` table. Duplicate check before expense insert. Journals from billing are later.
 
 ---
 
@@ -2293,4 +2383,6 @@ Tracks all system actions for compliance and security auditing.
 10. **Payroll uniqueness**: Enforce at application level (Convex indexes are not unique): `(propertyId, employeeNumber)`, `(employeeId, workDate)` on Hours, `(payrollId, employeeId)` on Staff pay, no overlapping open Pay history intervals, one open Payroll per property + overlapping period. Maker ≠ checker on approve. Locked Hours reject edits.
 
 11. **Payroll implementation**: Follow `ai/payroll-implementation.md` for lifecycle, GL template, shift→Hours, and `staffs` migration.
+
+12. **Billing uniqueness**: One `billPeriods` row per `(accountId, periodStart)`. One Expense per paid period (`expenseId` / `sourceType`+`sourceId`). Mark-paid is a single mutation (Payment + Expense + period patch).
 
