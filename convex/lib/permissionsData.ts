@@ -244,6 +244,7 @@ export const GRANULAR_PERMISSIONS: Record<string, Record<string, string>> = {
     "inventory.task.assign": "inventory.update",
     "inventory.task.update": "inventory.update",
     "inventory.task.complete": "inventory.update",
+    "inventory.po.pay": "inventory.update",
   },
   billing: {
     "billing.account.read": "finance.read",

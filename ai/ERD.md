@@ -1128,30 +1128,30 @@ Represents individual debit/credit lines within a journal entry.
 ---
 
 #### Expense
-Represents a paid (or, later, workflowed) business cost. This ship: rows are created from **mark-paid** on a period bill (`sourceType = PropertyBill`). Manual create/approve is later.
+Represents a paid cash outflow for the property. Rows are created when money is recorded as spent: period bill mark-paid (`sourceType = PropertyBill`), payroll mark-paid (`Payroll`, amount = net pay), completed maintenance work order with cost (`MaintenanceOrder`), purchase order mark-paid (`PurchaseOrder`), or Record expense (`Manual`). Draft/submit/approve is later.
 
 **Attributes:**
 - `expenseId` (PK): Unique identifier
 - `propertyId` (FK): Reference to Property
 - `category`: Category (utilities, supplies, staff, maintenance, other). Billed rows: electricity/water/gas/internet/cable/waste → `utilities`; `local_government` / `other` → `other`
-- `subcategory`: Subcategory (optional)
-- `amount`: Expense amount (full period amount; partial pay is out of scope)
-- `expenseDate`: For billed rows, payment timestamp (cash)
+- `subcategory`: Optional. Billed rows store bill type (electricity, water, …)
+- `amount`: Expense amount (full source amount; partial pay is out of scope)
+- `expenseDate`: Cash timestamp (payment / spend time)
 - `description`: Description (optional)
-- `vendor`: Provider name from the bill account
+- `vendor`: Provider, supplier, or "Payroll"
 - `invoiceNumber`: Invoice number from the period (optional)
-- `status`: `paid` for billed rows. Later: draft, submitted, approved, rejected. Legacy rows without status are unknown
-- `sourceType`: `PropertyBill` when created from billing (optional)
-- `sourceId`: Period bill id when `sourceType = PropertyBill` (optional)
-- `submittedBy` (FK): User who marked paid (billed rows; matches `payments.createdBy`)
-- `paidBy` (FK): User who marked paid (optional; same actor this ship)
-- `approvedBy` (FK): Not set on billed rows (confirm-paid is approval)
+- `status`: `paid` for this ship. Later: draft, submitted, approved, rejected. Legacy rows without status are unknown
+- `sourceType`: `PropertyBill` | `Payroll` | `MaintenanceOrder` | `PurchaseOrder` | `Manual`
+- `sourceId`: Source document id (period, payroll run, work order, PO, or generated Manual id)
+- `submittedBy` (FK): User who recorded the spend
+- `paidBy` (FK): Same actor this ship
+- `approvedBy` (FK): Not set (confirm-paid / Record expense is approval)
 - `approvedAt`: Approval timestamp (optional)
-- `glAccountId` (FK): ChartOfAccounts when COA is live; billed rows may store `glAccountCode` on the account only this ship
+- `glAccountId` (FK): ChartOfAccounts when COA is live; unused this ship
 - `createdAt`: Timestamp of creation
 - `updatedAt`: Timestamp of last update
 
-**Purpose**: Paid ledger for P&L and the read-only Expenses list. **One invoice, one Expense.** Duplicate check: hard key `(sourceType, sourceId)` / `billPeriods.expenseId`; soft match property + invoice number + vendor + amount.
+**Purpose**: Cash-outflow ledger for P&L-style period views (day / week / month / year) and `/admin/expenses`. **One invoice, one Expense.** Duplicate check: hard key `(sourceType, sourceId)` plus source `expenseId`; billing also soft-matches property + invoice number + vendor + amount. Writers use `postCashOutflow` so Payment + Expense stay idempotent.
 
 ---
 
@@ -1218,25 +1218,22 @@ Schema table: `billDocuments`. Convex `_storage` files on a period (same pattern
 ---
 
 #### Payment
-Represents payments received or made (for reservations, orders, expenses, etc.).
+Represents payments received or made (for reservations, orders, expenses, payroll, property bills, purchase orders).
 
 **Attributes:**
 - `paymentId` (PK): Unique identifier
 - `propertyId` (FK): Reference to Property
-- `paymentType`: Type (reservation, order, expense, payroll, PropertyBill, etc.)
-- `referenceType`: Reference entity type
-- `referenceId`: Reference entity ID
+- `paymentType`: Type (reservation, order, expense, payroll, PropertyBill, PurchaseOrder, maintenance, etc.)
+- `referenceType`: Source entity type (`PropertyBill`, `Payroll`, `MaintenanceOrder`, `PurchaseOrder`, `Manual`, …)
+- `referenceId`: Source entity ID (the period / run / WO / PO / Manual id — not the Expense id this ship)
 - `amount`: Payment amount
-- `paymentMethod`: Method (cash, card, bank_transfer, digital_wallet, check)
-- `paymentDate`: Payment date
-- `transactionId`: External transaction ID (from payment gateway)
+- `paymentMethod`: Method (cash, card, bank_transfer, check)
+- `paidAt`: Payment timestamp (cash)
 - `status`: Status (pending, completed, failed, refunded)
-- `processedBy` (FK): Reference to Employee
-- `notes`: Notes
+- `createdBy` (FK): User who recorded the payment
 - `createdAt`: Timestamp of creation
-- `updatedAt`: Timestamp of last update
 
-**Purpose**: Tracks all payments for cash flow management and reconciliation. **Document Requirement**: Payment receipts, bank statements, and transaction confirmations should be linked via the Document entity for payment verification and bank reconciliation. Documents provide evidence of payment completion for audit trails.
+**Purpose**: Tracks all payments for cash flow management and reconciliation. Written together with Expense by `postCashOutflow`. **Document Requirement**: Payment receipts, bank statements, and transaction confirmations should be linked via the Document entity for payment verification and bank reconciliation. Billing this ship stores bill/receipt files on `billDocuments`.
 
 ---
 
@@ -2121,8 +2118,7 @@ Tracks all system actions for compliance and security auditing.
 - **Explanation**: Each expense is mapped to a GL account for proper categorization and reporting.
 
 #### Employee → Expense (One-to-Many, as Submitter/Approver)
-- **Relationship**: An Employee can submit and approve many Expenses (manual workflow, later).
-- **Explanation**: Billed expenses this ship record the **User** who marked paid (`submittedBy` / `paidBy`), matching `payments.createdBy`.
+- **Relationship**: Manual expense workflow (later) may use Staff. This ship records the **User** who marked paid or used Record expense (`submittedBy` / `paidBy`), matching `payments.createdBy`.
 
 #### Property → BillAccount (One-to-Many)
 - **Relationship**: A Property has many BillAccounts.
@@ -2139,6 +2135,18 @@ Tracks all system actions for compliance and security auditing.
 #### BillPeriod → Expense (One-to-One, Optional)
 - **Relationship**: A paid BillPeriod points at one Expense (`expenseId`); Expense `sourceType`/`sourceId` point back.
 - **Explanation**: Funnel on mark-paid. Hard duplicate key.
+
+#### Payroll → Expense (One-to-One, Optional)
+- **Relationship**: A paid Payroll points at one Expense (`expenseId`).
+- **Explanation**: Funnel on mark-as-paid. Amount is `totalNetPay`.
+
+#### MaintenanceOrder → Expense (One-to-One, Optional)
+- **Relationship**: A completed MaintenanceOrder with cost points at one Expense (`expenseId`).
+- **Explanation**: Posted on first complete when resolved cost > 0.
+
+#### PurchaseOrder → Expense (One-to-One, Optional)
+- **Relationship**: A paid PurchaseOrder points at one Expense (`expenseId`).
+- **Explanation**: Posted on Mark as paid, not on receive.
 
 #### Supplier → BillAccount (One-to-Many, Optional)
 - **Relationship**: A Supplier can be named on many BillAccounts.
@@ -2157,16 +2165,24 @@ Tracks all system actions for compliance and security auditing.
 - **Explanation**: Tracks payments received for F&B orders. Enables payment reconciliation.
 
 #### Payment → Expense (Many-to-One, Optional)
-- **Relationship**: A Payment can reference an Expense (via referenceType and referenceId).
-- **Explanation**: Tracks payments made for expenses. Enables accounts payable management and cash flow tracking.
+- **Relationship**: A Payment can share a source with an Expense (`referenceType` + `referenceId` = Expense `sourceType` + `sourceId`). This ship does not set `referenceType = Expense`.
+- **Explanation**: One completed Payment per cash source. Enables cash flow tracking without a second Payment→Expense FK.
 
 #### Payment → Payroll (Many-to-One, Optional)
-- **Relationship**: A Payment can reference a Payroll (via referenceType and referenceId).
-- **Explanation**: Tracks payments made for payroll. Enables payroll payment reconciliation.
+- **Relationship**: A Payment can reference a Payroll (`referenceType = Payroll`).
+- **Explanation**: Written on payroll mark-as-paid together with the Expense (`totalNetPay`).
 
 #### Payment → BillPeriod (Many-to-One, Optional)
 - **Relationship**: A Payment can reference a BillPeriod (`referenceType = PropertyBill`).
 - **Explanation**: Written on mark-paid together with the Expense. Full amount only this ship.
+
+#### Payment → MaintenanceOrder (Many-to-One, Optional)
+- **Relationship**: A Payment can reference a MaintenanceOrder (`referenceType = MaintenanceOrder`).
+- **Explanation**: Written when a work order is first completed with cost > 0.
+
+#### Payment → PurchaseOrder (Many-to-One, Optional)
+- **Relationship**: A Payment can reference a PurchaseOrder (`referenceType = PurchaseOrder`).
+- **Explanation**: Written on PO Mark as paid. Receive does not post cash.
 
 ---
 
@@ -2356,7 +2372,7 @@ Tracks all system actions for compliance and security auditing.
 
 11. **Task Assignment**: Shared `taskAssignments` / `taskTemplates` / `taskSlaDefaults`. No generic Task table. Room readiness is inferred from open housekeeping tasks.
 
-12. **Organizational billing**: BillAccount (cadence) → BillPeriod (cycle) → Payment + Expense on mark-paid. No `UtilityBill` table. Duplicate check before expense insert. Journals from billing are later.
+12. **Organizational billing**: BillAccount (cadence) → BillPeriod (cycle) → Payment + Expense on mark-paid. Payroll, maintenance complete-with-cost, PO mark-paid, and Record expense use the same `postCashOutflow` helper. No `UtilityBill` table. Duplicate check before billed expense insert. Journals from billing are later.
 
 ---
 
@@ -2384,5 +2400,5 @@ Tracks all system actions for compliance and security auditing.
 
 11. **Payroll implementation**: Follow `ai/payroll-implementation.md` for lifecycle, GL template, shift→Hours, and `staffs` migration.
 
-12. **Billing uniqueness**: One `billPeriods` row per `(accountId, periodStart)`. One Expense per paid period (`expenseId` / `sourceType`+`sourceId`). Mark-paid is a single mutation (Payment + Expense + period patch).
+12. **Billing uniqueness**: One `billPeriods` row per `(accountId, periodStart)`. One Expense per cash source (`expenseId` on the source / `sourceType`+`sourceId`). Mark-paid is a single mutation (Payment + Expense + source patch) via `postCashOutflow`.
 

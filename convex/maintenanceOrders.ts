@@ -2,6 +2,7 @@
 import { v } from 'convex/values';
 import { requirePermission } from './lib/rbac';
 import { Id } from './_generated/dataModel';
+import { postCashOutflow } from './lib/postCashOutflow';
 import {
   addHelper,
   assignLeadAndHelpers,
@@ -61,6 +62,14 @@ async function listParts(ctx: QueryCtx | MutationCtx, maintenanceOrderId: Id<'ma
 
 function partsCostOf(parts: Array<{ quantity: number; unitCost: number }>) {
   return parts.reduce((sum, part) => sum + part.quantity * part.unitCost, 0);
+}
+
+function oneOffPartsCost(
+  parts: Array<{ inventoryItemId?: Id<'inventoryItems'>; quantity: number; unitCost: number }>,
+) {
+  return parts
+    .filter((part) => !part.inventoryItemId)
+    .reduce((sum, part) => sum + part.quantity * part.unitCost, 0);
 }
 
 async function normalizeParts(
@@ -401,6 +410,30 @@ export const updateMaintenanceOrder = mutation({
             updatedAt: now,
           });
         }
+      }
+      const partsForCost = await listParts(ctx, args.maintenanceOrderId);
+      const resolvedCost =
+        (typeof args.actualCost === 'number' ? args.actualCost : undefined)
+        ?? (typeof patch.actualCost === 'number' ? patch.actualCost : undefined)
+        ?? existing.actualCost
+        ?? oneOffPartsCost(partsForCost);
+      if (resolvedCost > 0) {
+        const supplierId = args.supplierId ?? existing.supplierId;
+        const supplier = supplierId ? await ctx.db.get(supplierId) : null;
+        const posted = await postCashOutflow(ctx, {
+          propertyId: existing.propertyId,
+          sourceType: 'MaintenanceOrder',
+          sourceId: existing._id,
+          amount: resolvedCost,
+          category: 'maintenance',
+          description: typeof args.title === 'string' ? args.title : existing.title,
+          vendor: supplier?.name ?? 'Maintenance',
+          paymentMethod: 'cash',
+          paymentType: 'maintenance',
+          createdBy: auth.user._id,
+          expenseDate: now,
+        });
+        patch.expenseId = posted.expenseId;
       }
     }
     await ctx.db.patch(args.maintenanceOrderId, patch);

@@ -467,6 +467,9 @@ export default defineSchema({
     approvedBy: v.optional(v.id("staffs")),
     approvedAt: v.optional(v.number()),
     receivedAt: v.optional(v.number()),
+    paidAt: v.optional(v.number()),
+    paymentMethod: v.optional(v.string()),
+    expenseId: v.optional(v.id("expenses")),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -897,6 +900,7 @@ export default defineSchema({
     approvedAt: v.optional(v.number()),
     processedAt: v.optional(v.number()),
     paidAt: v.optional(v.number()),
+    expenseId: v.optional(v.id("expenses")),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -1047,6 +1051,7 @@ export default defineSchema({
     completedAt: v.optional(v.number()),
     estimatedCost: v.optional(v.number()),
     actualCost: v.optional(v.number()),
+    expenseId: v.optional(v.id("expenses")),
     resolutionNotes: v.optional(v.string()),
     checklist: v.optional(
       v.array(
@@ -1139,7 +1144,7 @@ export default defineSchema({
 
   expenses: defineTable({
     propertyId: v.id("properties"),
-    category: v.string(),
+    category: v.union(v.literal("utilities"), v.literal("supplies"), v.literal("staff"), v.literal("maintenance"), v.literal("other")),
     subcategory: v.optional(v.string()),
     amount: v.number(),
     expenseDate: v.number(),
@@ -1147,15 +1152,23 @@ export default defineSchema({
     vendor: v.optional(v.string()),
     invoiceNumber: v.optional(v.string()),
     status: v.optional(v.string()), // billed rows: paid. Later: draft, submitted, approved, rejected
-    sourceType: v.optional(v.string()), // PropertyBill
-    sourceId: v.optional(v.string()), // billPeriods._id
-    submittedBy: v.optional(v.id("users")), // billed: user who marked paid
+    sourceType: v.optional(
+      v.union(
+        v.literal("PropertyBill"),
+        v.literal("Payroll"),
+        v.literal("MaintenanceOrder"),
+        v.literal("PurchaseOrder"),
+        v.literal("Manual"),
+      ),
+    ),
+    sourceId: v.optional(v.string()),
+    submittedBy: v.optional(v.id("users")),
     paidBy: v.optional(v.id("users")),
     approvedBy: v.optional(v.id("users")),
     approvedAt: v.optional(v.number()),
     glAccountId: v.optional(v.id("chartOfAccounts")),
-    createdAt: v.number(),
-    updatedAt: v.number(),
+    createdAt: v.optional(v.number()),
+    updatedAt: v.optional(v.number()),
   })
     .index("by_propertyId", ["propertyId"])
     .index("by_submittedBy", ["submittedBy"])
@@ -1238,23 +1251,18 @@ export default defineSchema({
 
   payments: defineTable({
     propertyId: v.id("properties"),
-    paymentType: v.string(), // reservation, order, expense, payroll, PropertyBill, other
-    referenceType: v.string(), // reservation, order, expense, payroll, PropertyBill
+    paymentType: v.string(), // reservation, order, expense, payroll, PropertyBill, PurchaseOrder, maintenance
+    referenceType: v.string(), // PropertyBill, Payroll, MaintenanceOrder, PurchaseOrder, Manual
     referenceId: v.string(),
     amount: v.number(),
-    paymentMethod: v.string(), // cash, card, bank_transfer, check, other
-    paymentDate: v.number(),
-    transactionId: v.optional(v.string()),
+    paymentMethod: v.string(), // cash, card, bank_transfer, check
     status: v.string(), // pending, completed, failed, refunded
-    processedBy: v.optional(v.id("staffs")),
-    notes: v.optional(v.string()),
+    paidAt: v.optional(v.number()),
+    createdBy: v.id("users"),
     createdAt: v.number(),
-    updatedAt: v.number(),
   })
     .index("by_propertyId", ["propertyId"])
-    .index("by_referenceType_referenceId", ["referenceType", "referenceId"])
-    .index("by_propertyId_paymentDate", ["propertyId", "paymentDate"])
-    .index("by_propertyId_status", ["propertyId", "status"]),
+    .index("by_reference", ["referenceType", "referenceId"]),
 
   // ============================================
   // Document Management

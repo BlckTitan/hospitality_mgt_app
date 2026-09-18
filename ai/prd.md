@@ -62,7 +62,7 @@ Hospitality operators juggle siloed systems for reservations, POS, payroll, proc
    - Asset registry, preventive schedules, work orders, cost tracking, and purchased parts (`maintenanceOrderParts`; staff lead + optional helpers and optional vendor; see Task Assignment).
 6. **Billing, Expenses & Financial Management**
    - **Organizational billing** (`billAccounts` + `billPeriods`): admin configures recurring property bills (electricity, water, gas, internet, cable, waste, local government, other) with a cadence (`weekly` | `monthly` | `annually`). A daily cron opens the current expected period. Staff capture the invoice (amount, meters if metered, bill PDF). Mark as paid records a `Payment` (`referenceType = PropertyBill`) and inserts one `Expense` (`status = paid`) after a duplicate check. There is **no** separate `UtilityBill` table.
-   - **Expenses this ship**: read-only list of paid expenses (including billed rows). Manual expense create/approve is later. Do not enter the same invoice as both a period bill and an ad-hoc expense.
+   - **Expenditure ledger** (`expenses`): the property cash-outflow book. Rows are created when money is recorded as spent: billed periods (mark-paid), payroll runs (mark-paid, `totalNetPay`), completed maintenance work orders with cost, purchase orders (mark-paid), and ad-hoc **Record expense**. `/admin/expenses` shows day / week / month / year totals by category (`utilities`, `supplies`, `staff`, `maintenance`, `other`). Do not enter the same invoice as both a period bill and an ad-hoc expense.
    - **Documents**: bill PDF required before mark-paid; receipt stored on the period (`billDocuments`, Convex `_storage`).
    - General inventory (linen, amenities, cleaning supplies, spare parts).
    - **Purchase documentation**: All inventory purchases require supplier invoices, delivery notes, and payment receipts to be uploaded and linked.
@@ -99,7 +99,7 @@ Hospitality operators juggle siloed systems for reservations, POS, payroll, proc
 - Guest folio / in-stay guest invoicing (organizational billing only this phase).
 - Partial bill payments, refunds, and GL journal posting from billing (cash `Expense` + `Payment` only; `chartOfAccounts` is not live).
 - Billing anomaly-alert and contract-reminder jobs (`contractEndDate` / `expectedAmount` are stored only).
-- Manual expense create/approve UI (billed expenses appear read-only after mark-paid).
+- Draft / submit / approve expense workflow (paid rows only; confirm-paid or Record expense is approval).
 - Legacy `invoices` / `invoiceItems` / `receipts` / `sales` tables (unused; do not attach billing to them).
 
 ## Functional Requirements
@@ -213,16 +213,21 @@ Shared assignment, SLA, templates, and checklists across housekeeping, maintenan
 
 ### Billing & Expenses
 
-Organizational billing is the inbox and calendar for standing property obligations. Expenses is the paid ledger.
+Organizational billing is the inbox and calendar for standing property obligations. Expenditure (`/admin/expenses`) is the paid cash-outflow ledger for the property.
 
 - **Bill types** (closed): `electricity` | `water` | `gas` | `internet` | `cable` | `waste` | `local_government` | `other`. Admin does not invent types; they configure **accounts**.
 - **Bill account** (admin, per property): name, type, frequency, metered vs flat, provider, optional account number / supplier / expected amount / contract end / `glAccountCode` (string until COA exists), `isActive`. Deactivate stops new periods; paid history stays.
 - **Period bill**: one cycle (`expected` → `pending` after capture → `paid` | `overdue`). Daily cron creates the current period for each active account (property timezone, else UTC). Due date defaults to period end. Uniqueness: one row per `(accountId, periodStart)` (application-enforced).
 - **Capture**: amount (required before pay), optional invoice number, usage/meters if `isMetered`, bill document (`billDocuments.kind = bill`).
-- **Mark as paid**: full amount only. Requires bill document and payment method. Inserts `Payment` (`paymentType` / `referenceType` = `PropertyBill`). Duplicate check then inserts `Expense` (`status = paid`, `expenseDate` = payment time, `sourceType = PropertyBill`, `sourceId` = period id). Confirm-paid **is** approval — no draft/submit on these rows. Journals/COA skipped this ship.
-- **Duplicate check** (same mutation): (1) hard — period already has `expenseId`, or an expense with that `sourceType`/`sourceId` → no-op success; (2) soft — same property + invoice number + vendor + amount on another expense → fail (no merge UI).
-- **Category mapping** on funnel: electricity/water/gas/internet/cable/waste → `utilities`; `local_government` / `other` → `other`.
-- **Screens**: `/admin/billing` (due this week, overdue), `/admin/billing/accounts`, `/admin/billing/bills`, `/admin/expenses` (read-only). Permissions: `billing.account.read|create|update`, `billing.period.read|update`, `billing.pay`; list uses `expenses.read`.
+- **Mark as paid**: full amount only. Requires bill document and payment method. Inserts `Payment` (`paymentType` / `referenceType` = `PropertyBill`). Duplicate check then inserts `Expense` (`status = paid`, `expenseDate` = payment time, `sourceType = PropertyBill`, `sourceId` = period id, `subcategory` = bill type). Confirm-paid **is** approval — no draft/submit on these rows. Journals/COA skipped this ship.
+- **Other cash sources** (same `expenses` table, one row per source document):
+  - Payroll mark-as-paid → `sourceType = Payroll`, category `staff`, amount `totalNetPay`.
+  - Maintenance work order first completed with cost > 0 → `sourceType = MaintenanceOrder`, category `maintenance`. Amount is `actualCost` if set, else one-off parts only (catalog inventory parts are excluded; they were bought via PO).
+  - Purchase order **Mark as paid** → `sourceType = PurchaseOrder`, category `supplies`, amount `totalAmount`. Receive stays operational.
+  - **Record expense** → `sourceType = Manual`, paid immediately (`expenses.create`).
+- **Duplicate check** (billing mark-paid, same mutation): (1) hard — period already has `expenseId`, or an expense with that `sourceType`/`sourceId` → no-op success; (2) soft — same property + invoice number + vendor + amount on another expense → fail (no merge UI). All writers share `postCashOutflow` so Payment + Expense stay idempotent.
+- **Category mapping** on billed funnel: electricity/water/gas/internet/cable/waste → `utilities`; `local_government` / `other` → `other`. Bill type is stored in `subcategory`.
+- **Screens**: `/admin/billing` (due this week, overdue), `/admin/billing/accounts`, `/admin/billing/bills`, `/admin/expenses` (period totals + list + Record expense). Permissions: `billing.account.read|create|update`, `billing.period.read|update`, `billing.pay`; list uses `expenses.read`; record uses `expenses.create`; PO pay uses `inventory.po.pay` or `expenses.create`.
 - Later: multi-channel expense capture, OCR, approval matrix, anomaly alerts, contract reminder jobs, GL posting.
 
 ### Financial Core
@@ -250,7 +255,7 @@ Organizational billing is the inbox and calendar for standing property obligatio
 
 - **Centralized Document Storage**: All payment evidence and transaction documents (invoices, receipts, contracts, delivery notes, payment confirmations) stored in a centralized document repository.
 - **Mandatory Document Requirements**:
-  - All expenses must include supporting documents (invoices, receipts) before approval.
+  - All paid expenses must include a source: billed rows use `billDocuments` on the period; other sources keep evidence on the payroll, work order, purchase order, or the Record expense form fields.
   - All purchase orders must have supplier invoices, delivery notes, and payment receipts attached.
   - Period bills must have the original bill document before mark-paid; a receipt is stored on the period after payment (`billDocuments`).
   - All maintenance work orders must include vendor invoices and work completion certificates.
@@ -301,7 +306,7 @@ Organizational billing is the inbox and calendar for standing property obligatio
   - `FnbMenuItem` consumes `InventoryItems` via recipe lines.
   - Department shift → Employee (default on onboard); Roster day (Cover) → who should attend; Shift (Attendance Tracker or ad-hoc) → Hours on End shift / Finalize.
   - A Payroll is created from a Pay cycle, aggregates approved/unlocked Hours, Time off, Pay history, and Pay item types for `staffs` into Staff pay / Pay items, then posts a `JournalEntry` and produces Payslips + Payment files.
-  - Property → Bill account → Period bill → Payment + Expense (on mark-paid). One invoice, one expense.
+  - Property → Bill account → Period bill → Payment + Expense (on mark-paid). Payroll, maintenance, and purchase orders also post one Expense on their cash event. One invoice, one expense.
   - `Report` entities store configuration + cached snapshots for analytics.
 - ERD deliverable: diagram showing above entities, primary keys, and cardinalities to be hosted in `docs/erd/` (format TBD—likely Draw.io or Mermaid).
 
@@ -321,8 +326,8 @@ Organizational billing is the inbox and calendar for standing property obligatio
 - Properties may operate with or without existing PMS/POS systems:
   - **With existing systems**: Platform will integrate via APIs/webhooks/CSV imports.
   - **Without existing systems**: Platform provides native POS/PMS functionality as core features.
-- Finance teams follow accrual accounting and require GAAP-compliant outputs. **This billing ship is cash-basis**: the expense is created when the period is marked paid (`expenseDate` = payment time). Accrual on bill capture is later.
-- Recurring utilities and subscriptions are bill accounts; true one-offs stay as (future) manual `Expense` rows.
+- Finance teams follow accrual accounting and require GAAP-compliant outputs. **Expenditure this ship is cash-basis**: `expenseDate` is the payment / spend timestamp. Accrual on bill capture and GL from expenses are later.
+- Recurring utilities and subscriptions are bill accounts; true one-offs use Record expense on the expenditure page.
 - Users tolerate web-first experience for MVP.
 - Multi-currency support required for phase 2 (not MVP).
 
@@ -351,6 +356,8 @@ Organizational billing is the inbox and calendar for standing property obligatio
 - **Bill account**: Standing property obligation (provider + cadence). Admin-configured; not seeded per vendor.
 
 - **Period bill**: One billing cycle for an account (week, month, or year). Cron opens `expected` rows; staff capture the invoice; mark-paid posts `Payment` + `Expense`.
+
+- **Expenditure**: The cash-outflow ledger (`expenses`) covering bills, payroll (net), maintenance, inventory POs, and other operating spend, viewed by day / week / month / year.
 
 - **SLA (Service Level Agreement)**: Task completion window. Stored as `dueAt` on each work record from property `taskSlaDefaults`. G3 = percent of completed housekeeping, maintenance, and inventory restock/putaway tasks with `completedAt <= dueAt` (skipped/cancelled excluded).
 

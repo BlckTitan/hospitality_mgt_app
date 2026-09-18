@@ -630,6 +630,7 @@ export const PERMISSION_GROUPS = [
       { key: "inventory.create", label: "Create Items" },
       { key: "inventory.update", label: "Update Inventory" },
       { key: "inventory.delete", label: "Delete Items" },
+      { key: "inventory.po.pay", label: "Mark purchase orders paid" },
     ],
   },
   {

@@ -9,6 +9,8 @@ import { Button } from "react-bootstrap";
 import InputComponent from "../../../../../shared/input";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { api } from "../../../../../convex/_generated/api";
+import SelectComponent from "../../../../../shared/select";
+import { PAYMENT_METHOD_OPTIONS, formatDate, formatMoney } from "../../../billing/components/labels";
 
 type FormData = {
   orderNumber: string;
@@ -38,6 +40,10 @@ export function EditPurchaseOrderForm({
   onClose 
 }: EditPurchaseOrderFormProps) {
   const updatePurchaseOrder = useMutation(api.purchaseOrders.updatePurchaseOrder);
+  const markPaid = useMutation(api.purchaseOrders.markPurchaseOrderPaid);
+  const { register: registerPay, handleSubmit: handlePay, formState: { isSubmitting: paying } } = useForm({
+    defaultValues: { paymentMethod: 'bank_transfer' as 'cash' | 'card' | 'bank_transfer' | 'check' },
+  });
 
   const { register, handleSubmit, formState: { errors }, watch } = useForm<FormData>({
     resolver: yupResolver(formSchema) as any,
@@ -91,6 +97,7 @@ export function EditPurchaseOrderForm({
   };
 
   return (
+    <>
     <form onSubmit={handleSubmit(onSubmit)} className="editPurchaseOrderForm">
       <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-2 mb-2 lg:mb-4">
         <div className="flex-1">
@@ -213,5 +220,44 @@ export function EditPurchaseOrderForm({
         </Button>
       </div>
     </form>
+    {purchaseOrderData.paidAt ? (
+      <p className="mt-4 text-sm">
+        Paid {formatDate(purchaseOrderData.paidAt)}
+        {purchaseOrderData.paymentMethod ? ` · ${purchaseOrderData.paymentMethod}` : ''}
+        {' · '}
+        {formatMoney(purchaseOrderData.totalAmount)}
+      </p>
+    ) : purchaseOrderData.status !== 'cancelled' && Number(purchaseOrderData.totalAmount) > 0 ? (
+      <form
+        className="mt-4 border-t pt-4"
+        onSubmit={handlePay(async (data) => {
+          const paid = await markPaid({
+            purchaseOrderId: purchaseOrderId as Id<'purchaseOrders'>,
+            paymentMethod: data.paymentMethod,
+          });
+          if (!paid.success) {
+            toast.error(paid.message);
+            return;
+          }
+          toast.success(paid.message);
+          onSuccess();
+        })}
+      >
+        <p className="mb-2 font-medium">Record payment</p>
+        <SelectComponent
+          id="poPaymentMethod"
+          label="Payment method *"
+          selectWidth="w-full"
+          options={PAYMENT_METHOD_OPTIONS}
+          register={registerPay('paymentMethod')}
+        />
+        <div className="flex justify-end mt-2">
+          <Button variant="dark" type="submit" disabled={paying}>
+            Mark as paid
+          </Button>
+        </div>
+      </form>
+    ) : null}
+    </>
   );
 }

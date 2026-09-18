@@ -1113,35 +1113,39 @@ Sidebar: **Staff** (`staff.read`); **My profile** (`/admin/staff/myProfile`, lin
 ---
 
 ### 47. Expenses Page (`/admin/expenses`)
-**Purpose**: Read-only list of paid expenses (including rows created from billing mark-paid). Manual create/approve is later.
+**Purpose**: Property cash-outflow ledger. Period totals by category (utilities, supplies, staff, maintenance, other) plus the paid list. Record expense for ad-hoc operating spend.
 
 **Data Fetching:**
-- Fetch `Expense` records for current property (pagination)
-- Include source period when `sourceType = PropertyBill`
-- Filter by: `status`, `category`, `expenseDate`, `vendor`
+- Fetch `Expense` records for current property in the selected period (`expenseDate` range in property timezone)
+- Period control: day / week / month / year (default today)
+- Summarize amounts by `category` for the same range
+- Include source label and link (`PropertyBill`, `Payroll`, `MaintenanceOrder`, `PurchaseOrder`, `Manual`)
+- Filter by: `category`
 - Sort by: `expenseDate` DESC
 
 **Related Entities to Include:**
-- `billPeriods` (when `sourceId` matches)
-- `billAccounts` (via period `accountId`)
-- `payments` (`referenceType = PropertyBill` or Expense)
+- `billPeriods` / `billAccounts` (when `sourceType = PropertyBill`)
+- `payrolls` (when `sourceType = Payroll`)
+- `maintenanceOrders` (when `sourceType = MaintenanceOrder`)
+- `purchaseOrders` (when `sourceType = PurchaseOrder`)
+- `payments` (same `referenceType` / `referenceId` as the expense source)
 
 **Rendering Strategy: SSR**
-- **Reason**: Paid status and new billed rows update as finance marks periods paid; property-scoped finance data.
+- **Reason**: Paid status and new rows update as finance records spend; property-scoped finance data.
 
-**Permissions:** `expenses.read`
+**Permissions:** `expenses.read` (list/summary); `expenses.create` (Record expense)
 
 ---
 
 ### 48. Expense Detail Page (`/admin/expenses` row / later `[expenseId]`)
-**Purpose**: View a paid expense and its source bill (read-only this ship)
+**Purpose**: v1 uses source links from the list (bill, payroll run, work order, PO). A dedicated detail route is later.
 
 **Data Fetching:**
 - Fetch single `Expense`
-- If billed: fetch `BillPeriod`, `BillAccount`, `billDocuments`, `Payment` (`referenceType = PropertyBill`)
+- Join source document and `Payment` by `sourceType` / `sourceId`
 
 **Rendering Strategy: SSR**
-- **Reason**: Linked bill documents and payment confirmation must be current.
+- **Reason**: Linked documents and payment confirmation must be current.
 
 ---
 

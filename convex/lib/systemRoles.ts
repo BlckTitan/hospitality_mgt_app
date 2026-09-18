@@ -64,6 +64,7 @@ export const ADMINISTRATOR_PERMISSIONS: Record<string, boolean> = {
   "inventory.create": true,
   "inventory.update": true,
   "inventory.delete": true,
+  "inventory.po.pay": true,
   "financial.read": true,
   "financial.create": true,
   "financial.update": true,

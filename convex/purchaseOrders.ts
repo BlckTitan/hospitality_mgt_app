@@ -1,7 +1,8 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
-import { requirePermission } from './lib/rbac';
+import { requirePermission, tryRequirePermission } from './lib/rbac';
 import { maybeCreatePutawayTask } from './lib/taskAssignment';
+import { postCashOutflow } from './lib/postCashOutflow';
 
 export const getAllPurchaseOrders = query({
   args: { 
@@ -221,6 +222,68 @@ export const deletePurchaseOrder = mutation({
       console.log(`Failed to delete purchase order: ${error}`);
       return { success: false, message: 'Failed to delete purchase order' };
     }
+  },
+});
+
+const paymentMethodValidator = v.union(
+  v.literal('cash'),
+  v.literal('card'),
+  v.literal('bank_transfer'),
+  v.literal('check'),
+);
+
+export const markPurchaseOrderPaid = mutation({
+  args: {
+    purchaseOrderId: v.id('purchaseOrders'),
+    paymentMethod: paymentMethodValidator,
+  },
+  handler: async (ctx, args) => {
+    const order = await ctx.db.get(args.purchaseOrderId);
+    if (!order) {
+      return { success: false, message: 'Purchase order not found' };
+    }
+    const auth =
+      (await tryRequirePermission(ctx, 'inventory.po.pay', order.propertyId))
+      ?? (await tryRequirePermission(ctx, 'expenses.create', order.propertyId));
+    if (!auth) {
+      throw new Error('Unauthorized');
+    }
+    if (order.status === 'cancelled') {
+      return { success: false, message: 'Cannot pay a cancelled purchase order' };
+    }
+    if (order.expenseId && order.paidAt) {
+      return { success: true, message: 'Purchase order already marked as paid' };
+    }
+    if (!order.totalAmount || order.totalAmount <= 0) {
+      return { success: false, message: 'Purchase order total must be greater than 0' };
+    }
+    const supplier = await ctx.db.get(order.supplierId);
+    const now = Date.now();
+    const posted = await postCashOutflow(ctx, {
+      propertyId: order.propertyId,
+      sourceType: 'PurchaseOrder',
+      sourceId: order._id,
+      amount: order.totalAmount,
+      category: 'supplies',
+      description: `PO ${order.orderNumber}`,
+      vendor: supplier?.name,
+      paymentMethod: args.paymentMethod,
+      paymentType: 'PurchaseOrder',
+      createdBy: auth.user._id,
+      expenseDate: now,
+    });
+    await ctx.db.patch(order._id, {
+      paidAt: order.paidAt ?? now,
+      paymentMethod: args.paymentMethod,
+      expenseId: posted.expenseId,
+      updatedAt: now,
+    });
+    return {
+      success: true,
+      message: posted.alreadyPosted
+        ? 'Purchase order already marked as paid'
+        : 'Purchase order marked as paid',
+    };
   },
 });
 

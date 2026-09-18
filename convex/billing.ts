@@ -12,6 +12,7 @@ import {
   type BillType,
   type Frequency,
 } from "./lib/billingPeriods";
+import { postCashOutflow } from "./lib/postCashOutflow";
 
 const billTypeValidator = v.union(
   v.literal("electricity"),
@@ -492,9 +493,19 @@ export const markPeriodPaid = mutation({
       .first();
     if (existingBySource) {
       const now = Date.now();
+      const posted = await postCashOutflow(ctx, {
+        propertyId: period.propertyId,
+        sourceType: "PropertyBill",
+        sourceId: period._id,
+        amount: period.amount,
+        category: "utilities",
+        paymentMethod: args.paymentMethod,
+        createdBy: auth.user._id,
+        expenseDate: existingBySource.expenseDate,
+      });
       await ctx.db.patch(period._id, {
         status: "paid",
-        expenseId: existingBySource._id,
+        expenseId: posted.expenseId,
         paidAt: period.paidAt ?? now,
         updatedAt: now,
       });
@@ -526,40 +537,34 @@ export const markPeriodPaid = mutation({
       }
     }
     const now = Date.now();
-    await ctx.db.insert("payments", {
-      propertyId: period.propertyId,
-      paymentType: "PropertyBill",
-      referenceType: "PropertyBill",
-      referenceId: period._id,
-      amount: period.amount,
-      paymentMethod: args.paymentMethod,
-      status: "completed",
-      paidAt: now,
-      createdBy: auth.user._id,
-      createdAt: now,
-    });
     const billType = isBillType(account.billType) ? account.billType : "other";
-    const expenseId = await ctx.db.insert("expenses", {
+    const posted = await postCashOutflow(ctx, {
       propertyId: period.propertyId,
-      category: expenseCategoryForBillType(billType),
+      sourceType: "PropertyBill",
+      sourceId: period._id,
       amount: period.amount,
-      expenseDate: now,
+      category: expenseCategoryForBillType(billType),
+      subcategory: billType,
       description: `${account.name} (${account.billType})`,
       vendor: account.provider,
       invoiceNumber,
-      status: "paid",
-      sourceType: "PropertyBill",
-      sourceId: period._id,
-      submittedBy: auth.user._id,
-      paidBy: auth.user._id,
+      paymentMethod: args.paymentMethod,
+      paymentType: "PropertyBill",
+      createdBy: auth.user._id,
+      expenseDate: now,
     });
     await ctx.db.patch(period._id, {
       status: "paid",
-      expenseId,
-      paidAt: now,
+      expenseId: posted.expenseId,
+      paidAt: period.paidAt ?? now,
       updatedAt: now,
     });
-    return { success: true, message: "Bill paid and posted to expenses" };
+    return {
+      success: true,
+      message: posted.alreadyPosted
+        ? "Already posted to expenses"
+        : "Bill paid and posted to expenses",
+    };
   },
 });
 

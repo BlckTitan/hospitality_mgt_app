@@ -1,16 +1,23 @@
 'use client';
 
 import { Suspense } from 'react';
-import { useQuery } from 'convex/react';
-import { api } from '../../../../convex/_generated/api';
 import { Id } from '../../../../convex/_generated/dataModel';
 import { TableColumn } from '../../../../shared/table';
 import PaginationComponent from '../../../../shared/pagination';
 import { formatDate, formatMoney } from '../../billing/components/labels';
 
+const CATEGORY_LABELS: Record<string, string> = {
+  utilities: 'Utilities',
+  supplies: 'Supplies',
+  staff: 'Staff',
+  maintenance: 'Maintenance',
+  other: 'Other',
+};
+
 type ExpenseRow = {
   _id: Id<'expenses'>;
   category: string;
+  subcategory?: string;
   amount: number;
   expenseDate: number;
   vendor?: string;
@@ -18,12 +25,11 @@ type ExpenseRow = {
   status?: string;
   sourceType?: string;
   sourceLabel?: string;
+  sourceHref?: string;
   description?: string;
 };
 
-export function ExpensesTable({ currentPropertyId }: { currentPropertyId: Id<'properties'> }) {
-  const expenses = useQuery(api.expenses.listExpenses, { propertyId: currentPropertyId });
-
+export function ExpensesTable({ rows }: { rows: ExpenseRow[] }) {
   const columns: TableColumn<ExpenseRow>[] = [
     {
       label: 'Date',
@@ -31,7 +37,16 @@ export function ExpensesTable({ currentPropertyId }: { currentPropertyId: Id<'pr
       render: (_value, row) => formatDate(row.expenseDate),
     },
     { label: 'Vendor', key: 'vendor' },
-    { label: 'Category', key: 'category' },
+    {
+      label: 'Category',
+      key: 'category',
+      render: (_value, row) => CATEGORY_LABELS[row.category] ?? row.category,
+    },
+    {
+      label: 'Detail',
+      key: 'subcategory',
+      render: (_value, row) => row.subcategory || row.description || '—',
+    },
     {
       label: 'Amount',
       key: 'amount',
@@ -46,7 +61,13 @@ export function ExpensesTable({ currentPropertyId }: { currentPropertyId: Id<'pr
       label: 'Source',
       key: 'sourceLabel',
       render: (_value, row) =>
-        row.sourceType === 'PropertyBill' ? (row.sourceLabel ?? 'Bill') : '—',
+        row.sourceHref ? (
+          <a href={row.sourceHref} className='text-blue-700 underline'>
+            {row.sourceLabel ?? 'Open'}
+          </a>
+        ) : (
+          (row.sourceLabel ?? '—')
+        ),
     },
     { label: 'Invoice', key: 'invoiceNumber' },
   ];
@@ -57,7 +78,7 @@ export function ExpensesTable({ currentPropertyId }: { currentPropertyId: Id<'pr
         <PaginationComponent
           collectionName='expenses'
           columns={columns}
-          jointTableData={expenses?.data ?? []}
+          jointTableData={rows}
         />
       </Suspense>
     </div>

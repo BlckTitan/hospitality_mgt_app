@@ -11,7 +11,7 @@ const DESCRIPTIONS: Record<GuidePage, string> = {
   bills:
     'Capture the amount (and optional invoice number) when the bill arrives, and attach the original bill PDF. Mark paid records the full amount as a paid expense. You cannot pay until a bill document is attached. Paid rows cannot be recaptured.',
   expenses:
-    'Paid costs, including bills marked paid in Billing. This list is read-only. Source shows the bill account when the expense came from a property bill.',
+    'Cash outflows for this property: bills, payroll, maintenance, inventory purchases, and other operating spend. Filter by day, week, month, or year. Record expense is for one-off paid costs that do not already have a bill, payroll run, work order, or purchase order.',
 };
 
 export function BillingPageGuide({ page }: { page: GuidePage }) {

@@ -1,7 +1,8 @@
-import { mutation, query } from "./_generated/server";
+import { internalMutation, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { Doc, Id } from "./_generated/dataModel";
 import { requirePermission } from "./lib/rbac";
+import { postCashOutflow } from "./lib/postCashOutflow";
 import {
   applyPayItemType,
   overlapWorkingDays,
@@ -529,30 +530,80 @@ export const downloadPaymentFiles = mutation({
   },
 });
 
+function payrollExpenseDescription(run: Doc<"payrolls">) {
+  const start = new Date(run.payPeriodStart).toISOString().slice(0, 10);
+  const end = new Date(run.payPeriodEnd).toISOString().slice(0, 10);
+  return `Payroll ${start} – ${end}`;
+}
+
+async function postPayrollExpense(
+  ctx: Parameters<typeof postCashOutflow>[0],
+  run: Doc<"payrolls">,
+  createdBy: Id<"users">,
+  expenseDate: number,
+) {
+  if (run.totalNetPay <= 0) {
+    return null;
+  }
+  return await postCashOutflow(ctx, {
+    propertyId: run.propertyId,
+    sourceType: "Payroll",
+    sourceId: run._id,
+    amount: run.totalNetPay,
+    category: "staff",
+    description: payrollExpenseDescription(run),
+    vendor: "Payroll",
+    paymentMethod: "bank_transfer",
+    paymentType: "payroll",
+    createdBy,
+    expenseDate,
+  });
+}
+
 export const markAsPaid = mutation({
   args: { payrollId: v.id("payrolls") },
   handler: async (ctx, args) => {
     const run = await ctx.db.get(args.payrollId);
     if (!run) return { success: false, message: "Payroll not found" };
     const auth = await requirePermission(ctx, "payroll.run.mark_paid", run.propertyId);
-    if (run.status !== "processed" && run.status !== "approved") {
+    if (run.status === "paid" && run.expenseId) {
+      return { success: true, message: "Payroll already marked as paid" };
+    }
+    if (run.status !== "processed" && run.status !== "approved" && run.status !== "paid") {
       return { success: false, message: "Download payment files (or approve) before Mark as paid" };
     }
     const now = Date.now();
-    await ctx.db.insert("payments", {
-      propertyId: run.propertyId,
-      paymentType: "payroll",
-      referenceType: "Payroll",
-      referenceId: run._id,
-      amount: run.totalNetPay,
-      paymentMethod: "bank_transfer",
-      status: "completed",
-      paidAt: now,
-      createdBy: auth.user._id,
-      createdAt: now,
+    const posted = await postPayrollExpense(ctx, run, auth.user._id, run.paidAt ?? now);
+    await ctx.db.patch(run._id, {
+      status: "paid",
+      paidAt: run.paidAt ?? now,
+      expenseId: posted?.expenseId ?? run.expenseId,
+      updatedAt: now,
     });
-    await ctx.db.patch(run._id, { status: "paid", paidAt: now, updatedAt: now });
     return { success: true, message: "Payroll marked as paid" };
+  },
+});
+
+export const backfillPaidPayrollExpenses = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const runs = await ctx.db.query("payrolls").collect();
+    let posted = 0;
+    for (const run of runs) {
+      if (run.status !== "paid" || run.expenseId || run.totalNetPay <= 0) {
+        continue;
+      }
+      const createdBy = run.approvedBy ?? run.createdBy;
+      const result = await postPayrollExpense(ctx, run, createdBy, run.paidAt ?? run.updatedAt);
+      if (result) {
+        await ctx.db.patch(run._id, {
+          expenseId: result.expenseId,
+          updatedAt: Date.now(),
+        });
+        posted += 1;
+      }
+    }
+    return { success: true, posted };
   },
 });
 
