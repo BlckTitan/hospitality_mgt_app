@@ -476,6 +476,7 @@ On site she opens Attendance Tracker and clicks **Start shift**:
    - `employeeId: 203`
    - `shiftDate: 2024-07-18`
    - `startTime`: actual clock (not the template start)
+   - `expectedStart` / `clockStartLocal` / `punctualityStatus` snapshot (property timezone vs 07:00, plus grace)
    - `isFinalized: false`
    - `shiftTemplateId` / `rosterSlotId` from her assignment
 

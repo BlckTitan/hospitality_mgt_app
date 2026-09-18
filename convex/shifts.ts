@@ -3,11 +3,13 @@ import { v } from 'convex/values';
 import { requireAuthenticated, requirePermission, tryRequirePermission } from './lib/rbac';
 import { draftHoursFromShift } from './hours';
 import { currentUtcHHmm } from './lib/payrollHelpers';
+import { punctualityFieldsForClock, punctualityInsertFields } from './lib/punctuality';
 import {
   findActiveShiftForStaffDate,
   findActiveShiftForUserDate,
   normalizeDepartment,
   resolveStaffForShift,
+  resolveStaffTemplate,
   SHIFT_DEPARTMENTS,
   staffForUser,
 } from './lib/shiftHelpers';
@@ -188,6 +190,14 @@ export const createShift = mutation({
         return { success: false, message: 'This staff member already has an active shift on that date' };
       }
 
+      const template = await resolveStaffTemplate(ctx, staff, args.propertyId);
+      const punctuality = await punctualityFieldsForClock(ctx, {
+        propertyId: args.propertyId,
+        expectedStart: template?.startTime,
+        expectedEnd: template?.endTime,
+        actualLocal: args.startTime,
+      });
+
       const shiftId = await ctx.db.insert('shifts', {
         propertyId: args.propertyId,
         employeeId: args.employeeId,
@@ -198,6 +208,8 @@ export const createShift = mutation({
         startTime: args.startTime,
         endTime: args.endTime,
         isFinalized: false,
+        shiftTemplateId: template?._id,
+        ...punctualityInsertFields(punctuality),
       });
       return { success: true, data: shiftId, message: 'Shift created successfully' };
     } catch (error) {
@@ -257,14 +269,26 @@ export const updateShift = mutation({
         }
       }
 
+      const startTime = args.startTime ?? existingShift.startTime;
+      const template = staff
+        ? await resolveStaffTemplate(ctx, staff, existingShift.propertyId)
+        : null;
+      const punctuality = await punctualityFieldsForClock(ctx, {
+        propertyId: existingShift.propertyId,
+        expectedStart: existingShift.expectedStart ?? template?.startTime,
+        expectedEnd: existingShift.expectedEnd ?? template?.endTime,
+        actualLocal: startTime,
+      });
+
       await ctx.db.patch(args.shiftId, {
         employeeId: employeeId,
         userId: staff?.userId ?? existingShift.userId,
         barId,
         department,
         shiftDate,
-        startTime: args.startTime ?? existingShift.startTime,
+        startTime,
         endTime: args.endTime ?? existingShift.endTime,
+        ...punctualityInsertFields(punctuality),
       });
       return { success: true, message: 'Shift updated successfully' };
     } catch (error) {

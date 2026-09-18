@@ -108,6 +108,7 @@ export const updateSettings = mutation({
     propertyId: v.id("properties"),
     regularHoursLimitDaily: v.optional(v.number()),
     overtimeMultiplier: v.optional(v.number()),
+    punctualityGraceMinutes: v.optional(v.number()),
     defaultPayCycleId: v.optional(v.id("payCycles")),
   },
   handler: async (ctx, args) => {
@@ -117,9 +118,17 @@ export const updateSettings = mutation({
       .withIndex("by_propertyId", (q) => q.eq("propertyId", args.propertyId))
       .first();
     if (!settings) return { success: false, message: "Seed Payroll settings first" };
+    if (
+      args.punctualityGraceMinutes != null &&
+      (args.punctualityGraceMinutes < 0 || args.punctualityGraceMinutes > 120)
+    ) {
+      return { success: false, message: "Grace minutes must be between 0 and 120" };
+    }
     await ctx.db.patch(settings._id, {
       regularHoursLimitDaily: args.regularHoursLimitDaily ?? settings.regularHoursLimitDaily,
       overtimeMultiplier: args.overtimeMultiplier ?? settings.overtimeMultiplier,
+      punctualityGraceMinutes:
+        args.punctualityGraceMinutes ?? settings.punctualityGraceMinutes ?? 5,
       defaultPayCycleId: args.defaultPayCycleId ?? settings.defaultPayCycleId,
       updatedAt: Date.now(),
     });

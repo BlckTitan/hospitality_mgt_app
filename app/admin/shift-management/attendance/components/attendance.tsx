@@ -4,6 +4,7 @@ import { Button } from 'react-bootstrap';
 import { useMutation, useQuery } from 'convex/react';
 import { toast } from 'sonner';
 import { api } from '../../../../../convex/_generated/api';
+import { PunctualityStatusLabel } from '../../punctuality/components/punctualityReport';
 
 export default function Attendance() {
   const duty = useQuery(api.attendance.getMyDuty);
@@ -50,7 +51,16 @@ export default function Attendance() {
               <span className="font-semibold">Status:</span>{' '}
               {data.activeShift.isFinalized
                 ? `Ended at ${data.activeShift.endTime}`
-                : `Started at ${data.activeShift.startTime}`}
+                : `Started at ${data.activeShift.clockStartLocal || data.activeShift.startTime}`}
+            </p>
+          )}
+          {data.activeShift && (
+            <p>
+              <span className="font-semibold">Punctuality:</span>{' '}
+              <PunctualityStatusLabel
+                status={data.activeShift.punctualityStatus}
+                minutesLate={data.activeShift.minutesLate}
+              />
             </p>
           )}
           {data.blockedReason && <p className="text-sm text-gray-700">{data.blockedReason}</p>}

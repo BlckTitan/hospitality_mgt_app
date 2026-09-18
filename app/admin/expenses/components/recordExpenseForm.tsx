@@ -10,14 +10,7 @@ import InputComponent from '../../../../shared/input';
 import SelectComponent from '../../../../shared/select';
 import { PAYMENT_METHOD_OPTIONS } from '../../billing/components/labels';
 import { cashPeriodBounds } from '../../../../lib/cashPeriod';
-
-const CATEGORY_OPTIONS = [
-  { value: 'other', label: 'Other' },
-  { value: 'utilities', label: 'Utilities' },
-  { value: 'supplies', label: 'Supplies' },
-  { value: 'staff', label: 'Staff' },
-  { value: 'maintenance', label: 'Maintenance' },
-];
+import { EXPENSE_CATEGORY_OPTIONS } from './categoryLabels';
 
 type FormData = {
   amount: string;
@@ -107,7 +100,7 @@ export function RecordExpenseForm({
         id='category'
         label='Category *'
         selectWidth='w-full'
-        options={CATEGORY_OPTIONS}
+        options={[...EXPENSE_CATEGORY_OPTIONS]}
         register={register('category')}
       />
       <InputComponent

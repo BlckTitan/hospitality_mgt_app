@@ -52,6 +52,7 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermission> = {
   '/admin/shift-management/attendance': { granular: ['payroll.timesheet.create', 'fnb.read'] },
   '/admin/shift-management/hours': { granular: 'payroll.timesheet.read' },
   '/admin/shift-management/hours/edit': { granular: 'payroll.timesheet.update' },
+  '/admin/shift-management/punctuality': { granular: ['payroll.timesheet.read', 'staff.read'] },
 
   // Payroll Management — screens use Hours / Time off / Payroll / Payroll settings
   '/admin/payroll-management': { granular: 'payroll.run.read' },

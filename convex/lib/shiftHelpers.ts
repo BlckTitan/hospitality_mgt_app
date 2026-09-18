@@ -1,6 +1,7 @@
 import { MutationCtx, QueryCtx } from "../_generated/server";
 import { Doc, Id } from "../_generated/dataModel";
 import { currentUtcHHmm } from "./payrollHelpers";
+import { punctualityFieldsForClock, punctualityInsertFields } from "./punctuality";
 
 type DbCtx = MutationCtx | QueryCtx;
 
@@ -244,6 +245,13 @@ export async function findOrCreateFnBShift(
   const openByUser = await findActiveShiftForUserDate(ctx, args.userId, args.shiftDate);
   if (openByUser) return openByUser._id;
 
+  const template = staff ? await resolveStaffTemplate(ctx, staff, args.propertyId) : null;
+  const punctuality = await punctualityFieldsForClock(ctx, {
+    propertyId: args.propertyId,
+    expectedStart: template?.startTime,
+    expectedEnd: template?.endTime,
+  });
+
   return await ctx.db.insert("shifts", {
     propertyId: args.propertyId,
     employeeId: staff?._id,
@@ -253,5 +261,7 @@ export async function findOrCreateFnBShift(
     shiftDate: args.shiftDate,
     startTime: currentUtcHHmm(),
     isFinalized: false,
+    shiftTemplateId: template?._id,
+    ...punctualityInsertFields(punctuality),
   });
 }

@@ -10,6 +10,7 @@ import ExtraPayRules from './components/extraPayRules';
 import Holidays from './components/holidays';
 import PayCycles from './components/payCycles';
 import PayItemTypes from './components/payItemTypes';
+import PunctualityGrace from './components/punctualityGrace';
 import TimeOffTypes from './components/timeOffTypes';
 
 export default function PayrollSettingsPage() {
@@ -36,6 +37,12 @@ export default function PayrollSettingsPage() {
       <PayrollPageGuide page="settings" />
 
       <Country propertyId={propertyId} settings={data?.settings} />
+      {data?.settings && (
+        <PunctualityGrace
+          propertyId={propertyId}
+          graceMinutes={data.settings.punctualityGraceMinutes}
+        />
+      )}
       <PayCycles propertyId={propertyId} payCycles={data?.payCycles ?? []} />
       <TimeOffTypes propertyId={propertyId} timeOffTypes={data?.timeOffTypes ?? []} />
       <PayItemTypes propertyId={propertyId} payItemTypes={data?.payItemTypes ?? []} />

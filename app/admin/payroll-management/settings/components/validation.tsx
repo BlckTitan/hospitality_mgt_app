@@ -53,3 +53,12 @@ export const extraPayRuleSchema = yup.object({
     .required('Select a rule'),
   multiplier: yup.number().typeError('Enter a multiplier').positive('Multiplier must be greater than 0'),
 });
+
+export const punctualityGraceSchema = yup.object({
+  punctualityGraceMinutes: yup
+    .number()
+    .typeError('Enter grace minutes')
+    .min(0, 'Grace cannot be negative')
+    .max(120, 'Grace cannot exceed 120 minutes')
+    .required('Enter grace minutes'),
+});

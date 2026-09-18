@@ -11,6 +11,7 @@ const hubLinks = [
   { href: '/admin/shift-management/cover', label: 'Open Cover' },
   { href: '/admin/shift-management/shift', label: 'Open Shifts' },
   { href: '/admin/shift-management/hours', label: 'Open Hours' },
+  { href: '/admin/shift-management/punctuality', label: 'Open Punctuality' },
 ];
 
 export default function ShiftManagement() {

@@ -6,13 +6,7 @@ import { TableColumn } from '../../../../shared/table';
 import PaginationComponent from '../../../../shared/pagination';
 import { formatDate, formatMoney } from '../../billing/components/labels';
 
-const CATEGORY_LABELS: Record<string, string> = {
-  utilities: 'Utilities',
-  supplies: 'Supplies',
-  staff: 'Staff',
-  maintenance: 'Maintenance',
-  other: 'Other',
-};
+import { EXPENSE_CATEGORY_LABELS } from './categoryLabels';
 
 type ExpenseRow = {
   _id: Id<'expenses'>;
@@ -40,7 +34,7 @@ export function ExpensesTable({ rows }: { rows: ExpenseRow[] }) {
     {
       label: 'Category',
       key: 'category',
-      render: (_value, row) => CATEGORY_LABELS[row.category] ?? row.category,
+      render: (_value, row) => EXPENSE_CATEGORY_LABELS[row.category] ?? row.category,
     },
     {
       label: 'Detail',

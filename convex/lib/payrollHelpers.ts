@@ -181,6 +181,7 @@ export async function seedPayrollForProperty(
     jurisdictionPack: pack.id,
     regularHoursLimitDaily: pack.regularHoursLimitDaily,
     overtimeMultiplier: pack.overtimeMultiplier,
+    punctualityGraceMinutes: 5,
     bankExportFormat: "generic_csv",
     createdAt: now,
     updatedAt: now,

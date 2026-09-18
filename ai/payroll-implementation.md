@@ -176,7 +176,7 @@ Schema tables: `shiftTemplates`, `rosterSlots`, `shifts`. Interfaces: `ShiftTemp
 
 - **Department shift**: one default template per department (`isDefault`). F&B requires `barId`. Template `startTime` / `endTime` are expected hours, not the clock.
 - **Roster day**: Cover patches `workingEmployeeId` only. Reject if the scheduled person already has a `shifts` row or Hours that date, or the covering person already started a shift that day. Never rewrite Hours.
-- **Shift**: actual session. Attendance Tracker **Start shift** / **End shift** and ad-hoc create/Finalize share this table. Login does not insert a row. One session per staff per date. `barId` required only for F&B. End shift / Finalize drafts Hours and, for F&B, finalizes `userStockLogs`.
+- **Shift**: actual session. Attendance Tracker **Start shift** / **End shift** and ad-hoc create/Finalize share this table. Login does not insert a row. One session per staff per date. `barId` required only for F&B. End shift / Finalize drafts Hours and, for F&B, finalizes `userStockLogs`. **Start shift** snapshots expected start/end and scores punctuality in the property timezone (`on_time` | `late` | `unscheduled`) using Payroll settings `punctualityGraceMinutes` (default 5). Punctuality does not change pay. Existing attendance is not rewritten when the department shift is edited.
 
 ### Hours
 Schema table: `hours`. Interface: `Hours`.

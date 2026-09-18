@@ -27,7 +27,7 @@ const navLinks = [
       { id: 405, href: '/admin/bar-management/store-transactions', label: 'Store Transactions'},
     ]
   },
-  {id: 5, href: "/admin/expenses", label: "Expenditure", icon: <FcMoneyTransfer /> },
+  {id: 5, href: "/admin/expenses", label: "Expense Tracker", icon: <FcMoneyTransfer /> },
   {id: 6, href: "/#", label: "Report and Analytics", icon: <FcSalesPerformance /> },
   {id: 7, href: "/admin/staff", label: "Staff", icon: <FcConferenceCall />, subLink: [
     {id: 701, href: '/admin/staff/myProfile', label: 'My profile'},
@@ -59,6 +59,7 @@ const navLinks = [
     {id: 1103, href: '/admin/shift-management/cover', label: 'Cover'},
     {id: 1104, href: '/admin/shift-management/shift', label: 'Shift'},
     {id: 1105, href: '/admin/shift-management/hours', label: 'Hours'},
+    {id: 1106, href: '/admin/shift-management/punctuality', label: 'Punctuality'},
   ]},
   {id: 12, href: "/admin/payroll-management", label: "Payroll Management", icon: <FcMoneyTransfer />, subLink: [
     {id: 1201, href: '/admin/payroll-management/payroll', label: 'Payroll'},
@@ -88,7 +89,7 @@ export default function Sidebar() {
   const filteredNavLinks = filterNavByAccess(navLinks, canAccessRoute);
 
   return (
-    <aside className='w-[300px] max-w-[300px] h-dvh max-h-dvh fixed left-0 hidden pt-14 xl:flex xl:flex-col z-10 overflow-hidden'>
+    <aside className='w-[300px] max-w-[300px] h-dvh max-h-dvh fixed left-0 hidden pt-14 xl:flex xl:flex-col z-20 overflow-hidden'>
       <div  className='w-full px-3 h-16 shrink-0 flex items-center gap-3'>
         <h3 className="hidden xl:inline-block text-lg font-bold text-white site_sub_title">Hospitality Manager</h3>
       </div>

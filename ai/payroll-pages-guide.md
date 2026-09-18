@@ -2,7 +2,7 @@
 
 Operator guide for the screens under **Payroll**. Schema and design rules live in [payroll-implementation.md](./payroll-implementation.md).
 
-Sidebar: **Payroll** → Payroll, Time off, Payroll settings. **Shift Management** → Department shifts, Attendance Tracker, Cover, Shift, Hours.
+Sidebar: **Payroll** → Payroll, Time off, Payroll settings. **Shift Management** → Department shifts, Attendance Tracker, Cover, Shift, Hours, Punctuality.
 
 ---
 
@@ -32,6 +32,7 @@ Who: HR / finance.
 - **Time-off types**: paid vs unpaid. Unpaid approved Time off prorates salary.
 - **Pay item types**: housing, PAYE, pension, custom allowances. Statutory rows come from the pack.
 - **Holidays** and **Extra pay rules**: used when Hours are classified (OT, weekend, public holiday).
+- **Punctuality grace minutes**: how late a start can be and still count as on time (default 5). Does not change pay.
 
 Country cannot change after an approved or paid Payroll.
 
@@ -47,7 +48,7 @@ Who: HR / supervisors who can update staff.
 Who: staff with a User login linked to their `staffs` row.
 
 - Shows today’s expected department shift. Logging in does not start work.
-- **Start shift** records actual clock time when you begin. **End shift** finalizes the session and creates **draft** Hours.
+- **Start shift** records actual clock time when you begin and whether you are on time or late. **End shift** finalizes the session and creates **draft** Hours.
 - Staff whose login is not linked to Staff cannot start a shift.
 
 ### Cover — `/admin/shift-management/cover`
@@ -66,6 +67,14 @@ Who: supervisors (approve) and staff with login (record).
 - After **Prepare pay**, included Hours show **Locked for payroll** and cannot be edited until Recalculate (while the Payroll is still Draft / Ready to review).
 
 The old `/admin/payroll-management/hours` URL redirects here.
+
+### Punctuality — `/admin/shift-management/punctuality`
+
+Who: supervisors (`payroll.timesheet.read` or `staff.read`); staff see their own days on **My profile**.
+
+- Week or month of started shifts, scored against the department shift expected start plus grace minutes.
+- Team table plus each staff member’s Punctuality tab. This is a report, not a pay deduction.
+- Days without a started shift are not scored (no-shows are out of scope until scheduled work days exist).
 
 ### Shift — `/admin/shift-management/shift`
 

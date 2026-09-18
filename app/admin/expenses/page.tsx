@@ -17,22 +17,11 @@ import {
   shiftCashPeriodAnchor,
   type CashPeriodKind,
 } from '../../../lib/cashPeriod';
+import { EXPENSE_CATEGORY_OPTIONS } from './components/categoryLabels';
 
 const CATEGORY_FILTERS = [
   { value: '', label: 'All' },
-  { value: 'utilities', label: 'Utilities' },
-  { value: 'supplies', label: 'Supplies' },
-  { value: 'staff', label: 'Staff' },
-  { value: 'maintenance', label: 'Maintenance' },
-  { value: 'other', label: 'Other' },
-] as const;
-
-const CATEGORY_TOTALS = [
-  { key: 'utilities', label: 'Utilities' },
-  { key: 'supplies', label: 'Supplies' },
-  { key: 'staff', label: 'Staff' },
-  { key: 'maintenance', label: 'Maintenance' },
-  { key: 'other', label: 'Other' },
+  ...EXPENSE_CATEGORY_OPTIONS,
 ] as const;
 
 export default function ExpensesPage() {
@@ -92,7 +81,7 @@ export default function ExpensesPage() {
   return (
     <div className='w-full p-4 bg-white'>
       <header className='w-full border-b flex justify-between items-center mb-4'>
-        <h3>Expenditure</h3>
+        <h3>Expense Tracker</h3>
         <div className='flex items-center gap-2'>
           <Button variant='dark' size='sm' onClick={() => setRecordOpen(true)}>
             Record expense
@@ -137,10 +126,10 @@ export default function ExpensesPage() {
       </div>
 
       <div className='grid grid-cols-2 lg:grid-cols-6 gap-2 mb-4'>
-        {CATEGORY_TOTALS.map((item) => (
-          <div key={item.key} className='border p-3'>
+        {EXPENSE_CATEGORY_OPTIONS.map((item) => (
+          <div key={item.value} className='border p-3'>
             <p className='text-sm text-gray-600 mb-1'>{item.label}</p>
-            <p className='text-lg font-semibold'>{formatMoney(totals?.[item.key])}</p>
+            <p className='text-lg font-semibold'>{formatMoney(totals?.[item.value])}</p>
           </div>
         ))}
         <div className='border p-3'>

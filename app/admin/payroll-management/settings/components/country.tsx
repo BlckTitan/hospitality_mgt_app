@@ -20,6 +20,7 @@ type SettingsSummary = {
   jurisdictionPack: string;
   regularHoursLimitDaily?: number;
   overtimeMultiplier: number;
+  punctualityGraceMinutes?: number;
 };
 
 export default function Country({

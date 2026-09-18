@@ -67,7 +67,7 @@ function HorizontalList({
               <div
                 className={`${compact ? 'h-0.5' : 'h-0.5'} flex-1 ${isFirst ? 'bg-transparent' : previousDone ? 'bg-green-600' : 'bg-slate-200'}`}
               />
-              <span className="relative z-10 bg-white px-0.5 shrink-0">
+              <span className="relative z-[1] bg-white px-0.5 shrink-0">
                 {done ? (
                   <MdCheckCircle
                     className={`${compact ? 'text-lg' : 'text-2xl'} text-green-600`}

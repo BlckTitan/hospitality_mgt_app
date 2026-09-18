@@ -11,6 +11,7 @@ import { TableColumn } from "../../../../../shared/table";
 import PaginationComponent from "../../../../../shared/pagination";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { DEPARTMENT_LABELS, SHIFT_DEPARTMENTS } from "./validation";
+import { PunctualityStatusLabel } from "../../punctuality/components/punctualityReport";
 
 interface ShiftProps {
   _id: string;
@@ -26,6 +27,9 @@ interface ShiftProps {
   staffName?: string;
   hoursStatus?: string;
   hoursId?: string;
+  punctualityStatus?: 'on_time' | 'late' | 'unscheduled';
+  minutesLate?: number;
+  clockStartLocal?: string;
   user?: {
     _id: string;
     name: string;
@@ -117,7 +121,7 @@ const Shifts = ({ currentPropertyId }: { currentPropertyId: Id<"properties"> }) 
       label: 'Start Time',
       key: 'startTime',
       render: (_value, row) => (
-        <span>{row.startTime}</span>
+        <span>{row.clockStartLocal || row.startTime}</span>
       )
     },
     {
@@ -125,6 +129,13 @@ const Shifts = ({ currentPropertyId }: { currentPropertyId: Id<"properties"> }) 
       key: 'endTime',
       render: (_value, row) => (
         <span>{row.endTime || 'N/A'}</span>
+      )
+    },
+    {
+      label: 'Punctuality',
+      key: 'punctualityStatus',
+      render: (_value, row) => (
+        <PunctualityStatusLabel status={row.punctualityStatus} minutesLate={row.minutesLate} />
       )
     },
     {

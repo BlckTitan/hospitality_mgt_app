@@ -59,6 +59,7 @@ const navItems = [
     {id: 1103, href: '/admin/shift-management/cover', label: 'Cover'},
     {id: 1104, href: '/admin/shift-management/shift', label: 'Shift'},
     {id: 1105, href: '/admin/shift-management/hours', label: 'Hours'},
+    {id: 1106, href: '/admin/shift-management/punctuality', label: 'Punctuality'},
   ]},
   {id: 12, href: "/admin/payroll-management", label: "Payroll Management", icon: <FcMoneyTransfer />, subLink: [
     {id: 1201, href: '/admin/payroll-management/payroll', label: 'Payroll'},
@@ -79,7 +80,7 @@ export default function Navigation() {
   const activeSectionKey = filteredNavItems.find((item) => isPathInSection(path, item.href))?.label;
   
   return (
-    <nav className="w-full h-14 flex items-center fixed top-0 main_nav z-10 shadow-blue-100 shadow-sm overflow-visible">
+    <nav className="w-full h-14 flex items-center fixed top-0 main_nav z-30 bg-white shadow-blue-100 shadow-sm overflow-visible">
       <Navbar expand="lg" className='w-full h-full flex items-center px-4 lg:px-16 bg-white rounded-none overflow-visible'>
         <div className='w-full h-full flex justify-between items-center overflow-visible'>
           

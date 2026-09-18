@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useConvexAuth } from 'convex/react'
 import { useSearchParams } from 'next/navigation'
-import React, { useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { api } from '../../../../../convex/_generated/api'
 import { Button, Spinner } from 'react-bootstrap'
 import Image from 'next/image'
@@ -12,8 +12,15 @@ import { toast } from 'sonner'
 import { usePermissions } from '../../../../../hooks/usePermissions'
 import { fieldWidthClass } from '../../../../../shared/field'
 import { OnboardingStepper } from '../../components/onboardingStepper'
+import {
+  PunctualityDaysTable,
+  PunctualityPeriod,
+  PunctualityPeriodToggle,
+  PunctualitySummaryCards,
+  punctualityDateRange,
+} from '../../../shift-management/punctuality/components/punctualityReport'
 
-const TABS = ['Profile', 'Hours', 'Time off', 'Pay', 'Documents', 'Onboarding'] as const
+const TABS = ['Profile', 'Hours', 'Punctuality', 'Time off', 'Pay', 'Documents', 'Onboarding'] as const
 
 export default function StaffViewComponent() {
   const { isAuthenticated } = useConvexAuth()
@@ -24,6 +31,18 @@ export default function StaffViewComponent() {
   const canPayUpdate = hasGranularPermission('staff.compensation.update')
   const canUpdate = hasGranularPermission('staff.update')
   const [tab, setTab] = useState<(typeof TABS)[number]>('Profile')
+  const [punctualityPeriod, setPunctualityPeriod] = useState<PunctualityPeriod>('month')
+  const punctualityRange = useMemo(() => punctualityDateRange(punctualityPeriod), [punctualityPeriod])
+  const punctuality = useQuery(
+    api.punctuality.getStaffReport,
+    isAuthenticated && id
+      ? {
+          staffId: id as Id<'staffs'>,
+          fromDate: punctualityRange.fromDate,
+          toDate: punctualityRange.toDate,
+        }
+      : 'skip'
+  )
   const [documentKind, setDocumentKind] = useState<'contract' | 'id' | 'tax_form' | 'bank_letter' | 'policy' | 'other'>('contract')
   const [payItemTypeId, setPayItemTypeId] = useState('')
   const [payItemAmount, setPayItemAmount] = useState('')
@@ -139,6 +158,24 @@ export default function StaffViewComponent() {
             {staffData.hours.length === 0 && <tr><td className='p-2' colSpan={4}>No hours yet.</td></tr>}
           </tbody>
         </table>
+      )}
+
+      {tab === 'Punctuality' && (
+        <div>
+          <PunctualityPeriodToggle period={punctualityPeriod} onChange={setPunctualityPeriod} />
+          <p className='text-sm text-slate-600 mb-2'>
+            {punctualityRange.fromDate} to {punctualityRange.toDate}
+            {punctuality?.data?.graceMinutes != null ? ` · ${punctuality.data.graceMinutes} minute grace` : ''}
+          </p>
+          {punctuality === undefined && <p>Loading punctuality...</p>}
+          {punctuality?.success === false && <p className='text-red-600'>{punctuality.message}</p>}
+          {punctuality?.success === true && punctuality.data && (
+            <>
+              <PunctualitySummaryCards summary={punctuality.data.summary} />
+              <PunctualityDaysTable days={punctuality.data.days} />
+            </>
+          )}
+        </div>
       )}
 
       {tab === 'Time off' && (
@@ -321,11 +358,11 @@ export default function StaffViewComponent() {
             !item.completedAt && !item.skipped ? (
               <div className='flex flex-col gap-1 items-center'>
                 <Button size='sm' variant='dark' onClick={async () => {
-                  const result = await completeItem({ itemId: item._id })
+                  const result = await completeItem({ itemId: item._id as Id<'staffOnboardingItems'> })
                   result.success ? toast.success(result.message) : toast.error(result.message)
                 }}>Complete</Button>
                 <Button size='sm' variant='outline-secondary' onClick={async () => {
-                  const result = await completeItem({ itemId: item._id, skipped: true })
+                  const result = await completeItem({ itemId: item._id as Id<'staffOnboardingItems'>, skipped: true })
                   result.success ? toast.success(result.message) : toast.error(result.message)
                 }}>Skip</Button>
               </div>

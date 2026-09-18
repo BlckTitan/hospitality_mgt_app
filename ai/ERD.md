@@ -677,8 +677,12 @@ Schema table: `shifts`. One actual working session (any department). Attendance 
 - `startTime`, `endTime` (optional): Actual clock (UTC HH:MM)
 - `isFinalized`: True after End shift or Finalize
 - `shiftTemplateId` (FK, optional), `rosterSlotId` (FK, optional)
+- `expectedStart`, `expectedEnd` (optional): Snapshot of department-shift HH:MM at Start shift. Later template edits do not rewrite these.
+- `clockStartLocal` (optional): Actual start in the property timezone (HH:MM)
+- `minutesLate` (optional): Minutes after expected start, 0 if early or on time
+- `punctualityStatus` (optional): on_time | late | unscheduled
 
-**Purpose**: One session per staff per date (application-enforced). Logging in does not create a Shift. End shift or Finalize drafts Hours (`source = shift`) and, for F&B, finalizes that shift’s `userStockLogs`. Employees see only their own rows; managers with `staff.read` see everyone.
+**Purpose**: One session per staff per date (application-enforced). Logging in does not create a Shift. End shift or Finalize drafts Hours (`source = shift`) and, for F&B, finalizes that shift’s `userStockLogs`. Employees see only their own rows; managers with `staff.read` see everyone. Punctuality is scored at Start shift (property timezone vs snapshot expected start, plus Payroll settings grace minutes). Unscheduled means no expected start (ad-hoc shift with no department template). Punctuality does not change pay.
 
 ---
 
@@ -693,6 +697,7 @@ Schema table: `payrollSettings`. Property-level overtime and export defaults.
 - `regularHoursLimitDaily`: Hours before daily overtime (optional; pack default)
 - `regularHoursLimitWeekly`: Hours before weekly overtime (optional; pack default)
 - `overtimeMultiplier`: Fallback daily OT if no `Extra pay rule` exists
+- `punctualityGraceMinutes`: Minutes after expected start still counted as on time (optional; default 5). Does not change pay.
 - `defaultPayCycleId` (FK, optional)
 - `bankExportFormat`: generic_csv (MVP; pack may specify a local layout later)
 - `createdAt`, `updatedAt`
@@ -1959,7 +1964,7 @@ Tracks all system actions for compliance and security auditing.
 
 #### Shift → Hours (One-to-Many, Optional)
 - **Relationship**: End shift or Finalize creates a draft Hours (`source = shift`). Does not overwrite submitted/approved/locked sheets.
-- **Explanation**: Attendance Tracker and ad-hoc Shift share the `shifts` table. Template times are expected hours; clock times on Shift feed Hours.
+- **Explanation**: Attendance Tracker and ad-hoc Shift share the `shifts` table. Template times are expected hours; clock times on Shift feed Hours. Start shift also snapshots expected start and scores punctuality in the property timezone.
 
 #### Property → Department shift / Roster day / Shift (One-to-Many)
 - **Relationship**: All scheduling is property-scoped.

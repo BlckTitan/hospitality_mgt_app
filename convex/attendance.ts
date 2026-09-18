@@ -13,6 +13,7 @@ import {
   staffDisplayName,
   todayIsoDate,
 } from "./lib/shiftHelpers";
+import { punctualityFieldsForClock, punctualityInsertFields } from "./lib/punctuality";
 
 export const getMyDuty = query({
   args: {},
@@ -74,6 +75,10 @@ export const getMyDuty = query({
               startTime: dayShift.startTime,
               endTime: dayShift.endTime,
               isFinalized: dayShift.isFinalized,
+              expectedStart: dayShift.expectedStart ?? slotTemplate?.startTime ?? template?.startTime,
+              clockStartLocal: dayShift.clockStartLocal,
+              minutesLate: dayShift.minutesLate,
+              punctualityStatus: dayShift.punctualityStatus,
             }
           : null,
         blockedReason: !template && !slotTemplate
@@ -150,6 +155,11 @@ export const startShift = mutation({
       return { success: false, message: "This F&B shift has no default bar. Ask an admin to set one." };
     }
 
+    const punctuality = await punctualityFieldsForClock(ctx, {
+      propertyId,
+      expectedStart: template.startTime,
+      expectedEnd: template.endTime,
+    });
     const shiftId = await ctx.db.insert("shifts", {
       propertyId,
       employeeId: staff._id,
@@ -161,8 +171,15 @@ export const startShift = mutation({
       isFinalized: false,
       shiftTemplateId: template._id,
       rosterSlotId: ensured.slot._id,
+      ...punctualityInsertFields(punctuality),
     });
-    return { success: true, id: shiftId, message: "Shift started. Click End shift when you finish work." };
+    const lateNote =
+      punctuality.punctualityStatus === "late"
+        ? ` You started ${punctuality.minutesLate} minute${punctuality.minutesLate === 1 ? "" : "s"} late.`
+        : punctuality.punctualityStatus === "on_time"
+          ? " You are on time."
+          : "";
+    return { success: true, id: shiftId, message: `Shift started.${lateNote} Click End shift when you finish work.` };
   },
 });
 

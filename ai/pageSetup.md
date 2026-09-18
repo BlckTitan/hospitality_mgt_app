@@ -684,7 +684,7 @@ This document outlines which entities should have dedicated pages and the data f
 
 ## Staff, Shift Management, and Payroll Pages
 
-Sidebar: **Staff** (`staff.read`); **My profile** (`/admin/staff/myProfile`, linked login); **Shift Management** → Department shifts, Attendance Tracker, Cover, Shift, Hours; **Payroll** → Payroll, Time off, Payroll settings.
+Sidebar: **Staff** (`staff.read`); **My profile** (`/admin/staff/myProfile`, linked login); **Shift Management** → Department shifts, Attendance Tracker, Cover, Shift, Hours, Punctuality; **Payroll** → Payroll, Time off, Payroll settings.
 
 ### 33. Staff Page (`/admin/staff`)
 **Purpose**: Manage staff records (Convex table `staffs`; no `employees` table)
@@ -713,7 +713,7 @@ Sidebar: **Staff** (`staff.read`); **My profile** (`/admin/staff/myProfile`, lin
 **Data Fetching:**
 - Fetch single `staffs` row; strip pay/tax/bank unless `staff.compensation.read`
 - On-leave badge if approved Time off overlaps today
-- Recent Hours (last 10), Pay history, Time off, Staff pay (last 5), documents, onboarding checklist, this person’s pay items, pending change requests
+- Recent Hours (last 10), Punctuality (week/month), Pay history, Time off, Staff pay (last 5), documents, onboarding checklist, this person’s pay items, pending change requests
 
 **Related Entities to Include:**
 - `User`, `Property`, Department shift, Hours, Pay history, Time off, Staff pay, `staffDocuments`, `staffOnboardingItems`, `staffChangeRequests`, `staffPayItems`
@@ -725,14 +725,14 @@ Sidebar: **Staff** (`staff.read`); **My profile** (`/admin/staff/myProfile`, lin
 ### 34z. My profile (`/admin/staff/myProfile`)
 **Purpose**: Self-service for a User linked to Staff.
 
-**Data Fetching:** Resolve `staffs` by current `userId`. Own identity (read-only), emergency/contact, masked bank, onboarding, recent Hours, Time off, Payslips. Submit contact/bank/emergency change requests. Request Time off via `payroll.leave.create`.
+**Data Fetching:** Resolve `staffs` by current `userId`. Own identity (read-only), emergency/contact, masked bank, onboarding, recent Hours, Time off, Payslips, own punctuality (week/month). Submit contact/bank/emergency change requests. Request Time off via `payroll.leave.create`.
 
 **Rendering Strategy: SSR** — `staff.self.read` (linked login; not `staff.read`)
 
 ---
 
 ### 34a. Shift Management hub (`/admin/shift-management`)
-**Purpose**: Landing page with links to Department shifts, Attendance Tracker, Cover, Shift, and Hours.
+**Purpose**: Landing page with links to Department shifts, Attendance Tracker, Cover, Shift, Hours, and Punctuality.
 
 **Data Fetching:**
 - No list query. Filter hub links by route access (`staff.read` for the hub).
@@ -761,6 +761,7 @@ Sidebar: **Staff** (`staff.read`); **My profile** (`/admin/staff/myProfile`, lin
 **Data Fetching:**
 - Resolve linked `staffs` for the logged-in User
 - Show today’s expected Department shift (template times) and Cover status
+- After **Start shift**, show on time / late (minutes) against the snapshot expected start
 - **Start shift** inserts `shifts` with actual clock time. **End shift** finalizes and drafts Hours.
 
 **Related Entities:** `staffs`, `shiftTemplates`, `rosterSlots`, `shifts`, `hours`
@@ -793,6 +794,21 @@ Sidebar: **Staff** (`staff.read`); **My profile** (`/admin/staff/myProfile`, lin
 **Related Entities:** `staffs`, `bars` (F&B), `hours`, `shiftTemplates`, `rosterSlots`
 
 **Rendering Strategy: SSR**
+
+---
+
+### 34f. Punctuality (`/admin/shift-management/punctuality`)
+**Purpose**: Collective punctuality report for started shifts in a week or month.
+
+**Data Fetching:**
+- Fetch `shifts` in the date range for the property (`by_propertyId_date`)
+- Score each row from snapshot `punctualityStatus` / `minutesLate`, or fall back to current template vs property-local clock
+- Supervisors with `payroll.timesheet.read` or `staff.read` see the team (or direct reports only)
+- Drill through to `/admin/staff/view?staff_id=` Punctuality tab
+
+**Related Entities:** `shifts`, `staffs`, `shiftTemplates`, `payrollSettings`, `Property.timezone`
+
+**Rendering Strategy: SSR** — `payroll.timesheet.read` or `staff.read`
 
 ---
 
@@ -1436,7 +1452,7 @@ Sidebar: **Staff** (`staff.read`); **My profile** (`/admin/staff/myProfile`, lin
 
 ## Summary
 
-### Total Pages: 74
+### Total Pages: 75
 
 **Breakdown by Category:**
 - Core Platform: 6 pages
@@ -1444,7 +1460,7 @@ Sidebar: **Staff** (`staff.read`); **My profile** (`/admin/staff/myProfile`, lin
 - Food & Beverage: 8 pages
 - Inventory Management: 8 pages (includes inventory tasks)
 - Staff: 2 pages
-- Shift Management: 7 pages (hub, Department shifts, Attendance Tracker, Cover, Shift, Hours, Hours edit)
+- Shift Management: 8 pages (hub, Department shifts, Attendance Tracker, Cover, Shift, Hours, Hours edit, Punctuality)
 - Payroll Management: 6 pages (Time off, Payroll, Payroll detail, Payslip, Payment files, Payroll settings)
 - Maintenance Management: 4 pages
 - Task Assignment: 3 pages (My tasks, templates, SLA defaults)

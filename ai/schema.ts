@@ -557,6 +557,7 @@ export default defineSchema({
     regularHoursLimitDaily: v.optional(v.number()),
     regularHoursLimitWeekly: v.optional(v.number()),
     overtimeMultiplier: v.number(),
+    punctualityGraceMinutes: v.optional(v.number()),
     defaultPayCycleId: v.optional(v.string()),
     bankExportFormat: v.literal("generic_csv"),
     createdAt: v.number(),
@@ -835,6 +836,13 @@ export default defineSchema({
     isFinalized: v.boolean(),
     shiftTemplateId: v.optional(v.id("shiftTemplates")),
     rosterSlotId: v.optional(v.id("rosterSlots")),
+    expectedStart: v.optional(v.string()),
+    expectedEnd: v.optional(v.string()),
+    clockStartLocal: v.optional(v.string()),
+    minutesLate: v.optional(v.number()),
+    punctualityStatus: v.optional(
+      v.union(v.literal("on_time"), v.literal("late"), v.literal("unscheduled"))
+    ),
   })
     .index("by_propertyId", ["propertyId"])
     .index("by_userId", ["userId"])
