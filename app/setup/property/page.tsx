@@ -11,6 +11,7 @@ import { currencies, timezones } from '../../../lib/data';
 import { SubmitHandler, useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import { propertySetupSchema } from './validation';
+import { DASHBOARD_PATH, resolvePostAuthPath } from '../../../lib/route-access';
 import InputComponent from '../../../shared/input';
 import SelectComponent from '../../../shared/select';
 
@@ -78,7 +79,7 @@ export default function PropertySetupPage() {
     }
 
     if (userContext && userContext.roles.length > 0) {
-      router.replace('/admin/dashboard');
+      router.replace(resolvePostAuthPath(userContext));
     }
   }, [loginTracked, userContext, router]);
 
@@ -138,7 +139,7 @@ export default function PropertySetupPage() {
       } else {
         toast.success('Property created successfully!');
         setTimeout(() => {
-          router.push('/admin/dashboard');
+          router.push(DASHBOARD_PATH);
         }, 1500);
       }
     } catch (error: any) {

@@ -3,16 +3,18 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { ReactNode } from 'react';
+import { usePermissions } from '../hooks/usePermissions';
+import { DASHBOARD_PATH, getPostLoginPath } from '../lib/route-access';
 
-export function parentAdminPath(pathname: string): string | null {
+export function parentAdminPath(pathname: string, homePath = DASHBOARD_PATH): string | null {
   const clean = pathname.split('?')[0].replace(/\/$/, '') || '/';
-  if (clean === '/admin/dashboard' || clean === '/admin') {
+  if (clean === DASHBOARD_PATH || clean === '/admin' || clean === homePath) {
     return null;
   }
 
   const parts = clean.split('/').filter(Boolean);
   if (parts.length <= 2) {
-    return '/admin/dashboard';
+    return homePath;
   }
 
   parts.pop();
@@ -21,7 +23,9 @@ export function parentAdminPath(pathname: string): string | null {
 
 export function BackLink({ href }: { href?: string }) {
   const pathname = usePathname();
-  const to = href ?? parentAdminPath(pathname);
+  const { hasGranularPermission } = usePermissions();
+  const homePath = getPostLoginPath(hasGranularPermission);
+  const to = href ?? parentAdminPath(pathname, homePath);
   if (!to) {
     return null;
   }

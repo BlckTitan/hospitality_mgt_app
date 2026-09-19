@@ -961,6 +961,7 @@ export default defineSchema({
     lastUpdatedAt: v.number(),         // epoch ms of last mutation
   })
     .index("by_propertyId", ["propertyId"])
+    .index("by_propertyId_logDate", ["propertyId", "logDate"])
     .index("by_shiftId", ["shiftId"])
     .index("by_userId_date", ["userId", "logDate"])
     .index("by_userId_barId_date", ["userId", "barId", "logDate"])

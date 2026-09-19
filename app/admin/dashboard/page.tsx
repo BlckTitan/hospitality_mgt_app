@@ -1,55 +1,96 @@
-'use client'
+'use client';
 
-import React, { useState, Suspense } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { Button } from 'react-bootstrap';
 import { useQuery } from 'convex/react';
 import { api } from '../../../convex/_generated/api';
 import { Id } from '../../../convex/_generated/dataModel';
 import Spinner from '../../../shared/spinner';
+import { usePermissions } from '../../../hooks/usePermissions';
+import {
+  BillingCard,
+  FinancialReportCard,
+  FnBCard,
+  HousekeepingCard,
+  InventoryCard,
+  RoomsCard,
+} from './components/dashboard-cards';
+
+const TAB_LABELS = {
+  pnl: 'P&L / RevPAR',
+  rooms: 'Rooms',
+  housekeeping: 'Housekeeping',
+  inventory: 'Inventory',
+  fnb: 'F&B today',
+  billing: 'Billing',
+} as const;
+
+type TabId = keyof typeof TAB_LABELS;
 
 export default function Dashboard() {
-  const [propertyId, setPropertyId] = useState<string>('');
+  const [propertyId, setPropertyId] = useState('');
+  const [tab, setTab] = useState<TabId>('pnl');
+  const { hasGranularPermission, isLoading: permissionsLoading } = usePermissions();
+  const propertiesResponse = useQuery(api.property.listAccessibleProperties, {});
+  const properties = propertiesResponse?.data ?? [];
+  const currentPropertyId = (propertyId || properties[0]?._id || '') as Id<'properties'> | '';
 
-  return (
-    <Suspense fallback={
-      <div className='w-full h-full flex justify-center items-center'>
-        <Spinner size="lg" />
-      </div>
-    }>
-      <DashboardContent propertyId={propertyId} setPropertyId={setPropertyId} />
-    </Suspense>
-  );
-}
+  const canRooms = hasGranularPermission('rooms.read') || hasGranularPermission('reservations.read');
+  const canHousekeeping = hasGranularPermission('housekeeping.task.read');
+  const canInventory = hasGranularPermission('inventory.read');
+  const canFnB = hasGranularPermission('fnb.read');
+  const canBilling = hasGranularPermission('billing.period.read');
 
-function DashboardContent({ propertyId, setPropertyId }: { propertyId: string; setPropertyId: (id: string) => void }) {
-  const propertiesResponse = useQuery(api.property.getAllProperties);
-  const properties = propertiesResponse?.data || [];
-  const currentPropertyId = propertyId || properties?.[0]?._id || '';
+  const tabs = useMemo(() => {
+    const items: TabId[] = ['pnl'];
+    if (currentPropertyId && canRooms) items.push('rooms');
+    if (currentPropertyId && canHousekeeping) items.push('housekeeping');
+    if (currentPropertyId && canInventory) items.push('inventory');
+    if (currentPropertyId && canFnB) items.push('fnb');
+    if (currentPropertyId && canBilling) items.push('billing');
+    return items;
+  }, [canBilling, canFnB, canHousekeeping, canInventory, canRooms, currentPropertyId]);
 
-  if (!propertiesResponse?.data) {
+  useEffect(() => {
+    if (!tabs.includes(tab)) {
+      setTab(tabs[0] ?? 'pnl');
+    }
+  }, [tab, tabs]);
+
+  if (propertiesResponse === undefined || permissionsLoading) {
     return (
-      <div className='w-full h-full flex justify-center items-center'>
+      <div className="w-full h-full flex justify-center items-center">
         <Spinner size="lg" />
       </div>
     );
   }
 
-  if (propertiesResponse.data?.length === 0) {
+  if (!propertiesResponse.success) {
     return (
-      <div className='w-full h-full flex justify-center items-center'>
-        <p className='text-xl'>No properties yet!</p>
+      <div className="w-full h-full flex justify-center items-center">
+        <p className="text-xl">{propertiesResponse.message || 'Could not load properties.'}</p>
       </div>
     );
   }
 
+  if (properties.length === 0) {
+    return (
+      <div className="w-full h-full flex justify-center items-center">
+        <p className="text-xl">No properties yet!</p>
+      </div>
+    );
+  }
+
+  const selected = properties.find((property) => property._id === currentPropertyId) ?? properties[0];
+
   return (
-    <div className="w-full p-6 bg-gray-50">
+    <div className="w-full">
+      <header className="w-full border-b mb-4 pb-3">
+        <h1 className="text-2xl font-bold text-gray-800">Dashboard</h1>
+        <p className="text-gray-600">Property financial and operational health</p>
+      </header>
+
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">Dashboard</h1>
-        <p className="text-gray-600">Comprehensive overview of your hospitality business</p>
-      </div>
-
-      {/* Property Selector */}
-      <div className="mb-6" >
         <label htmlFor="property-select" className="block text-sm font-medium text-gray-700 mb-2">
           Select Property
         </label>
@@ -57,9 +98,9 @@ function DashboardContent({ propertyId, setPropertyId }: { propertyId: string; s
           id="property-select"
           value={currentPropertyId}
           onChange={(e) => setPropertyId(e.target.value)}
-          className="block w-full lg:w-3/12! px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+          className="block w-full md:w-64 px-3 py-2 border border-gray-300 rounded-md"
         >
-          {properties.map((property: any) => (
+          {properties.map((property) => (
             <option key={property._id} value={property._id}>
               {property.name}
             </option>
@@ -67,16 +108,41 @@ function DashboardContent({ propertyId, setPropertyId }: { propertyId: string; s
         </select>
       </div>
 
-      {/* Sales Summary Charts */}
-      {/* <DashboardSalesCharts currentPropertyId={currentPropertyId as Id<"properties">} /> */}
-
-      {/* Additional Dashboard Sections */}
-      <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">Recent Activity</h3>
-          <p className="text-gray-600">Recent transactions and activities will appear here.</p>
-        </div>
+      <div className="flex flex-wrap gap-2 mb-4">
+        {tabs.map((item) => (
+          <Button
+            key={item}
+            size="sm"
+            variant={tab === item ? 'dark' : 'outline-secondary'}
+            onClick={() => setTab(item)}
+          >
+            {TAB_LABELS[item]}
+          </Button>
+        ))}
       </div>
+
+      {tab === 'pnl' && currentPropertyId && (
+        <FinancialReportCard
+          propertyId={currentPropertyId}
+          currency={selected.currency}
+          timeZone={selected.timezone}
+        />
+      )}
+      {tab === 'rooms' && currentPropertyId && <RoomsCard propertyId={currentPropertyId} />}
+      {tab === 'housekeeping' && currentPropertyId && <HousekeepingCard propertyId={currentPropertyId} />}
+      {tab === 'inventory' && currentPropertyId && (
+        <InventoryCard propertyId={currentPropertyId} currency={selected.currency} />
+      )}
+      {tab === 'fnb' && currentPropertyId && (
+        <FnBCard
+          propertyId={currentPropertyId}
+          currency={selected.currency}
+          canReadInventory={canInventory}
+        />
+      )}
+      {tab === 'billing' && currentPropertyId && (
+        <BillingCard propertyId={currentPropertyId} currency={selected.currency} />
+      )}
     </div>
   );
 }

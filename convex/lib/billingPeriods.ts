@@ -76,3 +76,17 @@ export function weekWindow(now: number, timeZone: string) {
 export function propertyTimeZone(property: Doc<"properties"> | null): string {
   return property?.timezone?.trim() || "UTC";
 }
+
+function pad2(value: number): string {
+  return value.toString().padStart(2, "0");
+}
+
+export function localDayBounds(
+  now: number,
+  timeZone: string,
+): { start: number; end: number; dateKey: string } {
+  const { y, m, d } = ymdInZone(now, timeZone || "UTC");
+  const start = Date.UTC(y, m - 1, d);
+  const end = Date.UTC(y, m - 1, d + 1) - 1;
+  return { start, end, dateKey: `${y}-${pad2(m)}-${pad2(d)}` };
+}

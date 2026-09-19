@@ -1,4 +1,10 @@
 **Report and Analytics**
+
+This document is the **financial metrics** catalog (RevPAR, GOPPAR, cost %, liquidity ratios, and so on).
+
+- Property dashboard after login: `/admin/dashboard` (`reports.read`) — P&L / RevPAR for the selected property, plus rooms, housekeeping, inventory, today’s F&B, billing. Spec: `ai/dashboard.md`.
+- Users without `reports.read` land on `/admin/staff/myProfile`, not the dashboard.
+
 To truly measure the financial health of a hospitality enterprise (hotels, resorts, restaurants, etc.), you must track a comprehensive set of metrics that address four core areas: Operational Performance, Profitability, Liquidity & Solvency, and Efficiency.
 
 Below is a breakdown of the key metrics, including hospitality-specific indicators and general financial ratios:

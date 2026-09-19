@@ -16,7 +16,8 @@ Comprehensive collection of TypeScript helper functions for implementing entitie
 8. [Validation Helpers](#validation-helpers)
 9. [Data Transformation](#data-transformation)
 10. [Query Builders](#query-builders)
-11. [Error Handling](#error-handling)
+11. [Access & Routing](#access--routing)
+12. [Error Handling](#error-handling)
 
 ---
 
@@ -1551,6 +1552,30 @@ export function paginateArray<T>(
 
 ---
 
+## Access & Routing
+
+Post-login and “home” fallbacks must not hardcode `/admin/dashboard`. Spec: `ai/dashboard.md`.
+
+```typescript
+/**
+ * Destination after login, setup, `/`, and unauthorized primary action.
+ * Dashboard stays gated by reports.read; everyone else goes to My profile.
+ */
+export function getPostLoginPath(
+  hasGranularPermission: (granular: string) => boolean,
+): string {
+  return canAccessPath('/admin/dashboard', hasGranularPermission)
+    ? '/admin/dashboard'
+    : '/admin/staff/myProfile';
+}
+```
+
+`listAccessibleProperties` (Convex query, `args: {}`): returns `{ _id, name, currency, timezone }` for `authContext.propertyIds`. Used by the dashboard instead of `getAllProperties` so `reports.read` without `properties.read` still works.
+
+`getFinancialReport` (`convex/dashboard.ts`, `reports.read`): property P&L + RevPAR for `[start, end)`. Rooms + F&B revenue, expenses by category, occupancy, ADR, RevPAR, TRevPAR, GOP, GOPPAR. Available rooms = current sellable inventory × period nights.
+
+---
+
 ## Query Builders
 
 ### Build Reservation Filter Query
@@ -1720,6 +1745,7 @@ All helper functions are categorized by domain and include:
 - **Validation Helpers**: Email, phone, dates, payment amounts, purchase orders
 - **Data Transformation**: Currency/percentage formatting, entity to DTO conversion, pagination
 - **Query Builders**: Dynamic filter query builders for reservations and expenses
+- **Access & Routing**: `getPostLoginPath` (dashboard vs My profile); `listAccessibleProperties` for dashboard property scope
 - **Error Handling**: Standardized error classes and safe calculation wrappers
 
 These helpers enable:

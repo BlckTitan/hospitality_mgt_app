@@ -4,7 +4,34 @@ import { requirePermission, requirePermissionOrInitialSetup, getAuthContext } fr
 import { assignAdministratorRoleForProperty } from './lib/systemRoles';
 import { seedPayrollForProperty } from './lib/payrollHelpers';
 
+export const listAccessibleProperties = query({
+  args: {},
+  handler: async (ctx) => {
+    const authContext = await getAuthContext(ctx);
+    if (!authContext) {
+      return { success: false, data: [], message: 'Not authenticated' };
+    }
+
+    const properties = (
+      await Promise.all(
+        authContext.propertyIds.map((propertyId) => ctx.db.get(propertyId)),
+      )
+    ).filter((property): property is NonNullable<typeof property> => property !== null);
+
+    return {
+      success: true,
+      data: properties.map((property) => ({
+        _id: property._id,
+        name: property.name,
+        currency: property.currency,
+        timezone: property.timezone,
+      })),
+    };
+  },
+});
+
 export const getAllProperties = query({
+  args: {},
   handler: async (ctx) => {
     const authContext = await getAuthContext(ctx);
     if (!authContext) {

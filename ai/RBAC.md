@@ -49,7 +49,7 @@ This document defines a comprehensive Role-Based Access Control (RBAC) model for
 8. Inventory Management
 9. Financial Management
 10. Billing (bill accounts, period bills, mark-paid → expense)
-11. Reports & Analytics
+11. Reports & Analytics (includes the operational dashboard page)
 12. System Settings
 13. Maintenance & Facilities
 14. Security & Access Logs
@@ -185,6 +185,33 @@ Route access (`lib/proxy-permissions.ts`; `granular` may be a string or string[]
 | Attendance Tracker | `/admin/shift-management/attendance` | `payroll.timesheet.create` or `fnb.read` |
 | Shift list | `/admin/shift-management/shift` | `staff.read` or `payroll.timesheet.create` or `fnb.read` |
 | Hours | `/admin/shift-management/hours` | `payroll.timesheet.read` (edit: `payroll.timesheet.update`) |
+
+### Reports & Analytics / Operational dashboard
+
+Permission keys stay technical. The metrics catalog is `ai/report_analytcs.md`. The dashboard (`/admin/dashboard`) is the property P&L / RevPAR + operations view.
+
+- reports.read — page access for `/admin/dashboard` and `getFinancialReport`
+- reports.create
+- reports.export
+
+Operational tabs still check their own module keys (`rooms.read`, `inventory.read`, `fnb.read`, `billing.period.read`, `housekeeping.task.read`, etc.). Missing a tab key hides that tab; it does not open the page.
+
+| Screen | Path | Permission |
+|---|---|---|
+| Property dashboard | `/admin/dashboard` | `reports.read` |
+| My profile (default home without dashboard) | `/admin/staff/myProfile` | `staff.self.read` |
+
+**Post-login routing** (`getPostLoginPath` in `lib/route-access.ts`; spec `ai/dashboard.md`):
+
+- Has `reports.read` → `/admin/dashboard`
+- Does not → `/admin/staff/myProfile`
+
+Apply that helper in `proxy.ts`, home, sign-in default, property setup finish, unauthorized primary button, and `parentAdminPath` Back fallback. Do not send every role to the dashboard.
+
+**Role mapping (Reports column in the matrix):**
+- Administrator, Director, General Manager, Operations Manager, Finance Manager, IT Manager, Manager: `reports.read` (FULL) — land on the dashboard
+- Assistant Manager, Supervisor, Receptionist, Concierge: LIMITED or VIEW reports — treat as `reports.read` when the role matrix grants Reports VIEW/LIMITED/FULL
+- Housekeeping, Waiter, Bartender, Cook, Kitchen Assistant, Maintenance Staff, Security Officer: Reports NONE — land on My profile
 
 ### Food & Beverage
 - fnb.order.create

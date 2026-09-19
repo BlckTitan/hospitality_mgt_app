@@ -1,5 +1,9 @@
+import { createPermissionChecker, type UserContext } from './permission-utils';
 import { ROUTE_PERMISSIONS } from './proxy-permissions';
 import { matchRoute } from './route-matching';
+
+export const DASHBOARD_PATH = '/admin/dashboard';
+export const STAFF_HOME_PATH = '/admin/staff/myProfile';
 
 export const SECTION_HUBS = [
   '/admin/user',
@@ -51,6 +55,27 @@ export function canAccessPath(
   }
 
   return !matchedRoute;
+}
+
+export function getPostLoginPath(
+  hasGranularPermission: (granular: string) => boolean,
+): string {
+  return canAccessPath(DASHBOARD_PATH, hasGranularPermission)
+    ? DASHBOARD_PATH
+    : STAFF_HOME_PATH;
+}
+
+export function resolvePostAuthPath(
+  userContext: UserContext,
+  requestedPath?: string | null,
+): string {
+  const checker = createPermissionChecker(userContext);
+  const hasGranularPermission = (granular: string) =>
+    checker.hasGranularPermission(granular);
+  if (requestedPath && canAccessPath(requestedPath, hasGranularPermission)) {
+    return requestedPath;
+  }
+  return getPostLoginPath(hasGranularPermission);
 }
 
 type NavLeaf = {

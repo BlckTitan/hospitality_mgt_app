@@ -16,6 +16,7 @@ import type * as beverages from "../beverages.js";
 import type * as billing from "../billing.js";
 import type * as cron from "../cron.js";
 import type * as crons from "../crons.js";
+import type * as dashboard from "../dashboard.js";
 import type * as expenses from "../expenses.js";
 import type * as functions_paginated from "../functions/paginated.js";
 import type * as guests from "../guests.js";
@@ -86,6 +87,7 @@ declare const fullApi: ApiFromModules<{
   billing: typeof billing;
   cron: typeof cron;
   crons: typeof crons;
+  dashboard: typeof dashboard;
   expenses: typeof expenses;
   "functions/paginated": typeof functions_paginated;
   guests: typeof guests;

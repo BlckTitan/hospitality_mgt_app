@@ -12,7 +12,7 @@ import {
   PUBLIC_ROUTES,
 } from './lib/proxy-helpers';
 import { isSignInEntryPath, isSignUpEntryPath } from './lib/auth-routes';
-import { canAccessPath } from './lib/route-access';
+import { canAccessPath, resolvePostAuthPath } from './lib/route-access';
 
 const isAdminRoute = createRouteMatcher(['/admin(.*)']);
 const isSetupRoute = createRouteMatcher(['/setup(.*)']);
@@ -42,8 +42,8 @@ export default clerkMiddleware(async (auth, req) => {
       return NextResponse.redirect(setupUrl);
     }
 
-    const dashboardUrl = new URL('/admin/dashboard', req.url);
-    return NextResponse.redirect(dashboardUrl);
+    const homeUrl = new URL(resolvePostAuthPath(userContext), req.url);
+    return NextResponse.redirect(homeUrl);
   }
 
   if (!userId && (isAdminRoute(req) || isSetupRoute(req))) {
@@ -65,8 +65,8 @@ export default clerkMiddleware(async (auth, req) => {
 
     // If user has roles (e.g., from an accepted invite), skip property setup
     if (userContext && !needsPropertySetup(userContext)) {
-      const dashboardUrl = new URL('/admin/dashboard', req.url);
-      return NextResponse.redirect(dashboardUrl);
+      const homeUrl = new URL(resolvePostAuthPath(userContext), req.url);
+      return NextResponse.redirect(homeUrl);
     }
 
     // Otherwise, proceed with property setup
@@ -75,9 +75,23 @@ export default clerkMiddleware(async (auth, req) => {
   }
 
   if (userId && isSignInEntryPath(pathname)) {
-    const redirectUrl = req.nextUrl.searchParams.get('redirect_url') || '/admin/dashboard';
-    const url = new URL(redirectUrl, req.url);
-    return NextResponse.redirect(url);
+    const authToken = await getClerkConvexAuthToken(getToken);
+
+    if (isMissingClerkConvexJwtTemplate(userId, authToken)) {
+      logMissingClerkConvexJwtTemplate('middleware-signin');
+      const setupUrl = new URL('/auth/clerk-setup', req.url);
+      return NextResponse.redirect(setupUrl);
+    }
+
+    const userContext = await ensureUserAndGetContext(authToken);
+    if (!userContext || needsPropertySetup(userContext)) {
+      const setupUrl = new URL('/setup/property', req.url);
+      return NextResponse.redirect(setupUrl);
+    }
+
+    const requested = req.nextUrl.searchParams.get('redirect_url');
+    const homeUrl = new URL(resolvePostAuthPath(userContext, requested), req.url);
+    return NextResponse.redirect(homeUrl);
   }
 
   if (userId && !isPublicRoute(req)) {
@@ -117,8 +131,8 @@ export default clerkMiddleware(async (auth, req) => {
     }
 
     if (isSetupRoute(req)) {
-      const dashboardUrl = new URL('/admin/dashboard', req.url);
-      return NextResponse.redirect(dashboardUrl);
+      const homeUrl = new URL(resolvePostAuthPath(userContext), req.url);
+      return NextResponse.redirect(homeUrl);
     }
 
     const permissionChecker = createPermissionChecker(userContext);

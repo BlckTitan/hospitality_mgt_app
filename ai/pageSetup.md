@@ -684,7 +684,7 @@ This document outlines which entities should have dedicated pages and the data f
 
 ## Staff, Shift Management, and Payroll Pages
 
-Sidebar: **Staff** (`staff.read`); **My profile** (`/admin/staff/myProfile`, linked login); **Shift Management** → Department shifts, Attendance Tracker, Cover, Shift, Hours, Punctuality; **Payroll** → Payroll, Time off, Payroll settings.
+Sidebar: **Dashboard** (`/admin/dashboard`, `reports.read` — hidden without it); **Staff** (`staff.read`); **My profile** (`/admin/staff/myProfile`, linked login; post-login home without `reports.read`); **Shift Management** → Department shifts, Attendance Tracker, Cover, Shift, Hours, Punctuality; **Payroll** → Payroll, Time off, Payroll settings.
 
 ### 33. Staff Page (`/admin/staff`)
 **Purpose**: Manage staff records (Convex table `staffs`; no `employees` table)
@@ -723,7 +723,7 @@ Sidebar: **Staff** (`staff.read`); **My profile** (`/admin/staff/myProfile`, lin
 ---
 
 ### 34z. My profile (`/admin/staff/myProfile`)
-**Purpose**: Self-service for a User linked to Staff.
+**Purpose**: Self-service for a User linked to Staff. Also the **post-login home** when the user does not have `reports.read` (see `ai/dashboard.md`).
 
 **Data Fetching:** Resolve `staffs` by current `userId`. Own identity (read-only), emergency/contact, masked bank, onboarding, recent Hours, Time off, Payslips, own punctuality (week/month). Submit contact/bank/emergency change requests. Request Time off via `payroll.leave.create`.
 
@@ -1419,34 +1419,35 @@ Sidebar: **Staff** (`staff.read`); **My profile** (`/admin/staff/myProfile`, lin
 
 ## Dashboard Pages
 
-### 61. Main Dashboard (`/dashboard`)
-**Purpose**: Overview of key metrics and recent activity
+### 61. Main Dashboard (`/admin/dashboard`)
+**Purpose**: Property financial and operational health for users with `reports.read`. Default tab is P&L / RevPAR. Spec: `ai/dashboard.md`. Not signed-in-person work (no my shift / my tasks).
+
+**Permission:** page requires `reports.read`. After logon (and for `/`, sign-in default, setup finish, unauthorized primary button, Back fallback), `getPostLoginPath` sends `reports.read` users here and everyone else to `/admin/staff/myProfile`.
 
 **Data Fetching:**
-- Fetch summary statistics:
-  - Today's reservations (count, revenue)
-  - Today's orders (count, revenue)
-  - Pending housekeeping tasks
-  - Low stock inventory items
-  - Pending maintenance orders
-  - Recent payments
-- Fetch recent `Reservation` records (last 10)
-- Fetch recent `Order` records (last 10)
-- Fetch upcoming `Reservation` records (next 7 days)
-- Fetch key metrics from latest `ReportSnapshot` (if available)
+- Properties via `listAccessibleProperties` (auth `propertyIds` only; do not use `getAllProperties`, which needs `properties.read`)
+- Summaries are tabs. P&L / RevPAR is always listed. Other tabs appear only if the module read key is present; the active tab’s query runs:
+  - P&L / RevPAR: `getFinancialReport` (`reports.read`) — day / week / month / year via `cashPeriod`; rooms + F&B revenue, expenses by category, occupancy, ADR, RevPAR, TRevPAR, GOP, GOPPAR
+  - Rooms: `getRoomsSnapshot` (`rooms.read` or `reservations.read`) — occupancy counts; today’s arrivals / departures / in-house (max 5 each)
+  - Housekeeping: `getHousekeepingSnapshot` (`housekeeping.task.read`) — open / overdue / unassigned; up to 5 overdue titles
+  - Inventory: `getInventoryDashboard` (`inventory.read`)
+  - F&B today: `getFnBTodaySnapshot` (`fnb.read`) from today’s `userStockLogs`; open reorder count if `inventory.read`
+  - Billing: `listDashboard` (`billing.period.read`)
+- Do not call `getAllRooms` or `getAllReservations`. Do not chart raw `salesSummaries` SKU rows on this page.
 
 **Related Entities to Include:**
-- `Reservation` (where `checkInDate` = today or `status IN ('confirmed', 'checked-in')`, limit 10)
-- `Order` (where `createdAt` >= today, limit 10)
-- `Reservation` (where `checkInDate` BETWEEN today AND today+7 days)
-- `HousekeepingTask` (where `status IN ('pending', 'in-progress')`, count)
-- `InventoryTask` (where `status IN ('pending', 'in-progress')`, count)
-- `InventoryItem` (where `currentQuantity <= reorderPoint`, count)
-- `MaintenanceOrder` (where `status IN ('pending', 'in-progress')`, count)
-- Latest `ReportSnapshot` (for key metrics)
+- `Property` (accessible ids: name, currency, timezone)
+- `rooms` (sellable inventory for RevPAR; status counts)
+- `reservations` (period room nights + revenue; today arrivals/departures/in-house)
+- `expenses` (period P&L by category)
+- `housekeepingTasks` (open/overdue/unassigned counts)
+- `inventoryItems` / `purchaseOrders` (inventory dashboard payload)
+- `userStockLogs` (period F&B revenue; today qty + revenue)
+- `reorderAlerts` (open count)
+- `billPeriods` / `billAccounts` (overdue, due this week)
 
 **Rendering Strategy: SSR**
-- **Reason**: Dashboard shows real-time operational data (today's reservations, orders, pending tasks), metrics update frequently, critical for daily operations, requires fresh data for decision-making
+- **Reason**: Operational counts change through the day; each card is a live Convex subscription scoped to the selected property.
 
 ---
 

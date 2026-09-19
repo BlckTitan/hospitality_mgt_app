@@ -6,12 +6,11 @@ import { useMutation, useQuery } from 'convex/react';
 import React, { useEffect, useState } from 'react';
 import Spinner from '../../../shared/spinner';
 import { api } from '../../../convex/_generated/api';
-
-const DEFAULT_REDIRECT = '/admin/dashboard';
+import { DASHBOARD_PATH, resolvePostAuthPath } from '../../../lib/route-access';
 
 export default function Page() {
   const searchParams = useSearchParams();
-  const redirectUrl = searchParams.get('redirect_url') || DEFAULT_REDIRECT;
+  const redirectUrl = searchParams.get('redirect_url') || DASHBOARD_PATH;
   const router = useRouter();
 
   const { isLoaded, userId } = useAuth();
@@ -45,7 +44,9 @@ export default function Page() {
       return;
     }
 
-    const destination = userContext && userContext.roles?.length > 0 ? redirectUrl : '/setup/property';
+    const destination = userContext && userContext.roles?.length > 0
+      ? resolvePostAuthPath(userContext, redirectUrl)
+      : '/setup/property';
     router.replace(destination);
   }, [loginTracked, userContext, redirectUrl, router]);
 

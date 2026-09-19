@@ -67,11 +67,13 @@ Hospitality operators juggle siloed systems for reservations, POS, payroll, proc
    - General inventory (linen, amenities, cleaning supplies, spare parts).
    - **Purchase documentation**: All inventory purchases require supplier invoices, delivery notes, and payment receipts to be uploaded and linked.
 7. **Reporting & Analytics**
+   - **Property dashboard** (`/admin/dashboard`, `reports.read`): property P&L / RevPAR plus operational snapshots (rooms, housekeeping, inventory, today’s F&B, billing). Not signed-in-person work. Module tabs hide when the read key is missing. Spec: `ai/dashboard.md`.
    - Daily flash reports, monthly statements, yearly trend analysis.
    - Custom report builder with filters by department, cost center, channel.
    - Real-time dashboards for cash flow, occupancy, ADR, labor cost %, food cost %, etc.
 8. **Platform Foundations**
    - Role-based access control, audit logs, SOC2-ready security controls.
+   - **Post-login home**: users with `reports.read` land on `/admin/dashboard` (property P&L / operations; `ai/dashboard.md`). Everyone else lands on `/admin/staff/myProfile`. Same rule for `/`, sign-in default, setup finish, and the unauthorized primary button.
    - **User onboarding**: new users are created only via Clerk invitation. The admin selects a defined Role and Property; on accept, the system writes a `UserRole` row. Existing users cannot be re-invited — additional roles or properties are assigned on the user record.
    - Multi-channel accessibility: responsive web, optimized tablet/mobile web, future native apps.
    - Native POS/PMS capabilities: built-in reservation management and point-of-sale functionality for businesses operating without existing systems.
@@ -153,7 +155,7 @@ Hospitality operators juggle siloed systems for reservations, POS, payroll, proc
 - **Pay setup**: opening Pay history on create; later rate changes write a new Pay history row (denormalized `payType` / `baseSalary` / `hourlyRate`). Bank fields required only when `paymentMethod = bank`. This person’s pay items (`staffPayItems`) are assigned on the staff record.
 - **HR files** (Staff-only, not the full DMS): contracts, ID copies, tax forms, bank letters, policies. Emergency contact and national ID on the profile.
 - **Onboarding checklist**: seeded on create (personal details, emergency contact, ID, contract, payment method, tax ID, login link, department shift).
-- **Self-service** (`/admin/staff/myProfile`): linked staff read own profile, Hours, Time off, Payslips; request Time off; propose contact/bank/emergency edits for HR approval. They cannot edit job, status, or pay.
+- **Self-service** (`/admin/staff/myProfile`): linked staff read own profile, Hours, Time off, Payslips; request Time off; propose contact/bank/emergency edits for HR approval. They cannot edit job, status, or pay. This is also the default post-login page when the user does not have `reports.read`.
 - **PII**: salary, tax ID, and bank details are returned only to Administrator, Director, General Manager, HR Manager, and Finance Manager (`staff.compensation.read` / `update`). Supervisors see identity and roster fields only.
 
 ### Payroll

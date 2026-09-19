@@ -3,8 +3,14 @@
 import Link from 'next/link';
 import { ShieldX } from 'lucide-react';
 import { Button } from 'react-bootstrap';
+import { usePermissions } from '../../hooks/usePermissions';
+import { DASHBOARD_PATH, getPostLoginPath } from '../../lib/route-access';
 
 export default function UnauthorizedPage() {
+  const { hasGranularPermission, isLoading } = usePermissions();
+  const homePath = getPostLoginPath(hasGranularPermission);
+  const goesToDashboard = homePath === DASHBOARD_PATH;
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="max-w-md w-full space-y-8 p-8">
@@ -22,9 +28,9 @@ export default function UnauthorizedPage() {
           </p>
           
           <div className="space-y-4">
-            <Link href="/admin/dashboard">
+            <Link href={isLoading ? DASHBOARD_PATH : homePath}>
               <Button className="w-full">
-                Go to Dashboard
+                {goesToDashboard ? 'Go to Dashboard' : 'Go to My Profile'}
               </Button>
             </Link>
             

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useQuery } from 'convex/react';
 import { useEffect } from 'react';
 import { api } from '../convex/_generated/api';
+import { resolvePostAuthPath } from '../lib/route-access';
 
 export default function Home() {
   const { isLoaded, isSignedIn } = useAuth();
@@ -14,7 +15,9 @@ export default function Home() {
   useEffect(() => {
     if (!isLoaded || !isSignedIn || userContext === undefined) return;
 
-    const destination = userContext && userContext.roles?.length > 0 ? '/admin/dashboard' : '/setup/property';
+    const destination = userContext && userContext.roles?.length > 0
+      ? resolvePostAuthPath(userContext)
+      : '/setup/property';
     router.replace(destination);
   }, [isLoaded, isSignedIn, userContext, router]);
 
