@@ -9,12 +9,13 @@ import { Button } from "react-bootstrap";
 import InputComponent from "../../../../../shared/input";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { api } from "../../../../../convex/_generated/api";
+import { formatPropertyMoney, usePropertyCurrency } from "../../components/money";
 
 type FormData = {
   orderNumber: string;
   supplierId: string;
-  orderDate: number;
-  expectedDeliveryDate?: number;
+  orderDate: string;
+  expectedDeliveryDate?: string;
   status: string;
   subtotal: number;
   taxAmount: number;
@@ -27,7 +28,6 @@ interface CreatePurchaseOrderFormProps {
   onSuccess: () => void;
   onClose: () => void;
   propertyId: string;
-  createdBy: string;
 }
 
 export function FormComponent({ 
@@ -35,17 +35,17 @@ export function FormComponent({
   onSuccess, 
   onClose, 
   propertyId,
-  createdBy 
 }: CreatePurchaseOrderFormProps) {
   const createPurchaseOrder = useMutation(api.purchaseOrders.createPurchaseOrder);
+  const currency = usePropertyCurrency(propertyId);
 
   const { register, handleSubmit, formState: { errors }, reset, watch } = useForm<FormData>({
     resolver: yupResolver(formSchema) as any,
     defaultValues: {
       orderNumber: '',
       supplierId: '',
-      orderDate: Date.now(),
-      expectedDeliveryDate: undefined,
+      orderDate: new Date().toISOString().slice(0, 10),
+      expectedDeliveryDate: '',
       status: 'draft',
       subtotal: 0,
       taxAmount: 0,
@@ -66,14 +66,13 @@ export function FormComponent({
         propertyId: propertyId as Id<'properties'>,
         supplierId: data.supplierId as Id<'suppliers'>,
         orderNumber: data.orderNumber,
-        orderDate: Math.floor(new Date(data.orderDate).getTime()),
-        expectedDeliveryDate: data.expectedDeliveryDate ? Math.floor(new Date(data.expectedDeliveryDate).getTime()) : undefined,
+        orderDate: new Date(data.orderDate).getTime(),
+        expectedDeliveryDate: data.expectedDeliveryDate ? new Date(data.expectedDeliveryDate).getTime() : undefined,
         status: data.status,
         subtotal: Number(data.subtotal),
         taxAmount: Number(data.taxAmount),
         shippingAmount: data.shippingAmount ? Number(data.shippingAmount) : undefined,
         totalAmount: totalAmount,
-        createdBy: createdBy as Id<'staffs'>,
       });
 
       if (response.success === false) {
@@ -81,10 +80,7 @@ export function FormComponent({
       } else {
         toast.success('Purchase order created successfully!');
         reset();
-        setTimeout(() => {
-          onSuccess();
-          window.location.href = '/admin/inventory-management/purchase-order';
-        }, 1500);
+        onSuccess();
       }
     } catch (error: any) {
       console.error('Create purchase order failed:', error);
@@ -157,7 +153,6 @@ export function FormComponent({
             <option value="draft">Draft</option>
             <option value="sent">Sent</option>
             <option value="confirmed">Confirmed</option>
-            <option value="received">Received</option>
             <option value="cancelled">Cancelled</option>
           </select>
           {errors.status && <span className="text-red-600 text-sm">{errors.status.message}</span>}
@@ -168,7 +163,7 @@ export function FormComponent({
         <div className="flex-1">
           <InputComponent
             id="subtotal"
-            label="Subtotal *"
+            label={`Subtotal (${currency}) *`}
             type="number"
             inputWidth="w-full"
             register={register('subtotal', { required: true })}
@@ -178,7 +173,7 @@ export function FormComponent({
         <div className="flex-1">
           <InputComponent
             id="taxAmount"
-            label="Tax Amount *"
+            label={`Tax Amount (${currency}) *`}
             type="number"
             inputWidth="w-full"
             register={register('taxAmount', { required: true })}
@@ -191,7 +186,7 @@ export function FormComponent({
         <div className="flex-1">
           <InputComponent
             id="shippingAmount"
-            label="Shipping Amount"
+            label={`Shipping Amount (${currency})`}
             type="number"
             inputWidth="w-full"
             register={register('shippingAmount')}
@@ -201,7 +196,7 @@ export function FormComponent({
         <div className="flex-1">
           <div className="p-3 bg-gray-100 rounded">
             <p className="text-sm font-medium">Total Amount</p>
-            <p className="text-2xl font-bold">${(Number(subtotal) + Number(taxAmount) + Number(shippingAmount)).toFixed(2)}</p>
+            <p className="text-2xl font-bold">{formatPropertyMoney(Number(subtotal) + Number(taxAmount) + Number(shippingAmount), currency)}</p>
           </div>
         </div>
       </div>

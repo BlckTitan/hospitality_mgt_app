@@ -9,17 +9,16 @@ import { FormComponent } from './components/createSupplierForm';
 import { useQuery } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 import BootstrapModal from '../../../../shared/modal';
+import { usePermissions } from '../../../../hooks/usePermissions';
+import { InventoryPageGuide } from '../components/inventoryPageGuide';
 
-export default function SupplierPage() {
+export default function Page() {
   const [modalShow, setModalShow] = useState(false);
-  const [propertyId, setPropertyId] = useState<string>('');
-
-  // Fetch properties to get the current property
+  const { hasGranularPermission } = usePermissions();
+  const canCreate = hasGranularPermission('inventory.create');
   const propertiesResponse = useQuery(api.property.getAllProperties);
-  const properties = propertiesResponse?.data || [];
-  const currentPropertyId = propertyId || properties?.[0]?._id || '';
+  const currentPropertyId = propertiesResponse?.data?.[0]?._id || '';
 
-  // check if property is loading
   if (!propertiesResponse?.data) {
     return (
       <div className='w-full h-full flex justify-center items-center'>
@@ -28,7 +27,7 @@ export default function SupplierPage() {
     );
   }
 
-  if (propertiesResponse.data?.length === 0) {
+  if (propertiesResponse.data.length === 0) {
     return (
       <div className='w-full h-full flex justify-center items-center'>
         <p className='text-xl'>No properties yet!</p>
@@ -42,26 +41,25 @@ export default function SupplierPage() {
         <h3>Suppliers</h3>
         <div className="flex items-center gap-3">
           <BackLink />
-        <Button
-          variant="light"
-          className="cursor-pointer"
-          style={{ width: 'fit', height: 'fit', padding: '0', borderRadius: '100%' }}
-          onClick={() => setModalShow(true)}
-        >
-          <FcPlus className="w-8 h-8" />
-        </Button>
-      
+          {canCreate && (
+            <Button
+              variant="light"
+              className="cursor-pointer"
+              style={{ width: 'fit', height: 'fit', padding: '0', borderRadius: '100%' }}
+              onClick={() => setModalShow(true)}
+            >
+              <FcPlus className="w-8 h-8" />
+            </Button>
+          )}
         </div>
       </header>
 
-      <Suppliers currentPropertyId={currentPropertyId}/>
+      <InventoryPageGuide page="suppliers" />
+      <Suppliers currentPropertyId={currentPropertyId} />
 
       <ModalComponent
         modalShow={modalShow}
         setModalShow={setModalShow}
-        onSuccess={() => {
-          setModalShow(false);
-        }}
         propertyId={currentPropertyId}
       />
     </div>
@@ -71,7 +69,6 @@ export default function SupplierPage() {
 function ModalComponent(props: {
   modalShow: boolean;
   setModalShow: (show: boolean) => void;
-  onSuccess: () => void;
   propertyId: string;
 }) {
   return (
@@ -83,7 +80,7 @@ function ModalComponent(props: {
       heading="Add New Supplier"
       body={
         <FormComponent
-          onSuccess={props.onSuccess}
+          onSuccess={() => props.setModalShow(false)}
           onClose={() => props.setModalShow(false)}
           propertyId={props.propertyId}
         />

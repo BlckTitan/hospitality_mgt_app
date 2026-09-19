@@ -13,11 +13,11 @@ export const formSchema = yup.object().shape({
     .required("Supplier is required"),
 
   orderDate: yup
-    .number()
+    .string()
     .required("Order date is required"),
 
   expectedDeliveryDate: yup
-    .number()
+    .string()
     .optional()
     .nullable(),
 

@@ -9,13 +9,14 @@ import { Button } from "react-bootstrap";
 import InputComponent from "../../../../../shared/input";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { api } from "../../../../../convex/_generated/api";
+import { usePropertyCurrency } from "../../components/money";
 
 type FormData = {
   sku: string;
   name: string;
   category: string;
   unit: string;
-  currentQuantity: number;
+  openingQuantity?: number;
   reorderPoint?: number;
   reorderQuantity?: number;
   unitCost?: number;
@@ -26,6 +27,7 @@ type FormData = {
 
 export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: () => void; onClose: () => void; propertyId: string }) {
   const createInventoryItem = useMutation(api.inventoryItems.createInventoryItem);
+  const currency = usePropertyCurrency(propertyId);
   const suppliersResponse = useQuery(api.suppliers.getAllSuppliers, { propertyId: propertyId as Id<'properties'>, activeOnly: true });
   const suppliers = suppliersResponse?.data || [];
 
@@ -36,7 +38,7 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
       name: '',
       category: '',
       unit: '',
-      currentQuantity: 0,
+      openingQuantity: 0,
       reorderPoint: undefined,
       reorderQuantity: undefined,
       unitCost: undefined,
@@ -55,7 +57,7 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
         name: data.name,
         category: data.category,
         unit: data.unit,
-        currentQuantity: data.currentQuantity,
+        openingQuantity: data.openingQuantity,
         reorderPoint: data.reorderPoint,
         reorderQuantity: data.reorderQuantity,
         unitCost: data.unitCost,
@@ -68,10 +70,7 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
       } else {
         toast.success('Inventory item created successfully!');
         reset();
-        setTimeout(() => {
-          onSuccess();
-          window.location.href = '/admin/inventory-management/inventory-item';
-        }, 1500);
+        onSuccess();
       }
     } catch (error: any) {
       console.error('Add new inventory item failed:', error);
@@ -174,18 +173,18 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
       <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-start gap-2 mb-2 lg:mb-4">
         <div className="flex-1">
           <InputComponent
-            id="currentQuantity"
-            label="Current Quantity *"
+            id="openingQuantity"
+            label="Opening quantity"
             type="number"
             inputWidth="w-full"
-            register={register('currentQuantity', { required: true, valueAsNumber: true, min: 0 })}
-            error={errors.currentQuantity}
+            register={register('openingQuantity', { valueAsNumber: true, min: 0 })}
+            error={errors.openingQuantity}
           />
         </div>
         <div className="flex-1">
           <InputComponent
             id="unitCost"
-            label="Unit Cost"
+            label={`Unit Cost (${currency})`}
             type="number"
             inputWidth="w-full"
             // step="0.01"

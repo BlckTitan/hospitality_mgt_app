@@ -9,17 +9,21 @@ import { FormComponent } from './components/createPurchaseOrderForm';
 import { useQuery } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 import BootstrapModal from '../../../../shared/modal';
+import { usePermissions } from '../../../../hooks/usePermissions';
+import { InventoryPageGuide } from '../components/inventoryPageGuide';
 
-export default function PurchaseOrderPage() {
+export default function Page() {
   const [modalShow, setModalShow] = useState(false);
-  const [propertyId, setPropertyId] = useState<string>('');
-
-  // Fetch properties to get the current property
+  const { hasGranularPermission } = usePermissions();
+  const canCreate = hasGranularPermission('inventory.create');
   const propertiesResponse = useQuery(api.property.getAllProperties);
-  const properties = propertiesResponse?.data || [];
-  const currentPropertyId = propertyId || properties?.[0]?._id || '';
+  const currentPropertyId = propertiesResponse?.data?.[0]?._id || '';
+  const suppliersResponse = useQuery(
+    api.suppliers.getAllSuppliers,
+    currentPropertyId ? { propertyId: currentPropertyId, activeOnly: true } : 'skip'
+  );
+  const suppliers = suppliersResponse?.data || [];
 
-  // check if property is loading
   if (!propertiesResponse?.data) {
     return (
       <div className='w-full h-full flex justify-center items-center'>
@@ -28,7 +32,7 @@ export default function PurchaseOrderPage() {
     );
   }
 
-  if (propertiesResponse.data?.length === 0) {
+  if (propertiesResponse.data.length === 0) {
     return (
       <div className='w-full h-full flex justify-center items-center'>
         <p className='text-xl'>No properties yet!</p>
@@ -36,45 +40,33 @@ export default function PurchaseOrderPage() {
     );
   }
 
-  // Fetch suppliers for the dropdown
-  const suppliersResponse = useQuery(api.suppliers.getAllSuppliers, { 
-    propertyId: currentPropertyId, 
-    activeOnly: true 
-  });
-  const suppliers = suppliersResponse?.data || [];
-
-  // Get current user (staff) for createdBy
-  const currentUserId = typeof window !== 'undefined' ? localStorage.getItem('userId') || '' : '';
-
   return (
     <div className="w-full p-4 bg-white">
       <header className="w-full border-b flex justify-between items-center mb-4">
         <h3>Purchase Orders</h3>
         <div className="flex items-center gap-3">
           <BackLink />
-        <Button
-          variant="light"
-          className="cursor-pointer"
-          style={{ width: 'fit', height: 'fit', padding: '0', borderRadius: '100%' }}
-          onClick={() => setModalShow(true)}
-        >
-          <FcPlus className="w-8 h-8" />
-        </Button>
-      
+          {canCreate && (
+            <Button
+              variant="light"
+              className="cursor-pointer"
+              style={{ width: 'fit', height: 'fit', padding: '0', borderRadius: '100%' }}
+              onClick={() => setModalShow(true)}
+            >
+              <FcPlus className="w-8 h-8" />
+            </Button>
+          )}
         </div>
       </header>
 
-      <PurchaseOrders currentPropertyId={currentPropertyId}/>
+      <InventoryPageGuide page="orders" />
+      <PurchaseOrders currentPropertyId={currentPropertyId} />
 
       <ModalComponent
         modalShow={modalShow}
         setModalShow={setModalShow}
-        onSuccess={() => {
-          setModalShow(false);
-        }}
         propertyId={currentPropertyId}
         suppliers={suppliers}
-        createdBy={currentUserId}
       />
     </div>
   );
@@ -83,10 +75,8 @@ export default function PurchaseOrderPage() {
 function ModalComponent(props: {
   modalShow: boolean;
   setModalShow: (show: boolean) => void;
-  onSuccess: () => void;
   propertyId: string;
   suppliers: any[];
-  createdBy: string;
 }) {
   return (
     <BootstrapModal
@@ -97,11 +87,10 @@ function ModalComponent(props: {
       heading="Add New Purchase Order"
       body={
         <FormComponent
-          onSuccess={props.onSuccess}
+          onSuccess={() => props.setModalShow(false)}
           onClose={() => props.setModalShow(false)}
           propertyId={props.propertyId}
           suppliers={props.suppliers}
-          createdBy={props.createdBy}
         />
       }
     />

@@ -3,6 +3,8 @@ import { v } from 'convex/values';
 import { requirePermission } from './lib/rbac';
 import { Id } from './_generated/dataModel';
 import { postCashOutflow } from './lib/postCashOutflow';
+import { postInventoryTransaction } from './lib/inventoryStock';
+import { currentUsersStaff } from './lib/staffAccess';
 import {
   addHelper,
   assignLeadAndHelpers,
@@ -412,6 +414,23 @@ export const updateMaintenanceOrder = mutation({
         }
       }
       const partsForCost = await listParts(ctx, args.maintenanceOrderId);
+      const staff = await currentUsersStaff(ctx, auth.user._id);
+      for (const part of partsForCost) {
+        if (!part.inventoryItemId) continue;
+        const posted = await postInventoryTransaction(ctx, {
+          inventoryItemId: part.inventoryItemId,
+          transactionType: 'usage',
+          quantity: part.quantity,
+          unitCost: part.unitCost,
+          referenceType: 'MaintenanceOrderPart',
+          referenceId: part._id,
+          reason: `Used on maintenance: ${existing.title}`,
+          performedBy: staff?._id,
+        });
+        if (!posted.success) {
+          return { success: false, message: posted.message };
+        }
+      }
       const resolvedCost =
         (typeof args.actualCost === 'number' ? args.actualCost : undefined)
         ?? (typeof patch.actualCost === 'number' ? patch.actualCost : undefined)

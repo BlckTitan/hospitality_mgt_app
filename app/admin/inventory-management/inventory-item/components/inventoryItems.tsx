@@ -1,55 +1,30 @@
 'use client'
 
-import { FcDocument, FcEmptyTrash } from "react-icons/fc";
 import { MdEditDocument } from "react-icons/md";
 import { Button } from "react-bootstrap";
-import { Suspense } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";
 import { api } from "../../../../../convex/_generated/api";
-import { TableColumn } from "../../../../../shared/table";
-import PaginationComponent from "../../../../../shared/pagination";
 import { Id } from "../../../../../convex/_generated/dataModel";
+import { usePermissions } from "../../../../../hooks/usePermissions";
+import { formatPropertyMoney, usePropertyCurrency } from "../../components/money";
 
-interface InventoryItemProps {
-  _id: string;
-  propertyId: string;
-  supplierId?: string;
-  sku: string;
-  name: string;
-  category: string;
-  unit: string;
-  currentQuantity: number;
-  reorderPoint?: number;
-  reorderQuantity?: number;
-  unitCost?: number;
-  lastCostUpdate?: number;
-  location?: string;
-  isActive: boolean;
-  createdAt: number;
-  updatedAt: number;
-  supplier?: {
-    _id: string;
-    name: string;
-  };
-}
-
-const InventoryItems = ({ currentPropertyId }: { currentPropertyId: Id<"properties"> }) => {
+export default function InventoryItems({ currentPropertyId }: { currentPropertyId: Id<"properties"> }) {
   const inventoryItemsData = useQuery(api.inventoryItems.getAllInventoryItems, { propertyId: currentPropertyId });
+  const currency = usePropertyCurrency(currentPropertyId);
   const removeInventoryItem = useMutation(api.inventoryItems.deleteInventoryItem);
+  const { hasGranularPermission } = usePermissions();
+  const canUpdate = hasGranularPermission('inventory.update');
+  const canDelete = hasGranularPermission('inventory.delete');
 
   const handleDelete = async (id: string, name: string) => {
     if (!confirm('Are you sure you want to delete inventory item: ' + name + '?')) return;
     try {
       const response = await removeInventoryItem({ inventoryItemId: id as Id<'inventoryItems'> });
-
       if (response.success === true) {
         toast.success(response.message);
-        setTimeout(() => {
-          window.location.href = "/admin/inventory-management/inventory-item";
-        }, 2000);
       } else {
-        return toast.error(response.message);
+        toast.error(response.message);
       }
     } catch (error) {
       console.log(`Failed to delete inventory item! ${error}`);
@@ -57,125 +32,78 @@ const InventoryItems = ({ currentPropertyId }: { currentPropertyId: Id<"properti
     }
   };
 
-  const formatDate = (timestamp: number) => {
-    return new Date(timestamp).toLocaleString();
-  };
+  if (inventoryItemsData === undefined) {
+    return <p className="p-4">Loading</p>;
+  }
 
-  const formatCurrency = (amount?: number) => {
-    if (amount === undefined || amount === null) return 'N/A';
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(amount);
-  };
-
-  const getLowStockBadge = (currentQuantity: number, reorderPoint?: number) => {
-    if (reorderPoint !== undefined && currentQuantity <= reorderPoint) {
-      return (
-        <p className="w-fit h-fit px-2 py-1 text-white rounded-sm bg-red-600">
-          Low Stock
-        </p>
-      );
-    }
-    return null;
-  };
-
-  const tableColumns: TableColumn<InventoryItemProps>[] = [
-    { label: 'SKU', key: 'sku' },
-    { label: 'Name', key: 'name' },
-    {
-      label: 'Category',
-      key: 'category',
-      render: (value, row) => (
-        <span className="capitalize">{row.category}</span>
-      )
-    },
-    {
-      label: 'Supplier',
-      key: 'supplier',
-      render: (value, row) => (
-        <span>{row.supplier?.name || 'N/A'}</span>
-      )
-    },
-    {
-      label: 'Quantity',
-      key: 'currentQuantity',
-      render: (value, row) => (
-        <div className="flex items-center gap-2">
-          <span>{row.currentQuantity} {row.unit}</span>
-          {getLowStockBadge(row.currentQuantity, row.reorderPoint)}
-        </div>
-      )
-    },
-    {
-      label: 'Unit Cost',
-      key: 'unitCost',
-      render: (value, row) => (
-        <span>{formatCurrency(row.unitCost)}</span>
-      )
-    },
-    {
-      label: 'Location',
-      key: 'location',
-      render: (value, row) => (
-        <span>{row.location || 'N/A'}</span>
-      )
-    },
-    {
-      label: 'Active',
-      key: 'isActive',
-      render: (value, row) => (
-        <p
-          className={`w-fit h-fit px-2 py-1 text-white rounded-sm ${row.isActive ? 'bg-green-600' : 'bg-gray-400'}`}
-        >
-          {row.isActive ? 'Active' : 'Inactive'}
-        </p>
-      )
-    },
-    {
-      label: 'Created At',
-      key: 'createdAt',
-      render: (value, row) => (
-        <span>{formatDate(row.createdAt)}</span>
-      )
-    },
-    {
-      label: 'Action',
-      key: '_id',
-      render: (value, row) => (
-        <div className='flex justify-evenly lg:justify-start items-center gap-1'>
-          <a
-            href={`/admin/inventory-management/inventory-item/edit?inventory_item_id=${row._id}`}
-            className='!mr-2 !no-underline !text-amber-400'
-          >
-            <i className='icon'><MdEditDocument /></i>
-          </a>
-
-          <Button
-            variant='white'
-            onClick={() => handleDelete(row._id, row.name)}
-            title='Delete inventory item'
-          >
-            <i className='icon'>
-              <FcEmptyTrash />
-            </i>
-          </Button>
-        </div>
-      ),
-    },
-  ];
+  const rows = inventoryItemsData.success ? inventoryItemsData.data : [];
 
   return (
-    <div className='w-full h-full overflow-x-scroll lg:!overflow-x-hidden'>
-      <Suspense>
-        <PaginationComponent 
-          collectionName='inventoryItems' 
-          columns={tableColumns}
-          jointTableData={(inventoryItemsData?.success === true) && inventoryItemsData?.data}  
-        />
-      </Suspense>
+    <div className="w-full h-full">
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm border">
+          <thead>
+            <tr className="bg-slate-50 text-left">
+              <th className="p-2">SKU</th>
+              <th className="p-2">Name</th>
+              <th className="p-2">Category</th>
+              <th className="p-2">Supplier</th>
+              <th className="p-2">Quantity</th>
+              <th className="p-2">Unit cost</th>
+              <th className="p-2">Location</th>
+              <th className="p-2">Status</th>
+              <th className="p-2">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 && (
+              <tr>
+                <td className="p-3" colSpan={9}>No inventory items found.</td>
+              </tr>
+            )}
+            {rows.map((row) => (
+              <tr key={row._id} className="border-t">
+                <td className="p-2">{row.sku}</td>
+                <td className="p-2">{row.name}</td>
+                <td className="p-2">{row.category}</td>
+                <td className="p-2">{row.supplier?.name || '—'}</td>
+                <td className="p-2">
+                  <div className="flex items-center gap-2">
+                    <span>{row.currentQuantity} {row.unit}</span>
+                    {row.reorderPoint !== undefined && row.currentQuantity <= row.reorderPoint && (
+                      <span className="text-xs bg-red-600 text-white px-2 py-0.5 rounded">Low stock</span>
+                    )}
+                  </div>
+                </td>
+                <td className="p-2">{formatPropertyMoney(row.unitCost, currency)}</td>
+                <td className="p-2">{row.location || '—'}</td>
+                <td className="p-2">
+                  <span className={`px-2 py-1 rounded text-white ${row.isActive ? 'bg-green-600' : 'bg-gray-400'}`}>
+                    {row.isActive ? 'Active' : 'Inactive'}
+                  </span>
+                </td>
+                <td className="p-2">
+                  <div className="flex items-center gap-2">
+                    {canUpdate && (
+                      <a
+                        href={`/admin/inventory-management/inventory-item/edit?inventory_item_id=${row._id}`}
+                        className="!no-underline !text-amber-400"
+                      >
+                        <MdEditDocument />
+                      </a>
+                    )}
+                    {canDelete && (
+                      <Button variant="outline-danger" size="sm" onClick={() => handleDelete(row._id, row.name)}>
+                        Delete
+                      </Button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
-};
-
-export default InventoryItems;
+}

@@ -24,11 +24,9 @@ type FormData = {
 interface EditSupplierFormProps {
   supplierData: any;
   supplierId: string;
-  onSuccess: () => void;
-  onClose: () => void;
 }
 
-export function EditSupplierForm({ supplierData, supplierId, onSuccess, onClose }: EditSupplierFormProps) {
+export function EditSupplierForm({ supplierData, supplierId }: EditSupplierFormProps) {
   const updateSupplier = useMutation(api.suppliers.updateSupplier);
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
@@ -63,10 +61,6 @@ export function EditSupplierForm({ supplierData, supplierId, onSuccess, onClose 
         toast.error(response.message);
       } else {
         toast.success('Supplier updated successfully!');
-        setTimeout(() => {
-          onSuccess();
-          window.location.href = '/admin/inventory-management/supplier';
-        }, 1500);
       }
     } catch (error: any) {
       console.error('Update supplier failed:', error);
@@ -174,9 +168,6 @@ export function EditSupplierForm({ supplierData, supplierId, onSuccess, onClose 
       </div>
 
       <div className="flex gap-2 justify-end">
-        <Button variant="secondary" onClick={onClose}>
-          Cancel
-        </Button>
         <Button variant="dark" type="submit">
           Update Supplier
         </Button>

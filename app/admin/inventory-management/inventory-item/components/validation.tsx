@@ -29,10 +29,11 @@ export const formSchema = yup.object().shape({
     .max(20, "Unit must not exceed 20 characters")
     .required("Unit is required"),
 
-  currentQuantity: yup
+  openingQuantity: yup
     .number()
-    .min(0, "Current quantity cannot be negative")
-    .required("Current quantity is required"),
+    .min(0, "Opening quantity cannot be negative")
+    .optional()
+    .nullable(),
 
   reorderPoint: yup
     .number()

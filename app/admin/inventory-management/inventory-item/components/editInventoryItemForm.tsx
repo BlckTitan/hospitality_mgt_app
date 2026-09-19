@@ -9,13 +9,14 @@ import { Button } from "react-bootstrap";
 import InputComponent from "../../../../../shared/input";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { api } from "../../../../../convex/_generated/api";
+import { usePropertyCurrency } from "../../components/money";
 
 type FormData = {
   sku: string;
   name: string;
   category: string;
   unit: string;
-  currentQuantity: number;
+  openingQuantity?: number;
   reorderPoint?: number;
   reorderQuantity?: number;
   unitCost?: number;
@@ -27,12 +28,11 @@ type FormData = {
 interface EditInventoryItemFormProps {
   inventoryItemData: any;
   inventoryItemId: string;
-  onSuccess: () => void;
-  onClose: () => void;
 }
 
-export function EditInventoryItemForm({ inventoryItemData, inventoryItemId, onSuccess, onClose }: EditInventoryItemFormProps) {
+export function EditInventoryItemForm({ inventoryItemData, inventoryItemId }: EditInventoryItemFormProps) {
   const updateInventoryItem = useMutation(api.inventoryItems.updateInventoryItem);
+  const currency = usePropertyCurrency(inventoryItemData.propertyId);
 
   const suppliersResponse = useQuery(api.suppliers.getAllSuppliers, {
     propertyId: inventoryItemData.propertyId as Id<'properties'>,
@@ -47,7 +47,7 @@ export function EditInventoryItemForm({ inventoryItemData, inventoryItemId, onSu
       name: inventoryItemData.name || '',
       category: inventoryItemData.category || '',
       unit: inventoryItemData.unit || '',
-      currentQuantity: inventoryItemData.currentQuantity ?? 0,
+      openingQuantity: inventoryItemData.currentQuantity ?? 0,
       reorderPoint: inventoryItemData.reorderPoint,
       reorderQuantity: inventoryItemData.reorderQuantity,
       unitCost: inventoryItemData.unitCost,
@@ -66,7 +66,6 @@ export function EditInventoryItemForm({ inventoryItemData, inventoryItemId, onSu
         name: data.name,
         category: data.category,
         unit: data.unit,
-        currentQuantity: data.currentQuantity,
         reorderPoint: data.reorderPoint,
         reorderQuantity: data.reorderQuantity,
         unitCost: data.unitCost,
@@ -78,10 +77,6 @@ export function EditInventoryItemForm({ inventoryItemData, inventoryItemId, onSu
         toast.error(response.message);
       } else {
         toast.success('Inventory item updated successfully!');
-        setTimeout(() => {
-          onSuccess();
-          window.location.href = '/admin/inventory-management/inventory-item';
-        }, 1500);
       }
     } catch (error: any) {
       console.error('Update inventory item failed:', error);
@@ -183,19 +178,18 @@ export function EditInventoryItemForm({ inventoryItemData, inventoryItemId, onSu
 
       <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-start gap-2 mb-2 lg:mb-4">
         <div className="flex-1">
-          <InputComponent
-            id="currentQuantity"
-            label="Current Quantity *"
-            type="number"
-            inputWidth="w-full"
-            register={register('currentQuantity', { required: true, valueAsNumber: true, min: 0 })}
-            error={errors.currentQuantity}
-          />
+          <p className="text-sm font-medium mb-1">On-hand quantity</p>
+          <p className="p-2 border rounded bg-slate-50">
+            {inventoryItemData.currentQuantity ?? 0} {inventoryItemData.unit}
+          </p>
+          <p className="text-xs text-slate-500 mt-1">
+            Change quantity with a stock movement, not by editing this item.
+          </p>
         </div>
         <div className="flex-1">
           <InputComponent
             id="unitCost"
-            label="Unit Cost"
+            label={`Unit Cost (${currency})`}
             type="number"
             inputWidth="w-full"
             // step="0.01"
@@ -272,9 +266,6 @@ export function EditInventoryItemForm({ inventoryItemData, inventoryItemId, onSu
       </div>
 
       <div className="flex gap-2 justify-end">
-        <Button variant="secondary" onClick={onClose}>
-          Cancel
-        </Button>
         <Button variant="dark" type="submit">
           Update Inventory Item
         </Button>

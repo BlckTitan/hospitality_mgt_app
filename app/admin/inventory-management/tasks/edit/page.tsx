@@ -9,6 +9,7 @@ import { Id } from '../../../../../convex/_generated/dataModel';
 import { useSearchParams } from 'next/navigation';
 import { FormComponent } from '../components/editInventoryTaskForm';
 import { TaskAssignmentPageGuide } from '../../../../../shared/taskAssignmentPageGuide';
+import { InventoryPageGuide } from '../../components/inventoryPageGuide';
 
 export default function Page() {
   const { isAuthenticated } = useConvexAuth()
@@ -31,6 +32,7 @@ export default function Page() {
         <BackLink />
       </header>
 
+      <InventoryPageGuide page="tasks" />
       <TaskAssignmentPageGuide page="inventory-edit" />
 
       <FormComponent

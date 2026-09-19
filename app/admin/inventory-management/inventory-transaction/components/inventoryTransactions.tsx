@@ -1,58 +1,35 @@
 'use client'
 
-import { FcDocument, FcEmptyTrash } from "react-icons/fc";
 import { MdEditDocument } from "react-icons/md";
 import { Button } from "react-bootstrap";
-import { Suspense } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";
 import { api } from "../../../../../convex/_generated/api";
-import { TableColumn } from "../../../../../shared/table";
-import PaginationComponent from "../../../../../shared/pagination";
 import { Id } from "../../../../../convex/_generated/dataModel";
+import { usePermissions } from "../../../../../hooks/usePermissions";
+import { formatPropertyMoney, usePropertyCurrency } from "../../components/money";
 
-interface InventoryTransactionProps {
-  _id: string;
-  inventoryItemId: string;
-  transactionType: string;
-  quantity: number;
-  unitCost?: number;
-  totalCost?: number;
-  referenceType?: string;
-  referenceId?: string;
-  reason?: string;
-  performedBy?: string;
-  transactionDate: number;
-  createdAt: number;
-  inventoryItem?: {
-    _id: string;
-    name: string;
-    sku: string;
-    unit: string;
-  };
-  performedByStaff?: {
-    _id: string;
-    firstName: string;
-    lastName: string;
-  };
+function signedQuantity(type: string, quantity: number) {
+  if (type === 'usage' || type === 'waste') return -Math.abs(quantity);
+  return quantity;
 }
 
-const InventoryTransactions = ({ currentPropertyId }: { currentPropertyId: Id<"properties"> }) => {
+export default function InventoryTransactions({ currentPropertyId }: { currentPropertyId: Id<"properties"> }) {
   const transactionsData = useQuery(api.inventoryTransactions.getAllInventoryTransactions, { propertyId: currentPropertyId });
+  const currency = usePropertyCurrency(currentPropertyId);
   const removeTransaction = useMutation(api.inventoryTransactions.deleteInventoryTransaction);
+  const { hasGranularPermission } = usePermissions();
+  const canUpdate = hasGranularPermission('inventory.update');
+  const canDelete = hasGranularPermission('inventory.delete');
 
   const handleDelete = async (id: string, itemName: string, transactionType: string) => {
     if (!confirm(`Are you sure you want to delete this ${transactionType} transaction for ${itemName}?`)) return;
     try {
       const response = await removeTransaction({ transactionId: id as Id<'inventoryTransactions'> });
-
       if (response.success === true) {
         toast.success(response.message);
-        setTimeout(() => {
-          window.location.href = "/admin/inventory-management/inventory-transaction";
-        }, 2000);
       } else {
-        return toast.error(response.message);
+        toast.error(response.message);
       }
     } catch (error) {
       console.log(`Failed to delete transaction! ${error}`);
@@ -60,143 +37,77 @@ const InventoryTransactions = ({ currentPropertyId }: { currentPropertyId: Id<"p
     }
   };
 
-  const formatDate = (timestamp: number) => {
-    return new Date(timestamp).toLocaleString();
-  };
+  if (transactionsData === undefined) {
+    return <p className="p-4">Loading</p>;
+  }
 
-  const formatCurrency = (amount?: number) => {
-    if (amount === undefined || amount === null) return 'N/A';
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(amount);
-  };
-
-  const getTransactionTypeBadge = (type: string) => {
-    const typeConfig: Record<string, { bg: string; text: string }> = {
-      'purchase': { bg: 'bg-green-600', text: 'Purchase' },
-      'usage': { bg: 'bg-blue-600', text: 'Usage' },
-      'adjustment': { bg: 'bg-yellow-600', text: 'Adjustment' },
-      'waste': { bg: 'bg-red-600', text: 'Waste' },
-      'transfer': { bg: 'bg-purple-600', text: 'Transfer' },
-    };
-
-    const config = typeConfig[type] || { bg: 'bg-gray-400', text: type };
-    return (
-      <p className={`w-fit h-fit px-2 py-1 text-white rounded-sm ${config.bg}`}>
-        {config.text}
-      </p>
-    );
-  };
-
-  const formatQuantity = (quantity: number, unit?: string) => {
-    const sign = quantity >= 0 ? '+' : '';
-    return `${sign}${quantity} ${unit || ''}`.trim();
-  };
-
-  const tableColumns: TableColumn<InventoryTransactionProps>[] = [
-    {
-      label: 'Date',
-      key: 'transactionDate',
-      render: (value, row) => (
-        <span>{formatDate(row.transactionDate)}</span>
-      )
-    },
-    {
-      label: 'Type',
-      key: 'transactionType',
-      render: (value, row) => getTransactionTypeBadge(row.transactionType)
-    },
-    {
-      label: 'Item',
-      key: 'inventoryItem',
-      render: (value, row) => (
-        <div>
-          <div className="font-semibold">{row.inventoryItem?.name || 'N/A'}</div>
-          <div className="text-sm text-gray-500">{row.inventoryItem?.sku || ''}</div>
-        </div>
-      )
-    },
-    {
-      label: 'Quantity',
-      key: 'quantity',
-      render: (value, row) => (
-        <span className={row.quantity >= 0 ? 'text-green-600' : 'text-red-600'}>
-          {formatQuantity(row.quantity, row.inventoryItem?.unit)}
-        </span>
-      )
-    },
-    {
-      label: 'Unit Cost',
-      key: 'unitCost',
-      render: (value, row) => (
-        <span>{formatCurrency(row.unitCost)}</span>
-      )
-    },
-    {
-      label: 'Total Cost',
-      key: 'totalCost',
-      render: (value, row) => (
-        <span>{formatCurrency(row.totalCost)}</span>
-      )
-    },
-    {
-      label: 'Performed By',
-      key: 'performedByStaff',
-      render: (value, row) => (
-        <span>
-          {row.performedByStaff 
-            ? `${row.performedByStaff.firstName} ${row.performedByStaff.lastName}`
-            : 'N/A'}
-        </span>
-      )
-    },
-    {
-      label: 'Reason',
-      key: 'reason',
-      render: (value, row) => (
-        <span className="max-w-xs truncate" title={row.reason || ''}>
-          {row.reason || 'N/A'}
-        </span>
-      )
-    },
-    {
-      label: 'Action',
-      key: '_id',
-      render: (value, row) => (
-        <div className='flex justify-evenly lg:justify-start items-center gap-1'>
-          <a
-            href={`/admin/inventory-management/inventory-transaction/edit?transaction_id=${row._id}`}
-            className='!mr-2 !no-underline !text-amber-400'
-          >
-            <i className='icon'><MdEditDocument /></i>
-          </a>
-
-          <Button
-            variant='white'
-            onClick={() => handleDelete(row._id, row.inventoryItem?.name || 'item', row.transactionType)}
-            title='Delete transaction'
-          >
-            <i className='icon'>
-              <FcEmptyTrash />
-            </i>
-          </Button>
-        </div>
-      ),
-    },
-  ];
+  const rows = transactionsData.success ? transactionsData.data : [];
 
   return (
-    <div className='w-full h-full overflow-x-scroll lg:!overflow-x-hidden'>
-      <Suspense>
-        <PaginationComponent 
-          collectionName='inventoryTransactions' 
-          columns={tableColumns}
-          jointTableData={(transactionsData?.success === true) && transactionsData?.data}  
-        />
-      </Suspense>
+    <div className="w-full h-full">
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm border">
+          <thead>
+            <tr className="bg-slate-50 text-left">
+              <th className="p-2">Date</th>
+              <th className="p-2">Type</th>
+              <th className="p-2">Item</th>
+              <th className="p-2">Quantity</th>
+              <th className="p-2">Unit cost</th>
+              <th className="p-2">Total cost</th>
+              <th className="p-2">Reason</th>
+              <th className="p-2">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 && (
+              <tr>
+                <td className="p-3" colSpan={8}>No stock movements found.</td>
+              </tr>
+            )}
+            {rows.map((row) => {
+              const qty = signedQuantity(row.transactionType, row.quantity);
+              return (
+                <tr key={row._id} className="border-t">
+                  <td className="p-2">{new Date(row.transactionDate).toLocaleString()}</td>
+                  <td className="p-2 capitalize">{row.transactionType}</td>
+                  <td className="p-2">
+                    <div className="font-semibold">{row.inventoryItem?.name || '—'}</div>
+                    <div className="text-xs text-slate-500">{row.inventoryItem?.sku || ''}</div>
+                  </td>
+                  <td className={`p-2 ${qty < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    {qty > 0 ? '+' : ''}{qty} {row.inventoryItem?.unit || ''}
+                  </td>
+                  <td className="p-2">{formatPropertyMoney(row.unitCost, currency)}</td>
+                  <td className="p-2">{formatPropertyMoney(row.totalCost, currency)}</td>
+                  <td className="p-2">{row.reason || '—'}</td>
+                  <td className="p-2">
+                    <div className="flex items-center gap-2">
+                      {canUpdate && (
+                        <a
+                          href={`/admin/inventory-management/inventory-transaction/edit?transaction_id=${row._id}`}
+                          className="!no-underline !text-amber-400"
+                        >
+                          <MdEditDocument />
+                        </a>
+                      )}
+                      {canDelete && (
+                        <Button
+                          variant="outline-danger"
+                          size="sm"
+                          onClick={() => handleDelete(row._id, row.inventoryItem?.name || 'item', row.transactionType)}
+                        >
+                          Delete
+                        </Button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
-};
-
-export default InventoryTransactions;
+}

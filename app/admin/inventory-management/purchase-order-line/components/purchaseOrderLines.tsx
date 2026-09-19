@@ -8,6 +8,7 @@ import { api } from "../../../../../convex/_generated/api";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { TableColumn } from "../../../../../shared/table";
 import PaginationComponent from "../../../../../shared/pagination";
+import { formatPropertyMoney, usePropertyCurrency } from "../../components/money";
 
 interface PurchaseOrderLineProps {
   _id: string;
@@ -25,6 +26,7 @@ interface PurchaseOrderLineProps {
 
 const PurchaseOrderLines = ({ currentPropertyId }: { currentPropertyId: Id<"properties"> }) => {
   const purchaseOrderLinesResponse = useQuery(api.purchaseOrderLines.getAllPurchaseOrderLines, currentPropertyId ? { propertyId: currentPropertyId } : "skip");
+  const currency = usePropertyCurrency(currentPropertyId);
   const removePurchaseOrderLine = useMutation(api.purchaseOrderLines.deletePurchaseOrderLine);
 
   const handleDelete = async (id: string) => {
@@ -81,14 +83,14 @@ const PurchaseOrderLines = ({ currentPropertyId }: { currentPropertyId: Id<"prop
       label: 'Unit Price',
       key: 'unitPrice',
       render: (value, row) => (
-        <span>${row.unitPrice.toFixed(2)}</span>
+        <span>{formatPropertyMoney(row.unitPrice, currency)}</span>
       )
     },
     {
       label: 'Total Price',
       key: 'totalPrice',
       render: (value, row) => (
-        <span>${row.totalPrice.toFixed(2)}</span>
+        <span>{formatPropertyMoney(row.totalPrice, currency)}</span>
       )
     },
     {

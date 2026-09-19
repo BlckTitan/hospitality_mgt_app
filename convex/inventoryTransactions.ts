@@ -4,6 +4,7 @@ import { requirePermission } from './lib/rbac';
 import { maybeCreateRestockTask } from './lib/taskAssignment';
 import { MutationCtx } from './_generated/server';
 import { Id } from './_generated/dataModel';
+import { postInventoryTransaction, quantityChangeForType } from './lib/inventoryStock';
 
 async function restockIfNeeded(ctx: MutationCtx, inventoryItemId: Id<'inventoryItems'>) {
   const item = await ctx.db.get(inventoryItemId);
@@ -137,72 +138,21 @@ export const createInventoryTransaction = mutation({
     await requirePermission(ctx, 'inventory.create', inventoryItem.propertyId);
 
     try {
-      // Calculate total cost
-      const totalCost = args.unitCost !== undefined && args.unitCost !== null
-        ? args.unitCost * Math.abs(args.quantity)
-        : undefined;
-
-      // Determine quantity change based on transaction type
-      let quantityChange = 0;
-      switch (args.transactionType) {
-        case 'purchase':
-          quantityChange = Math.abs(args.quantity); // Always positive
-          break;
-        case 'usage':
-        case 'waste':
-          quantityChange = -Math.abs(args.quantity); // Always negative
-          break;
-        case 'adjustment':
-          quantityChange = args.quantity; // Can be positive or negative
-          break;
-        case 'transfer':
-          // Transfer doesn't change total quantity, just moves it
-          // For now, we'll treat it as an adjustment
-          quantityChange = args.quantity;
-          break;
-      }
-
-      // Check if new quantity would be negative
-      const newQuantity = inventoryItem.currentQuantity + quantityChange;
-      if (newQuantity < 0 && args.transactionType !== 'adjustment') {
-        return { 
-          success: false, 
-          message: `Insufficient inventory. Current quantity: ${inventoryItem.currentQuantity}, attempting to remove: ${Math.abs(quantityChange)}` 
-        };
-      }
-
-      const now = Date.now();
-      const transactionId = await ctx.db.insert('inventoryTransactions', {
+      const posted = await postInventoryTransaction(ctx, {
         inventoryItemId: args.inventoryItemId,
         transactionType: args.transactionType,
         quantity: args.quantity,
         unitCost: args.unitCost,
-        totalCost: totalCost,
         referenceType: args.referenceType,
         referenceId: args.referenceId,
         reason: args.reason,
         performedBy: args.performedBy,
         transactionDate: args.transactionDate,
-        createdAt: now,
       });
-
-      // Update inventory item quantity
-      const updatedQuantity = inventoryItem.currentQuantity + quantityChange;
-      await ctx.db.patch(args.inventoryItemId, {
-        currentQuantity: updatedQuantity,
-        updatedAt: now,
-      });
-      await restockIfNeeded(ctx, args.inventoryItemId);
-
-      // Update unit cost if provided and it's a purchase transaction
-      if (args.transactionType === 'purchase' && args.unitCost !== undefined && args.unitCost !== null) {
-        await ctx.db.patch(args.inventoryItemId, {
-          unitCost: args.unitCost,
-          lastCostUpdate: now,
-        });
+      if (!posted.success) {
+        return { success: false, message: posted.message };
       }
-
-      return { success: true, message: 'Inventory transaction created successfully', id: transactionId };
+      return { success: true, message: 'Inventory transaction created successfully', id: posted.id };
     } catch (error) {
       console.log(`Failed to create inventory transaction: ${error}`);
       return { success: false, message: 'Failed to create inventory transaction' };
@@ -241,39 +191,11 @@ export const updateInventoryTransaction = mutation({
     await requirePermission(ctx, 'inventory.update', inventoryItem.propertyId);
 
     try {
-      // Revert the old transaction's effect on quantity
-      let oldQuantityChange = 0;
-      switch (existingTransaction.transactionType) {
-        case 'purchase':
-          oldQuantityChange = -Math.abs(existingTransaction.quantity);
-          break;
-        case 'usage':
-        case 'waste':
-          oldQuantityChange = Math.abs(existingTransaction.quantity);
-          break;
-        case 'adjustment':
-        case 'transfer':
-          oldQuantityChange = -existingTransaction.quantity;
-          break;
-      }
-
-      // Calculate new quantity change
-      let newQuantityChange = 0;
-      switch (args.transactionType) {
-        case 'purchase':
-          newQuantityChange = Math.abs(args.quantity);
-          break;
-        case 'usage':
-        case 'waste':
-          newQuantityChange = -Math.abs(args.quantity);
-          break;
-        case 'adjustment':
-        case 'transfer':
-          newQuantityChange = args.quantity;
-          break;
-      }
-
-      // Calculate net change and new quantity
+      const oldQuantityChange = -quantityChangeForType(
+        existingTransaction.transactionType,
+        existingTransaction.quantity,
+      );
+      const newQuantityChange = quantityChangeForType(args.transactionType, args.quantity);
       const netChange = oldQuantityChange + newQuantityChange;
       const newQuantity = inventoryItem.currentQuantity + netChange;
 
@@ -341,22 +263,10 @@ export const deleteInventoryTransaction = mutation({
     await requirePermission(ctx, 'inventory.delete', inventoryItem.propertyId);
 
     try {
-      // Revert the transaction's effect on quantity
-      let quantityChange = 0;
-      switch (existingTransaction.transactionType) {
-        case 'purchase':
-          quantityChange = -Math.abs(existingTransaction.quantity);
-          break;
-        case 'usage':
-        case 'waste':
-          quantityChange = Math.abs(existingTransaction.quantity);
-          break;
-        case 'adjustment':
-        case 'transfer':
-          quantityChange = -existingTransaction.quantity;
-          break;
-      }
-
+      const quantityChange = -quantityChangeForType(
+        existingTransaction.transactionType,
+        existingTransaction.quantity,
+      );
       const newQuantity = inventoryItem.currentQuantity + quantityChange;
 
       // Check if reverting would make quantity negative

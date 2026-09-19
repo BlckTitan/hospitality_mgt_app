@@ -9,6 +9,7 @@ import { Button } from "react-bootstrap";
 import InputComponent from "../../../../../shared/input";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { api } from "../../../../../convex/_generated/api";
+import { usePropertyCurrency } from "../../components/money";
 
 type FormData = {
   inventoryItemId: string;
@@ -24,6 +25,7 @@ type FormData = {
 
 export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: () => void; onClose: () => void; propertyId: string }) {
   const createTransaction = useMutation(api.inventoryTransactions.createInventoryTransaction);
+  const currency = usePropertyCurrency(propertyId);
   const inventoryItemsResponse = useQuery(api.inventoryItems.getAllInventoryItems, { propertyId: propertyId as Id<'properties'> });
   const inventoryItems = inventoryItemsResponse?.data || [];
 
@@ -67,10 +69,7 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
       } else {
         toast.success('Inventory transaction created successfully!');
         reset();
-        setTimeout(() => {
-          onSuccess();
-          window.location.href = '/admin/inventory-management/inventory-transaction';
-        }, 1500);
+        onSuccess();
       }
     } catch (error: any) {
       console.error('Add new transaction failed:', error);
@@ -155,14 +154,14 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
             type="number"
             inputWidth="w-full"
             // step="0.01"
-            register={register('quantity', { required: true, valueAsNumber: true, min: 0.01 })}
+            register={register('quantity', { required: true, valueAsNumber: true })}
             error={errors.quantity}
           />
         </div>
         <div className="flex-1">
           <InputComponent
             id="unitCost"
-            label="Unit Cost"
+            label={`Unit Cost (${currency})`}
             type="number"
             inputWidth="w-full"
             // step="0.01"

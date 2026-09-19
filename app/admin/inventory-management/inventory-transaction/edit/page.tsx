@@ -1,92 +1,57 @@
 'use client';
 
 import { BackLink } from '../../../../../shared/pageHeader';
-import React, { useState } from 'react';
-import { Button } from 'react-bootstrap';
+import { Spinner } from 'react-bootstrap';
 import { useSearchParams } from 'next/navigation';
 import { useQuery } from 'convex/react';
 import { EditInventoryTransactionForm } from '../components/editInventoryTransactionForm';
 import { api } from '../../../../../convex/_generated/api';
 import { Id } from '../../../../../convex/_generated/dataModel';
-import BootstrapModal from '../../../../../shared/modal';
+import { InventoryPageGuide } from '../../components/inventoryPageGuide';
 
-export default function EditInventoryTransactionPage() {
+export default function Page() {
   const searchParams = useSearchParams();
   const transactionId = searchParams.get('transaction_id');
-  const [modalShow, setModalShow] = useState(true);
-
   const transactionResponse = useQuery(
-    api.inventoryTransactions.getInventoryTransaction, 
-    transactionId ? { transactionId: transactionId as Id<'inventoryTransactions'> } : null
+    api.inventoryTransactions.getInventoryTransaction,
+    transactionId ? { transactionId: transactionId as Id<'inventoryTransactions'> } : 'skip'
   );
 
   if (!transactionId) {
     return (
       <div className="w-full p-4 bg-white">
-        <div className="text-center py-8">
-          <h3 className="text-red-600">Transaction not found</h3>
-          <a href="/admin/inventory-management/inventory-transaction" className="text-blue-600 hover:underline">
-            Go back to Inventory Transactions
-          </a>
-        </div>
+        <header className="w-full border-b flex justify-between items-center mb-4">
+          <h3>Edit stock movement</h3>
+          <BackLink />
+        </header>
+        <p>Transaction not found.</p>
       </div>
     );
   }
 
-  if (!transactionResponse?.success || !transactionResponse.data) {
+  if (transactionResponse === undefined) {
     return (
-      <div className="w-full p-4 bg-white">
-        <div className="text-center py-8">
-          <h3 className="text-gray-700">Loading...</h3>
-        </div>
+      <div className="w-full h-screen flex justify-center items-center">
+        <Spinner animation="border" size="sm" variant="dark" />
       </div>
     );
   }
 
-  const transaction = transactionResponse.data;
+  if (!transactionResponse.success || !transactionResponse.data) {
+    return <div>No data available!</div>;
+  }
 
   return (
     <div className="w-full p-4 bg-white">
       <header className="w-full border-b flex justify-between items-center mb-4">
-        <h3>Edit Inventory Transaction</h3>
+        <h3>Update stock movement</h3>
         <BackLink />
       </header>
-
-      <ModalComponent
-        transactionData={transaction}
+      <InventoryPageGuide page="transactions-edit" />
+      <EditInventoryTransactionForm
+        transactionData={transactionResponse.data}
         transactionId={transactionId}
-        modalShow={modalShow}
-        setModalShow={setModalShow}
-        onSuccess={() => {
-          setModalShow(false);
-        }}
       />
     </div>
-  );
-}
-
-function ModalComponent(props: {
-  transactionData: any;
-  transactionId: string;
-  modalShow: boolean;
-  setModalShow: (show: boolean) => void;
-  onSuccess: () => void;
-}) {
-  return (
-    <BootstrapModal
-      show={props.modalShow}
-      onHide={() => props.setModalShow(false)}
-      backdrop="static"
-      keyboard={false}
-      heading="Edit Inventory Transaction"
-      body={
-        <EditInventoryTransactionForm
-          transactionData={props.transactionData}
-          transactionId={props.transactionId}
-          onSuccess={props.onSuccess}
-          onClose={() => props.setModalShow(false)}
-        />
-      }
-    />
   );
 }

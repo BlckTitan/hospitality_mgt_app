@@ -13,7 +13,14 @@ export const formSchema = yup.object().shape({
   quantity: yup
     .number()
     .required("Quantity is required")
-    .min(0.01, "Quantity must be greater than 0"),
+    .test('quantity-by-type', 'Quantity is invalid for this movement type', function (value) {
+      const type = this.parent.transactionType;
+      if (value === undefined || Number.isNaN(value)) return false;
+      if (type === 'adjustment' || type === 'transfer') {
+        return value !== 0;
+      }
+      return value > 0;
+    }),
 
   unitCost: yup
     .number()
@@ -46,6 +53,6 @@ export const formSchema = yup.object().shape({
     .nullable(),
 
   transactionDate: yup
-    .number()
+    .mixed()
     .required("Transaction date is required"),
 });

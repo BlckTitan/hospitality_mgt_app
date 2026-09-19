@@ -8,6 +8,7 @@ import { Button } from "react-bootstrap";
 import { api } from "../../../../../convex/_generated/api";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import InputComponent from "../../../../../shared/input";
+import { formatPropertyMoney, usePropertyCurrency } from "../../components/money";
 
 type FormData = {
   purchaseOrderId: string;
@@ -20,6 +21,7 @@ type FormData = {
 
 export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: () => void; onClose: () => void; propertyId: string }) {
   const createPurchaseOrderLine = useMutation(api.purchaseOrderLines.createPurchaseOrderLine);
+  const currency = usePropertyCurrency(propertyId);
 
   // Fetch purchase orders
   const purchaseOrdersResponse = useQuery(api.purchaseOrders.getAllPurchaseOrders, { 
@@ -127,7 +129,7 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
         <div className="flex-1">
           <InputComponent
             id="unitPrice"
-            label="Unit Price *"
+            label={`Unit Price (${currency}) *`}
             type="number"
             inputWidth="w-full"
             register={register('unitPrice', { required: true })}
@@ -150,7 +152,7 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
         <div className="flex-1">
           <div className="p-3 bg-gray-100 rounded">
             <p className="text-sm font-medium">Total Price</p>
-            <p className="text-2xl font-bold">${(Number(quantity) * Number(unitPrice)).toFixed(2)}</p>
+            <p className="text-2xl font-bold">{formatPropertyMoney(Number(quantity) * Number(unitPrice), currency)}</p>
           </div>
         </div>
       </div>

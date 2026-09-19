@@ -3,11 +3,11 @@
 import { MdEditDocument } from "react-icons/md";
 import { Button } from "react-bootstrap";
 import { useMutation, useQuery, useConvexAuth } from "convex/react";
-import { api } from "../../../../convex/_generated/api";
-import { Id } from "../../../../convex/_generated/dataModel";
+import { api } from "../../../../../convex/_generated/api";
+import { Id } from "../../../../../convex/_generated/dataModel";
 import { useState } from "react";
 import { toast } from "sonner";
-import { usePermissions } from "../../../../hooks/usePermissions";
+import { usePermissions } from "../../../../../hooks/usePermissions";
 
 type Board = "" | "unassigned" | "mine" | "overdue";
 

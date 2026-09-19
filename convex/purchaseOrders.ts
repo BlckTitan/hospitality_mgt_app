@@ -1,8 +1,57 @@
-import { mutation, query } from './_generated/server';
+import { mutation, query, MutationCtx } from './_generated/server';
 import { v } from 'convex/values';
 import { requirePermission, tryRequirePermission } from './lib/rbac';
 import { maybeCreatePutawayTask } from './lib/taskAssignment';
 import { postCashOutflow } from './lib/postCashOutflow';
+import { currentUsersStaff } from './lib/staffAccess';
+import { postInventoryTransaction, postedPurchaseQtyForLine } from './lib/inventoryStock';
+import { Doc, Id } from './_generated/dataModel';
+
+async function receiveLinesIntoStock(
+  ctx: MutationCtx,
+  order: Doc<'purchaseOrders'>,
+  performedBy?: Id<'staffs'>,
+  requested?: Array<{ purchaseOrderLineId: Id<'purchaseOrderLines'>; receivedQuantity: number }>,
+) {
+  const lines = await ctx.db
+    .query('purchaseOrderLines')
+    .withIndex('by_purchaseOrderId', (q) => q.eq('purchaseOrderId', order._id))
+    .collect();
+  const requestedById = new Map(
+    (requested ?? []).map((row) => [row.purchaseOrderLineId, row.receivedQuantity]),
+  );
+
+  for (const line of lines) {
+    const alreadyPosted = await postedPurchaseQtyForLine(ctx, line._id);
+    const target = requested
+      ? (requestedById.get(line._id) ?? alreadyPosted)
+      : line.quantity;
+    if (target + 1e-9 < alreadyPosted) {
+      return { success: false as const, message: 'Received quantity cannot be less than stock already posted for a line' };
+    }
+    const delta = target - alreadyPosted;
+    if (delta > 0) {
+      const posted = await postInventoryTransaction(ctx, {
+        inventoryItemId: line.inventoryItemId,
+        transactionType: 'purchase',
+        quantity: delta,
+        unitCost: line.unitPrice,
+        referenceType: 'PurchaseOrderLine',
+        referenceId: line._id,
+        reason: `Received on PO ${order.orderNumber}`,
+        performedBy,
+      });
+      if (!posted.success) {
+        return posted;
+      }
+    }
+    await ctx.db.patch(line._id, {
+      receivedQuantity: Math.max(alreadyPosted + Math.max(0, delta), target),
+      updatedAt: Date.now(),
+    });
+  }
+  return { success: true as const };
+}
 
 export const getAllPurchaseOrders = query({
   args: { 
@@ -82,11 +131,22 @@ export const createPurchaseOrder = mutation({
     taxAmount: v.number(),
     shippingAmount: v.optional(v.number()),
     totalAmount: v.number(),
-    createdBy: v.id('staffs'),
+    createdBy: v.optional(v.id('staffs')),
   },
   handler: async (ctx, args) => {
-    await requirePermission(ctx, 'inventory.create', args.propertyId);
+    const auth = await requirePermission(ctx, 'inventory.create', args.propertyId);
     try {
+      const supplier = await ctx.db.get(args.supplierId);
+      if (!supplier || supplier.propertyId !== args.propertyId) {
+        return { success: false, message: 'Supplier does not exist for this property' };
+      }
+      const staff = args.createdBy
+        ? await ctx.db.get(args.createdBy)
+        : await currentUsersStaff(ctx, auth.user._id);
+      if (!staff) {
+        return { success: false, message: 'Link your login to a staff record before creating a purchase order' };
+      }
+
       // Check if order number already exists for this property
       const existingOrder = await ctx.db
         .query('purchaseOrders')
@@ -105,12 +165,12 @@ export const createPurchaseOrder = mutation({
         orderNumber: args.orderNumber,
         orderDate: args.orderDate,
         expectedDeliveryDate: args.expectedDeliveryDate,
-        status: args.status,
+        status: args.status === 'received' ? 'confirmed' : args.status,
         subtotal: args.subtotal,
         taxAmount: args.taxAmount,
         shippingAmount: args.shippingAmount,
         totalAmount: args.totalAmount,
-        createdBy: args.createdBy,
+        createdBy: staff._id,
         createdAt: now,
         updatedAt: now,
       });
@@ -163,6 +223,14 @@ export const updatePurchaseOrder = mutation({
       }
 
       const now = Date.now();
+      if (args.status === 'received' && existingOrder.status !== 'received') {
+        const staff = await currentUsersStaff(ctx, auth.user._id);
+        const received = await receiveLinesIntoStock(ctx, existingOrder, staff?._id);
+        if (!received.success) {
+          return { success: false, message: received.message };
+        }
+      }
+
       await ctx.db.patch(args.purchaseOrderId, {
         supplierId: args.supplierId,
         orderNumber: args.orderNumber,
@@ -175,7 +243,7 @@ export const updatePurchaseOrder = mutation({
         totalAmount: args.totalAmount,
         approvedBy: args.approvedBy,
         approvedAt: args.approvedAt,
-        receivedAt: args.receivedAt,
+        receivedAt: args.status === 'received' ? (args.receivedAt ?? existingOrder.receivedAt ?? now) : args.receivedAt,
         updatedAt: now,
       });
 
@@ -211,6 +279,18 @@ export const deletePurchaseOrder = mutation({
         .query('purchaseOrderLines')
         .withIndex('by_purchaseOrderId', (q) => q.eq('purchaseOrderId', args.purchaseOrderId))
         .collect();
+
+      if (lines.some((line) => (line.receivedQuantity ?? 0) > 0) || existingOrder.status === 'received') {
+        return { success: false, message: 'Cannot delete a purchase order after goods have been received' };
+      }
+
+      const tasks = await ctx.db
+        .query('inventoryTasks')
+        .withIndex('by_purchaseOrderId', (q) => q.eq('purchaseOrderId', args.purchaseOrderId))
+        .collect();
+      for (const task of tasks) {
+        await ctx.db.delete(task._id);
+      }
 
       for (const line of lines) {
         await ctx.db.delete(line._id);
@@ -332,5 +412,55 @@ export const getPurchaseOrderLine = query({
       console.log(`Failed to fetch purchase order line: ${error}`);
       return { success: false, data: null, message: 'Failed to fetch purchase order line' };
     }
+  },
+});
+
+export const receivePurchaseOrder = mutation({
+  args: {
+    purchaseOrderId: v.id('purchaseOrders'),
+    lines: v.optional(v.array(v.object({
+      purchaseOrderLineId: v.id('purchaseOrderLines'),
+      receivedQuantity: v.number(),
+    }))),
+    markReceived: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const order = await ctx.db.get(args.purchaseOrderId);
+    if (!order) {
+      return { success: false, message: 'Purchase order does not exist' };
+    }
+    const auth = await requirePermission(ctx, 'inventory.update', order.propertyId);
+    if (order.status === 'cancelled') {
+      return { success: false, message: 'Cannot receive a cancelled purchase order' };
+    }
+    const staff = await currentUsersStaff(ctx, auth.user._id);
+    const received = await receiveLinesIntoStock(ctx, order, staff?._id, args.lines);
+    if (!received.success) {
+      return { success: false, message: received.message };
+    }
+
+    const now = Date.now();
+    const lines = await ctx.db
+      .query('purchaseOrderLines')
+      .withIndex('by_purchaseOrderId', (q) => q.eq('purchaseOrderId', order._id))
+      .collect();
+    const fullyReceived = lines.length > 0 && lines.every(
+      (line) => (line.receivedQuantity ?? 0) + 1e-9 >= line.quantity,
+    );
+    if (args.markReceived || fullyReceived) {
+      await ctx.db.patch(order._id, {
+        status: 'received',
+        receivedAt: order.receivedAt ?? now,
+        updatedAt: now,
+      });
+      const updated = await ctx.db.get(order._id);
+      if (updated) {
+        await maybeCreatePutawayTask(ctx, updated, auth.user._id);
+      }
+    }
+
+    return { success: true, message: fullyReceived || args.markReceived
+      ? 'Goods received and stock updated'
+      : 'Partial receipt posted to stock' };
   },
 });

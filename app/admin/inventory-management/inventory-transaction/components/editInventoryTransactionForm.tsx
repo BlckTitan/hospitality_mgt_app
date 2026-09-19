@@ -9,6 +9,7 @@ import { Button } from "react-bootstrap";
 import InputComponent from "../../../../../shared/input";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { api } from "../../../../../convex/_generated/api";
+import { usePropertyCurrency } from "../../components/money";
 
 type FormData = {
   inventoryItemId: string;
@@ -25,12 +26,11 @@ type FormData = {
 interface EditInventoryTransactionFormProps {
   transactionData: any;
   transactionId: string;
-  onSuccess: () => void;
-  onClose: () => void;
 }
 
-export function EditInventoryTransactionForm({ transactionData, transactionId, onSuccess, onClose }: EditInventoryTransactionFormProps) {
+export function EditInventoryTransactionForm({ transactionData, transactionId }: EditInventoryTransactionFormProps) {
   const updateTransaction = useMutation(api.inventoryTransactions.updateInventoryTransaction);
+  const currency = usePropertyCurrency(transactionData.inventoryItem?.propertyId);
 
   const inventoryItemsResponse = useQuery(api.inventoryItems.getAllInventoryItems, {
     propertyId: transactionData.inventoryItem?.propertyId as Id<'properties'>,
@@ -69,17 +69,15 @@ export function EditInventoryTransactionForm({ transactionData, transactionId, o
         referenceId: data.referenceId || undefined,
         reason: data.reason || undefined,
         performedBy: data.performedBy ? (data.performedBy as Id<'staffs'>) : undefined,
-        transactionDate: data.transactionDate,
+        transactionDate: typeof data.transactionDate === 'number'
+          ? data.transactionDate
+          : new Date(data.transactionDate).getTime(),
       });
 
       if (response.success === false) {
         toast.error(response.message);
       } else {
         toast.success('Inventory transaction updated successfully!');
-        setTimeout(() => {
-          onSuccess();
-          window.location.href = '/admin/inventory-management/inventory-transaction';
-        }, 1500);
       }
     } catch (error: any) {
       console.error('Update transaction failed:', error);
@@ -172,14 +170,14 @@ export function EditInventoryTransactionForm({ transactionData, transactionId, o
             type="number"
             inputWidth="w-full"
             // step="0.01"
-            register={register('quantity', { required: true, valueAsNumber: true, min: 0.01 })}
+            register={register('quantity', { required: true, valueAsNumber: true })}
             error={errors.quantity}
           />
         </div>
         <div className="flex-1">
           <InputComponent
             id="unitCost"
-            label="Unit Cost"
+            label={`Unit Cost (${currency})`}
             type="number"
             inputWidth="w-full"
             // step="0.01"
@@ -269,9 +267,6 @@ export function EditInventoryTransactionForm({ transactionData, transactionId, o
       </div>
 
       <div className="flex gap-2 justify-end">
-        <Button variant="secondary" onClick={onClose}>
-          Cancel
-        </Button>
         <Button variant="dark" type="submit">
           Update Transaction
         </Button>

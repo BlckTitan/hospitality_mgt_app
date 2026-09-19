@@ -11,6 +11,7 @@ import { useQuery } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 import { usePermissions } from '../../../../hooks/usePermissions';
 import { TaskAssignmentPageGuide } from '../../../../shared/taskAssignmentPageGuide';
+import { InventoryPageGuide } from '../components/inventoryPageGuide';
 
 export default function Page() {
   const [modalShow, setModalShow] = useState(false);
@@ -54,6 +55,7 @@ export default function Page() {
         </div>
       </header>
 
+      <InventoryPageGuide page="tasks" />
       <TaskAssignmentPageGuide page="inventory" />
 
       <InventoryTasks currentPropertyId={currentPropertyId}/>

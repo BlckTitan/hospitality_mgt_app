@@ -1,47 +1,28 @@
 'use client'
 
-import { FcEmptyTrash } from "react-icons/fc";
 import { MdEditDocument } from "react-icons/md";
 import { Button } from "react-bootstrap";
-import { Suspense } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";
 import { api } from "../../../../../convex/_generated/api";
-import { TableColumn } from "../../../../../shared/table";
-import PaginationComponent from "../../../../../shared/pagination";
 import { Id } from "../../../../../convex/_generated/dataModel";
+import { usePermissions } from "../../../../../hooks/usePermissions";
 
-interface SupplierProps {
-  _id: string;
-  propertyId: string;
-  name: string;
-  contactPerson?: string;
-  email?: string;
-  phone?: string;
-  address?: string;
-  paymentTerms?: string;
-  taxId?: string;
-  isActive: boolean;
-  createdAt: number;
-  updatedAt: number;
-}
-
-const Suppliers = ({ currentPropertyId }: { currentPropertyId: Id<"properties"> }) => {
+export default function Suppliers({ currentPropertyId }: { currentPropertyId: Id<"properties"> }) {
   const suppliersData = useQuery(api.suppliers.getAllSuppliers, { propertyId: currentPropertyId });
   const removeSupplier = useMutation(api.suppliers.deleteSupplier);
+  const { hasGranularPermission } = usePermissions();
+  const canUpdate = hasGranularPermission('inventory.update');
+  const canDelete = hasGranularPermission('inventory.delete');
 
   const handleDelete = async (id: string, name: string) => {
     if (!confirm('Are you sure you want to delete supplier: ' + name + '?')) return;
     try {
       const response = await removeSupplier({ supplierId: id as Id<'suppliers'> });
-
       if (response.success === true) {
         toast.success(response.message);
-        setTimeout(() => {
-          window.location.href = "/admin/inventory-management/supplier";
-        }, 2000);
       } else {
-        return toast.error(response.message);
+        toast.error(response.message);
       }
     } catch (error) {
       console.log(`Failed to delete supplier! ${error}`);
@@ -49,95 +30,65 @@ const Suppliers = ({ currentPropertyId }: { currentPropertyId: Id<"properties"> 
     }
   };
 
-  const formatDate = (timestamp: number) => {
-    return new Date(timestamp).toLocaleString();
-  };
+  if (suppliersData === undefined) {
+    return <p className="p-4">Loading</p>;
+  }
 
-  const tableColumns: TableColumn<SupplierProps>[] = [
-    { label: 'Name', key: 'name' },
-    {
-      label: 'Contact Person',
-      key: 'contactPerson',
-      render: (value, row) => (
-        <span>{row.contactPerson || 'N/A'}</span>
-      )
-    },
-    {
-      label: 'Email',
-      key: 'email',
-      render: (value, row) => (
-        <span>{row.email || 'N/A'}</span>
-      )
-    },
-    {
-      label: 'Phone',
-      key: 'phone',
-      render: (value, row) => (
-        <span>{row.phone || 'N/A'}</span>
-      )
-    },
-    {
-      label: 'Payment Terms',
-      key: 'paymentTerms',
-      render: (value, row) => (
-        <span>{row.paymentTerms || 'N/A'}</span>
-      )
-    },
-    {
-      label: 'Active',
-      key: 'isActive',
-      render: (value, row) => (
-        <p
-          className={`w-fit h-fit px-2 py-1 text-white rounded-sm ${row.isActive ? 'bg-green-600' : 'bg-gray-400'}`}
-        >
-          {row.isActive ? 'Active' : 'Inactive'}
-        </p>
-      )
-    },
-    {
-      label: 'Created At',
-      key: 'createdAt',
-      render: (value, row) => (
-        <span>{formatDate(row.createdAt)}</span>
-      )
-    },
-    {
-      label: 'Action',
-      key: '_id',
-      render: (value, row) => (
-        <div className='flex justify-evenly lg:justify-start items-center gap-1'>
-          <a
-            href={`/admin/inventory-management/supplier/edit?supplier_id=${row._id}`}
-            className='!mr-2 !no-underline !text-amber-400'
-          >
-            <i className='icon'><MdEditDocument /></i>
-          </a>
-
-          <Button
-            variant='white'
-            onClick={() => handleDelete(row._id, row.name)}
-            title='Delete supplier'
-          >
-            <i className='icon'>
-              <FcEmptyTrash />
-            </i>
-          </Button>
-        </div>
-      ),
-    },
-  ];
+  const rows = suppliersData.success ? suppliersData.data : [];
 
   return (
-    <div className='w-full h-full overflow-x-scroll lg:!overflow-x-hidden'>
-      <Suspense>
-        <PaginationComponent 
-          collectionName='suppliers' 
-          columns={tableColumns}
-          jointTableData={(suppliersData?.success === true) && suppliersData?.data}  
-        />
-      </Suspense>
+    <div className="w-full h-full">
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm border">
+          <thead>
+            <tr className="bg-slate-50 text-left">
+              <th className="p-2">Name</th>
+              <th className="p-2">Contact</th>
+              <th className="p-2">Email</th>
+              <th className="p-2">Phone</th>
+              <th className="p-2">Status</th>
+              <th className="p-2">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 && (
+              <tr>
+                <td className="p-3" colSpan={6}>No suppliers found.</td>
+              </tr>
+            )}
+            {rows.map((row) => (
+              <tr key={row._id} className="border-t">
+                <td className="p-2">{row.name}</td>
+                <td className="p-2">{row.contactPerson || '—'}</td>
+                <td className="p-2">{row.email || '—'}</td>
+                <td className="p-2">{row.phone || '—'}</td>
+                <td className="p-2">
+                  <span className={`px-2 py-1 rounded text-white ${row.isActive ? 'bg-green-600' : 'bg-gray-400'}`}>
+                    {row.isActive ? 'Active' : 'Inactive'}
+                  </span>
+                </td>
+                <td className="p-2">
+                  <div className="flex items-center gap-2">
+                    {canUpdate && (
+                      <a
+                        href={`/admin/inventory-management/supplier/edit?supplier_id=${row._id}`}
+                        className="!no-underline !text-amber-400"
+                      >
+                        <MdEditDocument />
+                      </a>
+                    )}
+                    {canDelete && (
+                      <Button variant="outline-danger" size="sm" onClick={() => handleDelete(row._id, row.name)}>
+                        Delete
+                      </Button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
-};
-
-export default Suppliers;
+}

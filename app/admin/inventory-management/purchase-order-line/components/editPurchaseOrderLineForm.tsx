@@ -7,6 +7,7 @@ import { Button } from "react-bootstrap";
 import { api } from "../../../../../convex/_generated/api";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import InputComponent from "../../../../../shared/input";
+import { formatPropertyMoney, usePropertyCurrency } from "../../components/money";
 
 type FormData = {
   purchaseOrderId: string;
@@ -27,6 +28,9 @@ export function EditFormComponent({
   purchaseOrderLineId
 }: EditPurchaseOrderLineFormProps) {
   const updatePurchaseOrderLine = useMutation(api.purchaseOrderLines.updatePurchaseOrderLine);
+  const currency = usePropertyCurrency(
+    purchaseOrderLineData.inventoryItem?.propertyId || purchaseOrderLineData.purchaseOrder?.propertyId,
+  );
 
   const { register, handleSubmit, formState: { errors }, watch } = useForm<FormData>({
     resolver: yupResolver(formSchema) as any,
@@ -108,7 +112,7 @@ export function EditFormComponent({
         <div className="flex-1">
           <InputComponent
             id="unitPrice"
-            label="Unit Price *"
+            label={`Unit Price (${currency}) *`}
             type="number"
             inputWidth="w-full"
             register={register('unitPrice', { required: true })}
@@ -131,7 +135,7 @@ export function EditFormComponent({
         <div className="flex-1">
           <div className="p-3 bg-gray-100 rounded">
             <p className="text-sm font-medium">Total Price</p>
-            <p className="text-2xl font-bold">${(Number(quantity) * Number(unitPrice)).toFixed(2)}</p>
+            <p className="text-2xl font-bold">{formatPropertyMoney(Number(quantity) * Number(unitPrice), currency)}</p>
           </div>
         </div>
       </div>

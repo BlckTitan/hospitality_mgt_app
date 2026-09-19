@@ -10,13 +10,19 @@ import InputComponent from "../../../../../shared/input";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { api } from "../../../../../convex/_generated/api";
 import SelectComponent from "../../../../../shared/select";
-import { PAYMENT_METHOD_OPTIONS, formatDate, formatMoney } from "../../../billing/components/labels";
+import { PAYMENT_METHOD_OPTIONS, formatDate } from "../../../billing/components/labels";
+import { formatPropertyMoney, usePropertyCurrency } from "../../components/money";
+
+function toDateInput(value?: number) {
+  if (!value) return '';
+  return new Date(value).toISOString().slice(0, 10);
+}
 
 type FormData = {
   orderNumber: string;
   supplierId: string;
-  orderDate: number;
-  expectedDeliveryDate?: number;
+  orderDate: string;
+  expectedDeliveryDate?: string;
   status: string;
   subtotal: number;
   taxAmount: number;
@@ -28,18 +34,15 @@ interface EditPurchaseOrderFormProps {
   purchaseOrderData: any;
   purchaseOrderId: string;
   suppliers: any[];
-  onSuccess: () => void;
-  onClose: () => void;
 }
 
 export function EditPurchaseOrderForm({ 
   purchaseOrderData, 
   purchaseOrderId, 
   suppliers,
-  onSuccess, 
-  onClose 
 }: EditPurchaseOrderFormProps) {
   const updatePurchaseOrder = useMutation(api.purchaseOrders.updatePurchaseOrder);
+  const currency = usePropertyCurrency(purchaseOrderData.propertyId);
   const markPaid = useMutation(api.purchaseOrders.markPurchaseOrderPaid);
   const { register: registerPay, handleSubmit: handlePay, formState: { isSubmitting: paying } } = useForm({
     defaultValues: { paymentMethod: 'bank_transfer' as 'cash' | 'card' | 'bank_transfer' | 'check' },
@@ -50,8 +53,8 @@ export function EditPurchaseOrderForm({
     defaultValues: {
       orderNumber: purchaseOrderData.orderNumber || '',
       supplierId: purchaseOrderData.supplierId || '',
-      orderDate: purchaseOrderData.orderDate || Date.now(),
-      expectedDeliveryDate: purchaseOrderData.expectedDeliveryDate,
+      orderDate: toDateInput(purchaseOrderData.orderDate),
+      expectedDeliveryDate: toDateInput(purchaseOrderData.expectedDeliveryDate),
       status: purchaseOrderData.status || 'draft',
       subtotal: purchaseOrderData.subtotal ?? 0,
       taxAmount: purchaseOrderData.taxAmount ?? 0,
@@ -72,8 +75,8 @@ export function EditPurchaseOrderForm({
         purchaseOrderId: purchaseOrderId as Id<'purchaseOrders'>,
         supplierId: data.supplierId as Id<'suppliers'>,
         orderNumber: data.orderNumber,
-        orderDate: Math.floor(new Date(data.orderDate).getTime()),
-        expectedDeliveryDate: data.expectedDeliveryDate ? Math.floor(new Date(data.expectedDeliveryDate).getTime()) : undefined,
+        orderDate: new Date(data.orderDate).getTime(),
+        expectedDeliveryDate: data.expectedDeliveryDate ? new Date(data.expectedDeliveryDate).getTime() : undefined,
         status: data.status,
         subtotal: Number(data.subtotal),
         taxAmount: Number(data.taxAmount),
@@ -85,10 +88,6 @@ export function EditPurchaseOrderForm({
         toast.error(response.message);
       } else {
         toast.success('Purchase order updated successfully!');
-        setTimeout(() => {
-          onSuccess();
-          window.location.href = '/admin/inventory-management/purchase-order';
-        }, 1500);
       }
     } catch (error: any) {
       console.error('Update purchase order failed:', error);
@@ -173,7 +172,7 @@ export function EditPurchaseOrderForm({
         <div className="flex-1">
           <InputComponent
             id="subtotal"
-            label="Subtotal *"
+            label={`Subtotal (${currency}) *`}
             type="number"
             inputWidth="w-full"
             register={register('subtotal', { required: true })}
@@ -183,7 +182,7 @@ export function EditPurchaseOrderForm({
         <div className="flex-1">
           <InputComponent
             id="taxAmount"
-            label="Tax Amount *"
+            label={`Tax Amount (${currency}) *`}
             type="number"
             inputWidth="w-full"
             register={register('taxAmount', { required: true })}
@@ -196,7 +195,7 @@ export function EditPurchaseOrderForm({
         <div className="flex-1">
           <InputComponent
             id="shippingAmount"
-            label="Shipping Amount"
+            label={`Shipping Amount (${currency})`}
             type="number"
             inputWidth="w-full"
             register={register('shippingAmount')}
@@ -206,15 +205,12 @@ export function EditPurchaseOrderForm({
         <div className="flex-1">
           <div className="p-3 bg-gray-100 rounded">
             <p className="text-sm font-medium">Total Amount</p>
-            <p className="text-2xl font-bold">${(Number(subtotal) + Number(taxAmount) + Number(shippingAmount)).toFixed(2)}</p>
+            <p className="text-2xl font-bold">{formatPropertyMoney(Number(subtotal) + Number(taxAmount) + Number(shippingAmount), currency)}</p>
           </div>
         </div>
       </div>
 
       <div className="flex gap-2 justify-end">
-        <Button variant="secondary" onClick={onClose}>
-          Cancel
-        </Button>
         <Button variant="dark" type="submit">
           Update Purchase Order
         </Button>
@@ -225,7 +221,7 @@ export function EditPurchaseOrderForm({
         Paid {formatDate(purchaseOrderData.paidAt)}
         {purchaseOrderData.paymentMethod ? ` · ${purchaseOrderData.paymentMethod}` : ''}
         {' · '}
-        {formatMoney(purchaseOrderData.totalAmount)}
+        {formatPropertyMoney(purchaseOrderData.totalAmount, currency)}
       </p>
     ) : purchaseOrderData.status !== 'cancelled' && Number(purchaseOrderData.totalAmount) > 0 ? (
       <form
@@ -240,7 +236,6 @@ export function EditPurchaseOrderForm({
             return;
           }
           toast.success(paid.message);
-          onSuccess();
         })}
       >
         <p className="mb-2 font-medium">Record payment</p>

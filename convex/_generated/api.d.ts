@@ -26,6 +26,7 @@ import type * as inventoryItems from "../inventoryItems.js";
 import type * as inventoryTasks from "../inventoryTasks.js";
 import type * as inventoryTransactions from "../inventoryTransactions.js";
 import type * as lib_billingPeriods from "../lib/billingPeriods.js";
+import type * as lib_inventoryStock from "../lib/inventoryStock.js";
 import type * as lib_payrollHelpers from "../lib/payrollHelpers.js";
 import type * as lib_payrollPacks from "../lib/payrollPacks.js";
 import type * as lib_pendingInvites from "../lib/pendingInvites.js";
@@ -95,6 +96,7 @@ declare const fullApi: ApiFromModules<{
   inventoryTasks: typeof inventoryTasks;
   inventoryTransactions: typeof inventoryTransactions;
   "lib/billingPeriods": typeof lib_billingPeriods;
+  "lib/inventoryStock": typeof lib_inventoryStock;
   "lib/payrollHelpers": typeof lib_payrollHelpers;
   "lib/payrollPacks": typeof lib_payrollPacks;
   "lib/pendingInvites": typeof lib_pendingInvites;
