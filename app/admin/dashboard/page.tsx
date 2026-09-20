@@ -84,7 +84,7 @@ export default function Dashboard() {
   const selected = properties.find((property) => property._id === currentPropertyId) ?? properties[0];
 
   return (
-    <div className="w-full">
+    <div className="w-full p-4 bg-white">
       <header className="w-full border-b mb-4 pb-3">
         <h1 className="text-2xl font-bold text-gray-800">Dashboard</h1>
         <p className="text-gray-600">Property financial and operational health</p>
@@ -98,7 +98,7 @@ export default function Dashboard() {
           id="property-select"
           value={currentPropertyId}
           onChange={(e) => setPropertyId(e.target.value)}
-          className="block w-full md:w-64 px-3 py-2 border border-gray-300 rounded-md"
+          className="block w-full lg:w-3/12 px-3 py-2 border border-gray-300 rounded-md"
         >
           {properties.map((property) => (
             <option key={property._id} value={property._id}>

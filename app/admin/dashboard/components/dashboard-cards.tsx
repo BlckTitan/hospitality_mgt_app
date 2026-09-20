@@ -28,11 +28,15 @@ function formatPct(value: number) {
 
 function Kpi({ label, value, warn }: { label: string; value: string | number; warn?: boolean }) {
   return (
-    <div className="border p-3">
+    <div className="w-full border p-3">
       <p className="text-sm text-slate-600">{label}</p>
       <p className={`text-2xl font-semibold ${warn ? 'text-red-600' : ''}`}>{value}</p>
     </div>
   );
+}
+
+function KpiGrid({ children, className }: { children: ReactNode; className?: string }) {
+  return <div className={`grid w-full grid-cols-1 gap-3 ${className ?? ''}`}>{children}</div>;
 }
 
 function CardShell({
@@ -87,7 +91,7 @@ export function FinancialReportCard({
   const money = (value: number) => formatPropertyMoney(value, currency);
 
   return (
-    <section className="bg-white border p-4">
+    <section className="border p-4">
       <div className="flex flex-wrap items-center gap-2 mb-4">
         {CASH_PERIOD_KINDS.map((periodKind) => (
           <Button
@@ -122,14 +126,14 @@ export function FinancialReportCard({
         </Button>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
+      <KpiGrid className="mb-6 md:grid-cols-2 lg:grid-cols-3">
         <Kpi label="Occupancy" value={formatPct(data.occupancyRate)} />
-        <Kpi label="ADR" value={money(data.adr)} />
-        <Kpi label="RevPAR" value={money(data.revpar)} />
-        <Kpi label="TRevPAR" value={money(data.trevpar)} />
-        <Kpi label="GOP" value={money(data.gop)} warn={data.gop < 0} />
-        <Kpi label="GOPPAR" value={money(data.goppar)} warn={data.goppar < 0} />
-      </div>
+        <Kpi label="ADR (Average Daily Rate)" value={money(data.adr)} />
+        <Kpi label="RevPAR (Revenue Per Available Room)" value={money(data.revpar)} />
+        <Kpi label="TRevPAR (Total Revenue Per Available Room)" value={money(data.trevpar)} />
+        <Kpi label="GOP (Gross Operating Profit)" value={money(data.gop)} warn={data.gop < 0} />
+        <Kpi label="GOPPAR (Gross Operating Profit Per Available Room)" value={money(data.goppar)} warn={data.goppar < 0} />
+      </KpiGrid>
       <p className="text-sm text-slate-600 mb-4">
         {data.roomsSoldNights} room nights sold · {data.availableRoomNights} available
         ({data.sellableRooms} sellable rooms × {data.nights} nights) · GOP margin {formatPct(data.gopMargin)}
@@ -189,7 +193,7 @@ export function FinancialReportCard({
 export function RoomsCard({ propertyId }: { propertyId: Id<'properties'> }) {
   const snapshot = useQuery(api.dashboard.getRoomsSnapshot, { propertyId });
   if (snapshot === undefined) {
-    return <section className="bg-white border p-4">Loading rooms…</section>;
+    return <section className="border p-4">Loading rooms…</section>;
   }
   const data = snapshot.data;
   if (!data) {
@@ -198,12 +202,12 @@ export function RoomsCard({ propertyId }: { propertyId: Id<'properties'> }) {
 
   return (
     <CardShell href="/admin/room-management/reservation" linkLabel="Reservations">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+      <KpiGrid className="mb-4 md:grid-cols-2 lg:grid-cols-4">
         <Kpi label="Available" value={data.roomCounts.available} />
         <Kpi label="Occupied" value={data.roomCounts.occupied} />
         <Kpi label="In house" value={data.inHouse} />
         <Kpi label="Arrivals" value={data.arrivalCount} />
-      </div>
+      </KpiGrid>
       <p className="text-sm text-slate-600 mb-2">
         Out of order {data.roomCounts.outOfOrder} · Maintenance {data.roomCounts.maintenance} · Departures {data.departureCount}
       </p>
@@ -247,7 +251,7 @@ export function RoomsCard({ propertyId }: { propertyId: Id<'properties'> }) {
 export function HousekeepingCard({ propertyId }: { propertyId: Id<'properties'> }) {
   const snapshot = useQuery(api.dashboard.getHousekeepingSnapshot, { propertyId });
   if (snapshot === undefined) {
-    return <section className="bg-white border p-4">Loading housekeeping…</section>;
+    return <section className="border p-4">Loading housekeeping…</section>;
   }
   const data = snapshot.data;
   if (!data) {
@@ -256,11 +260,11 @@ export function HousekeepingCard({ propertyId }: { propertyId: Id<'properties'> 
 
   return (
     <CardShell href="/admin/room-management/housekeeping-task" linkLabel="Board">
-      <div className="grid grid-cols-3 gap-3 mb-4">
+      <KpiGrid className="mb-4 md:grid-cols-3">
         <Kpi label="Open" value={data.open} />
         <Kpi label="Overdue" value={data.overdue} warn={data.overdue > 0} />
         <Kpi label="Unassigned" value={data.unassigned} />
-      </div>
+      </KpiGrid>
       {data.overdueTitles.length === 0 ? (
         <p className="text-sm text-slate-600">No overdue tasks.</p>
       ) : (
@@ -285,7 +289,7 @@ export function InventoryCard({
 }) {
   const dashboard = useQuery(api.inventoryItems.getInventoryDashboard, { propertyId });
   if (dashboard === undefined) {
-    return <section className="bg-white border p-4">Loading inventory…</section>;
+    return <section className="border p-4">Loading inventory…</section>;
   }
   const data = dashboard.data;
   if (!dashboard.success || !data) {
@@ -294,12 +298,12 @@ export function InventoryCard({
 
   return (
     <CardShell href="/admin/inventory-management" linkLabel="Inventory hub">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <KpiGrid className="md:grid-cols-2 lg:grid-cols-4">
         <Kpi label="Active items" value={data.activeItemCount} />
         <Kpi label="On-hand value" value={formatPropertyMoney(data.stockValue, currency)} />
         <Kpi label="Low stock" value={data.lowStockCount} warn={data.lowStockCount > 0} />
         <Kpi label="Open POs" value={data.openPoCount} />
-      </div>
+      </KpiGrid>
     </CardShell>
   );
 }
@@ -328,7 +332,7 @@ export function FnBCard({
 
   return (
     <CardShell href="/admin/bar-management" linkLabel="Bar management">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <KpiGrid className="md:grid-cols-2 lg:grid-cols-4">
         <Kpi label="Qty sold" value={data.totalQtySold} />
         <Kpi label="Revenue" value={formatPropertyMoney(data.totalRevenue, currency)} />
         <Kpi label="Open logs" value={data.openLogCount} />
@@ -337,7 +341,7 @@ export function FnBCard({
           value={canReadInventory ? (alerts?.data?.length ?? 0) : '—'}
           warn={Boolean(alerts?.data?.length)}
         />
-      </div>
+      </KpiGrid>
     </CardShell>
   );
 }
@@ -351,7 +355,7 @@ export function BillingCard({
 }) {
   const dashboard = useQuery(api.billing.listDashboard, { propertyId });
   if (dashboard === undefined) {
-    return <section className="bg-white border p-4">Loading billing…</section>;
+    return <section className="border p-4">Loading billing…</section>;
   }
   const data = dashboard.data;
   if (!data) {
@@ -363,11 +367,11 @@ export function BillingCard({
 
   return (
     <CardShell href="/admin/billing" linkLabel="Billing hub">
-      <div className="grid grid-cols-3 gap-3 mb-4">
+      <KpiGrid className="mb-4 md:grid-cols-3">
         <Kpi label="Accounts" value={data.accountCount} />
         <Kpi label="Overdue" value={overdue.length} warn={overdue.length > 0} />
         <Kpi label="Due this week" value={dueThisWeek.length} />
-      </div>
+      </KpiGrid>
       {overdue.slice(0, 3).length > 0 && (
         <ul className="text-sm space-y-1">
           {overdue.slice(0, 3).map((row) => (
