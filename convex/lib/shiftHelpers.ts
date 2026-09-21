@@ -262,6 +262,8 @@ export async function findOrCreateFnBShift(
     startTime: currentUtcHHmm(),
     isFinalized: false,
     shiftTemplateId: template?._id,
+    clockMethod: "self",
+    recordedByUserId: args.userId,
     ...punctualityInsertFields(punctuality),
   });
 }

@@ -622,6 +622,9 @@ export default defineSchema({
     accountNumber: v.optional(v.string()), // encrypted
     routingCode: v.optional(v.string()),
     shiftTemplateId: v.optional(v.id("shiftTemplates")),
+    clockMethod: v.optional(
+      v.union(v.literal("self"), v.literal("supervisor"), v.literal("kiosk"))
+    ),
     createdAt: v.optional(v.number()),
     updatedAt: v.optional(v.number()),
   })
@@ -843,6 +846,10 @@ export default defineSchema({
     punctualityStatus: v.optional(
       v.union(v.literal("on_time"), v.literal("late"), v.literal("unscheduled"))
     ),
+    clockMethod: v.optional(
+      v.union(v.literal("self"), v.literal("kiosk"), v.literal("proxy"))
+    ),
+    recordedByUserId: v.optional(v.id("users")),
   })
     .index("by_propertyId", ["propertyId"])
     .index("by_userId", ["userId"])

@@ -24,6 +24,11 @@ import {
   stripCompensation,
   writeOpeningPayHistory,
 } from './lib/staffAccess';
+import {
+  defaultClockMethodForStaff,
+  resolveStaffClockMethod,
+  staffClockMethodValidator,
+} from './lib/clockMethod';
 
 type DbCtx = MutationCtx | QueryCtx;
 
@@ -160,6 +165,7 @@ async function enrichStaff(ctx: DbCtx, staff: Doc<'staffs'>, canSeePay: boolean)
     employmentStatus: normalizeEmploymentStatus(staff.employmentStatus),
     onLeave,
     shiftTemplateName: template?.name ?? null,
+    clockMethod: resolveStaffClockMethod(staff),
     managerName: manager ? `${manager.firstName} ${manager.lastName}` : null,
     linkedLogin: linkedUser
       ? { name: linkedUser.name, email: linkedUser.email }
@@ -449,6 +455,7 @@ export const createStaff = mutation({
     employmentType: employmentTypeValidator,
     managerId: v.optional(v.id('staffs')),
     userId: v.optional(v.id('users')),
+    clockMethod: v.optional(staffClockMethodValidator),
     payType: v.optional(payTypeValidator),
     hourlyRate: v.optional(v.number()),
     paymentMethod: v.optional(paymentMethodValidator),
@@ -502,6 +509,11 @@ export const createStaff = mutation({
           null;
       }
 
+      const clockMethod = args.clockMethod ?? defaultClockMethodForStaff(args.userId);
+      if (clockMethod === 'self' && !args.userId) {
+        return { success: false, message: 'Self-clock requires a linked login.' };
+      }
+
       const property = propertyId ? await ctx.db.get(propertyId) : null;
       const employeeNumber = propertyId
         ? await nextEmployeeNumber(ctx, propertyId, property?.name)
@@ -532,6 +544,7 @@ export const createStaff = mutation({
         employmentType,
         managerId: args.managerId,
         shiftTemplateId: template?._id,
+        clockMethod,
         employeeNumber,
         payType,
         baseSalary,
@@ -611,6 +624,7 @@ export const updateStaff = mutation({
     employmentType: v.optional(employmentTypeValidator),
     managerId: v.optional(v.union(v.id('staffs'), v.null())),
     userId: v.optional(v.union(v.id('users'), v.null())),
+    clockMethod: v.optional(staffClockMethodValidator),
     nationalId: v.optional(v.string()),
     idType: v.optional(idTypeValidator),
     emergencyName: v.optional(v.string()),
@@ -656,6 +670,15 @@ export const updateStaff = mutation({
         ? normalizeEmploymentStatus(args.employmentStatus)
         : normalizeEmploymentStatus(existingStaff.employmentStatus);
 
+      const nextUserId = args.userId === null ? undefined : (args.userId ?? existingStaff.userId);
+      const nextClockMethod =
+        args.clockMethod ??
+        existingStaff.clockMethod ??
+        defaultClockMethodForStaff(nextUserId);
+      if (nextClockMethod === 'self' && !nextUserId) {
+        return { success: false, message: 'Self-clock requires a linked login.' };
+      }
+
       await ctx.db.patch(existingStaff._id, {
         email: args.email,
         firstName: args.firstName,
@@ -683,6 +706,7 @@ export const updateStaff = mutation({
         contractEndDate: args.contractEndDate,
         probationEndDate: args.probationEndDate,
         searchName: peopleSearchName(args.firstName, args.lastName),
+        clockMethod: nextClockMethod,
         ...(args.userId ? { userId: args.userId } : {}),
         ...(args.managerId ? { managerId: args.managerId } : {}),
       });
@@ -690,6 +714,10 @@ export const updateStaff = mutation({
       if (args.userId === null) {
         const latest = await ctx.db.get(existingStaff._id);
         if (latest) await unsetStaffUserId(ctx, latest);
+        const afterUnlink = await ctx.db.get(existingStaff._id);
+        if (afterUnlink && resolveStaffClockMethod(afterUnlink) === 'self') {
+          await ctx.db.patch(afterUnlink._id, { clockMethod: 'supervisor' });
+        }
       }
       if (args.managerId === null) {
         const latest = await ctx.db.get(existingStaff._id);

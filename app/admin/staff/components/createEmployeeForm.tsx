@@ -3,7 +3,7 @@ import { useState } from "react";
 import { api } from "../../../../convex/_generated/api";
 import { SubmitHandler, useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
-import { formSchema } from "./validation";
+import { formSchema, CLOCK_METHOD_OPTIONS } from "./validation";
 import { toast } from "sonner";
 import InputComponent from "../../../../shared/input";
 import DatepickerComponent from "../../../../shared/datepicker";
@@ -32,6 +32,7 @@ type FormData = {
   LGA: string;
   salary?: number;
   userId?: string;
+  clockMethod?: string;
 };
 
 const DEPARTMENTS = [
@@ -71,6 +72,7 @@ export function FormComponent() {
       userId: "",
       managerId: "",
       position: "",
+      clockMethod: "",
     },
   });
 
@@ -98,6 +100,9 @@ export function FormComponent() {
         position: data.position || undefined,
         managerId: data.managerId ? (data.managerId as Id<"staffs">) : undefined,
         ...(data.userId ? { userId: data.userId as Id<"users"> } : {}),
+        ...(data.clockMethod
+          ? { clockMethod: data.clockMethod as "self" | "supervisor" | "kiosk" }
+          : {}),
       });
 
       if (response.success === false) {
@@ -263,6 +268,17 @@ export function FormComponent() {
           defaultText="No manager"
           register={register("managerId")}
           options={(managers ?? []).map((row) => ({ value: row._id, label: `${row.name} (${row.role})` }))}
+        />
+      </div>
+
+      <div className={fieldRowClassName}>
+        <SelectComponent
+          id="clockMethod"
+          label="Attendance clock"
+          selectWidth="w-1/3"
+          defaultText="Default (self if login linked)"
+          register={register("clockMethod")}
+          options={CLOCK_METHOD_OPTIONS}
         />
       </div>
 

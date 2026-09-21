@@ -756,17 +756,18 @@ Sidebar: **Dashboard** (`/admin/dashboard`, `reports.read` — hidden without it
 ---
 
 ### 34c. Attendance Tracker (`/admin/shift-management/attendance`)
-**Purpose**: Staff start and end today’s scheduled shift. Login does **not** start a shift.
+**Purpose**: Live clock for today. Login does **not** start a shift. **My duty** is self-clock. **Today’s floor** is the supervisor board (Start for / End for at server time).
 
 **Data Fetching:**
-- Resolve linked `staffs` for the logged-in User
-- Show today’s expected Department shift (template times) and Cover status
-- After **Start shift**, show on time / late (minutes) against the snapshot expected start
-- **Start shift** inserts `shifts` with actual clock time. **End shift** finalizes and drafts Hours.
+- **My duty**: resolve linked `staffs` for the logged-in User; honour `clockMethod` (`self` may Start/End; `supervisor` / `kiosk` cannot self-clock)
+- **Today’s floor**: rostered / templated staff for today (`staff.read` to view; `staff.update` or `payroll.timesheet.approve` to proxy). Direct reports only when the actor cannot see all team records. Exclude proxying yourself (use My duty).
+- After live **Start**, show on time / late (minutes) against the snapshot expected start. Store `clockMethod` (`self` | `proxy`) and `recordedByUserId`.
+- **Start shift** / **Start for** inserts `shifts` with **server time now**. **End shift** / **End for** finalizes and drafts Hours.
+- Staff profile **Clock them now** calls the same proxy mutations (convenience, not the morning workflow).
 
 **Related Entities:** `staffs`, `shiftTemplates`, `rosterSlots`, `shifts`, `hours`
 
-**Rendering Strategy: SSR** — own session only (`payroll.timesheet.create` or `fnb.read`); User must be linked to Staff
+**Rendering Strategy: SSR** — My duty (`payroll.timesheet.create` or `fnb.read`); floor (`staff.read` / `staff.update` / `payroll.timesheet.approve`)
 
 ---
 

@@ -3,7 +3,7 @@ import { Button } from "react-bootstrap";
 import { api } from "../../../../convex/_generated/api";
 import { useState } from "react";
 import { yupResolver } from "@hookform/resolvers/yup";
-import { formSchema } from "./validation";
+import { formSchema, CLOCK_METHOD_OPTIONS } from "./validation";
 import { FieldValues, SubmitHandler, useForm } from "react-hook-form";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { toast } from "sonner";
@@ -35,6 +35,7 @@ type FormData = {
   managerId?: string;
   position?: string;
   userId?: string;
+  clockMethod?: string;
   nationalId?: string;
   idType?: string;
   emergencyName?: string;
@@ -72,6 +73,7 @@ export function FormComponent(props: {
   role: string;
   stateOfOrigin: string;
   userId?: string;
+  clockMethod?: string;
   employmentType?: string;
   managerId?: string;
   position?: string;
@@ -126,6 +128,7 @@ export function FormComponent(props: {
       managerId: props.managerId || "",
       position: props.position || "",
       userId: props.userId || "",
+      clockMethod: props.clockMethod || "",
       nationalId: props.nationalId || "",
       idType: props.idType || "",
       emergencyName: props.emergencyName || "",
@@ -184,6 +187,9 @@ export function FormComponent(props: {
         contractEndDate: data.contractEndDate || undefined,
         probationEndDate: data.probationEndDate || undefined,
         userId: data.userId ? (data.userId as Id<"users">) : null,
+        clockMethod: data.clockMethod
+          ? (data.clockMethod as "self" | "supervisor" | "kiosk")
+          : undefined,
       });
 
       if (response.success === false) {
@@ -340,6 +346,13 @@ export function FormComponent(props: {
             { value: "casual", label: "Casual" },
             { value: "contractor", label: "Contractor" },
           ]}
+        />
+        <SelectComponent
+          id="clockMethod"
+          label="Attendance clock"
+          selectWidth="w-1/3"
+          register={register("clockMethod")}
+          options={CLOCK_METHOD_OPTIONS}
         />
       </div>
       <div className={fieldRowClassName}>

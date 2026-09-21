@@ -88,6 +88,14 @@ export default function MyProfileComponent() {
         {row('Emergency', detail.emergencyName ? `${detail.emergencyName} (${detail.emergencyPhone})` : '—')}
         {row('Payment method', `${detail.paymentMethod || '—'} ${detail.accountNumber ? `(${detail.accountNumber})` : ''}`)}
         {row('Department shift', detail.shiftTemplateName || 'Not assigned')}
+        {row(
+          'Attendance clock',
+          detail.clockMethod === 'self'
+            ? 'Self (phone / login)'
+            : detail.clockMethod === 'kiosk'
+              ? 'On-site kiosk'
+              : 'Supervisor clocks you',
+        )}
       </section>
 
       <div className='flex flex-wrap gap-2 mb-4'>

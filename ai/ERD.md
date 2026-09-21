@@ -592,6 +592,7 @@ The people record used for payroll, housekeeping, POs, and inventory. **There is
 - `position`: Optional free-text job title
 - `managerId` (FK, optional): Another `staffs` row at the same property (not self). Direct reports = team.
 - `shiftTemplateId` (FK, optional): Default **Department shift** inherited on onboard (or when department changes)
+- `clockMethod` (optional): `self` | `supervisor` | `kiosk`. Who may press Start shift. Unset: `self` if a User is linked, otherwise `supervisor`. Self-clock requires a linked login. Kiosk PIN is later; until then supervisors proxy-clock kiosk staff.
 - `payType`, `baseSalary`, `hourlyRate`: Current denormalized copy of the open `Pay history` row. Legacy `salary` is a deprecated copy of `baseSalary`.
 - `payCycleId` (FK, optional): Default `Pay cycle` (else property default)
 - `paymentMethod`: bank | cash | mobile_money | check (bank fields required only for bank)
@@ -681,8 +682,10 @@ Schema table: `shifts`. One actual working session (any department). Attendance 
 - `clockStartLocal` (optional): Actual start in the property timezone (HH:MM)
 - `minutesLate` (optional): Minutes after expected start, 0 if early or on time
 - `punctualityStatus` (optional): on_time | late | unscheduled
+- `clockMethod` (optional): self | kiosk | proxy. How this session was started. Live Attendance Tracker start (self or proxy) uses server time now. Ad-hoc Shift create with a typed start time is `unscheduled`.
+- `recordedByUserId` (FK User, optional): Who pressed Start (the staff member for self-clock, the supervisor for proxy)
 
-**Purpose**: One session per staff per date (application-enforced). Logging in does not create a Shift. End shift or Finalize drafts Hours (`source = shift`) and, for F&B, finalizes that shift’s `userStockLogs`. Employees see only their own rows; managers with `staff.read` see everyone. Punctuality is scored at Start shift (property timezone vs snapshot expected start, plus Payroll settings grace minutes). Unscheduled means no expected start (ad-hoc shift with no department template). Punctuality does not change pay.
+**Purpose**: One session per staff per date (application-enforced). Logging in does not create a Shift. End shift or Finalize drafts Hours (`source = shift`) and, for F&B, finalizes that shift’s `userStockLogs`. Employees see only their own rows; managers with `staff.read` see everyone. Punctuality is scored at live Start shift (property timezone vs snapshot expected start, plus Payroll settings grace minutes). Unscheduled means no expected start, or an ad-hoc typed clock. Punctuality does not change pay.
 
 ---
 

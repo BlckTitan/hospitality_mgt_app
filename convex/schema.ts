@@ -133,6 +133,10 @@ export default defineSchema({
     accountNumber: v.optional(v.string()),
     routingCode: v.optional(v.string()),
     shiftTemplateId: v.optional(v.id("shiftTemplates")),
+    // Who may press Start shift. Unset: self if a User is linked, otherwise supervisor.
+    clockMethod: v.optional(
+      v.union(v.literal("self"), v.literal("supervisor"), v.literal("kiosk")),
+    ),
     // firstName + lastName for people search. Optional until existing staff are backfilled.
     searchName: v.optional(v.string()),
   })
@@ -886,6 +890,10 @@ export default defineSchema({
     punctualityStatus: v.optional(
       v.union(v.literal("on_time"), v.literal("late"), v.literal("unscheduled"))
     ),
+    clockMethod: v.optional(
+      v.union(v.literal("self"), v.literal("kiosk"), v.literal("proxy")),
+    ),
+    recordedByUserId: v.optional(v.id("users")),
   })
     .index("by_propertyId", ["propertyId"])
     .index("by_userId", ["userId"])

@@ -49,7 +49,9 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermission> = {
   '/admin/shift-management/templates': { granular: 'staff.read' },
   '/admin/shift-management/templates/edit': { granular: 'staff.update' },
   '/admin/shift-management/cover': { granular: 'staff.update' },
-  '/admin/shift-management/attendance': { granular: ['payroll.timesheet.create', 'fnb.read'] },
+  '/admin/shift-management/attendance': {
+    granular: ['payroll.timesheet.create', 'fnb.read', 'staff.read', 'payroll.timesheet.approve'],
+  },
   '/admin/shift-management/hours': { granular: 'payroll.timesheet.read' },
   '/admin/shift-management/hours/edit': { granular: 'payroll.timesheet.update' },
   '/admin/shift-management/punctuality': { granular: ['payroll.timesheet.read', 'staff.read'] },

@@ -16,9 +16,21 @@ import {
   PunctualityDaysTable,
   PunctualityPeriod,
   PunctualityPeriodToggle,
+  PunctualityStatusLabel,
   PunctualitySummaryCards,
   punctualityDateRange,
 } from '../../../shift-management/punctuality/components/punctualityReport'
+
+const CLOCK_METHOD_LABELS: Record<string, string> = {
+  self: 'Self (phone / login)',
+  supervisor: 'Supervisor clocks them',
+  kiosk: 'On-site kiosk',
+}
+
+function clockMethodLabel(method?: string | null) {
+  if (!method) return '—'
+  return CLOCK_METHOD_LABELS[method] ?? method
+}
 
 const TABS = ['Profile', 'Hours', 'Punctuality', 'Time off', 'Pay', 'Documents', 'Onboarding'] as const
 
@@ -111,6 +123,7 @@ export default function StaffViewComponent() {
           {row('Status', staffData.employmentStatus)}
           {row('Manager', staffData.managerName)}
           {row('Department shift', staffData.shiftTemplateName)}
+          {row('Attendance clock', clockMethodLabel(staffData.clockMethod))}
           {row('Linked login', staffData.linkedLogin ? `${staffData.linkedLogin.name} — ${staffData.linkedLogin.email}` : 'Not linked')}
           {row('Phone', staffData.phone)}
           {row('Address', staffData.address)}
@@ -140,6 +153,7 @@ export default function StaffViewComponent() {
               ))}
             </div>
           )}
+          <StaffTodayClock staffId={id as Id<'staffs'>} />
         </div>
       )}
 
@@ -370,6 +384,73 @@ export default function StaffViewComponent() {
           ) : undefined}
         />
       )}
+    </div>
+  )
+}
+
+function StaffTodayClock({ staffId }: { staffId: Id<'staffs'> }) {
+  const { isAuthenticated } = useConvexAuth()
+  const duty = useQuery(
+    api.attendance.getStaffTodayDuty,
+    isAuthenticated ? { staffId } : 'skip'
+  )
+  const startShiftFor = useMutation(api.attendance.startShiftFor)
+  const endShiftFor = useMutation(api.attendance.endShiftFor)
+
+  if (duty === undefined) return null
+  if (!duty.success || !duty.data || duty.data.isSelf) return null
+  if (!duty.canProxy) return null
+
+  const data = duty.data
+  return (
+    <div className='mt-4 border rounded p-3'>
+      <h5>Today&apos;s attendance</h5>
+      <p className='text-sm text-slate-600 mb-2'>
+        {data.shiftDate}
+        {data.expectedStart && data.expectedEnd ? ` · expected ${data.expectedStart}–${data.expectedEnd}` : ''}
+        {data.activeShift
+          ? data.activeShift.isFinalized
+            ? ` · ended ${data.activeShift.endTime}`
+            : ` · started ${data.activeShift.clockStartLocal || data.activeShift.startTime}`
+          : ' · not started'}
+        {data.activeShift?.punctualityStatus ? (
+          <>
+            {' · '}
+            <PunctualityStatusLabel
+              status={data.activeShift.punctualityStatus}
+              minutesLate={data.activeShift.minutesLate}
+            />
+          </>
+        ) : null}
+      </p>
+      {data.blockedReason && <p className='text-sm text-gray-700 mb-2'>{data.blockedReason}</p>}
+      <p className='text-xs text-slate-600 mb-2'>
+        Clock them now uses the time you press the button. Morning clock-in for the whole team is on Attendance Tracker → Today&apos;s floor.
+      </p>
+      <div className='flex gap-2'>
+        <Button
+          size='sm'
+          variant='dark'
+          disabled={!data.canStartFor}
+          onClick={async () => {
+            const result = await startShiftFor({ staffId })
+            result.success ? toast.success(result.message) : toast.error(result.message)
+          }}
+        >
+          Clock them now
+        </Button>
+        <Button
+          size='sm'
+          variant='secondary'
+          disabled={!data.canEndFor}
+          onClick={async () => {
+            const result = await endShiftFor({ staffId })
+            result.success ? toast.success(result.message) : toast.error(result.message)
+          }}
+        >
+          End shift
+        </Button>
+      </div>
     </div>
   )
 }

@@ -170,8 +170,8 @@ Salary, tax ID, and bank: Administrator, Director, General Manager, HR Manager, 
 
 **Role mapping (see `ai/payroll-implementation.md`):**
 - HR Manager, Finance Manager, Administrator, Director, General Manager: full payroll. Approve mutation still requires a **different user** than creator/calculator (maker ≠ checker).
-- Supervisor / Assistant Manager: Hours (`payroll.timesheet.read` + `approve`) and Time off (`payroll.leave.read` + `approve`) for **direct reports** (`staffs.managerId`); Department shifts (`staff.read` / `staff.update`) and Cover (`staff.update`). No compensation fields.
-- Employees with a User login linked to Staff: My profile (`staff.self.read`), Attendance Tracker Start/End shift (`payroll.timesheet.create` or `fnb.read`), own Shift rows, own Hours / Time off create, own Payslip (`payroll.payslip.read`); contact/bank/emergency change requests for HR approval
+- Employees with a User login linked to Staff: My profile (`staff.self.read`), Attendance Tracker **My duty** Start/End shift when `clockMethod = self` (`payroll.timesheet.create` or `fnb.read`), own Shift rows, own Hours / Time off create, own Payslip (`payroll.payslip.read`); contact/bank/emergency change requests for HR approval
+- Supervisor / Assistant Manager: Hours (`payroll.timesheet.read` + `approve`) and Time off (`payroll.leave.read` + `approve`) for **direct reports** (`staffs.managerId`); Department shifts (`staff.read` / `staff.update`) and Cover (`staff.update`); Attendance Tracker **Today’s floor** Start for / End for (`staff.update` or `payroll.timesheet.approve`; direct reports only when they cannot see all team records). No compensation fields.
 - F&B operational roles with `fnb.read` can open Attendance Tracker and own Shift rows; they still need a Staff link to start a shift
 - Other operational staff: none on runs or other employees' pay
 
@@ -182,7 +182,7 @@ Route access (`lib/proxy-permissions.ts`; `granular` may be a string or string[]
 | Shift Management hub | `/admin/shift-management` | `staff.read` |
 | Department shifts | `/admin/shift-management/templates` | `staff.read` (edit: `staff.update`) |
 | Cover | `/admin/shift-management/cover` | `staff.update` |
-| Attendance Tracker | `/admin/shift-management/attendance` | `payroll.timesheet.create` or `fnb.read` |
+| Attendance Tracker | `/admin/shift-management/attendance` | `payroll.timesheet.create` or `fnb.read` or `staff.read` or `payroll.timesheet.approve` |
 | Shift list | `/admin/shift-management/shift` | `staff.read` or `payroll.timesheet.create` or `fnb.read` |
 | Hours | `/admin/shift-management/hours` | `payroll.timesheet.read` (edit: `payroll.timesheet.update`) |
 

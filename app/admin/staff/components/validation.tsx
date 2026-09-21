@@ -55,5 +55,16 @@ export const formSchema = yup.object().shape({
     .oneOf(["full-time", "part-time", "casual", "contractor"])
     .required("Employment type is required"),
   userId: yup.string().optional(),
+  clockMethod: yup
+    .string()
+    .transform((value) => (value === "" ? undefined : value))
+    .oneOf(["self", "supervisor", "kiosk"])
+    .optional(),
   dateRecruited: yup.date().optional().nullable(),
 });
+
+export const CLOCK_METHOD_OPTIONS = [
+  { value: "self", label: "Self (phone / login)" },
+  { value: "supervisor", label: "Supervisor clocks them" },
+  { value: "kiosk", label: "On-site kiosk" },
+];

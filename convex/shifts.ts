@@ -3,7 +3,7 @@ import { v } from 'convex/values';
 import { requireAuthenticated, requirePermission, tryRequirePermission } from './lib/rbac';
 import { draftHoursFromShift } from './hours';
 import { currentUtcHHmm } from './lib/payrollHelpers';
-import { punctualityFieldsForClock, punctualityInsertFields } from './lib/punctuality';
+import { punctualityInsertFields } from './lib/punctuality';
 import {
   findActiveShiftForStaffDate,
   findActiveShiftForUserDate,
@@ -191,12 +191,13 @@ export const createShift = mutation({
       }
 
       const template = await resolveStaffTemplate(ctx, staff, args.propertyId);
-      const punctuality = await punctualityFieldsForClock(ctx, {
-        propertyId: args.propertyId,
+      const punctuality = {
         expectedStart: template?.startTime,
         expectedEnd: template?.endTime,
-        actualLocal: args.startTime,
-      });
+        clockStartLocal: args.startTime,
+        minutesLate: 0,
+        punctualityStatus: 'unscheduled' as const,
+      };
 
       const shiftId = await ctx.db.insert('shifts', {
         propertyId: args.propertyId,
@@ -273,12 +274,15 @@ export const updateShift = mutation({
       const template = staff
         ? await resolveStaffTemplate(ctx, staff, existingShift.propertyId)
         : null;
-      const punctuality = await punctualityFieldsForClock(ctx, {
-        propertyId: existingShift.propertyId,
-        expectedStart: existingShift.expectedStart ?? template?.startTime,
-        expectedEnd: existingShift.expectedEnd ?? template?.endTime,
-        actualLocal: startTime,
-      });
+      const typedClock = args.startTime
+        ? punctualityInsertFields({
+            expectedStart: existingShift.expectedStart ?? template?.startTime,
+            expectedEnd: existingShift.expectedEnd ?? template?.endTime,
+            clockStartLocal: args.startTime,
+            minutesLate: 0,
+            punctualityStatus: 'unscheduled',
+          })
+        : {};
 
       await ctx.db.patch(args.shiftId, {
         employeeId: employeeId,
@@ -288,7 +292,7 @@ export const updateShift = mutation({
         shiftDate,
         startTime,
         endTime: args.endTime ?? existingShift.endTime,
-        ...punctualityInsertFields(punctuality),
+        ...typedClock,
       });
       return { success: true, message: 'Shift updated successfully' };
     } catch (error) {

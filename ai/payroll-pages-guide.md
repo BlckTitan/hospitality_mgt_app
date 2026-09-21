@@ -45,11 +45,12 @@ Who: HR / supervisors who can update staff.
 
 ### Attendance Tracker — `/admin/shift-management/attendance`
 
-Who: staff with a User login linked to their `staffs` row.
+Who: staff with a User login linked to their `staffs` row (My duty); supervisors with `staff.read` / `staff.update` / Hours approve (Today’s floor).
 
-- Shows today’s expected department shift. Logging in does not start work.
-- **Start shift** records actual clock time when you begin and whether you are on time or late. **End shift** finalizes the session and creates **draft** Hours.
-- Staff whose login is not linked to Staff cannot start a shift.
+- **My duty** shows today’s expected department shift. Logging in does not start work. **Start shift** is allowed only when clock method is **Self**.
+- **Today’s floor** lists who should attend today. **Start for** / **End for** uses server time (same punctuality snapshot). Staff without a phone are clocked here.
+- **End shift** finalizes the session and creates **draft** Hours.
+- Staff whose clock method is Supervisor or Kiosk cannot start from My duty. Self-clock requires a linked login.
 
 ### Cover — `/admin/shift-management/cover`
 
