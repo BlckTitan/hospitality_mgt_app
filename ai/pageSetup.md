@@ -372,6 +372,44 @@ This document outlines which entities should have dedicated pages and the data f
 
 ## Food & Beverage Management Pages
 
+### 17c. Bar Management hub (`/admin/bar-management`)
+**Purpose**: Live stock-control and sales hub for bars (not the unimplemented menu/POS pages below). Spec: `ai/Bar inventory and sales management system design PRD.md` §4.4.
+
+**Permission:** `fnb.read`. Commercial charts need `reports.read`. Reorder KPIs/table need `inventory.read`.
+
+**Layout (top → bottom):**
+- Commercial KPIs: Total Revenue, Total Quantity Sold, Active Bars, Active Staff
+- Health KPIs: stock days finalized, open reorders (+ oldest age), stale reorders (24h+), revenue / waiter-shift
+- Period: Daily / Weekly / Monthly / Yearly / YoY (YoY is YTD through the current property month vs last year)
+- Tabs (only the active chart mounts): Bar Performance, Top Performers (plus per-shift table), Revenue Trend, Sales by Category, SKU Performance
+- Reorder alerts table
+
+**Data Fetching:**
+- `getSalesByBarPeriod`, `getSalesByUserPeriod`, `getRevenueTrend`, `getSalesSummaries` (`convex/salesSummaries.ts`)
+- YoY: `getYearOnYearOverview`
+- Health / SKUs: `getBarHealthMetrics` (`convex/barHealth.ts`) from `userStockLogs` (capped per day); yearly/YoY commercial ranks may use `salesSummaries`
+- `getOpenReorderAlerts`
+- Sales qty/value = `totalStock − closingStock` × `unitPrice` (stock disappearance, not POS tickets)
+
+**Child routes:** `/admin/bar-management/bar`, `/beverages`, `/user-stock-logs`, `/store-inventory`, `/store-transactions` (and edit pages). Store inventory/transactions use `inventory.read` / `inventory.update`.
+
+**Rendering Strategy: SSR** — live Convex subscriptions for the selected property.
+
+---
+
+### 17d. My Stock Today (`/admin/bar-management/my-stock`)
+**Purpose**: Waiter closing counts for property-local today
+
+**Permission:** `fnb.read`
+
+**Data Fetching:**
+- `getMyTodayStock` — authenticated user, `propertyDateKey` today
+- Mutations: `addMyTodayBeverage`, `saveMyClosingStock`, `finalizeMyToday`
+
+**Rendering Strategy: SSR**
+
+---
+
 ### 18. Menu Items Page (`/menu-items`)
 **Purpose**: Manage F&B menu catalog
 
@@ -1432,9 +1470,9 @@ Sidebar: **Dashboard** (`/admin/dashboard`, `reports.read` — hidden without it
   - Rooms: `getRoomsSnapshot` (`rooms.read` or `reservations.read`) — occupancy counts; today’s arrivals / departures / in-house (max 5 each)
   - Housekeeping: `getHousekeepingSnapshot` (`housekeeping.task.read`) — open / overdue / unassigned; up to 5 overdue titles
   - Inventory: `getInventoryDashboard` (`inventory.read`)
-  - F&B today: `getFnBTodaySnapshot` (`fnb.read`) from today’s `userStockLogs`; open reorder count if `inventory.read`
+  - F&B today: `getFnBTodaySnapshot` (`fnb.read`) from today’s `userStockLogs`; open reorder count if `inventory.read`. Drill-through: `/admin/bar-management`.
   - Billing: `listDashboard` (`billing.period.read`)
-- Do not call `getAllRooms` or `getAllReservations`. Do not chart raw `salesSummaries` SKU rows on this page.
+- Do not call `getAllRooms` or `getAllReservations`. Do not chart raw `salesSummaries` SKU rows on this page (period charts live on the Bar Management hub).
 
 **Related Entities to Include:**
 - `Property` (accessible ids: name, currency, timezone)
@@ -1454,12 +1492,12 @@ Sidebar: **Dashboard** (`/admin/dashboard`, `reports.read` — hidden without it
 
 ## Summary
 
-### Total Pages: 75
+### Total Pages: 77
 
 **Breakdown by Category:**
 - Core Platform: 6 pages
 - Room Management: 11 pages
-- Food & Beverage: 8 pages
+- Food & Beverage: 10 pages (includes live Bar Management hub + My Stock Today; menu/recipe/order pages remain catalog)
 - Inventory Management: 8 pages (includes inventory tasks)
 - Staff: 2 pages
 - Shift Management: 8 pages (hub, Department shifts, Attendance Tracker, Cover, Shift, Hours, Hours edit, Punctuality)

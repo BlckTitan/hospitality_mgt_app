@@ -69,12 +69,12 @@ Summaries are tabs (inventory-hub button style). Default tab is **P&L / RevPAR**
 | Rooms | `rooms.read` or `reservations.read` | Occupancy counts; today’s arrivals / departures / in-house | Rooms / Reservations |
 | Housekeeping | `housekeeping.task.read` | Open / overdue / unassigned counts; up to 5 overdue titles | Housekeeping board |
 | Inventory | `inventory.read` | Active items, stock value, low stock, open POs | Inventory hub |
-| F&B today | `fnb.read` | Today’s qty + revenue (property timezone); open reorder count if `inventory.read` | Bar Management |
+| F&B today | `fnb.read` | Today’s qty + revenue (property timezone); open reorder count if `inventory.read` | Bar Management hub (`/admin/bar-management`) |
 | Billing | `billing.period.read` | Account count, overdue, due this week | Billing hub |
 
 Do **not** put My shift or My tasks on this page.
 
-Leave `app/admin/dashboard/components/sales-summary-charts.tsx` unused. Do not chart raw `salesSummaries` SKU rows.
+Leave `app/admin/dashboard/components/sales-summary-charts.tsx` unused. Period bar charts, health KPIs, SKUs, and YoY live on `/admin/bar-management` (`app/admin/bar-management/components/sales-summary-charts.tsx`). Do not chart raw `salesSummaries` SKU rows on the property dashboard.
 
 Money: format with the selected property’s `currency` (same pattern as inventory `formatPropertyMoney`). Period controls use `lib/cashPeriod.ts` (day / week / month / year) in the property timezone.
 
@@ -144,12 +144,13 @@ See **P&L / RevPAR** above.
 - Today’s `userStockLogs` for the property (index `by_propertyId_logDate` on `userStockLogs`)
 - Return `totalQtySold`, `totalRevenue`, `openLogCount`, `finalizedLogCount`
 - Property currency/timezone. Do not use `salesSummaries` for this card.
+- Drill-through: Bar Management hub for Daily/Weekly/Monthly/Yearly/YoY charts and health KPIs (`getBarHealthMetrics`).
 
 ---
 
 ## Out of this pass
 
-- Register sales aggregation in `convex/crons.ts`, fix cron filters/timezone, add period-aggregated APIs, then revive Chart.js
 - Shared persisted property context across Dashboard / Bar / Inventory
 - Role-specific landings beyond dashboard vs My profile
 - Historical room inventory (out-of-order / maintenance as-of each night)
+- Beverage unit cost / pour cost / wastage reasons on the bar hub

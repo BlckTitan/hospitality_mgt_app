@@ -175,10 +175,12 @@ transaction's calendar date (`txnDateKey`) only — prior days are never mutated
 
 **Stock Update Rule:** When an `"issue"` `storeTransactions` fires, the mutation
 resolves the correct `userStockLogs` record using `(userId, barId, beverageId, logDate)`
-where `logDate` equals the transaction's `txnDateKey`. It then increments
+where `logDate` equals the transaction's `txnDateKey` (property-local date). It then increments
 `newStockReceived` and recomputes `totalStock`. If no record exists for that date,
-a new one is created with `openingStock` seeded from the previous day's `closingStock`.
-If the record is already `isFinalized: true`, the mutation throws a `ConvexError`.
+a new one is created with `openingStock` seeded from the **last finalized** closing
+stock for that `(userId, barId, beverageId)` (`lastFinalizedClosingStock`).
+If the record is already `isFinalized: true`, the mutation throws.
+Edit and delete of an issue reverse those qty changes on the same day's log.
 
 **Indexes:**
 
@@ -191,6 +193,9 @@ If the record is already `isFinalized: true`, the mutation throws a `ConvexError
 | `by_userId_barId_bev_date`   | `[userId, barId, beverageId, logDate]`   | **Primary lookup** — unique record for one beverage/day    |
 | `by_barId_beverage_date`     | `[barId, beverageId, logDate]`           | Bar-level beverage stock history across dates              |
 | `by_beverageId`              | `[beverageId]`                           | Cross-user/bar history for a beverage                      |
+| `by_propertyId`              | `[propertyId]`                           | Property-scoped lists                                      |
+| `by_propertyId_logDate`      | `[propertyId, logDate]`                  | Hub health + dashboard F&B today                           |
+| `by_logDate`                 | `[logDate]`                              | Cron rollups by calendar day                               |
 
 ---
 
@@ -275,6 +280,8 @@ Auto-generated when a beverage's store quantity falls to or below its threshold.
 | `by_beverageId`         | `[beverageId]`           | Alert history for a beverage                   |
 | `by_status`             | `[status]`               | Fetch all open or pending alerts               |
 | `by_beverageId_status`  | `[beverageId, status]`   | Check for an open alert on a specific beverage |
+| `by_propertyId`         | `[propertyId]`           | All alerts for a property                      |
+| `by_propertyId_status`  | `[propertyId, status]`   | Open / acknowledged / resolved at a property   |
 
 ---
 
@@ -307,6 +314,10 @@ scheduled Convex cron mutations rather than computed at query time.
 | `by_beverageId_period`      | `[beverageId, periodType, periodKey]`          | Beverage trend over a period                 |
 | `by_barId_beverage_period`  | `[barId, beverageId, periodType, periodKey]`   | Bar + beverage breakdown                     |
 | `by_year_periodType`        | `[year, periodType]`                           | Year-on-year comparisons                     |
+| `by_propertyId`             | `[propertyId]`                                 | Property-scoped lists                        |
+| `by_propertyId_periodType`  | `[propertyId, periodType]`                     | Filter summaries by granularity              |
+| `by_propertyId_barId_period`| `[propertyId, barId, periodType, periodKey]`   | Property + bar period                        |
+| `by_propertyId_periodType_periodKey` | `[propertyId, periodType, periodKey]` | Hub current-period aggregations       |
 
 ---
 

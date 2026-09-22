@@ -3,10 +3,10 @@
 
 | Field         | Detail                          |
 |---------------|---------------------------------|
-| Version       | 2.1                             |
-| Status        | Draft                           |
+| Version       | 2.2                             |
+| Status        | Implemented (hub + stock loop)  |
 | Database      | Convex                          |
-| Date          | 2026-03-31                      |
+| Date          | 2026-09-22                      |
 | Prepared by   | Product Team                    |
 
 ---
@@ -207,6 +207,12 @@ the same `(userId, barId, beverageId)`, ordered by `logDate` descending, using
 the `by_userId_barId_bev_date` index. If no prior record exists, `openingStock`
 defaults to `0`.
 
+**FR-SHF-007** — Waiters with `fnb.read` use **My Stock Today**
+(`/admin/bar-management/my-stock`). Queries `getMyTodayStock` and mutations
+`addMyTodayBeverage`, `saveMyClosingStock`, and `finalizeMyToday` are scoped to
+the authenticated `userId` and the property timezone `logDate` from
+`propertyDateKey`. Waiters cannot edit another user's logs from this page.
+
 ---
 
 ### 4.3 Bar Inventory Management — Store Manager View
@@ -260,39 +266,60 @@ throw if a reverse transition is attempted.
 
 ---
 
-### 4.4 Sales and Performance Analytics — Business Owner View
+### 4.4 Sales and Performance Analytics — Bar Management hub
 
-**FR-ANA-001** — A Convex cron job shall run daily (e.g. at 01:00) to aggregate
-all finalized `userStockLogs` documents from the preceding day into
-`salesSummaries` documents with `periodType: "daily"`. The aggregation query
-shall use the `by_barId_date` or `by_userId_date` index with the prior day's
-`logDate` as the filter key. Weekly, monthly, and yearly summaries shall be
-rolled up from daily records on their respective schedule boundaries.
+**Live page:** `/admin/bar-management` (`fnb.read`). Charts that read
+`salesSummaries` also need `reports.read`. Reorder tiles need `inventory.read`.
+The property dashboard F&B tab stays a **today snapshot** and links here — it
+does not host these charts. Spec: `ai/dashboard.md`, `ai/pageSetup.md`.
 
-**FR-ANA-002** — Sales performance per user shall be retrieved by querying
-`salesSummaries` using the `by_userId_period` index, filtered by the desired
-`periodType` and `periodKey`, then sorted by `totalRevenue` descending.
+**Sales identity:** `salesQuantity = totalStock − closingStock` (stock that
+disappeared at selling price `beverage.unitPrice`). This mixes true sales with
+spill, comps, and shrinkage until a wastage or POS ticket path exists.
 
-**FR-ANA-003** — Bar-level comparison shall be retrieved by querying
-`salesSummaries` with the `by_barId_period` index for each of the three bars in
-parallel using `Promise.all`, then merging results client-side.
+**FR-ANA-001** — Cron jobs in `convex/crons.ts` paginate finalized
+`userStockLogs` into `salesSummaries`: daily `0 1 * * *`, weekly Monday
+`0 2 * * 1`, monthly `0 3 1 * *`, yearly `0 4 1 1 *` (functions in
+`convex/cron.ts`). Dates use the property timezone (`propertyDateKey` /
+`localDayBounds`), not UTC.
 
-**FR-ANA-004** — Beverage performance trends shall be retrieved by querying
-`salesSummaries` with the `by_beverageId_period` index, providing time-series
-data for any beverage across any period granularity.
+**FR-ANA-002** — Hub period control: **Daily / Weekly / Monthly / Yearly /
+YoY**. Daily–yearly use the current `periodKey` for that `periodType`. YoY is
+year-to-date through the current property month versus the same months last
+year (`getYearOnYearOverview`).
 
-**FR-ANA-005** — Year-on-year comparison shall query `salesSummaries` using the
-`by_year_periodType` index for two calendar years with matching `periodType` and
-`periodKey` patterns, enabling same-period comparisons across years.
+**FR-ANA-003** — Layout (top to bottom):
+1. Commercial KPIs: Total Revenue, Total Quantity Sold, Active Bars, Active
+   Staff. YoY adds `% vs last year YTD` on revenue and qty.
+2. Health KPIs from `getBarHealthMetrics` (`convex/barHealth.ts`, `fnb.read`):
+   stock days finalized (waiter–bar–day sessions), open reorders + oldest age,
+   stale reorders (open or acknowledged ≥ 24h), revenue per waiter-shift.
+   Yearly/YoY finalization uses the last 30 `userStockLogs` days; commercial
+   yearly/YoY SKU and waiter totals prefer `salesSummaries`.
+3. Tabs (dashboard Button style; only the active chart mounts): Bar Performance,
+   Top Performers (chart plus shifts / revenue / per-shift table), Revenue
+   Trend, Sales by Category, SKU Performance (top 5 and slowest 5 by revenue).
+4. Open reorder alerts table (`getOpenReorderAlerts`).
 
-**FR-ANA-006** — The user leaderboard shall query `salesSummaries` by
-`by_barId_period`, group by `userId`, sum `totalRevenue`, and return the top N
-users sorted by revenue. This logic shall live in a Convex query function, not
-client-side.
+**FR-ANA-004** — Bar comparison: `getSalesByBarPeriod` groups current-period
+`salesSummaries` (`by_propertyId_periodType_periodKey`) by `barId`.
 
-**FR-ANA-007** — All analytics queries shall accept `barId`, `beverageId`,
-`userId`, `periodType`, and `periodKey` as optional filter arguments, validated
-using Convex argument validators (`v.optional(v.id(...))`, etc.).
+**FR-ANA-005** — Waiter comparison: `getSalesByUserPeriod` groups the same
+rows by `userId`. Health ranks waiters by revenue per shift, not raw total.
+
+**FR-ANA-006** — Revenue trend: `getRevenueTrend` returns the last N
+`periodKey`s (daily 7, weekly 7, monthly 7, yearly up to 5). YoY trend is two
+monthly series (this year vs last year).
+
+**FR-ANA-007** — Category mix and SKU ranks use current-period summaries or
+live logs (health). Pour cost, average check, and RevPASH are **not** on this
+hub (`beverages` have `unitPrice` only; no covers).
+
+**FR-ANA-008** — Issue and receive are single mutations that **validate then
+write** (throw on failure). Editing or deleting an issue reverses
+`userStockLogs` and store qty. Issue requires bar, user, existing inventory,
+and quantity. Inventory create starts at qty 0; qty changes only via receive
+or issue.
 
 ---
 
@@ -511,28 +538,28 @@ update a `userStockLogs` record whose `isFinalized` flag is `true`. The mutation
 shall throw a `ConvexError` if this condition is detected, and no writes shall
 occur.
 
-**BR-010** — The `logDate` on a `userStockLogs` document and the `txnDateKey`
-on a `storeTransactions` document shall always be set to the current calendar
-date (ISO 8601) at the time the mutation executes. These values shall never be
-accepted as user-supplied inputs without validation against the server-side date.
+**BR-010** — `logDate` on `userStockLogs` and `txnDateKey` on
+`storeTransactions` are the property-local calendar date (`propertyDateKey` /
+`localDayBounds` + `propertyTimeZone`). Do not persist a client-supplied date
+without validating it against that server date.
 
 ---
 
 ## 8. Reporting Requirements
 
-| Report Name                  | Convex Index Used                              | Audience       | Period Granularity                |
-|------------------------------|------------------------------------------------|----------------|-----------------------------------|
-| Daily stock reconciliation   | `by_userId_barId_date` on `userStockLogs`      | Waiter         | Per day (`logDate`)               |
-| Bar daily stock overview     | `by_barId_date` on `userStockLogs`             | Store Manager  | Per day (`logDate`)               |
-| Inventory status             | `by_beverageId` on `storeInventory`            | Store Manager  | Real-time (subscribed)            |
-| Stock movement log           | `by_beverageId_date` on `storeTransactions`    | Store Manager  | Date range, on demand             |
-| Open reorder alerts          | `by_status` on `reorderAlerts`                 | Store Manager  | Real-time (subscribed)            |
-| Sales by user                | `by_userId_period` on `salesSummaries`         | Business Owner | Daily / Weekly / Monthly / Yearly |
-| Sales by bar                 | `by_barId_period` on `salesSummaries`          | Business Owner | Daily / Weekly / Monthly / Yearly |
-| Beverage performance trend   | `by_beverageId_period` on `salesSummaries`     | Business Owner | Any granularity                   |
-| Year-on-year comparison      | `by_year_periodType` on `salesSummaries`       | Business Owner | Same period, two years            |
-| Top performer leaderboard    | `by_barId_period` → group by userId            | Business Owner | Configurable                      |
-| Cross-bar comparison         | `by_barId_period` × 3 bars (parallel)          | Business Owner | Configurable                      |
+| Report Name                  | Source                                                         | Audience       | Period                                |
+|------------------------------|----------------------------------------------------------------|----------------|---------------------------------------|
+| Daily stock reconciliation   | `userStockLogs` `by_userId_barId_date` / My Stock Today        | Waiter         | Property-local `logDate`              |
+| Bar daily stock overview     | `userStockLogs` `by_barId_date`                                | Store Manager  | Per day                               |
+| Inventory status             | `storeInventories`                                             | Store Manager  | Real-time                             |
+| Stock movement log           | `storeTransactions`                                            | Store Manager  | Date range                            |
+| Open reorder alerts          | `reorderAlerts` `by_propertyId_status`                         | Store Manager  | Real-time                             |
+| Hub commercial KPIs          | `getSalesByBarPeriod` / `getSalesByUserPeriod`                 | F&B + reports  | Daily / Weekly / Monthly / Yearly / YoY |
+| Hub health KPIs + SKUs       | `getBarHealthMetrics` (`userStockLogs` + optional summaries)   | `fnb.read`     | Same period control                   |
+| Sales by bar / user          | `salesSummaries` `by_propertyId_periodType_periodKey`          | `reports.read` | Current period key                    |
+| Revenue trend                | `getRevenueTrend`                                              | `reports.read` | Last N keys; YoY monthly overlay      |
+| Year-on-year YTD             | `getYearOnYearOverview` (monthly summaries Jan–current month)  | `reports.read` | This year vs last year YTD            |
+| SKU top / slowest            | Health query ranks by revenue                                  | `fnb.read`     | Current period                        |
 
 ---
 
@@ -543,20 +570,21 @@ The following Convex functions shall be implemented. All files reside in the
 
 ### Queries (`query`)
 
-| Function                         | File                    | Description                                                       |
-|----------------------------------|-------------------------|-------------------------------------------------------------------|
-| `getActiveBars`                  | `convex/bars.ts`        | Returns all bars with `isActive: true`                            |
-| `getActiveBeverages`             | `convex/beverages.ts`   | Returns beverages filtered by `isActive`                          |
-| `getDailyStockLogs`              | `convex/stockLogs.ts`   | Returns `userStockLogs` for a given `userId`, `barId`, `logDate`  |
-| `getShiftStockLogs`              | `convex/stockLogs.ts`   | Returns `userStockLogs` for a given `shiftId` (back-reference)    |
-| `getUserShifts`                  | `convex/shifts.ts`      | Returns shifts for the authenticated user                         |
-| `getStoreInventory`              | `convex/inventory.ts`   | Returns all `storeInventory` docs with beverages                  |
-| `getOpenReorderAlerts`           | `convex/alerts.ts`      | Returns alerts with `status: "open"`                              |
-| `getSalesByUserPeriod`           | `convex/analytics.ts`   | Queries `salesSummaries` by user and period                       |
-| `getSalesByBarPeriod`            | `convex/analytics.ts`   | Queries `salesSummaries` by bar and period                        |
-| `getBeverageTrend`               | `convex/analytics.ts`   | Queries `salesSummaries` by beverage and period                   |
-| `getYearOnYearComparison`        | `convex/analytics.ts`   | Compares same period across two years                             |
-| `getUserLeaderboard`             | `convex/analytics.ts`   | Returns top N users by revenue for a period                       |
+| Function                         | File                         | Description                                                       |
+|----------------------------------|------------------------------|-------------------------------------------------------------------|
+| `getBarHealthMetrics`            | `convex/barHealth.ts`        | Finalization, reorders, revenue/shift, SKU ranks, YoY deltas      |
+| `getSalesByBarPeriod`            | `convex/salesSummaries.ts`   | Current period grouped by bar                                     |
+| `getSalesByUserPeriod`           | `convex/salesSummaries.ts`   | Current period grouped by waiter                                  |
+| `getRevenueTrend`                | `convex/salesSummaries.ts`   | Last N period keys (daily/weekly/monthly/yearly)                  |
+| `getYearOnYearOverview`          | `convex/salesSummaries.ts`   | Monthly this year vs last year through current month              |
+| `getSalesSummaries`              | `convex/salesSummaries.ts`   | Filtered summary rows (category mix)                              |
+| `getOpenReorderAlerts`           | `convex/reorderAlerts.ts`    | Open alerts with beverage + qty in store                          |
+| `getMyTodayStock`                | `convex/userStockLogs.ts`    | Authenticated waiter's logs for property-local today              |
+
+Legacy names `convex/analytics.ts`, `convex/stockLogs.ts`, and `convex/alerts.ts`
+are not used. CRUD lives in `convex/bars.ts`, `convex/beverages.ts`,
+`convex/userStockLogs.ts`, `convex/storeInventories.ts`,
+`convex/storeTransactions.ts`.
 
 ### Mutations (`mutation`)
 
@@ -565,11 +593,13 @@ The following Convex functions shall be implemented. All files reside in the
 | `upsertUserFromSSO`              | `convex/users.ts`       | Creates or updates a user on SSO login                                                         |
 | `createShift`                    | `convex/shifts.ts`      | Opens a new shift for a user at a bar                                                          |
 | `finalizeShift`                  | `convex/shifts.ts`      | Sets `isFinalized: true` on a shift and all its `userStockLogs` records                        |
-| `saveStockLog`                   | `convex/stockLogs.ts`   | Upserts a `userStockLogs` entry for `(userId, barId, beverageId, logDate)` with validation     |
-| `receiveStock`                   | `convex/inventory.ts`   | Records a supplier delivery; increments `storeInventory`; sets `txnDateKey`                    |
-| `issueStock`                     | `convex/inventory.ts`   | Issues stock to a bar/user; decrements inventory; patches or creates today's `userStockLogs`; may create reorder alert |
-| `acknowledgeReorderAlert`        | `convex/alerts.ts`      | Transitions alert to `"acknowledged"`                                                          |
-| `resolveReorderAlert`            | `convex/alerts.ts`      | Transitions alert to `"resolved"`                                                              |
+| `createUserStockLog` / `updateUserStockLog` | `convex/userStockLogs.ts` | Manager upsert of a stock log with validation |
+| `receiveStock` / `issue`         | `convex/storeTransactions.ts` | Create receive/issue; issue applies to today's stock log; may open reorder alert |
+| `update` / `delete` transaction  | `convex/storeTransactions.ts` | Reverse prior issue/receive effects on inventory and logs          |
+| `acknowledgeReorderAlert`        | `convex/reorderAlerts.ts`     | Transitions alert to `"acknowledged"`                              |
+| `resolveReorderAlert`            | `convex/reorderAlerts.ts`     | Transitions alert to `"resolved"`                                  |
+| `saveMyClosingStock`             | `convex/userStockLogs.ts`     | Waiter closing count for today                                     |
+| `finalizeMyToday`                | `convex/userStockLogs.ts`     | Finalizes the waiter's today logs                                  |
 
 ### Scheduled Mutations (`internalMutation` + `cron`)
 
@@ -584,26 +614,19 @@ The following Convex functions shall be implemented. All files reside in the
 
 ## 10. Assumptions and Constraints
 
-- The premises operates exactly three bars. The data model supports more, but
-  the initial deployment is scoped to three.
-- Each waiter works at one bar per shift. Multi-bar shifts are out of scope for v1.
+- The data model supports any number of active bars at a property.
+- Each waiter works at one bar per F&B shift. Multi-bar shifts are out of scope.
 - One `userStockLogs` document exists per `(userId, barId, beverageId, logDate)`.
   If a waiter covers multiple shifts in one day at the same bar, they share a
   single daily stock log per beverage.
-- Beverage pricing is fixed per unit at the time of stock log creation. Dynamic
-  pricing is out of scope.
-- The system does not process payments or customer-facing orders. It tracks stock
-  and sales volumes only.
-- All monetary values are stored in a single currency (`v.number()`); no currency
-  code field is required for v1.
-- SSO is provided by an external identity provider (e.g. Clerk, Auth0) integrated
-  via Convex's Auth adapter. Convex itself does not store passwords.
-- Convex's document read limits per transaction apply. Aggregation jobs shall
-  use `.paginate()` for large datasets.
-- The `salesSummaries` table is append/upsert only. Historical summary records
-  are never deleted.
-- `logDate` and `txnDateKey` are always derived server-side from the current
-  UTC calendar date. Client-supplied date overrides are not permitted.
+- Beverage pricing is `unitPrice` at log time. There is no cost price, so pour
+  cost is out of scope.
+- The bar module does not process payments or customer-facing orders. Sales
+  volume is inferred from stock counts.
+- `logDate` and `txnDateKey` are property-local dates from `propertyDateKey`.
+  Client-supplied date overrides are not permitted without server validation.
+- Convex document read limits apply. Aggregation jobs paginate. Health metrics
+  cap logs per day (`take(80)`).
 
 ---
 
@@ -611,15 +634,13 @@ The following Convex functions shall be implemented. All files reside in the
 
 The following are explicitly excluded from v1:
 
-- Customer-facing ordering or point-of-sale functionality
+- Customer-facing ordering or point-of-sale tickets (sales ≠ POS covers)
+- Beverage unit cost, pour cost %, comps/wastage reasons
+- Average check and RevPASH (no guest/seat counts)
 - Integration with external accounting software (QuickBooks, Sage, etc.)
-- Supplier management or purchase order workflows
-- Multi-currency or multi-tax-jurisdiction support
+- Bar restock as Task Assignment (`reorderAlerts` stay on this module)
 - Native mobile apps (iOS/Android); mobile-responsive web is sufficient
-- Real-time sync between bars at the physical/hardware level
-- HR or payroll integration
-- Convex file storage usage (no receipt images or documents in v1)
-- Full-text search on beverage names (Convex Search is available but out of scope)
+- Full-text search on beverage names
 
 ---
 
@@ -632,18 +653,19 @@ The following are explicitly excluded from v1:
 | Bar                   | A physical outlet within the premises where beverages are sold.                                               |
 | Beverage              | Any drink product tracked by the system.                                                                      |
 | Closing Stock         | Physical count of unsold units remaining at end of a day.                                                     |
-| Convex Cron           | A scheduled Convex mutation defined in `convex/crons.ts` using `crons.daily(...)` or similar helpers.         |
+| Convex Cron           | A scheduled Convex mutation in `convex/crons.ts` via `crons.cron(...)`.                                       |
 | Convex Index          | A `.index("name", ["field"])` declaration on a table used for O(log n) filtered queries.                      |
 | Convex Mutation       | A Convex server function that reads and writes data atomically within a serialisable transaction.             |
 | Convex Query          | A Convex server function that reads data reactively; clients subscribe and receive live updates.               |
 | `Date.now()`          | The standard way to record the current epoch ms timestamp within a Convex mutation.                           |
 | Issue                 | A `storeTransactions` record with `txnType: "issue"` — stock moved from store to a bar/user.                  |
 | `logDate`             | ISO 8601 date string (e.g. `"2026-03-26"`) stored on `userStockLogs` identifying the calendar day the record covers. |
-| Opening Stock         | Units a user starts the day with; carried over from the previous day's `closingStock`.                        |
+| Opening Stock         | Units a user starts the day with; last **finalized** `closingStock` for the same waiter, bar, and beverage, or 0. |
 | `periodKey`           | A string encoding the summary period: `"YYYY-MM-DD"` (daily), `"YYYY-WNN"` (weekly), etc.                    |
 | Receive               | A `storeTransactions` record with `txnType: "receive"` — stock received from a supplier.                      |
 | Reorder Alert         | A `reorderAlerts` document created when a beverage's `qtyInStore` falls to or below `reorderThreshold`.       |
-| Sales Quantity        | `totalStock − closingStock`; units sold during a day. Persisted in `userStockLogs`.                           |
+| Sales Quantity        | `totalStock − closingStock`; units that left stock that day (sold, spilled, or uncounted). Persisted in `userStockLogs`. |
+| YoY                   | Hub period: this year YTD through the current property month vs the same months last year. |
 | Sales Summary         | A pre-aggregated `salesSummaries` document covering a bar, user, beverage, and time period.                   |
 | Shift                 | A working session, represented as a `shifts` document, assigned to one user at one bar on one date.           |
 | SSO                   | Single Sign-On. Users authenticate via an external provider; `externalId` links the provider identity to Convex. |

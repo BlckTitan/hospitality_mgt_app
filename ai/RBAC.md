@@ -188,7 +188,7 @@ Route access (`lib/proxy-permissions.ts`; `granular` may be a string or string[]
 
 ### Reports & Analytics / Operational dashboard
 
-Permission keys stay technical. The metrics catalog is `ai/report_analytcs.md`. The dashboard (`/admin/dashboard`) is the property P&L / RevPAR + operations view.
+Permission keys stay technical. The metrics catalog is `ai/report_analytcs.md`. The dashboard (`/admin/dashboard`) is the property P&L / RevPAR + operations view. Bar period charts and health KPIs are `/admin/bar-management`, not the dashboard.
 
 - reports.read — page access for `/admin/dashboard` and `getFinancialReport`
 - reports.create
@@ -199,6 +199,10 @@ Operational tabs still check their own module keys (`rooms.read`, `inventory.rea
 | Screen | Path | Permission |
 |---|---|---|
 | Property dashboard | `/admin/dashboard` | `reports.read` |
+| Bar Management hub | `/admin/bar-management` | `fnb.read` (charts: `reports.read`; reorders: `inventory.read`) |
+| My Stock Today | `/admin/bar-management/my-stock` | `fnb.read` |
+| Bars / Beverages / User stock logs | `/admin/bar-management/bar` etc. | `fnb.read` (`fnb.create` / `fnb.update` on create/edit) |
+| Store inventory / transactions | `/admin/bar-management/store-inventory` etc. | `inventory.read` (`inventory.update` on edit) |
 | My profile (default home without dashboard) | `/admin/staff/myProfile` | `staff.self.read` |
 
 **Post-login routing** (`getPostLoginPath` in `lib/route-access.ts`; spec `ai/dashboard.md`):

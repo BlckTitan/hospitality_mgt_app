@@ -135,6 +135,65 @@ export const summarizeExpensesInRange = query({
   },
 });
 
+const grainValidator = v.union(v.literal("day"), v.literal("week"), v.literal("month"));
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function emptyCategoryTotals(): Record<ExpenseCategory, number> {
+  return { utilities: 0, supplies: 0, staff: 0, maintenance: 0, other: 0 };
+}
+
+function bucketStart(timestamp: number, grain: "day" | "week" | "month") {
+  const date = new Date(timestamp);
+  const year = date.getUTCFullYear();
+  const month = date.getUTCMonth();
+  const day = date.getUTCDate();
+  if (grain === "day") return Date.UTC(year, month, day);
+  if (grain === "month") return Date.UTC(year, month, 1);
+  const daysFromMonday = (date.getUTCDay() + 6) % 7;
+  return Date.UTC(year, month, day - daysFromMonday);
+}
+
+function nextBucket(start: number, grain: "day" | "week" | "month") {
+  if (grain === "day") return start + DAY_MS;
+  if (grain === "week") return start + 7 * DAY_MS;
+  const date = new Date(start);
+  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1);
+}
+
+export const seriesExpensesByCategory = query({
+  args: {
+    propertyId: v.id("properties"),
+    start: v.number(),
+    end: v.number(),
+    grain: grainValidator,
+  },
+  handler: async (ctx, args) => {
+    await requirePermission(ctx, "expenses.read", args.propertyId);
+    const rows = await expensesInRange(ctx, args.propertyId, args.start, args.end);
+    const points: Array<{ start: number } & Record<ExpenseCategory, number>> = [];
+    const indexByStart = new Map<number, number>();
+    for (
+      let cursor = bucketStart(args.start, args.grain);
+      cursor < args.end;
+      cursor = nextBucket(cursor, args.grain)
+    ) {
+      indexByStart.set(cursor, points.length);
+      points.push({ start: cursor, ...emptyCategoryTotals() });
+    }
+    for (const row of rows) {
+      const key = bucketStart(row.expenseDate, args.grain);
+      const index = indexByStart.get(key);
+      if (index === undefined) continue;
+      if (row.category in points[index]) {
+        points[index][row.category] += row.amount;
+      } else {
+        points[index].other += row.amount;
+      }
+    }
+    return { success: true, data: points };
+  },
+});
+
 export const createPaidExpense = mutation({
   args: {
     propertyId: v.id("properties"),

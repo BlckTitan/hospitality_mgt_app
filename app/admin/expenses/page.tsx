@@ -4,7 +4,10 @@ import { BackLink } from '../../../shared/pageHeader';
 import { useMemo, useState } from 'react';
 import { useQuery } from 'convex/react';
 import { Button } from 'react-bootstrap';
+import { FcPlus } from 'react-icons/fc';
 import { api } from '../../../convex/_generated/api';
+import { usePermissions } from '../../../hooks/usePermissions';
+import { ExpenseCharts } from './components/expenseCharts';
 import { ExpensesTable } from './components/expensesTable';
 import { RecordExpenseForm } from './components/recordExpenseForm';
 import { BillingPageGuide } from '../billing/components/billingPageGuide';
@@ -34,6 +37,8 @@ export default function ExpensesPage() {
   const [anchor, setAnchor] = useState(() => Date.now());
   const [category, setCategory] = useState('');
   const [recordOpen, setRecordOpen] = useState(false);
+  const { hasGranularPermission } = usePermissions();
+  const canCreate = hasGranularPermission('expenses.create');
 
   const range = useMemo(
     () => cashPeriodBounds(anchor, kind, timeZone),
@@ -82,11 +87,18 @@ export default function ExpensesPage() {
     <div className='w-full p-4 bg-white'>
       <header className='w-full border-b flex justify-between items-center mb-4'>
         <h3>Expense Tracker</h3>
-        <div className='flex items-center gap-2'>
-          <Button variant='dark' size='sm' onClick={() => setRecordOpen(true)}>
-            Record expense
-          </Button>
+        <div className='flex items-center gap-3'>
           <BackLink />
+          {canCreate && (
+            <Button
+              variant='light'
+              className='cursor-pointer'
+              style={{ width: 'fit', height: 'fit', padding: '0', borderRadius: '100%' }}
+              onClick={() => setRecordOpen(true)}
+            >
+              <FcPlus className='w-8 h-8' />
+            </Button>
+          )}
         </div>
       </header>
       <BillingPageGuide page='expenses' />
@@ -137,6 +149,15 @@ export default function ExpensesPage() {
           <p className='text-lg font-semibold'>{formatMoney(totals?.total)}</p>
         </div>
       </div>
+
+      <ExpenseCharts
+        propertyId={currentPropertyId}
+        kind={kind}
+        anchor={anchor}
+        timeZone={timeZone}
+        periodLabel={label}
+        totals={totals}
+      />
 
       <div className='flex flex-wrap items-center gap-2 mb-3'>
         {CATEGORY_FILTERS.map((item) => (

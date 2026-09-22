@@ -1574,6 +1574,14 @@ export function getPostLoginPath(
 
 `getFinancialReport` (`convex/dashboard.ts`, `reports.read`): property P&L + RevPAR for `[start, end)`. Rooms + F&B revenue, expenses by category, occupancy, ADR, RevPAR, TRevPAR, GOP, GOPPAR. Available rooms = current sellable inventory × period nights.
 
+`propertyDateKey` (`convex/lib/barStock.ts`): property-local ISO date via `localDayBounds` + `propertyTimeZone`. Used for `userStockLogs.logDate`, `storeTransactions.txnDateKey`, and current `salesSummaries` `periodKey`.
+
+`periodDateKeys(dateKey, periodType)`: daily = that day; weekly = last 7 days; monthly = 1st through `dateKey`; yearly (health window) = last 30 days.
+
+`getBarHealthMetrics` (`convex/barHealth.ts`, `fnb.read`): finalization rate, waiter-shift revenue, SKU ranks, optional YoY deltas, reorder aging if `inventory.read`.
+
+`getYearOnYearOverview` (`convex/salesSummaries.ts`, `reports.read`): monthly `salesSummaries` for this year vs last year through the current property month.
+
 ---
 
 ## Query Builders
