@@ -298,6 +298,28 @@ export function currentPeriodKey(dateKey: string, periodType: PeriodType): strin
   return `${year}-W${String(week).padStart(2, "0")}`;
 }
 
+export function periodDateKeys(
+  dateKey: string,
+  periodType: PeriodType,
+): string[] {
+  if (periodType === "daily") return [dateKey];
+  if (periodType === "weekly") return lastNDailyKeys(dateKey, 7);
+  if (periodType === "yearly") return lastNDailyKeys(dateKey, 30);
+  const start = `${dateKey.slice(0, 7)}-01`;
+  const keys: string[] = [];
+  let current = start;
+  for (let i = 0; i < 31 && current <= dateKey; i += 1) {
+    keys.push(current);
+    current = shiftDateKey(current, 1);
+  }
+  return keys;
+}
+
+export function percentChange(current: number, previous: number): number | null {
+  if (previous === 0) return current === 0 ? 0 : null;
+  return (current - previous) / previous;
+}
+
 export async function findSalesSummary(
   ctx: DbCtx,
   args: {

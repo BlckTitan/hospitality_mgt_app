@@ -4,6 +4,7 @@ import { requirePermission } from './lib/rbac';
 import {
   currentPeriodKey,
   lastNDailyKeys,
+  percentChange,
   propertyDateKey,
   upsertSalesSummaryDoc,
 } from './lib/barStock';
@@ -350,11 +351,83 @@ export const getYearOnYearComparison = query({
   },
 });
 
+const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+export const getYearOnYearOverview = query({
+  args: {
+    propertyId: v.id('properties'),
+  },
+  handler: async (ctx, args) => {
+    await requirePermission(ctx, 'reports.read', args.propertyId);
+    const dateKey = await propertyDateKey(ctx, args.propertyId);
+    const thisYear = Number(dateKey.slice(0, 4));
+    const lastYear = thisYear - 1;
+    const throughMonth = Number(dateKey.slice(5, 7));
+
+    const monthly = [];
+    let currentRevenue = 0;
+    let currentQty = 0;
+    let previousRevenue = 0;
+    let previousQty = 0;
+
+    for (let month = 1; month <= 12; month += 1) {
+      const mm = String(month).padStart(2, '0');
+      const currentRows = await ctx.db
+        .query('salesSummaries')
+        .withIndex('by_propertyId_periodType_periodKey', (q) =>
+          q.eq('propertyId', args.propertyId).eq('periodType', 'monthly').eq('periodKey', `${thisYear}-${mm}`),
+        )
+        .take(200);
+      const previousRows = await ctx.db
+        .query('salesSummaries')
+        .withIndex('by_propertyId_periodType_periodKey', (q) =>
+          q.eq('propertyId', args.propertyId).eq('periodType', 'monthly').eq('periodKey', `${lastYear}-${mm}`),
+        )
+        .take(200);
+
+      const currentMonthRevenue = currentRows.reduce((sum, row) => sum + row.totalRevenue, 0);
+      const currentMonthQty = currentRows.reduce((sum, row) => sum + row.totalQtySold, 0);
+      const previousMonthRevenue = previousRows.reduce((sum, row) => sum + row.totalRevenue, 0);
+      const previousMonthQty = previousRows.reduce((sum, row) => sum + row.totalQtySold, 0);
+
+      if (month <= throughMonth) {
+        currentRevenue += currentMonthRevenue;
+        currentQty += currentMonthQty;
+        previousRevenue += previousMonthRevenue;
+        previousQty += previousMonthQty;
+      }
+
+      monthly.push({
+        month: mm,
+        label: MONTH_LABELS[month - 1],
+        currentRevenue: currentMonthRevenue,
+        previousRevenue: previousMonthRevenue,
+        currentQty: currentMonthQty,
+        previousQty: previousMonthQty,
+      });
+    }
+
+    return {
+      success: true,
+      data: {
+        thisYear,
+        lastYear,
+        throughMonth,
+        current: { totalRevenue: currentRevenue, totalQtySold: currentQty },
+        previous: { totalRevenue: previousRevenue, totalQtySold: previousQty },
+        revenueChange: percentChange(currentRevenue, previousRevenue),
+        qtyChange: percentChange(currentQty, previousQty),
+        monthly,
+      },
+    };
+  },
+});
+
 // Mutation to create or update sales summary
 export const getRevenueTrend = query({
   args: {
     propertyId: v.id('properties'),
-    periodType: v.union(v.literal("daily"), v.literal("weekly"), v.literal("monthly")),
+    periodType: v.union(v.literal("daily"), v.literal("weekly"), v.literal("monthly"), v.literal("yearly")),
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
@@ -369,6 +442,10 @@ export const getRevenueTrend = query({
               .map((key) => key.slice(0, 7))
               .filter((key, index, all) => all.indexOf(key) === index)
               .slice(-limit)
+          : args.periodType === 'yearly'
+            ? Array.from({ length: Math.min(limit, 8) }, (_, index) =>
+                String(Number(dateKey.slice(0, 4)) - (Math.min(limit, 8) - 1 - index)),
+              )
           : lastNDailyKeys(dateKey, limit * 7).reduce<string[]>((acc, key) => {
               const periodKey = currentPeriodKey(key, 'weekly');
               if (!acc.includes(periodKey)) acc.push(periodKey);

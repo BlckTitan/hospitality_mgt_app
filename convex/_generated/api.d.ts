@@ -11,6 +11,7 @@
 import type * as assets from "../assets.js";
 import type * as attendance from "../attendance.js";
 import type * as authContext from "../authContext.js";
+import type * as barHealth from "../barHealth.js";
 import type * as bars from "../bars.js";
 import type * as beverages from "../beverages.js";
 import type * as billing from "../billing.js";
@@ -84,6 +85,7 @@ declare const fullApi: ApiFromModules<{
   assets: typeof assets;
   attendance: typeof attendance;
   authContext: typeof authContext;
+  barHealth: typeof barHealth;
   bars: typeof bars;
   beverages: typeof beverages;
   billing: typeof billing;
