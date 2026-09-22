@@ -38,7 +38,7 @@ export const createStoreInventory = mutation({
     const storeInventoryId = await ctx.db.insert("storeInventories", {
       propertyId: args.propertyId,
       beverageId: args.beverageId,
-      qtyInStore: args.qtyInStore,
+      qtyInStore: 0,
       reorderThreshold: args.reorderThreshold,
       lastUpdated: Date.now(),
     });
@@ -127,19 +127,10 @@ export const updateStoreInventory = mutation({
 
     await requirePermission(ctx, "inventory.update", storeInventory.propertyId);
 
-    const updateData: any = {
+    await ctx.db.patch(args.id, {
       lastUpdated: Date.now(),
-    };
-
-    if (args.qtyInStore !== undefined) {
-      updateData.qtyInStore = args.qtyInStore;
-    }
-
-    if (args.reorderThreshold !== undefined) {
-      updateData.reorderThreshold = args.reorderThreshold;
-    }
-
-    await ctx.db.patch(args.id, updateData);
+      ...(args.reorderThreshold !== undefined ? { reorderThreshold: args.reorderThreshold } : {}),
+    });
 
     return {
       success: true,
@@ -177,48 +168,15 @@ export const adjustStoreInventory = mutation({
   args: {
     propertyId: v.id("properties"),
     beverageId: v.id("beverages"),
-    adjustment: v.number(), // Positive for addition, negative for subtraction
+    adjustment: v.number(),
     reason: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     await requirePermission(ctx, "inventory.update", args.propertyId);
-    // Find existing store inventory
-    const existingInventory = await ctx.db
-      .query("storeInventories")
-      .withIndex("by_propertyId_beverageId", (q) => 
-        q.eq("propertyId", args.propertyId).eq("beverageId", args.beverageId)
-      )
-      .first();
-
-    if (!existingInventory) {
-      return {
-        success: false,
-        message: "Store inventory not found for this beverage",
-      };
-    }
-
-    const newQuantity = existingInventory.qtyInStore + args.adjustment;
-
-    if (newQuantity < 0) {
-      return {
-        success: false,
-        message: "Cannot adjust inventory below zero",
-      };
-    }
-
-    await ctx.db.patch(existingInventory._id, {
-      qtyInStore: newQuantity,
-      lastUpdated: Date.now(),
-    });
-
     return {
-      success: true,
-      message: "Store inventory adjusted successfully",
-      data: {
-        previousQuantity: existingInventory.qtyInStore,
-        newQuantity: newQuantity,
-        adjustment: args.adjustment,
-      },
+      success: false,
+      message: "Use a receive or issue store transaction to change quantity",
     };
   },
 });
+

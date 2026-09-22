@@ -977,7 +977,8 @@ export default defineSchema({
     .index("by_userId_beverage_date", ["userId", "beverageId", "logDate"])
     .index("by_beverageId", ["beverageId"])
     .index("by_barId_date", ["barId", "logDate"])
-    .index("by_barId_beverage_date", ["barId", "beverageId", "logDate"]),
+    .index("by_barId_beverage_date", ["barId", "beverageId", "logDate"])
+    .index("by_logDate", ["logDate"]),
 
   // Store Inventory table for live stock balance per beverage
   storeInventories: defineTable({
@@ -1059,7 +1060,8 @@ export default defineSchema({
     .index("by_barId_beverage_period", ["barId", "beverageId", "periodType", "periodKey"])
     .index("by_year_periodType", ["year", "periodType"])
     .index("by_propertyId_periodType", ["propertyId", "periodType"])
-    .index("by_propertyId_barId_period", ["propertyId", "barId", "periodType", "periodKey"]),
+    .index("by_propertyId_barId_period", ["propertyId", "barId", "periodType", "periodKey"])
+    .index("by_propertyId_periodType_periodKey", ["propertyId", "periodType", "periodKey"]),
 
   // ============================================
   // Payroll Management

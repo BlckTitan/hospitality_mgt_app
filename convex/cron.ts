@@ -1,406 +1,302 @@
 import { internalMutation } from './_generated/server';
 import { v } from 'convex/values';
+import { internal } from './_generated/api';
+import {
+  isoWeekNumber,
+  shiftDateKey,
+  upsertSalesSummaryDoc,
+} from './lib/barStock';
+import { Id } from './_generated/dataModel';
 
-// Helper functions for date calculations
-const getISODateString = (date: Date) => date.toISOString().split('T')[0];
+const PAGE_SIZE = 80;
 
-const getWeekKey = (date: Date) => {
-  const year = date.getFullYear();
-  const weekNumber = getWeekNumber(date);
-  return `${year}-W${weekNumber.toString().padStart(2, '0')}`;
-};
+function utcDateKey(offsetDays = 0): string {
+  const ms = Date.now() + offsetDays * 86400000;
+  return new Date(ms).toISOString().slice(0, 10);
+}
 
-const getWeekNumber = (date: Date) => {
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-  const dayNum = d.getUTCDay() || 7;
-  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
-};
+function monthKey(dateKey: string): string {
+  return dateKey.slice(0, 7);
+}
 
-const getMonthKey = (date: Date) => {
-  const year = date.getFullYear();
-  const month = (date.getMonth() + 1).toString().padStart(2, '0');
-  return `${year}-${month}`;
-};
+function daysInMonth(year: number, month: number): number {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
 
-// Daily aggregation - runs every day at 01:00 UTC
 export const aggregateDailySummaries = internalMutation({
-  args: {},
-  handler: async (ctx) => {
-    try {
-      console.log('Starting daily sales aggregation');
-      
-      // Get yesterday's date (the day we're aggregating)
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      const yesterdayStr = getISODateString(yesterday);
-      const year = yesterday.getFullYear();
-      const month = yesterday.getMonth() + 1;
+  args: {
+    cursor: v.optional(v.union(v.string(), v.null())),
+    dateKey: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const dateKey = args.dateKey ?? utcDateKey(-1);
+    const year = Number(dateKey.slice(0, 4));
+    const month = Number(dateKey.slice(5, 7));
+    const { week } = isoWeekNumber(dateKey);
 
-      // Get all finalized user stock logs for yesterday
-      const stockLogs = await ctx.db.query('userStockLogs').collect();
+    const page = await ctx.db
+      .query('userStockLogs')
+      .withIndex('by_logDate', (q) => q.eq('logDate', dateKey))
+      .paginate({ numItems: PAGE_SIZE, cursor: args.cursor ?? null });
 
-      // Filter for yesterday's date and finalized logs
-      const finalizedLogs = stockLogs.filter(log => 
-        log.logDate === yesterdayStr && log.isFinalized === true
-      );
-
-      if (finalizedLogs.length === 0) {
-        console.log('No finalized stock logs found for yesterday');
-        return { success: true, message: 'No data to aggregate' };
-      }
-
-      // Group by property, bar, user, and beverage
-      const groupedData = new Map();
-      
-      finalizedLogs.forEach(log => {
-        const key = `${log.propertyId}-${log.barId}-${log.userId || 'null'}-${log.beverageId}`;
-        
-        if (!groupedData.has(key)) {
-          groupedData.set(key, {
-            propertyId: log.propertyId,
-            barId: log.barId!,
-            userId: log.userId,
-            beverageId: log.beverageId,
-            totalQtySold: 0,
-            totalRevenue: 0,
-          });
-        }
-        
-        const group = groupedData.get(key);
-        group.totalQtySold += log.salesQuantity;
-        group.totalRevenue += log.salesValue;
+    for (const log of page.page) {
+      if (!log.isFinalized || !log.barId) continue;
+      await upsertSalesSummaryDoc(ctx, {
+        propertyId: log.propertyId,
+        barId: log.barId,
+        userId: log.userId,
+        beverageId: log.beverageId,
+        periodType: 'daily',
+        periodKey: dateKey,
+        year,
+        month,
+        weekNumber: week,
+        totalQtySold: log.salesQuantity,
+        totalRevenue: log.salesValue,
       });
-
-      // Create or update daily summaries
-      for (const group of groupedData.values()) {
-        // Check if a summary already exists for this combination
-        const existing = await ctx.db.query('salesSummaries')
-          .withIndex('by_propertyId_barId_period', (q) =>
-            q.eq('propertyId', group.propertyId)
-             .eq('barId', group.barId)
-             .eq('periodType', 'daily')
-             .eq('periodKey', yesterdayStr)
-          )
-          .filter(q => group.userId ? q.eq('userId', group.userId) : q.eq('userId', undefined))
-          .filter(q => q.eq('beverageId', group.beverageId))
-          .first();
-
-        if (existing) {
-          // Update existing summary
-          await ctx.db.patch(existing._id, {
-            totalQtySold: group.totalQtySold,
-            totalRevenue: group.totalRevenue,
-          });
-        } else {
-          // Create new summary
-          await ctx.db.insert('salesSummaries', {
-            ...group,
-            periodType: 'daily',
-            periodKey: yesterdayStr,
-            year,
-            month,
-            weekNumber: undefined,
-          });
-        }
-      }
-
-      console.log(`Daily aggregation completed: ${groupedData.size} summaries processed`);
-      return { success: true, message: 'Daily aggregation completed' };
-    } catch (error) {
-      console.error('Daily aggregation failed:', error);
-      return { success: false, message: 'Daily aggregation failed' };
     }
+
+    if (!page.isDone) {
+      await ctx.scheduler.runAfter(0, internal.cron.aggregateDailySummaries, {
+        cursor: page.continueCursor,
+        dateKey,
+      });
+    }
+
+    return { success: true, dateKey, continued: !page.isDone };
   },
 });
 
-// Weekly aggregation - runs every Monday at 02:00 UTC
+async function rollupDailiesForKeys(
+  ctx: Parameters<typeof upsertSalesSummaryDoc>[0],
+  args: {
+    propertyId: Id<'properties'>;
+    dayKeys: string[];
+    periodType: 'weekly' | 'monthly' | 'yearly';
+    periodKey: string;
+    year: number;
+    month?: number;
+    weekNumber?: number;
+  },
+) {
+  const grouped = new Map<
+    string,
+    {
+      barId: Id<'bars'>;
+      userId?: Id<'users'>;
+      beverageId: Id<'beverages'>;
+      totalQtySold: number;
+      totalRevenue: number;
+    }
+  >();
+
+  for (const dayKey of args.dayKeys) {
+    const rows = await ctx.db
+      .query('salesSummaries')
+      .withIndex('by_propertyId_periodType_periodKey', (q) =>
+        q
+          .eq('propertyId', args.propertyId)
+          .eq('periodType', 'daily')
+          .eq('periodKey', dayKey),
+      )
+      .take(200);
+
+    for (const row of rows) {
+      const key = `${row.barId}-${row.userId ?? 'null'}-${row.beverageId}`;
+      const current = grouped.get(key) ?? {
+        barId: row.barId,
+        userId: row.userId,
+        beverageId: row.beverageId,
+        totalQtySold: 0,
+        totalRevenue: 0,
+      };
+      current.totalQtySold += row.totalQtySold;
+      current.totalRevenue += row.totalRevenue;
+      grouped.set(key, current);
+    }
+  }
+
+  for (const group of grouped.values()) {
+    await upsertSalesSummaryDoc(ctx, {
+      propertyId: args.propertyId,
+      barId: group.barId,
+      userId: group.userId,
+      beverageId: group.beverageId,
+      periodType: args.periodType,
+      periodKey: args.periodKey,
+      year: args.year,
+      month: args.month,
+      weekNumber: args.weekNumber,
+      totalQtySold: group.totalQtySold,
+      totalRevenue: group.totalRevenue,
+    });
+  }
+}
+
 export const aggregateWeeklySummaries = internalMutation({
-  args: {},
-  handler: async (ctx) => {
-    try {
-      console.log('Starting weekly sales aggregation');
-      
-      // Get last week's dates
-      const today = new Date();
-      const currentWeekNumber = getWeekNumber(today);
-      const currentYear = today.getFullYear();
-      
-      // Find the most recent completed week
-      let targetWeekNumber = currentWeekNumber - 1;
-      let targetYear = currentYear;
-      
-      if (targetWeekNumber === 0) {
-        targetWeekNumber = 52; // Last week of previous year
-        targetYear = currentYear - 1;
-      }
-
-      const weekKey = `${targetYear}-W${targetWeekNumber.toString().padStart(2, '0')}`;
-
-      // Get daily summaries for the target week
-      const dailySummaries = await ctx.db.query('salesSummaries')
-        .withIndex('by_year_periodType', (q) =>
-          q.eq('year', targetYear).eq('periodType', 'daily')
-        )
-        .collect();
-
-      // Filter for the target week
-      const weekSummaries = dailySummaries.filter(summary => {
-        const summaryDate = new Date(summary.periodKey);
-        const summaryWeekNumber = getWeekNumber(summaryDate);
-        const summaryYear = summaryDate.getFullYear();
-        return summaryWeekNumber === targetWeekNumber && summaryYear === targetYear;
-      });
-
-      if (weekSummaries.length === 0) {
-        console.log('No daily summaries found for the target week');
-        return { success: true, message: 'No data to aggregate' };
-      }
-
-      // Group by property, bar, user, and beverage
-      const groupedData = new Map();
-      
-      weekSummaries.forEach(summary => {
-        const key = `${summary.propertyId}-${summary.barId}-${summary.userId || 'null'}-${summary.beverageId}`;
-        
-        if (!groupedData.has(key)) {
-          groupedData.set(key, {
-            propertyId: summary.propertyId,
-            barId: summary.barId,
-            userId: summary.userId,
-            beverageId: summary.beverageId,
-            totalQtySold: 0,
-            totalRevenue: 0,
-          });
-        }
-        
-        const group = groupedData.get(key);
-        group.totalQtySold += summary.totalQtySold;
-        group.totalRevenue += summary.totalRevenue;
-      });
-
-      // Create or update weekly summaries
-      for (const group of groupedData.values()) {
-        // Check if a summary already exists for this combination
-        const existing = await ctx.db.query('salesSummaries')
-          .withIndex('by_propertyId_barId_period', (q) =>
-            q.eq('propertyId', group.propertyId)
-             .eq('barId', group.barId)
-             .eq('periodType', 'weekly')
-             .eq('periodKey', weekKey)
-          )
-          .filter(q => group.userId ? q.eq('userId', group.userId) : q.eq('userId', undefined))
-          .filter(q => q.eq('beverageId', group.beverageId))
-          .first();
-
-        if (existing) {
-          // Update existing summary
-          await ctx.db.patch(existing._id, {
-            totalQtySold: group.totalQtySold,
-            totalRevenue: group.totalRevenue,
-          });
-        } else {
-          // Create new summary
-          await ctx.db.insert('salesSummaries', {
-            ...group,
-            periodType: 'weekly',
-            periodKey: weekKey,
-            year: targetYear,
-            month: undefined,
-            weekNumber: targetWeekNumber,
-          });
-        }
-      }
-
-      console.log(`Weekly aggregation completed: ${groupedData.size} summaries processed`);
-      return { success: true, message: 'Weekly aggregation completed' };
-    } catch (error) {
-      console.error('Weekly aggregation failed:', error);
-      return { success: false, message: 'Weekly aggregation failed' };
+  args: {
+    cursor: v.optional(v.union(v.string(), v.null())),
+  },
+  handler: async (ctx, args) => {
+    const todayKey = utcDateKey(0);
+    const { year: currentYear, week: currentWeek } = isoWeekNumber(todayKey);
+    let targetWeek = currentWeek - 1;
+    let targetYear = currentYear;
+    if (targetWeek <= 0) {
+      const lastYearKey = `${currentYear - 1}-12-28`;
+      const prior = isoWeekNumber(lastYearKey);
+      targetWeek = prior.week;
+      targetYear = prior.year;
     }
+    const weekKey = `${targetYear}-W${String(targetWeek).padStart(2, '0')}`;
+
+    const dayKeys: string[] = [];
+    for (let offset = 1; offset <= 14; offset++) {
+      const key = shiftDateKey(todayKey, -offset);
+      const iso = isoWeekNumber(key);
+      if (iso.year === targetYear && iso.week === targetWeek) {
+        dayKeys.push(key);
+      }
+    }
+
+    const properties = await ctx.db
+      .query('properties')
+      .paginate({ numItems: 5, cursor: args.cursor ?? null });
+
+    for (const property of properties.page) {
+      await rollupDailiesForKeys(ctx, {
+        propertyId: property._id,
+        dayKeys,
+        periodType: 'weekly',
+        periodKey: weekKey,
+        year: targetYear,
+        weekNumber: targetWeek,
+      });
+    }
+
+    if (!properties.isDone) {
+      await ctx.scheduler.runAfter(0, internal.cron.aggregateWeeklySummaries, {
+        cursor: properties.continueCursor,
+      });
+    }
+
+    return { success: true, weekKey, continued: !properties.isDone };
   },
 });
 
-// Monthly aggregation - runs on the 1st of each month at 03:00 UTC
 export const aggregateMonthlySummaries = internalMutation({
-  args: {},
-  handler: async (ctx) => {
-    try {
-      console.log('Starting monthly sales aggregation');
-      
-      // Get last month
-      const today = new Date();
-      const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-      const year = lastMonth.getFullYear();
-      const month = lastMonth.getMonth() + 1;
-      const monthKey = getMonthKey(lastMonth);
+  args: {
+    cursor: v.optional(v.union(v.string(), v.null())),
+  },
+  handler: async (ctx, args) => {
+    const todayKey = utcDateKey(0);
+    const yearNow = Number(todayKey.slice(0, 4));
+    const monthNow = Number(todayKey.slice(5, 7));
+    const lastMonth = monthNow === 1 ? 12 : monthNow - 1;
+    const year = monthNow === 1 ? yearNow - 1 : yearNow;
+    const periodKey = `${year}-${String(lastMonth).padStart(2, '0')}`;
+    const dayCount = daysInMonth(year, lastMonth);
+    const dayKeys = Array.from({ length: dayCount }, (_, i) =>
+      `${periodKey}-${String(i + 1).padStart(2, '0')}`,
+    );
 
-      // Get daily summaries for the target month
-      const dailySummaries = await ctx.db.query('salesSummaries')
-        .withIndex('by_year_periodType', (q) =>
-          q.eq('year', year).eq('periodType', 'daily')
-        )
-        .collect();
+    const properties = await ctx.db
+      .query('properties')
+      .paginate({ numItems: 3, cursor: args.cursor ?? null });
 
-      // Filter for the target month
-      const monthSummaries = dailySummaries.filter(summary => {
-        const summaryDate = new Date(summary.periodKey);
-        return summaryDate.getFullYear() === year && summaryDate.getMonth() + 1 === month;
+    for (const property of properties.page) {
+      await rollupDailiesForKeys(ctx, {
+        propertyId: property._id,
+        dayKeys,
+        periodType: 'monthly',
+        periodKey,
+        year,
+        month: lastMonth,
       });
-
-      if (monthSummaries.length === 0) {
-        console.log('No daily summaries found for the target month');
-        return { success: true, message: 'No data to aggregate' };
-      }
-
-      // Group by property, bar, user, and beverage
-      const groupedData = new Map();
-      
-      monthSummaries.forEach(summary => {
-        const key = `${summary.propertyId}-${summary.barId}-${summary.userId || 'null'}-${summary.beverageId}`;
-        
-        if (!groupedData.has(key)) {
-          groupedData.set(key, {
-            propertyId: summary.propertyId,
-            barId: summary.barId,
-            userId: summary.userId,
-            beverageId: summary.beverageId,
-            totalQtySold: 0,
-            totalRevenue: 0,
-          });
-        }
-        
-        const group = groupedData.get(key);
-        group.totalQtySold += summary.totalQtySold;
-        group.totalRevenue += summary.totalRevenue;
-      });
-
-      // Create or update monthly summaries
-      for (const group of groupedData.values()) {
-        // Check if a summary already exists for this combination
-        const existing = await ctx.db.query('salesSummaries')
-          .withIndex('by_propertyId_barId_period', (q) =>
-            q.eq('propertyId', group.propertyId)
-             .eq('barId', group.barId)
-             .eq('periodType', 'monthly')
-             .eq('periodKey', monthKey)
-          )
-          .filter(q => group.userId ? q.eq('userId', group.userId) : q.eq('userId', undefined))
-          .filter(q => q.eq('beverageId', group.beverageId))
-          .first();
-
-        if (existing) {
-          // Update existing summary
-          await ctx.db.patch(existing._id, {
-            totalQtySold: group.totalQtySold,
-            totalRevenue: group.totalRevenue,
-          });
-        } else {
-          // Create new summary
-          await ctx.db.insert('salesSummaries', {
-            ...group,
-            periodType: 'monthly',
-            periodKey: monthKey,
-            year,
-            month,
-            weekNumber: undefined,
-          });
-        }
-      }
-
-      console.log(`Monthly aggregation completed: ${groupedData.size} summaries processed`);
-      return { success: true, message: 'Monthly aggregation completed' };
-    } catch (error) {
-      console.error('Monthly aggregation failed:', error);
-      return { success: false, message: 'Monthly aggregation failed' };
     }
+
+    if (!properties.isDone) {
+      await ctx.scheduler.runAfter(0, internal.cron.aggregateMonthlySummaries, {
+        cursor: properties.continueCursor,
+      });
+    }
+
+    return { success: true, periodKey, continued: !properties.isDone };
   },
 });
 
-// Yearly aggregation - runs on January 1st at 04:00 UTC
 export const aggregateYearlySummaries = internalMutation({
-  args: {},
-  handler: async (ctx) => {
-    try {
-      console.log('Starting yearly sales aggregation');
-      
-      // Get last year
-      const today = new Date();
-      const lastYear = today.getFullYear() - 1;
+  args: {
+    cursor: v.optional(v.union(v.string(), v.null())),
+  },
+  handler: async (ctx, args) => {
+    const lastYear = Number(utcDateKey(0).slice(0, 4)) - 1;
+    const monthKeys = Array.from({ length: 12 }, (_, i) =>
+      `${lastYear}-${String(i + 1).padStart(2, '0')}`,
+    );
 
-      // Get monthly summaries for the target year
-      const monthlySummaries = await ctx.db.query('salesSummaries')
-        .withIndex('by_year_periodType', (q) =>
-          q.eq('year', lastYear).eq('periodType', 'monthly')
-        )
-        .collect();
+    const properties = await ctx.db
+      .query('properties')
+      .paginate({ numItems: 5, cursor: args.cursor ?? null });
 
-      if (monthlySummaries.length === 0) {
-        console.log('No monthly summaries found for the target year');
-        return { success: true, message: 'No data to aggregate' };
-      }
+    for (const property of properties.page) {
+      const grouped = new Map<
+        string,
+        {
+          barId: Id<'bars'>;
+          userId?: Id<'users'>;
+          beverageId: Id<'beverages'>;
+          totalQtySold: number;
+          totalRevenue: number;
+        }
+      >();
 
-      // Group by property, bar, user, and beverage
-      const groupedData = new Map();
-      
-      monthlySummaries.forEach(summary => {
-        const key = `${summary.propertyId}-${summary.barId}-${summary.userId || 'null'}-${summary.beverageId}`;
-        
-        if (!groupedData.has(key)) {
-          groupedData.set(key, {
-            propertyId: summary.propertyId,
-            barId: summary.barId,
-            userId: summary.userId,
-            beverageId: summary.beverageId,
+      for (const month of monthKeys) {
+        const rows = await ctx.db
+          .query('salesSummaries')
+          .withIndex('by_propertyId_periodType_periodKey', (q) =>
+            q
+              .eq('propertyId', property._id)
+              .eq('periodType', 'monthly')
+              .eq('periodKey', month),
+          )
+          .take(200);
+        for (const row of rows) {
+          const key = `${row.barId}-${row.userId ?? 'null'}-${row.beverageId}`;
+          const current = grouped.get(key) ?? {
+            barId: row.barId,
+            userId: row.userId,
+            beverageId: row.beverageId,
             totalQtySold: 0,
             totalRevenue: 0,
-          });
-        }
-        
-        const group = groupedData.get(key);
-        group.totalQtySold += summary.totalQtySold;
-        group.totalRevenue += summary.totalRevenue;
-      });
-
-      // Create or update yearly summaries
-      for (const group of groupedData.values()) {
-        // Check if a summary already exists for this combination
-        const existing = await ctx.db.query('salesSummaries')
-          .withIndex('by_propertyId_barId_period', (q) =>
-            q.eq('propertyId', group.propertyId)
-             .eq('barId', group.barId)
-             .eq('periodType', 'yearly')
-             .eq('periodKey', lastYear.toString())
-          )
-          .filter(q => group.userId ? q.eq('userId', group.userId) : q.eq('userId', undefined))
-          .filter(q => q.eq('beverageId', group.beverageId))
-          .first();
-
-        if (existing) {
-          // Update existing summary
-          await ctx.db.patch(existing._id, {
-            totalQtySold: group.totalQtySold,
-            totalRevenue: group.totalRevenue,
-          });
-        } else {
-          // Create new summary
-          await ctx.db.insert('salesSummaries', {
-            ...group,
-            periodType: 'yearly',
-            periodKey: lastYear.toString(),
-            year: lastYear,
-            month: undefined,
-            weekNumber: undefined,
-          });
+          };
+          current.totalQtySold += row.totalQtySold;
+          current.totalRevenue += row.totalRevenue;
+          grouped.set(key, current);
         }
       }
 
-      console.log(`Yearly aggregation completed: ${groupedData.size} summaries processed`);
-      return { success: true, message: 'Yearly aggregation completed' };
-    } catch (error) {
-      console.error('Yearly aggregation failed:', error);
-      return { success: false, message: 'Yearly aggregation failed' };
+      for (const group of grouped.values()) {
+        await upsertSalesSummaryDoc(ctx, {
+          propertyId: property._id,
+          barId: group.barId,
+          userId: group.userId,
+          beverageId: group.beverageId,
+          periodType: 'yearly',
+          periodKey: String(lastYear),
+          year: lastYear,
+          totalQtySold: group.totalQtySold,
+          totalRevenue: group.totalRevenue,
+        });
+      }
     }
+
+    if (!properties.isDone) {
+      await ctx.scheduler.runAfter(0, internal.cron.aggregateYearlySummaries, {
+        cursor: properties.continueCursor,
+      });
+    }
+
+    return { success: true, year: lastYear, continued: !properties.isDone };
   },
 });

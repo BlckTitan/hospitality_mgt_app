@@ -24,6 +24,7 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermission> = {
   '/admin/bar-management/bar': { granular: 'fnb.read' },
   '/admin/bar-management/beverages': { granular: 'fnb.read' },
   '/admin/bar-management/user-stock-logs': { granular: 'fnb.read' },
+  '/admin/bar-management/my-stock': { granular: 'fnb.read' },
   '/admin/bar-management/store-inventory': { granular: 'inventory.read' },
   '/admin/bar-management/store-transactions': { granular: 'inventory.read' },
 

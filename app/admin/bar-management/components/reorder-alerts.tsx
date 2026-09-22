@@ -12,6 +12,7 @@ interface ReorderAlert {
   propertyId: Id<'properties'>;
   beverageId: Id<'beverages'>;
   qtyAtAlert: number;
+  qtyInStore?: number;
   reorderLevel: number;
   alertedAt: number;
   status: 'open' | 'acknowledged' | 'resolved';
@@ -28,7 +29,7 @@ interface ReorderAlertsProps {
 }
 
 const ReorderAlertsTable: React.FC<ReorderAlertsProps> = ({ currentPropertyId }) => {
-  const alertsData = useQuery (api.reorderAlerts.getAllReorderAlerts, { propertyId: currentPropertyId });
+  const alertsData = useQuery(api.reorderAlerts.getOpenReorderAlerts, { propertyId: currentPropertyId });
   const acknowledgeAlert = useMutation(api.reorderAlerts.acknowledgeReorderAlert);
   const resolveAlert = useMutation(api.reorderAlerts.resolveReorderAlert);
 
@@ -143,7 +144,8 @@ const ReorderAlertsTable: React.FC<ReorderAlertsProps> = ({ currentPropertyId })
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {alerts.map((alert: ReorderAlert) => {
-              const urgency = getUrgencyLevel(alert.qtyAtAlert, alert.reorderLevel);
+              const liveQty = alert.qtyInStore ?? alert.qtyAtAlert;
+              const urgency = getUrgencyLevel(liveQty, alert.reorderLevel);
               
               return (
                 <tr key={alert._id} className="hover:bg-gray-50">
@@ -165,7 +167,7 @@ const ReorderAlertsTable: React.FC<ReorderAlertsProps> = ({ currentPropertyId })
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-gray-900">
                       <span className={`font-semibold ${alert.qtyAtAlert === 0 ? 'text-red-600' : 'text-orange-600'}`}>
-                        {alert.qtyAtAlert}
+                        {liveQty}
                       </span>
                       <span className="text-gray-500 ml-1">
                         {alert.beverage?.unitOfMeasure || 'units'}

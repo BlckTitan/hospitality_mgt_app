@@ -225,7 +225,13 @@ export async function ensureRosterSlot(
   return { slot, template };
 }
 
-/** Reuse today's open shift, or open an F&B shift, when stock is issued. */
+function canReuseShiftForBar(shift: Doc<"shifts">, barId: Id<"bars">): boolean {
+  const departmentOk = !shift.department || shift.department === "fnb";
+  const barOk = !shift.barId || shift.barId === barId;
+  return departmentOk && barOk;
+}
+
+/** Reuse today's open F&B shift at this bar, or open one, when stock is issued. */
 export async function findOrCreateFnBShift(
   ctx: MutationCtx,
   args: {
@@ -237,13 +243,24 @@ export async function findOrCreateFnBShift(
 ): Promise<Id<"shifts">> {
   const staff = await resolveStaffForShift(ctx, { userId: args.userId });
 
-  if (staff) {
-    const open = await findActiveShiftForStaffDate(ctx, staff._id, args.shiftDate);
-    if (open) return open._id;
-  }
+  const open = staff
+    ? await findActiveShiftForStaffDate(ctx, staff._id, args.shiftDate)
+    : await findActiveShiftForUserDate(ctx, args.userId, args.shiftDate);
 
-  const openByUser = await findActiveShiftForUserDate(ctx, args.userId, args.shiftDate);
-  if (openByUser) return openByUser._id;
+  if (open) {
+    if (!canReuseShiftForBar(open, args.barId)) {
+      throw new Error(
+        "This staff member already has an open shift that is not F&B at this bar. End that shift before issuing stock.",
+      );
+    }
+    const patch: Partial<Doc<"shifts">> = {};
+    if (!open.barId) patch.barId = args.barId;
+    if (!open.department) patch.department = "fnb";
+    if (Object.keys(patch).length > 0) {
+      await ctx.db.patch(open._id, patch);
+    }
+    return open._id;
+  }
 
   const template = staff ? await resolveStaffTemplate(ctx, staff, args.propertyId) : null;
   const punctuality = await punctualityFieldsForClock(ctx, {

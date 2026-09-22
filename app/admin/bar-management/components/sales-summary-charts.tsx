@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { useQuery } from 'convex/react';
+import { Button } from 'react-bootstrap';
 import { api } from '../../../../convex/_generated/api';
 import { Id } from '../../../../convex/_generated/dataModel';
 import {
@@ -31,12 +32,15 @@ ChartJS.register(
   ArcElement
 );
 
+const CHART_TABS = ['Bar Performance', 'Top Performers', 'Revenue Trend', 'Sales by Category'] as const;
+
 interface SalesSummaryChartsProps {
   currentPropertyId: Id<'properties'>;
 }
 
 const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentPropertyId }) => {
   const [periodType, setPeriodType] = useState<'daily' | 'weekly' | 'monthly'>('daily');
+  const [tab, setTab] = useState<(typeof CHART_TABS)[number]>('Bar Performance');
   
   // Fetch sales data
   const salesByBarData = useQuery(api.salesSummaries.getSalesByBarPeriod, {
@@ -51,7 +55,13 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
     limit: 10,
   });
 
-  const salesData = useQuery(api.salesSummaries.getSalesSummaries, {
+  const salesData = useQuery(api.salesSummaries.getRevenueTrend, {
+    propertyId: currentPropertyId,
+    periodType,
+    limit: 7,
+  });
+
+  const categorySource = useQuery(api.salesSummaries.getSalesSummaries, {
     propertyId: currentPropertyId,
     periodType,
     limit: 30,
@@ -115,18 +125,11 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
 
   // Prepare data for revenue trend chart
   const revenueTrendChartData = salesData?.success && salesData.data ? {
-    labels: salesData.data.slice(0, 7).reverse().map(item => {
-      const date = new Date(item.periodKey);
-      return periodType === 'daily' 
-        ? date.toLocaleDateString()
-        : periodType === 'weekly'
-        ? `Week ${date.toLocaleDateString()}`
-        : date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-    }),
+    labels: salesData.data.map(item => item.periodKey),
     datasets: [
       {
         label: 'Revenue Trend',
-        data: salesData.data.slice(0, 7).reverse().map(item => item.totalRevenue),
+        data: salesData.data.map(item => item.totalRevenue),
         borderColor: 'rgba(251, 146, 60, 1)',
         backgroundColor: 'rgba(251, 146, 60, 0.1)',
         tension: 0.4,
@@ -136,12 +139,12 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
   } : null;
 
   // Prepare data for beverage category pie chart
-  const beverageCategoryData = salesData?.success && salesData.data ? {
-    labels: [...new Set(salesData.data.map(item => item.beverage?.category).filter(Boolean))],
+  const beverageCategoryData = categorySource?.success && categorySource.data ? {
+    labels: [...new Set(categorySource.data.map(item => item.beverage?.category).filter(Boolean))],
     datasets: [
       {
-        data: [...new Set(salesData.data.map(item => item.beverage?.category).filter(Boolean))].map(category => {
-          return salesData.data
+        data: [...new Set(categorySource.data.map(item => item.beverage?.category).filter(Boolean))].map(category => {
+          return categorySource.data
             .filter(item => item.beverage?.category === category)
             .reduce((sum, item) => sum + item.totalRevenue, 0);
         }),
@@ -220,7 +223,7 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
     },
   };
 
-  if (!salesByBarData?.success || !salesByUserData?.success || !salesData?.success) {
+  if (salesByBarData === undefined || salesByUserData === undefined || salesData === undefined || categorySource === undefined) {
     return (
       <div className="w-full p-4 text-center">
         <p>Loading sales summary data...</p>
@@ -230,63 +233,7 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
 
   return (
     <div className="w-full">
-      {/* Period Selector */}
-      <div className="mb-6 flex justify-between items-center">
-        <h3 className="text-lg font-semibold text-gray-800">Sales Analytics</h3>
-        <div className="flex space-x-2">
-          {(['daily', 'weekly', 'monthly'] as const).map((period) => (
-            <button
-              key={period}
-              onClick={() => setPeriodType(period)}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                periodType === period
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-            >
-              {period.charAt(0).toUpperCase() + period.slice(1)}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Charts Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Bar Performance Chart */}
-        <div className="bg-white p-4 rounded-lg border border-gray-200">
-          <h4 className="text-md font-semibold text-gray-800 mb-4">Bar Performance</h4>
-          <div className="h-64">
-            {barPerformanceChartData && <Bar data={barPerformanceChartData} options={chartOptions} />}
-          </div>
-        </div>
-
-        {/* User Performance Chart */}
-        <div className="bg-white p-4 rounded-lg border border-gray-200">
-          <h4 className="text-md font-semibold text-gray-800 mb-4">Top Performers</h4>
-          <div className="h-64">
-            {userPerformanceChartData && <Bar data={userPerformanceChartData} options={lineChartOptions} />}
-          </div>
-        </div>
-
-        {/* Revenue Trend Chart */}
-        <div className="bg-white p-4 rounded-lg border border-gray-200">
-          <h4 className="text-md font-semibold text-gray-800 mb-4">Revenue Trend</h4>
-          <div className="h-64">
-            {revenueTrendChartData && <Line data={revenueTrendChartData} options={lineChartOptions} />}
-          </div>
-        </div>
-
-        {/* Beverage Category Distribution */}
-        <div className="bg-white p-4 rounded-lg border border-gray-200">
-          <h4 className="text-md font-semibold text-gray-800 mb-4">Sales by Category</h4>
-          <div className="h-64">
-            {beverageCategoryData && <Pie data={beverageCategoryData} options={{ ...chartOptions, scales: undefined }} />}
-          </div>
-        </div>
-      </div>
-
-      {/* Summary Stats */}
-      <div className="mt-6 grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
           <div className="text-sm text-blue-600 font-medium">Total Revenue</div>
           <div className="text-xl font-bold text-blue-800">
@@ -313,6 +260,75 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
             {salesByUserData.data?.length || 0}
           </div>
         </div>
+      </div>
+
+      <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-wrap gap-2">
+          {CHART_TABS.map((item) => (
+            <Button
+              key={item}
+              size="sm"
+              variant={tab === item ? 'dark' : 'outline-secondary'}
+              onClick={() => setTab(item)}
+            >
+              {item}
+            </Button>
+          ))}
+        </div>
+        <div className="flex space-x-2">
+          {(['daily', 'weekly', 'monthly'] as const).map((period) => (
+            <button
+              key={period}
+              onClick={() => setPeriodType(period)}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                periodType === period
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              {period.charAt(0).toUpperCase() + period.slice(1)}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="bg-white p-4 rounded-lg border border-gray-200">
+        {tab === 'Bar Performance' && (
+          <div className="h-80">
+            {barPerformanceChartData ? (
+              <Bar data={barPerformanceChartData} options={chartOptions} />
+            ) : (
+              <p className="h-full flex items-center justify-center text-gray-500">No bar performance data</p>
+            )}
+          </div>
+        )}
+        {tab === 'Top Performers' && (
+          <div className="h-80">
+            {userPerformanceChartData ? (
+              <Bar data={userPerformanceChartData} options={lineChartOptions} />
+            ) : (
+              <p className="h-full flex items-center justify-center text-gray-500">No performer data</p>
+            )}
+          </div>
+        )}
+        {tab === 'Revenue Trend' && (
+          <div className="h-80">
+            {revenueTrendChartData ? (
+              <Line data={revenueTrendChartData} options={lineChartOptions} />
+            ) : (
+              <p className="h-full flex items-center justify-center text-gray-500">No revenue trend data</p>
+            )}
+          </div>
+        )}
+        {tab === 'Sales by Category' && (
+          <div className="h-80">
+            {beverageCategoryData ? (
+              <Pie data={beverageCategoryData} options={{ ...chartOptions, scales: undefined }} />
+            ) : (
+              <p className="h-full flex items-center justify-center text-gray-500">No category data</p>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

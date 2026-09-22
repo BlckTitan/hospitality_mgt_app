@@ -1,6 +1,12 @@
-import { mutation, query } from './_generated/server';
+import { internalMutation, query } from './_generated/server';
 import { v } from 'convex/values';
 import { requirePermission } from './lib/rbac';
+import {
+  currentPeriodKey,
+  lastNDailyKeys,
+  propertyDateKey,
+  upsertSalesSummaryDoc,
+} from './lib/barStock';
 
 // Helper functions for date calculations
 const getISODateString = (date: Date) => date.toISOString().split('T')[0];
@@ -132,18 +138,14 @@ export const getSalesByBarPeriod = query({
   },
   handler: async (ctx, args) => {
     await requirePermission(ctx, 'reports.read', args.propertyId);
-    try {
-      let query = ctx.db.query('salesSummaries')
-        .withIndex('by_propertyId_periodType', (q) => 
-          q.eq('propertyId', args.propertyId).eq('periodType', args.periodType)
-        );
+    const dateKey = await propertyDateKey(ctx, args.propertyId);
+    const periodKey = args.periodKey ?? currentPeriodKey(dateKey, args.periodType);
 
-      let summaries = await query.collect();
-
-      // Apply periodKey filter if provided
-      if (args.periodKey) {
-        summaries = summaries.filter(s => s.periodKey === args.periodKey);
-      }
+    const summaries = await ctx.db.query('salesSummaries')
+      .withIndex('by_propertyId_periodType_periodKey', (q) =>
+        q.eq('propertyId', args.propertyId).eq('periodType', args.periodType).eq('periodKey', periodKey)
+      )
+      .take(200);
 
       // Group by bar and aggregate
       const barAggregates = new Map();
@@ -185,10 +187,6 @@ export const getSalesByBarPeriod = query({
       }
 
       return { success: true, data: result };
-    } catch (error) {
-      console.log(`Failed to fetch sales by bar: ${error}`);
-      return { success: false, data: [], message: 'Failed to fetch sales by bar' };
-    }
   },
 });
 
@@ -201,17 +199,13 @@ export const getSalesByUserPeriod = query({
   },
   handler: async (ctx, args) => {
     await requirePermission(ctx, 'reports.read', args.propertyId);
-    try {
-      let summaries = await ctx.db.query('salesSummaries')
-        .withIndex('by_propertyId_periodType', (q) => 
-          q.eq('propertyId', args.propertyId).eq('periodType', args.periodType)
-        )
-        .collect();
-
-      // Apply periodKey filter if provided
-      if (args.periodKey) {
-        summaries = summaries.filter(s => s.periodKey === args.periodKey);
-      }
+    const dateKey = await propertyDateKey(ctx, args.propertyId);
+    const periodKey = args.periodKey ?? currentPeriodKey(dateKey, args.periodType);
+    let summaries = await ctx.db.query('salesSummaries')
+      .withIndex('by_propertyId_periodType_periodKey', (q) =>
+        q.eq('propertyId', args.propertyId).eq('periodType', args.periodType).eq('periodKey', periodKey)
+      )
+      .take(200);
 
       // Filter only summaries with userId (user-specific records)
       summaries = summaries.filter(s => s.userId !== undefined);
@@ -256,10 +250,6 @@ export const getSalesByUserPeriod = query({
       }
 
       return { success: true, data: result };
-    } catch (error) {
-      console.log(`Failed to fetch sales by user: ${error}`);
-      return { success: false, data: [], message: 'Failed to fetch sales by user' };
-    }
   },
 });
 
@@ -361,7 +351,50 @@ export const getYearOnYearComparison = query({
 });
 
 // Mutation to create or update sales summary
-export const upsertSalesSummary = mutation({
+export const getRevenueTrend = query({
+  args: {
+    propertyId: v.id('properties'),
+    periodType: v.union(v.literal("daily"), v.literal("weekly"), v.literal("monthly")),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    await requirePermission(ctx, 'reports.read', args.propertyId);
+    const dateKey = await propertyDateKey(ctx, args.propertyId);
+    const limit = args.limit && args.limit > 0 ? Math.min(args.limit, 14) : 7;
+    const keys =
+      args.periodType === 'daily'
+        ? lastNDailyKeys(dateKey, limit)
+        : args.periodType === 'monthly'
+          ? lastNDailyKeys(dateKey, limit * 31)
+              .map((key) => key.slice(0, 7))
+              .filter((key, index, all) => all.indexOf(key) === index)
+              .slice(-limit)
+          : lastNDailyKeys(dateKey, limit * 7).reduce<string[]>((acc, key) => {
+              const periodKey = currentPeriodKey(key, 'weekly');
+              if (!acc.includes(periodKey)) acc.push(periodKey);
+              return acc;
+            }, []).slice(-limit);
+
+    const points = [];
+    for (const periodKey of keys) {
+      const rows = await ctx.db
+        .query('salesSummaries')
+        .withIndex('by_propertyId_periodType_periodKey', (q) =>
+          q.eq('propertyId', args.propertyId).eq('periodType', args.periodType).eq('periodKey', periodKey),
+        )
+        .take(200);
+      points.push({
+        periodKey,
+        totalQtySold: rows.reduce((sum, row) => sum + row.totalQtySold, 0),
+        totalRevenue: rows.reduce((sum, row) => sum + row.totalRevenue, 0),
+      });
+    }
+
+    return { success: true, data: points };
+  },
+});
+
+export const upsertSalesSummary = internalMutation({
   args: {
     propertyId: v.id('properties'),
     barId: v.id('bars'),
@@ -376,35 +409,8 @@ export const upsertSalesSummary = mutation({
     totalRevenue: v.number(),
   },
   handler: async (ctx, args) => {
-    await requirePermission(ctx, 'reports.create', args.propertyId);
-    try {
-      // Check if a summary already exists for this combination
-      const existing = await ctx.db.query('salesSummaries')
-        .withIndex('by_propertyId_barId_period', (q) =>
-          q.eq('propertyId', args.propertyId)
-           .eq('barId', args.barId)
-           .eq('periodType', args.periodType)
-           .eq('periodKey', args.periodKey)
-        )
-        .filter(q => q.eq(q.field('beverageId'), args.beverageId))
-        .filter(q => args.userId ? q.eq(q.field('userId'), args.userId) : true)
-        .first();
-
-      if (existing) {
-        // Update existing summary
-        await ctx.db.patch(existing._id, {
-          totalQtySold: args.totalQtySold,
-          totalRevenue: args.totalRevenue,
-        });
-        return { success: true, data: existing._id, message: 'Sales summary updated' };
-      } else {
-        // Create new summary
-        const summaryId = await ctx.db.insert('salesSummaries', args);
-        return { success: true, data: summaryId, message: 'Sales summary created' };
-      }
-    } catch (error) {
-      console.log(`Failed to upsert sales summary: ${error}`);
-      return { success: false, message: 'Failed to upsert sales summary' };
-    }
+    const id = await upsertSalesSummaryDoc(ctx, args);
+    return { success: true, data: id };
   },
 });
+

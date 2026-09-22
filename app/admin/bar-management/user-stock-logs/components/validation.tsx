@@ -1,35 +1,14 @@
 import * as yup from "yup";
 
 export const formSchema = yup.object().shape({
-  userId: yup
-    .string()
-    .required("User is required"),
-
-  barId: yup
-    .string()
-    .required("Bar is required"),
-
-  beverageId: yup
-    .string()
-    .required("Beverage is required"),
-
-  shiftId: yup
-    .string()
-    .required("Shift is required"),
-
-  logDate: yup
-    .string()
-    .required("Date is required"),
-
-  openingStock: yup
-    .number()
-    .min(0, "Opening stock cannot be negative")
-    .required("Opening stock is required"),
-
+  userId: yup.string().required("User is required"),
+  barId: yup.string().required("Bar is required"),
+  beverageId: yup.string().required("Beverage is required"),
+  shiftId: yup.string().optional(),
   closingStock: yup
     .number()
     .min(0, "Closing stock cannot be negative")
-    .required("Closing stock is required"),
+    .optional(),
 });
 
 export const editFormSchema = yup.object().shape({
@@ -37,7 +16,6 @@ export const editFormSchema = yup.object().shape({
     .number()
     .min(0, "Opening stock cannot be negative")
     .required("Opening stock is required"),
-
   closingStock: yup
     .number()
     .min(0, "Closing stock cannot be negative")

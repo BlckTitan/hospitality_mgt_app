@@ -5,12 +5,10 @@ import { api } from '../../../convex/_generated/api';
 import { Id } from '../../../convex/_generated/dataModel';
 import ReorderAlertsTable from './components/reorder-alerts';
 import SalesSummaryCharts from './components/sales-summary-charts';
-import { usePermissions } from '../../../hooks/usePermissions';
 import { BackLink } from '../../../shared/pageHeader';
 
 export default function BarManagement() {
     const [propertyId, setPropertyId] = useState<string>('');
-    const { canAccessRoute } = usePermissions();
 
     const propertiesResponse = useQuery(api.property.getAllProperties);
     const properties = propertiesResponse?.data || [];
@@ -42,30 +40,14 @@ export default function BarManagement() {
                 <BackLink />
             </div>
 
-            {/* Property Selector */}
-            <div className="mb-6">
-                <label htmlFor="property-select" className="block text-sm font-medium text-gray-700 mb-2">
-                    Select Property
-                </label>
-                <select
-                    id="property-select"
-                    value={currentPropertyId}
-                    onChange={(e) => setPropertyId(e.target.value)}
-                    className="block w-full md:w-64 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                >
-                    {properties.map((property: any) => (
-                        <option key={property._id} value={property._id}>
-                            {property.name}
-                        </option>
-                    ))}
-                </select>
+            <div className="mb-8">
+                <SalesSummaryCharts currentPropertyId={currentPropertyId as Id<"properties">} />
             </div>
 
-            {/* Reorder Alerts Section */}
             <div className="mb-8">
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
                     <div className="flex items-center">
-                        <div className="flex-shrink-0">
+                        <div className="shrink-0">
                             <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
                                 <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                             </svg>
@@ -84,60 +66,6 @@ export default function BarManagement() {
                 <ReorderAlertsTable currentPropertyId={currentPropertyId as Id<"properties">} />
             </div>
 
-            {/* Sales Summary Section */}
-            <div className="mb-8">
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-                    <div className="flex items-center">
-                        <div className="flex-shrink-0">
-                            <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
-                                <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
-                            </svg>
-                        </div>
-                        <div className="ml-3">
-                            <h3 className="text-sm font-medium text-blue-800">
-                                Sales Analytics
-                            </h3>
-                            <p className="text-sm text-blue-700">
-                                Pre-aggregated sales data with multi-dimensional reporting
-                            </p>
-                        </div>
-                    </div>
-                </div>
-                
-                <SalesSummaryCharts currentPropertyId={currentPropertyId as Id<"properties">} />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {canAccessRoute('/admin/bar-management/beverages') && (
-                <a 
-                    href="/admin/bar-management/beverages" 
-                    className="block p-4 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
-                >
-                    <h3 className="text-lg font-semibold text-blue-800 mb-2">Beverages</h3>
-                    <p className="text-sm text-blue-600">Manage beverage catalog and pricing</p>
-                </a>
-                )}
-                
-                {canAccessRoute('/admin/bar-management/store-inventory') && (
-                <a 
-                    href="/admin/bar-management/store-inventory" 
-                    className="block p-4 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 transition-colors"
-                >
-                    <h3 className="text-lg font-semibold text-green-800 mb-2">Store Inventory</h3>
-                    <p className="text-sm text-green-600">View and manage central store stock</p>
-                </a>
-                )}
-                
-                {canAccessRoute('/admin/bar-management/store-transactions') && (
-                <a 
-                    href="/admin/bar-management/store-transactions" 
-                    className="block p-4 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 transition-colors"
-                >
-                    <h3 className="text-lg font-semibold text-purple-800 mb-2">Stock Transactions</h3>
-                    <p className="text-sm text-purple-600">Track stock movements and issues</p>
-                </a>
-                )}
-            </div>
         </div>
     );
 }

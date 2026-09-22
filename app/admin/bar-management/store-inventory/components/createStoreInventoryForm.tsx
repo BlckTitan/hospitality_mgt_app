@@ -88,12 +88,13 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
         <div className="flex-1">
           <InputComponent
             id="qtyInStore"
-            label="Quantity in Store *"
+            label="Quantity in Store"
             type="number"
             inputWidth="w-full"
             register={register('qtyInStore', { valueAsNumber: true, min: 0 })}
             error={errors.qtyInStore}
           />
+          <p className="text-xs text-gray-500 mt-1">New rows start at 0. Receive stock to add quantity.</p>
         </div>
         <div className="flex-1">
           <InputComponent

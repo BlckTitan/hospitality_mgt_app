@@ -16,7 +16,6 @@ type FormData = {
   userId?: string;
   txnType: 'receive' | 'issue';
   qty: number;
-  txnDate: Date;
   notes?: string;
 };
 
@@ -38,7 +37,6 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
       userId: '',
       txnType: 'receive',
       qty: 1,
-      txnDate: new Date(),
       notes: '',
     },
   });
@@ -54,7 +52,6 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
         userId: data.userId ? data.userId as Id<'users'> : undefined,
         txnType: data.txnType,
         qty: data.qty,
-        txnDate: data.txnDate.getTime(),
         notes: data.notes,
       });
 
@@ -70,7 +67,7 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
       }
     } catch (error: any) {
       console.error('Add new store transaction failed:', error);
-      toast.error('Failed to add new store transaction. Please try again.');
+      toast.error(error?.message || 'Failed to add new store transaction. Please try again.');
     }
   };
 
@@ -146,7 +143,7 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
       {(watchedTxnType === 'issue') && (
         <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-start gap-2 mb-2 lg:mb-4">
           <div className="flex-1">
-            <label htmlFor="barId" className="block mb-2">Bar (Optional)</label>
+            <label htmlFor="barId" className="block mb-2">Bar *</label>
             <select
               id="barId"
               {...register('barId')}
@@ -163,7 +160,7 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
             {errors.barId && <span className="text-red-500 text-sm">{errors.barId.message}</span>}
           </div>
           <div className="flex-1">
-            <label htmlFor="userId" className="block mb-2">User (Optional)</label>
+            <label htmlFor="userId" className="block mb-2">User *</label>
             <select
               id="userId"
               {...register('userId')}
@@ -182,22 +179,9 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
         </div>
       )}
 
-      <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-2 mb-2 lg:mb-4">
-        <div className="flex-1">
-          <label htmlFor="txnDate" className="block mb-2">Transaction Date *</label>
-          <input
-            id="txnDate"
-            type="datetime-local"
-            {...register('txnDate', { 
-              required: true,
-              valueAsDate: true 
-            })}
-            className="w-full border rounded p-2"
-            defaultValue={new Date().toISOString().slice(0, 16)}
-          />
-          {errors.txnDate && <span className="text-red-500 text-sm">{errors.txnDate.message}</span>}
-        </div>
-      </div>
+      <p className="text-sm text-gray-500 mb-4">
+        The transaction is recorded against today in the property timezone. Issue requires a bar and the staff member receiving the stock.
+      </p>
 
       <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-start lg:items-center gap-1 [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4">
         <div className="w-full">

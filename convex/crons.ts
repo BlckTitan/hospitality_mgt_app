@@ -25,4 +25,32 @@ crons.cron(
   {},
 );
 
+crons.cron(
+  "aggregate daily bar sales",
+  "0 1 * * *",
+  internal.cron.aggregateDailySummaries,
+  {},
+);
+
+crons.cron(
+  "aggregate weekly bar sales",
+  "0 2 * * 1",
+  internal.cron.aggregateWeeklySummaries,
+  {},
+);
+
+crons.cron(
+  "aggregate monthly bar sales",
+  "0 3 1 * *",
+  internal.cron.aggregateMonthlySummaries,
+  {},
+);
+
+crons.cron(
+  "aggregate yearly bar sales",
+  "0 4 1 1 *",
+  internal.cron.aggregateYearlySummaries,
+  {},
+);
+
 export default crons;

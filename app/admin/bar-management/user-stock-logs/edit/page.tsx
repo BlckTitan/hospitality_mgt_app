@@ -24,7 +24,7 @@ export default function EditUserStockLogPage() {
       <div className="w-full p-4 bg-white">
         <div className="text-center py-8">
           <h3 className="text-red-600">User stock log not found</h3>
-          <a href="/admin/user-stock-logs" className="text-blue-600 hover:underline">
+          <a href="/admin/bar-management/user-stock-logs" className="text-blue-600 hover:underline">
             Go back to User Stock Logs
           </a>
         </div>

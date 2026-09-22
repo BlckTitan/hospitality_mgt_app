@@ -95,14 +95,15 @@ export function EditFormComponent({ onSuccess, onClose, inventoryId }: { onSucce
 
       <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-start gap-2 mb-2 lg:mb-4">
         <div className="flex-1">
-          <InputComponent
-            id="qtyInStore"
-            label="Quantity in Store *"
+          <label className="block mb-2">Quantity in Store</label>
+          <input
             type="number"
-            inputWidth="w-full"
-            register={register('qtyInStore', { valueAsNumber: true, min: 0 })}
-            error={errors.qtyInStore}
+            className="w-full border rounded p-2 bg-gray-100"
+            value={inventory.qtyInStore}
+            disabled
+            readOnly
           />
+          <p className="text-xs text-gray-500 mt-1">Quantity changes through receive/issue transactions only.</p>
         </div>
         <div className="flex-1">
           <InputComponent

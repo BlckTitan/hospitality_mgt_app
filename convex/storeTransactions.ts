@@ -1,44 +1,34 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
 import { requirePermission } from './lib/rbac';
-import { findOrCreateFnBShift } from './lib/shiftHelpers';
-
+import {
+  applyIssuedQtyToStockLog,
+  applyStoreQtyChange,
+  ensureStoreInventoryForReceive,
+  findStoreInventory,
+  maybeOpenReorderAlert,
+  previewIssueToStockLog,
+  propertyDateKey,
+} from './lib/barStock';
 export const getAllStoreTransactions = query({
   args: { propertyId: v.id('properties') },
   handler: async (ctx, args) => {
     await requirePermission(ctx, 'inventory.read', args.propertyId);
-    try {
-      const transactions = await ctx.db
-        .query('storeTransactions')
-        .withIndex('by_propertyId_txnDate', (q) => 
-          q.eq('propertyId', args.propertyId)
-        )
-        .collect();
-      
-      // Sort by txnDate descending (most recent first)
-      transactions.sort((a, b) => b.txnDate - a.txnDate);
-      
-      // Fetch related data for each transaction
-      const transactionsWithDetails = await Promise.all(
-        transactions.map(async (transaction) => {
-          const beverage = await ctx.db.get(transaction.beverageId);
-          const bar = transaction.barId ? await ctx.db.get(transaction.barId) : null;
-          const user = transaction.userId ? await ctx.db.get(transaction.userId) : null;
-          
-          return {
-            ...transaction,
-            beverage,
-            bar,
-            user,
-          };
-        })
-      );
-      
-      return { success: true, data: transactionsWithDetails };
-    } catch (error) {
-      console.log(`Failed to fetch store transactions: ${error}`);
-      return { success: false, data: [], message: 'Failed to fetch store transactions' };
-    }
+    const transactions = await ctx.db
+      .query('storeTransactions')
+      .withIndex('by_propertyId_txnDate', (q) => q.eq('propertyId', args.propertyId))
+      .order('desc')
+      .take(200);
+
+    const data = await Promise.all(
+      transactions.map(async (transaction) => {
+        const beverage = await ctx.db.get(transaction.beverageId);
+        const bar = transaction.barId ? await ctx.db.get(transaction.barId) : null;
+        const user = transaction.userId ? await ctx.db.get(transaction.userId) : null;
+        return { ...transaction, beverage, bar, user };
+      }),
+    );
+    return { success: true, data };
   },
 });
 
@@ -50,16 +40,10 @@ export const getStoreTransaction = query({
       return { success: false, data: null, message: 'Store transaction not found' };
     }
     await requirePermission(ctx, 'inventory.read', transaction.propertyId);
-    try {
-      const beverage = await ctx.db.get(transaction.beverageId);
-      const bar = transaction.barId ? await ctx.db.get(transaction.barId) : null;
-      const user = transaction.userId ? await ctx.db.get(transaction.userId) : null;
-      
-      return { success: true, data: { ...transaction, beverage, bar, user } };
-    } catch (error) {
-      console.log(`Failed to fetch store transaction: ${error}`);
-      return { success: false, data: null, message: 'Failed to fetch store transaction' };
-    }
+    const beverage = await ctx.db.get(transaction.beverageId);
+    const bar = transaction.barId ? await ctx.db.get(transaction.barId) : null;
+    const user = transaction.userId ? await ctx.db.get(transaction.userId) : null;
+    return { success: true, data: { ...transaction, beverage, bar, user } };
   },
 });
 
@@ -71,215 +55,102 @@ export const createStoreTransaction = mutation({
     userId: v.optional(v.id('users')),
     txnType: v.union(v.literal('receive'), v.literal('issue')),
     qty: v.number(),
-    txnDate: v.number(),
+    txnDate: v.optional(v.number()),
     notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     await requirePermission(ctx, 'inventory.create', args.propertyId);
-    try {
-      // Verify beverage exists and belongs to the property
-      const beverage = await ctx.db.get(args.beverageId);
-      if (!beverage || beverage.propertyId !== args.propertyId) {
-        return { success: false, message: 'Beverage does not exist or does not belong to this property' };
-      }
 
-      // If barId is provided, verify it exists and belongs to the property
-      if (args.barId) {
-        const bar = await ctx.db.get(args.barId);
-        if (!bar || bar.propertyId !== args.propertyId) {
-          return { success: false, message: 'Bar does not exist or does not belong to this property' };
-        }
-      }
+    if (args.qty <= 0) {
+      return { success: false, message: 'Quantity must be greater than 0' };
+    }
 
-      // If userId is provided, verify user exists
-      if (args.userId) {
-        const user = await ctx.db.get(args.userId);
-        if (!user) {
-          return { success: false, message: 'User does not exist' };
-        }
-      }
+    const beverage = await ctx.db.get(args.beverageId);
+    if (!beverage || beverage.propertyId !== args.propertyId) {
+      return { success: false, message: 'Beverage does not exist or does not belong to this property' };
+    }
 
-      // Validate quantity is positive
-      if (args.qty <= 0) {
-        return { success: false, message: 'Quantity must be greater than 0' };
-      }
+    const now = Date.now();
+    const txnDateKey = await propertyDateKey(ctx, args.propertyId, now);
 
-      // Generate ISO date key from txnDate
-      const txnDateKey = new Date(args.txnDate).toISOString().split('T')[0];
+    if (args.txnType === 'issue') {
+      if (!args.barId || !args.userId) {
+        return { success: false, message: 'Issue transactions require a bar and a user' };
+      }
+      const bar = await ctx.db.get(args.barId);
+      if (!bar || bar.propertyId !== args.propertyId) {
+        return { success: false, message: 'Bar does not exist or does not belong to this property' };
+      }
+      const user = await ctx.db.get(args.userId);
+      if (!user) {
+        return { success: false, message: 'User does not exist' };
+      }
+      const inventory = await findStoreInventory(ctx, args.propertyId, args.beverageId);
+      if (!inventory) {
+        return { success: false, message: 'No store inventory exists for this beverage. Receive stock first.' };
+      }
+      if (inventory.qtyInStore < args.qty) {
+        return { success: false, message: 'Insufficient stock in store' };
+      }
+      const preview = await previewIssueToStockLog(ctx, {
+        userId: args.userId,
+        barId: args.barId,
+        beverageId: args.beverageId,
+        logDate: txnDateKey,
+        qty: args.qty,
+      });
+      if (preview.error) {
+        return { success: false, message: preview.error };
+      }
 
       const transactionId = await ctx.db.insert('storeTransactions', {
         propertyId: args.propertyId,
         beverageId: args.beverageId,
         barId: args.barId,
         userId: args.userId,
-        txnType: args.txnType,
+        txnType: 'issue',
         qty: args.qty,
-        txnDate: args.txnDate,
+        txnDate: now,
         txnDateKey,
         notes: args.notes,
       });
-
-      // Update store inventory
-      const storeInventory = await ctx.db
-        .query('storeInventories')
-        .withIndex('by_propertyId_beverageId', (q) =>
-          q.eq('propertyId', args.propertyId).eq('beverageId', args.beverageId)
-        )
-        .first();
-
-      if (storeInventory) {
-        const newQty = args.txnType === 'receive' 
-          ? storeInventory.qtyInStore + args.qty
-          : storeInventory.qtyInStore - args.qty;
-
-        if (newQty < 0) {
-          // Rollback transaction if inventory would go negative
-          await ctx.db.delete(transactionId);
-          return { success: false, message: 'Insufficient stock in store' };
-        }
-
-        await ctx.db.patch(storeInventory._id, {
-          qtyInStore: newQty,
-          lastUpdated: Date.now(),
-        });
-
-        // Check if stock fell below threshold and create reorder alert if needed
-        if (args.txnType === 'issue' && newQty <= storeInventory.reorderThreshold) {
-          // Check if there's already an open alert for this beverage
-          const existingOpenAlert = await ctx.db
-            .query('reorderAlerts')
-            .withIndex('by_beverageId_status', (q) => 
-              q.eq('beverageId', args.beverageId).eq('status', 'open')
-            )
-            .first();
-
-          if (!existingOpenAlert) {
-            // Create new reorder alert
-            await ctx.db.insert('reorderAlerts', {
-              propertyId: args.propertyId,
-              beverageId: args.beverageId,
-              qtyAtAlert: newQty,
-              reorderLevel: storeInventory.reorderThreshold,
-              alertedAt: Date.now(),
-              status: 'open',
-            });
-          }
-        }
-      } else {
-        // Create store inventory record if it doesn't exist
-        await ctx.db.insert('storeInventories', {
-          propertyId: args.propertyId,
-          beverageId: args.beverageId,
-          qtyInStore: args.txnType === 'receive' ? args.qty : 0,
-          reorderThreshold: beverage.reorderLevel || 10,
-          lastUpdated: Date.now(),
-        });
-      }
-
-      // If this is an issue transaction, update userStockLogs
-      if (args.txnType === 'issue' && args.barId && args.userId) {
-        // Create the stock log update inline to avoid circular imports
-        const beverage = await ctx.db.get(args.beverageId);
-        if (!beverage) {
-          // Rollback transaction if beverage not found
-          await ctx.db.delete(transactionId);
-          return { success: false, message: 'Beverage does not exist' };
-        }
-
-        // Look for existing stock log for today
-        const existingLog = await ctx.db
-          .query('userStockLogs')
-          .withIndex('by_userId_barId_bev_date', (q) =>
-            q.eq('userId', args.userId!)
-             .eq('barId', args.barId!)
-             .eq('beverageId', args.beverageId)
-             .eq('logDate', txnDateKey)
-          )
-          .first();
-
-        if (existingLog) {
-          // Check if finalized
-          if (existingLog.isFinalized) {
-            // Rollback transaction
-            await ctx.db.delete(transactionId);
-            return { success: false, message: 'Cannot issue stock to finalized day' };
-          }
-
-          // Update existing log
-          const newStockReceived = existingLog.newStockReceived + args.qty;
-          const totalStock = existingLog.openingStock + newStockReceived;
-          const salesQuantity = totalStock - existingLog.closingStock;
-          
-          if (salesQuantity < 0) {
-            // Rollback transaction
-            await ctx.db.delete(transactionId);
-            return { success: false, message: 'Stock issue would result in negative sales' };
-          }
-
-          const salesValue = salesQuantity * beverage.unitPrice;
-
-          await ctx.db.patch(existingLog._id, {
-            newStockReceived,
-            totalStock,
-            salesQuantity,
-            salesValue,
-            lastUpdatedAt: Date.now(),
-          });
-        } else {
-          // Create new stock log for today
-          // Get opening stock from previous day's closing stock
-          const yesterday = new Date(txnDateKey);
-          yesterday.setDate(yesterday.getDate() - 1);
-          const yesterdayStr = yesterday.toISOString().split('T')[0];
-
-          const previousLog = await ctx.db
-            .query('userStockLogs')
-            .withIndex('by_userId_barId_bev_date', (q) =>
-              q.eq('userId', args.userId!)
-               .eq('barId', args.barId!)
-               .eq('beverageId', args.beverageId)
-               .eq('logDate', yesterdayStr)
-            )
-            .first();
-
-          const openingStock = previousLog?.closingStock || 0;
-          const newStockReceived = args.qty;
-          const totalStock = openingStock + newStockReceived;
-          const closingStock = totalStock; // Assume no sales yet
-          const salesQuantity = 0;
-          const salesValue = 0;
-
-          const shiftId = await findOrCreateFnBShift(ctx, {
-            propertyId: args.propertyId,
-            userId: args.userId!,
-            barId: args.barId!,
-            shiftDate: txnDateKey,
-          });
-
-          await ctx.db.insert('userStockLogs', {
-            propertyId: args.propertyId,
-            shiftId,
-            userId: args.userId!,
-            barId: args.barId!,
-            beverageId: args.beverageId,
-            logDate: txnDateKey,
-            openingStock,
-            newStockReceived,
-            totalStock,
-            closingStock,
-            salesQuantity,
-            salesValue,
-            isFinalized: false,
-            lastUpdatedAt: Date.now(),
-          });
-        }
-      }
-
+      const newQty = await applyStoreQtyChange(ctx, inventory, -args.qty);
+      await applyIssuedQtyToStockLog(ctx, {
+        propertyId: args.propertyId,
+        userId: args.userId,
+        barId: args.barId,
+        beverageId: args.beverageId,
+        logDate: txnDateKey,
+        qty: args.qty,
+        unitPrice: beverage.unitPrice,
+      });
+      await maybeOpenReorderAlert(ctx, {
+        propertyId: args.propertyId,
+        beverageId: args.beverageId,
+        qtyInStore: newQty,
+        reorderThreshold: inventory.reorderThreshold,
+      });
       return { success: true, message: 'Store transaction created successfully', id: transactionId };
-    } catch (error) {
-      console.log(`Failed to create store transaction: ${error}`);
-      return { success: false, message: 'Failed to create store transaction' };
     }
+
+    const inventory = await ensureStoreInventoryForReceive(ctx, {
+      propertyId: args.propertyId,
+      beverageId: args.beverageId,
+      reorderThreshold: beverage.reorderLevel || 10,
+    });
+    const transactionId = await ctx.db.insert('storeTransactions', {
+      propertyId: args.propertyId,
+      beverageId: args.beverageId,
+      barId: undefined,
+      userId: undefined,
+      txnType: 'receive',
+      qty: args.qty,
+      txnDate: now,
+      txnDateKey,
+      notes: args.notes,
+    });
+    await applyStoreQtyChange(ctx, inventory, args.qty);
+    return { success: true, message: 'Store transaction created successfully', id: transactionId };
   },
 });
 
@@ -291,175 +162,212 @@ export const updateStoreTransaction = mutation({
     userId: v.optional(v.id('users')),
     txnType: v.union(v.literal('receive'), v.literal('issue')),
     qty: v.number(),
-    txnDate: v.number(),
+    txnDate: v.optional(v.number()),
     notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const existingTransaction = await ctx.db.get(args.transactionId);
-    if (!existingTransaction) {
+    const existing = await ctx.db.get(args.transactionId);
+    if (!existing) {
       return { success: false, message: 'Store transaction does not exist' };
     }
-    await requirePermission(ctx, 'inventory.update', existingTransaction.propertyId);
+    await requirePermission(ctx, 'inventory.update', existing.propertyId);
 
-    try {
-      // Verify beverage exists and belongs to the property
-      const beverage = await ctx.db.get(args.beverageId);
-      if (!beverage || beverage.propertyId !== existingTransaction.propertyId) {
-        return { success: false, message: 'Beverage does not exist or does not belong to this property' };
-      }
-
-      // If barId is provided, verify it exists and belongs to the property
-      if (args.barId) {
-        const bar = await ctx.db.get(args.barId);
-        if (!bar || bar.propertyId !== existingTransaction.propertyId) {
-          return { success: false, message: 'Bar does not exist or does not belong to this property' };
-        }
-      }
-
-      // If userId is provided, verify user exists
-      if (args.userId) {
-        const user = await ctx.db.get(args.userId);
-        if (!user) {
-          return { success: false, message: 'User does not exist' };
-        }
-      }
-
-      // Validate quantity is positive
-      if (args.qty <= 0) {
-        return { success: false, message: 'Quantity must be greater than 0' };
-      }
-
-      // Generate ISO date key from txnDate
-      const txnDateKey = new Date(args.txnDate).toISOString().split('T')[0];
-
-      // Update store inventory - reverse old transaction first
-      const storeInventory = await ctx.db
-        .query('storeInventories')
-        .withIndex('by_propertyId_beverageId', (q) =>
-          q.eq('propertyId', existingTransaction.propertyId).eq('beverageId', existingTransaction.beverageId)
-        )
-        .first();
-
-      if (storeInventory) {
-        // Reverse the old transaction
-        const oldReversedQty = existingTransaction.txnType === 'receive' 
-          ? storeInventory.qtyInStore - existingTransaction.qty
-          : storeInventory.qtyInStore + existingTransaction.qty;
-
-        // Apply the new transaction
-        let newQty;
-        if (existingTransaction.beverageId !== args.beverageId) {
-          // Beverage changed, handle different inventory
-          const newStoreInventory = await ctx.db
-            .query('storeInventories')
-            .withIndex('by_propertyId_beverageId', (q) =>
-              q.eq('propertyId', existingTransaction.propertyId).eq('beverageId', args.beverageId)
-            )
-            .first();
-
-          if (newStoreInventory) {
-            newQty = args.txnType === 'receive' 
-              ? newStoreInventory.qtyInStore + args.qty
-              : newStoreInventory.qtyInStore - args.qty;
-
-            if (newQty < 0) {
-              return { success: false, message: 'Insufficient stock in store for new beverage' };
-            }
-
-            await ctx.db.patch(newStoreInventory._id, {
-              qtyInStore: newQty,
-              lastUpdated: Date.now(),
-            });
-          } else {
-            // Create new inventory record
-            await ctx.db.insert('storeInventories', {
-              propertyId: existingTransaction.propertyId,
-              beverageId: args.beverageId,
-              qtyInStore: args.txnType === 'receive' ? args.qty : 0,
-              reorderThreshold: beverage.reorderLevel || 10,
-              lastUpdated: Date.now(),
-            });
-          }
-
-          // Update old inventory
-          await ctx.db.patch(storeInventory._id, {
-            qtyInStore: oldReversedQty,
-            lastUpdated: Date.now(),
-          });
-        } else {
-          // Same beverage, just update quantity
-          newQty = args.txnType === 'receive' 
-            ? oldReversedQty + args.qty
-            : oldReversedQty - args.qty;
-
-          if (newQty < 0) {
-            return { success: false, message: 'Insufficient stock in store' };
-          }
-
-          await ctx.db.patch(storeInventory._id, {
-            qtyInStore: newQty,
-            lastUpdated: Date.now(),
-          });
-        }
-      }
-
-      await ctx.db.patch(args.transactionId, {
-        beverageId: args.beverageId,
-        barId: args.barId,
-        userId: args.userId,
-        txnType: args.txnType,
-        qty: args.qty,
-        txnDate: args.txnDate,
-        txnDateKey,
-        notes: args.notes,
-      });
-
-      return { success: true, message: 'Store transaction updated successfully' };
-    } catch (error) {
-      console.log(`Failed to update store transaction: ${error}`);
-      return { success: false, message: 'Failed to update store transaction' };
+    if (args.qty <= 0) {
+      return { success: false, message: 'Quantity must be greater than 0' };
     }
+
+    const beverage = await ctx.db.get(args.beverageId);
+    if (!beverage || beverage.propertyId !== existing.propertyId) {
+      return { success: false, message: 'Beverage does not exist or does not belong to this property' };
+    }
+
+    if (args.txnType === 'issue' && (!args.barId || !args.userId)) {
+      return { success: false, message: 'Issue transactions require a bar and a user' };
+    }
+    if (args.barId) {
+      const bar = await ctx.db.get(args.barId);
+      if (!bar || bar.propertyId !== existing.propertyId) {
+        return { success: false, message: 'Bar does not exist or does not belong to this property' };
+      }
+    }
+    if (args.userId) {
+      const user = await ctx.db.get(args.userId);
+      if (!user) {
+        return { success: false, message: 'User does not exist' };
+      }
+    }
+
+    const oldInventory = await findStoreInventory(
+      ctx,
+      existing.propertyId,
+      existing.beverageId,
+    );
+    if (!oldInventory) {
+      return { success: false, message: 'Store inventory is missing for the original beverage' };
+    }
+
+    const oldDelta = existing.txnType === 'receive' ? -existing.qty : existing.qty;
+    if (oldInventory.qtyInStore + oldDelta < 0) {
+      return { success: false, message: 'Cannot reverse the original transaction — store qty would go negative' };
+    }
+
+    if (existing.txnType === 'issue' && existing.userId && existing.barId) {
+      const reversePreview = await previewIssueToStockLog(ctx, {
+        userId: existing.userId,
+        barId: existing.barId,
+        beverageId: existing.beverageId,
+        logDate: existing.txnDateKey,
+        qty: -existing.qty,
+      });
+      if (reversePreview.error) {
+        return { success: false, message: reversePreview.error };
+      }
+    }
+
+    const newInventory =
+      args.beverageId === existing.beverageId
+        ? oldInventory
+        : await findStoreInventory(ctx, existing.propertyId, args.beverageId);
+
+    if (args.txnType === 'issue') {
+      if (!newInventory && args.beverageId === existing.beverageId) {
+        // same row, after reverse
+      } else if (args.beverageId !== existing.beverageId && !newInventory) {
+        return { success: false, message: 'No store inventory exists for the new beverage. Receive stock first.' };
+      }
+      const qtyAfterOldReverse =
+        args.beverageId === existing.beverageId
+          ? oldInventory.qtyInStore + oldDelta
+          : (newInventory?.qtyInStore ?? 0);
+      if (qtyAfterOldReverse - args.qty < 0) {
+        return { success: false, message: 'Insufficient stock in store for the updated issue' };
+      }
+      const preview = await previewIssueToStockLog(ctx, {
+        userId: args.userId!,
+        barId: args.barId!,
+        beverageId: args.beverageId,
+        logDate: existing.txnDateKey,
+        qty: args.qty,
+      });
+      if (preview.error) {
+        return { success: false, message: preview.error };
+      }
+    }
+
+    const oldBeverage = await ctx.db.get(existing.beverageId);
+    const oldUnitPrice = oldBeverage?.unitPrice ?? 0;
+
+    if (existing.txnType === 'issue' && existing.userId && existing.barId) {
+      await applyIssuedQtyToStockLog(ctx, {
+        propertyId: existing.propertyId,
+        userId: existing.userId,
+        barId: existing.barId,
+        beverageId: existing.beverageId,
+        logDate: existing.txnDateKey,
+        qty: -existing.qty,
+        unitPrice: oldUnitPrice,
+      });
+    }
+    await applyStoreQtyChange(ctx, oldInventory, oldDelta);
+
+    const inventoryForNew =
+      args.beverageId === existing.beverageId
+        ? (await findStoreInventory(ctx, existing.propertyId, args.beverageId))!
+        : args.txnType === 'receive'
+          ? await ensureStoreInventoryForReceive(ctx, {
+              propertyId: existing.propertyId,
+              beverageId: args.beverageId,
+              reorderThreshold: beverage.reorderLevel || 10,
+            })
+          : (await findStoreInventory(ctx, existing.propertyId, args.beverageId))!;
+
+    const newStoreDelta = args.txnType === 'receive' ? args.qty : -args.qty;
+    const newQty = await applyStoreQtyChange(ctx, inventoryForNew, newStoreDelta);
+
+    if (args.txnType === 'issue' && args.userId && args.barId) {
+      await applyIssuedQtyToStockLog(ctx, {
+        propertyId: existing.propertyId,
+        userId: args.userId,
+        barId: args.barId,
+        beverageId: args.beverageId,
+        logDate: existing.txnDateKey,
+        qty: args.qty,
+        unitPrice: beverage.unitPrice,
+      });
+      await maybeOpenReorderAlert(ctx, {
+        propertyId: existing.propertyId,
+        beverageId: args.beverageId,
+        qtyInStore: newQty,
+        reorderThreshold: inventoryForNew.reorderThreshold,
+      });
+    }
+
+    await ctx.db.replace(args.transactionId, {
+      propertyId: existing.propertyId,
+      beverageId: args.beverageId,
+      ...(args.txnType === 'issue' && args.barId ? { barId: args.barId } : {}),
+      ...(args.txnType === 'issue' && args.userId ? { userId: args.userId } : {}),
+      txnType: args.txnType,
+      qty: args.qty,
+      txnDate: existing.txnDate,
+      txnDateKey: existing.txnDateKey,
+      ...(args.notes ? { notes: args.notes } : {}),
+    });
+
+    return { success: true, message: 'Store transaction updated successfully' };
   },
 });
 
 export const deleteStoreTransaction = mutation({
   args: { transactionId: v.id('storeTransactions') },
   handler: async (ctx, args) => {
-    const existingTransaction = await ctx.db.get(args.transactionId);
-    if (!existingTransaction) {
+    const existing = await ctx.db.get(args.transactionId);
+    if (!existing) {
       return { success: false, message: 'Store transaction does not exist' };
     }
-    await requirePermission(ctx, 'inventory.delete', existingTransaction.propertyId);
+    await requirePermission(ctx, 'inventory.delete', existing.propertyId);
 
-    try {
-      // Update store inventory - reverse the transaction
-      const storeInventory = await ctx.db
-        .query('storeInventories')
-        .withIndex('by_propertyId_beverageId', (q) =>
-          q.eq('propertyId', existingTransaction.propertyId).eq('beverageId', existingTransaction.beverageId)
-        )
-        .first();
-
-      if (storeInventory) {
-        const newQty = existingTransaction.txnType === 'receive' 
-          ? storeInventory.qtyInStore - existingTransaction.qty
-          : storeInventory.qtyInStore + existingTransaction.qty;
-
-        if (newQty < 0) {
-          return { success: false, message: 'Cannot delete transaction - would result in negative inventory' };
-        }
-
-        await ctx.db.patch(storeInventory._id, {
-          qtyInStore: newQty,
-          lastUpdated: Date.now(),
-        });
-      }
-
-      await ctx.db.delete(args.transactionId);
-      return { success: true, message: 'Store transaction deleted successfully' };
-    } catch (error) {
-      console.log(`Failed to delete store transaction: ${error}`);
-      return { success: false, message: 'Failed to delete store transaction' };
+    const inventory = await findStoreInventory(
+      ctx,
+      existing.propertyId,
+      existing.beverageId,
+    );
+    if (!inventory) {
+      return { success: false, message: 'Store inventory is missing for this beverage' };
     }
+
+    const storeDelta = existing.txnType === 'receive' ? -existing.qty : existing.qty;
+    if (inventory.qtyInStore + storeDelta < 0) {
+      return { success: false, message: 'Cannot delete transaction — would result in negative inventory' };
+    }
+
+    if (existing.txnType === 'issue' && existing.userId && existing.barId) {
+      const preview = await previewIssueToStockLog(ctx, {
+        userId: existing.userId,
+        barId: existing.barId,
+        beverageId: existing.beverageId,
+        logDate: existing.txnDateKey,
+        qty: -existing.qty,
+      });
+      if (preview.error) {
+        return { success: false, message: preview.error };
+      }
+    }
+
+    const beverage = await ctx.db.get(existing.beverageId);
+    if (existing.txnType === 'issue' && existing.userId && existing.barId) {
+      await applyIssuedQtyToStockLog(ctx, {
+        propertyId: existing.propertyId,
+        userId: existing.userId,
+        barId: existing.barId,
+        beverageId: existing.beverageId,
+        logDate: existing.txnDateKey,
+        qty: -existing.qty,
+        unitPrice: beverage?.unitPrice ?? 0,
+      });
+    }
+    await applyStoreQtyChange(ctx, inventory, storeDelta);
+    await ctx.db.delete(args.transactionId);
+    return { success: true, message: 'Store transaction deleted successfully' };
   },
 });

@@ -2,6 +2,7 @@ import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
 import { requirePermission } from './lib/rbac';
 import { findOrCreateFnBShift } from './lib/shiftHelpers';
+import { lastFinalizedClosingStock, propertyDateKey } from './lib/barStock';
 
 export const getAllUserStockLogs = query({
   args: { propertyId: v.id('properties') },
@@ -11,7 +12,8 @@ export const getAllUserStockLogs = query({
       const userStockLogs = await ctx.db
         .query('userStockLogs')
         .withIndex('by_propertyId', (q) => q.eq('propertyId', args.propertyId))
-        .collect();
+        .order('desc')
+        .take(200);
       
       // Fetch related data for each stock log
       const stockLogsWithData = await Promise.all(
@@ -330,85 +332,105 @@ export const getUserStockLogsByShift = query({
 export const createUserStockLog = mutation({
   args: {
     propertyId: v.id('properties'),
-    shiftId: v.id('shifts'),
+    shiftId: v.optional(v.id('shifts')),
     userId: v.id('users'),
     barId: v.id('bars'),
     beverageId: v.id('beverages'),
-    logDate: v.string(), // ISO 8601 date string
-    openingStock: v.number(),
-    closingStock: v.number(),
+    logDate: v.optional(v.string()),
+    openingStock: v.optional(v.number()),
+    closingStock: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     await requirePermission(ctx, 'fnb.create', args.propertyId);
-    try {
-      // Verify shift exists and is not finalized
-      const shift = await ctx.db.get(args.shiftId);
+
+    const logDate = await propertyDateKey(ctx, args.propertyId);
+    const bar = await ctx.db.get(args.barId);
+    if (!bar || bar.propertyId !== args.propertyId) {
+      return { success: false, message: 'Bar does not exist or does not belong to this property' };
+    }
+    const beverage = await ctx.db.get(args.beverageId);
+    if (!beverage || beverage.propertyId !== args.propertyId || !beverage.isActive) {
+      return { success: false, message: 'Beverage does not exist or is inactive' };
+    }
+
+    const existingLog = await ctx.db
+      .query('userStockLogs')
+      .withIndex('by_userId_barId_bev_date', (q) =>
+        q.eq('userId', args.userId)
+         .eq('barId', args.barId)
+         .eq('beverageId', args.beverageId)
+         .eq('logDate', logDate)
+      )
+      .first();
+    if (existingLog) {
+      return { success: false, message: 'Stock log already exists for this beverage on this date' };
+    }
+
+    let shiftId = args.shiftId;
+    if (shiftId) {
+      const shift = await ctx.db.get(shiftId);
       if (!shift) {
         return { success: false, message: 'Shift does not exist' };
       }
-      
       if (shift.isFinalized) {
         return { success: false, message: 'Cannot add stock log to finalized shift' };
       }
       if (shift.department && shift.department !== 'fnb') {
         return { success: false, message: 'Stock logs can only be added to F&B shifts' };
       }
-
-      // Verify beverage exists
-      const beverage = await ctx.db.get(args.beverageId);
-      if (!beverage) {
-        return { success: false, message: 'Beverage does not exist' };
+      if (shift.propertyId !== args.propertyId) {
+        return { success: false, message: 'Shift does not belong to this property' };
       }
-
-      // Check if stock log already exists for this user, bar, beverage, and date
-      const existingLog = await ctx.db
-        .query('userStockLogs')
-        .withIndex('by_userId_barId_bev_date', (q) =>
-          q.eq('userId', args.userId)
-           .eq('barId', args.barId)
-           .eq('beverageId', args.beverageId)
-           .eq('logDate', args.logDate)
-        )
-        .first();
-
-      if (existingLog) {
-        return { success: false, message: 'Stock log already exists for this beverage on this date' };
+      if (shift.shiftDate !== logDate) {
+        return { success: false, message: 'Shift date must match today for this property' };
       }
-
-      // Initialize with no new stock received (will be updated by storeTransactions)
-      const newStockReceived = 0;
-      const totalStock = args.openingStock + newStockReceived;
-      const salesQuantity = totalStock - args.closingStock;
-      
-      if (salesQuantity < 0) {
-        return { success: false, message: 'Closing stock cannot be greater than total stock' };
+      if (shift.userId && shift.userId !== args.userId) {
+        return { success: false, message: 'Shift does not belong to this user' };
       }
-
-      const salesValue = salesQuantity * beverage.unitPrice;
-      const lastUpdatedAt = Date.now();
-
-      const stockLogId = await ctx.db.insert('userStockLogs', {
+      if (shift.barId && shift.barId !== args.barId) {
+        return { success: false, message: 'Shift is assigned to a different bar' };
+      }
+    } else {
+      shiftId = await findOrCreateFnBShift(ctx, {
         propertyId: args.propertyId,
-        shiftId: args.shiftId,
         userId: args.userId,
         barId: args.barId,
-        beverageId: args.beverageId,
-        logDate: args.logDate,
-        openingStock: args.openingStock,
-        newStockReceived,
-        totalStock,
-        closingStock: args.closingStock,
-        salesQuantity,
-        salesValue,
-        isFinalized: false,
-        lastUpdatedAt,
+        shiftDate: logDate,
       });
-
-      return { success: true, message: 'User stock log created successfully', id: stockLogId };
-    } catch (error) {
-      console.log(`Failed to create user stock log: ${error}`);
-      return { success: false, message: 'Failed to create user stock log' };
     }
+
+    const openingStock = await lastFinalizedClosingStock(ctx, {
+      userId: args.userId,
+      barId: args.barId,
+      beverageId: args.beverageId,
+      beforeDate: logDate,
+    });
+    const newStockReceived = 0;
+    const totalStock = openingStock + newStockReceived;
+    const closingStock = args.closingStock ?? totalStock;
+    const salesQuantity = totalStock - closingStock;
+    if (salesQuantity < 0) {
+      return { success: false, message: 'Closing stock cannot be greater than total stock' };
+    }
+
+    const stockLogId = await ctx.db.insert('userStockLogs', {
+      propertyId: args.propertyId,
+      shiftId,
+      userId: args.userId,
+      barId: args.barId,
+      beverageId: args.beverageId,
+      logDate,
+      openingStock,
+      newStockReceived,
+      totalStock,
+      closingStock,
+      salesQuantity,
+      salesValue: salesQuantity * beverage.unitPrice,
+      isFinalized: false,
+      lastUpdatedAt: Date.now(),
+    });
+
+    return { success: true, message: 'User stock log created successfully', id: stockLogId };
   },
 });
 
@@ -517,114 +539,197 @@ export const finalizeUserStockLog = mutation({
 });
 
 // New mutation for updating stock when issued from store (called by storeTransactions)
-export const updateStockFromIssue = mutation({
+export const getMyTodayStock = query({
   args: {
-    userId: v.id('users'),
-    barId: v.id('bars'),
-    beverageId: v.id('beverages'),
-    logDate: v.string(), // ISO 8601 date string
-    qty: v.number(),
     propertyId: v.id('properties'),
+    barId: v.optional(v.id('bars')),
   },
   handler: async (ctx, args) => {
-    await requirePermission(ctx, 'fnb.update', args.propertyId);
-    try {
-      // Get beverage for unit price
-      const beverage = await ctx.db.get(args.beverageId);
-      if (!beverage) {
-        return { success: false, message: 'Beverage does not exist' };
-      }
+    const auth = await requirePermission(ctx, 'fnb.read', args.propertyId);
+    const logDate = await propertyDateKey(ctx, args.propertyId);
 
-      // Look for existing stock log for today
-      const existingLog = await ctx.db
-        .query('userStockLogs')
-        .withIndex('by_userId_barId_bev_date', (q) =>
-          q.eq('userId', args.userId)
-           .eq('barId', args.barId)
-           .eq('beverageId', args.beverageId)
-           .eq('logDate', args.logDate)
-        )
-        .first();
-
-      if (existingLog) {
-        // Check if finalized
-        if (existingLog.isFinalized) {
-          return { success: false, message: 'Cannot issue stock to finalized day' };
-        }
-
-        // Update existing log
-        const newStockReceived = existingLog.newStockReceived + args.qty;
-        const totalStock = existingLog.openingStock + newStockReceived;
-        const salesQuantity = totalStock - existingLog.closingStock;
-        
-        if (salesQuantity < 0) {
-          return { success: false, message: 'Stock issue would result in negative sales' };
-        }
-
-        const salesValue = salesQuantity * beverage.unitPrice;
-
-        await ctx.db.patch(existingLog._id, {
-          newStockReceived,
-          totalStock,
-          salesQuantity,
-          salesValue,
-          lastUpdatedAt: Date.now(),
-        });
-
-        return { success: true, message: 'Stock log updated successfully' };
-      } else {
-        // Create new stock log for today
-        // Get opening stock from previous day's closing stock
-        const yesterday = new Date(args.logDate);
-        yesterday.setDate(yesterday.getDate() - 1);
-        const yesterdayStr = yesterday.toISOString().split('T')[0];
-
-        const previousLog = await ctx.db
+    const logs = args.barId
+      ? await ctx.db
           .query('userStockLogs')
-          .withIndex('by_userId_barId_bev_date', (q) =>
-            q.eq('userId', args.userId)
-             .eq('barId', args.barId)
-             .eq('beverageId', args.beverageId)
-             .eq('logDate', yesterdayStr)
+          .withIndex('by_userId_barId_date', (q) =>
+            q.eq('userId', auth.user._id).eq('barId', args.barId!).eq('logDate', logDate),
           )
-          .first();
+          .collect()
+      : await ctx.db
+          .query('userStockLogs')
+          .withIndex('by_userId_date', (q) =>
+            q.eq('userId', auth.user._id).eq('logDate', logDate),
+          )
+          .collect();
 
-        const openingStock = previousLog?.closingStock || 0;
-        const newStockReceived = args.qty;
-        const totalStock = openingStock + newStockReceived;
-        const closingStock = totalStock; // Assume no sales yet
-        const salesQuantity = 0;
-        const salesValue = 0;
+    const stockLogsWithData = await Promise.all(
+      logs.map(async (log) => {
+        const [beverage, bar] = await Promise.all([
+          ctx.db.get(log.beverageId),
+          log.barId ? ctx.db.get(log.barId) : null,
+        ]);
+        return { ...log, beverage, bar };
+      }),
+    );
 
-        const shiftId = await findOrCreateFnBShift(ctx, {
-          propertyId: args.propertyId,
-          userId: args.userId,
-          barId: args.barId,
-          shiftDate: args.logDate,
-        });
+    const beverages = await ctx.db
+      .query('beverages')
+      .withIndex('by_propertyId', (q) => q.eq('propertyId', args.propertyId))
+      .collect();
+    const bars = await ctx.db
+      .query('bars')
+      .withIndex('by_propertyId', (q) => q.eq('propertyId', args.propertyId))
+      .collect();
 
-        const stockLogId = await ctx.db.insert('userStockLogs', {
-          propertyId: args.propertyId,
-          shiftId,
-          userId: args.userId,
-          barId: args.barId,
-          beverageId: args.beverageId,
-          logDate: args.logDate,
-          openingStock,
-          newStockReceived,
-          totalStock,
-          closingStock,
-          salesQuantity,
-          salesValue,
-          isFinalized: false,
-          lastUpdatedAt: Date.now(),
-        });
-
-        return { success: true, message: 'Stock log created successfully', id: stockLogId };
-      }
-    } catch (error) {
-      console.log(`Failed to update stock from issue: ${error}`);
-      return { success: false, message: 'Failed to update stock from issue' };
-    }
+    return {
+      success: true,
+      data: {
+        logDate,
+        userId: auth.user._id,
+        logs: stockLogsWithData,
+        beverages: beverages.filter((row) => row.isActive),
+        bars: bars.filter((row) => row.isActive),
+      },
+    };
   },
 });
+
+export const addMyTodayBeverage = mutation({
+  args: {
+    propertyId: v.id('properties'),
+    barId: v.id('bars'),
+    beverageId: v.id('beverages'),
+  },
+  handler: async (ctx, args) => {
+    const auth = await requirePermission(ctx, 'fnb.create', args.propertyId);
+    const logDate = await propertyDateKey(ctx, args.propertyId);
+    const bar = await ctx.db.get(args.barId);
+    if (!bar || bar.propertyId !== args.propertyId) {
+      return { success: false, message: 'Bar does not exist or does not belong to this property' };
+    }
+    const beverage = await ctx.db.get(args.beverageId);
+    if (!beverage || beverage.propertyId !== args.propertyId || !beverage.isActive) {
+      return { success: false, message: 'Beverage does not exist or is inactive' };
+    }
+
+    const existingLog = await ctx.db
+      .query('userStockLogs')
+      .withIndex('by_userId_barId_bev_date', (q) =>
+        q
+          .eq('userId', auth.user._id)
+          .eq('barId', args.barId)
+          .eq('beverageId', args.beverageId)
+          .eq('logDate', logDate),
+      )
+      .first();
+    if (existingLog) {
+      return { success: false, message: 'This beverage is already on today\'s log' };
+    }
+
+    const openingStock = await lastFinalizedClosingStock(ctx, {
+      userId: auth.user._id,
+      barId: args.barId,
+      beverageId: args.beverageId,
+      beforeDate: logDate,
+    });
+    const shiftId = await findOrCreateFnBShift(ctx, {
+      propertyId: args.propertyId,
+      userId: auth.user._id,
+      barId: args.barId,
+      shiftDate: logDate,
+    });
+
+    const stockLogId = await ctx.db.insert('userStockLogs', {
+      propertyId: args.propertyId,
+      shiftId,
+      userId: auth.user._id,
+      barId: args.barId,
+      beverageId: args.beverageId,
+      logDate,
+      openingStock,
+      newStockReceived: 0,
+      totalStock: openingStock,
+      closingStock: openingStock,
+      salesQuantity: 0,
+      salesValue: 0,
+      isFinalized: false,
+      lastUpdatedAt: Date.now(),
+    });
+
+    return { success: true, message: 'Beverage added to today\'s log', id: stockLogId };
+  },
+});
+
+export const saveMyClosingStock = mutation({
+  args: {
+    stockLogId: v.id('userStockLogs'),
+    closingStock: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const existingLog = await ctx.db.get(args.stockLogId);
+    if (!existingLog) {
+      return { success: false, message: 'User stock log does not exist' };
+    }
+    const auth = await requirePermission(ctx, 'fnb.update', existingLog.propertyId);
+    if (existingLog.userId !== auth.user._id) {
+      return { success: false, message: 'You can only update your own stock log' };
+    }
+    const today = await propertyDateKey(ctx, existingLog.propertyId);
+    if (existingLog.logDate !== today) {
+      return { success: false, message: 'You can only update today\'s stock log' };
+    }
+    if (existingLog.isFinalized) {
+      return { success: false, message: 'Cannot update finalized stock log' };
+    }
+    if (args.closingStock < 0) {
+      return { success: false, message: 'Closing stock cannot be negative' };
+    }
+
+    const beverage = await ctx.db.get(existingLog.beverageId);
+    if (!beverage) {
+      return { success: false, message: 'Associated beverage does not exist' };
+    }
+    const salesQuantity = existingLog.totalStock - args.closingStock;
+    if (salesQuantity < 0) {
+      return { success: false, message: 'Closing stock cannot be greater than total stock' };
+    }
+
+    await ctx.db.patch(args.stockLogId, {
+      closingStock: args.closingStock,
+      salesQuantity,
+      salesValue: salesQuantity * beverage.unitPrice,
+      lastUpdatedAt: Date.now(),
+    });
+    return { success: true, message: 'Closing stock saved' };
+  },
+});
+
+export const finalizeMyToday = mutation({
+  args: {
+    propertyId: v.id('properties'),
+    barId: v.id('bars'),
+  },
+  handler: async (ctx, args) => {
+    const auth = await requirePermission(ctx, 'fnb.update', args.propertyId);
+    const logDate = await propertyDateKey(ctx, args.propertyId);
+    const logs = await ctx.db
+      .query('userStockLogs')
+      .withIndex('by_userId_barId_date', (q) =>
+        q.eq('userId', auth.user._id).eq('barId', args.barId).eq('logDate', logDate),
+      )
+      .collect();
+
+    if (logs.length === 0) {
+      return { success: false, message: 'No stock logs to finalize for today' };
+    }
+
+    const now = Date.now();
+    for (const log of logs) {
+      if (!log.isFinalized) {
+        await ctx.db.patch(log._id, { isFinalized: true, lastUpdatedAt: now });
+      }
+    }
+    return { success: true, message: 'Today\'s stock logs finalized' };
+  },
+});
+

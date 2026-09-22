@@ -53,7 +53,7 @@ export function EditUserStockLogForm({ stockLogData, stockLogId, onSuccess, onCl
         toast.success('User stock log updated successfully!');
         setTimeout(() => {
           onSuccess();
-          window.location.href = '/admin/user-stock-logs';
+          window.location.href = '/admin/bar-management/user-stock-logs';
         }, 1500);
       }
     } catch (error: any) {

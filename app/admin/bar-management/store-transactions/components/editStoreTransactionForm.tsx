@@ -16,7 +16,6 @@ type FormData = {
   userId?: string;
   txnType: 'receive' | 'issue';
   qty: number;
-  txnDate: Date;
   notes?: string;
 };
 
@@ -48,7 +47,6 @@ export function EditStoreTransactionForm({
       userId: transactionData.userId || '',
       txnType: transactionData.txnType || 'receive',
       qty: transactionData.qty || 1,
-      txnDate: new Date(transactionData.txnDate || Date.now()),
       notes: transactionData.notes || '',
     },
   });
@@ -64,7 +62,6 @@ export function EditStoreTransactionForm({
         userId: data.userId ? data.userId as Id<'users'> : undefined,
         txnType: data.txnType,
         qty: data.qty,
-        txnDate: data.txnDate.getTime(),
         notes: data.notes,
       });
 
@@ -153,7 +150,7 @@ export function EditStoreTransactionForm({
       {(watchedTxnType === 'issue') && (
         <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-start gap-2 mb-2 lg:mb-4">
           <div className="flex-1">
-            <label htmlFor="barId" className="block mb-2">Bar (Optional)</label>
+            <label htmlFor="barId" className="block mb-2">Bar *</label>
             <select
               id="barId"
               {...register('barId')}
@@ -169,7 +166,7 @@ export function EditStoreTransactionForm({
             {errors.barId && <span className="text-red-500 text-sm">{errors.barId.message}</span>}
           </div>
           <div className="flex-1">
-            <label htmlFor="userId" className="block mb-2">User (Optional)</label>
+            <label htmlFor="userId" className="block mb-2">User *</label>
             <select
               id="userId"
               {...register('userId')}
@@ -187,21 +184,9 @@ export function EditStoreTransactionForm({
         </div>
       )}
 
-      <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-2 mb-2 lg:mb-4">
-        <div className="flex-1">
-          <label htmlFor="txnDate" className="block mb-2">Transaction Date *</label>
-          <input
-            id="txnDate"
-            type="datetime-local"
-            {...register('txnDate', { 
-              required: true,
-              valueAsDate: true 
-            })}
-            className="w-full border rounded p-2"
-          />
-          {errors.txnDate && <span className="text-red-500 text-sm">{errors.txnDate.message}</span>}
-        </div>
-      </div>
+      <p className="text-sm text-gray-500 mb-4">
+        The original calendar day is kept so this edit stays on the same stock log.
+      </p>
 
       <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-start lg:items-center gap-1 [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4">
         <div className="w-full">

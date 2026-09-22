@@ -19,9 +19,16 @@ export const getOpenReorderAlerts = query({
       const alertsWithBeverages = await Promise.all(
         alerts.map(async (alert) => {
           const beverage = await ctx.db.get(alert.beverageId);
+          const inventory = await ctx.db
+            .query('storeInventories')
+            .withIndex('by_propertyId_beverageId', (q) =>
+              q.eq('propertyId', alert.propertyId).eq('beverageId', alert.beverageId),
+            )
+            .first();
           return {
             ...alert,
-            beverage
+            beverage,
+            qtyInStore: inventory?.qtyInStore ?? alert.qtyAtAlert,
           };
         })
       );
@@ -164,7 +171,7 @@ export const acknowledgeReorderAlert = mutation({
     if (!alert) {
       return { success: false, message: 'Reorder alert not found' };
     }
-    await requirePermission(ctx, 'inventory.create', alert.propertyId);
+    await requirePermission(ctx, 'inventory.update', alert.propertyId);
 
     try {
       if (alert.status !== 'open') {
@@ -187,7 +194,7 @@ export const resolveReorderAlert = mutation({
     if (!alert) {
       return { success: false, message: 'Reorder alert not found' };
     }
-    await requirePermission(ctx, 'inventory.create', alert.propertyId);
+    await requirePermission(ctx, 'inventory.update', alert.propertyId);
 
     try {
       if (alert.status === 'resolved') {
