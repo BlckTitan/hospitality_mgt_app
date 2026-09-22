@@ -13,6 +13,7 @@ import {
   SHIFT_DEPARTMENTS,
   staffForUser,
 } from './lib/shiftHelpers';
+import { refreshSalesSummariesForLogs } from './lib/barStock';
 
 const departmentValidator = v.union(
   v.literal('front-office'),
@@ -371,6 +372,7 @@ export const finalizeShift = mutation({
             });
           }
         }
+        await refreshSalesSummariesForLogs(ctx, logs);
       }
 
       const staff = await resolveStaffForShift(ctx, {

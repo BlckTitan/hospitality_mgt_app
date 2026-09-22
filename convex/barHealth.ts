@@ -5,7 +5,6 @@ import { requirePermission, tryRequirePermission } from "./lib/rbac";
 import { periodDateKeys, percentChange, propertyDateKey } from "./lib/barStock";
 
 const STALE_MS = 24 * 60 * 60 * 1000;
-const PER_DAY_LOG_CAP = 80;
 
 export const getBarHealthMetrics = query({
   args: {
@@ -31,7 +30,7 @@ export const getBarHealthMetrics = query({
         .withIndex("by_propertyId_logDate", (q) =>
           q.eq("propertyId", args.propertyId).eq("logDate", logDate),
         )
-        .take(PER_DAY_LOG_CAP);
+        .collect();
       logs.push(...page);
     }
 
@@ -99,7 +98,7 @@ export const getBarHealthMetrics = query({
         .withIndex("by_propertyId_periodType_periodKey", (q) =>
           q.eq("propertyId", args.propertyId).eq("periodType", "yearly").eq("periodKey", yearKey),
         )
-        .take(200);
+        .collect();
 
       if (yearRows.length > 0) {
         skuAgg.clear();
@@ -136,7 +135,7 @@ export const getBarHealthMetrics = query({
           .withIndex("by_propertyId_periodType_periodKey", (q) =>
             q.eq("propertyId", args.propertyId).eq("periodType", "yearly").eq("periodKey", priorKey),
           )
-          .take(200);
+          .collect();
         priorYearRevenue = priorRows.reduce((sum, row) => sum + row.totalRevenue, 0);
         priorYearQty = priorRows.reduce((sum, row) => sum + row.totalQtySold, 0);
         revenueYoY = percentChange(totalRevenue, priorYearRevenue);
@@ -207,13 +206,13 @@ export const getBarHealthMetrics = query({
         .withIndex("by_propertyId_status", (q) =>
           q.eq("propertyId", args.propertyId).eq("status", "open"),
         )
-        .take(100);
+        .collect();
       const acknowledged = await ctx.db
         .query("reorderAlerts")
         .withIndex("by_propertyId_status", (q) =>
           q.eq("propertyId", args.propertyId).eq("status", "acknowledged"),
         )
-        .take(100);
+        .collect();
       const unresolved = [...open, ...acknowledged];
       const now = Date.now();
       let oldestAlertedAt: number | null = null;

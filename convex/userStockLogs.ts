@@ -2,7 +2,12 @@ import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
 import { requirePermission } from './lib/rbac';
 import { findOrCreateFnBShift } from './lib/shiftHelpers';
-import { lastFinalizedClosingStock, propertyDateKey } from './lib/barStock';
+import {
+  lastFinalizedClosingStock,
+  propertyDateKey,
+  refreshSalesSummariesForLog,
+  refreshSalesSummariesForLogs,
+} from './lib/barStock';
 
 export const getAllUserStockLogs = query({
   args: { propertyId: v.id('properties') },
@@ -413,6 +418,7 @@ export const createUserStockLog = mutation({
       return { success: false, message: 'Closing stock cannot be greater than total stock' };
     }
 
+    const salesValue = salesQuantity * beverage.unitPrice;
     const stockLogId = await ctx.db.insert('userStockLogs', {
       propertyId: args.propertyId,
       shiftId,
@@ -425,9 +431,18 @@ export const createUserStockLog = mutation({
       totalStock,
       closingStock,
       salesQuantity,
-      salesValue: salesQuantity * beverage.unitPrice,
+      salesValue,
       isFinalized: false,
       lastUpdatedAt: Date.now(),
+    });
+    await refreshSalesSummariesForLog(ctx, {
+      propertyId: args.propertyId,
+      barId: args.barId,
+      userId: args.userId,
+      beverageId: args.beverageId,
+      logDate,
+      salesQuantity,
+      salesValue,
     });
 
     return { success: true, message: 'User stock log created successfully', id: stockLogId };
@@ -477,6 +492,11 @@ export const updateUserStockLog = mutation({
         salesValue,
         lastUpdatedAt: Date.now(),
       });
+      await refreshSalesSummariesForLog(ctx, {
+        ...existingLog,
+        salesQuantity,
+        salesValue,
+      });
 
       return { success: true, message: 'User stock log updated successfully' };
     } catch (error) {
@@ -501,6 +521,11 @@ export const deleteUserStockLog = mutation({
       }
 
       await ctx.db.delete(args.stockLogId);
+      await refreshSalesSummariesForLog(ctx, {
+        ...existingLog,
+        salesQuantity: 0,
+        salesValue: 0,
+      });
       return { success: true, message: 'User stock log deleted successfully' };
     } catch (error) {
       console.log(`Failed to delete user stock log: ${error}`);
@@ -529,6 +554,7 @@ export const finalizeUserStockLog = mutation({
         isFinalized: true,
         lastUpdatedAt: Date.now(),
       });
+      await refreshSalesSummariesForLog(ctx, existingLog);
 
       return { success: true, message: 'User stock log finalized successfully' };
     } catch (error) {
@@ -655,6 +681,15 @@ export const addMyTodayBeverage = mutation({
       isFinalized: false,
       lastUpdatedAt: Date.now(),
     });
+    await refreshSalesSummariesForLog(ctx, {
+      propertyId: args.propertyId,
+      barId: args.barId,
+      userId: auth.user._id,
+      beverageId: args.beverageId,
+      logDate,
+      salesQuantity: 0,
+      salesValue: 0,
+    });
 
     return { success: true, message: 'Beverage added to today\'s log', id: stockLogId };
   },
@@ -694,11 +729,17 @@ export const saveMyClosingStock = mutation({
       return { success: false, message: 'Closing stock cannot be greater than total stock' };
     }
 
+    const salesValue = salesQuantity * beverage.unitPrice;
     await ctx.db.patch(args.stockLogId, {
       closingStock: args.closingStock,
       salesQuantity,
-      salesValue: salesQuantity * beverage.unitPrice,
+      salesValue,
       lastUpdatedAt: Date.now(),
+    });
+    await refreshSalesSummariesForLog(ctx, {
+      ...existingLog,
+      salesQuantity,
+      salesValue,
     });
     return { success: true, message: 'Closing stock saved' };
   },
@@ -724,11 +765,14 @@ export const finalizeMyToday = mutation({
     }
 
     const now = Date.now();
+    const finalized: typeof logs = [];
     for (const log of logs) {
       if (!log.isFinalized) {
         await ctx.db.patch(log._id, { isFinalized: true, lastUpdatedAt: now });
+        finalized.push(log);
       }
     }
+    await refreshSalesSummariesForLogs(ctx, finalized.length > 0 ? finalized : logs);
     return { success: true, message: 'Today\'s stock logs finalized' };
   },
 });

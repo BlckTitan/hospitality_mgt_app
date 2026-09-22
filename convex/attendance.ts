@@ -21,6 +21,7 @@ import {
 import { punctualityFieldsForClock, punctualityInsertFields } from "./lib/punctuality";
 import { canSeeAllTeamRecords, currentUsersStaff, isActiveStatus } from "./lib/staffAccess";
 import { resolveStaffClockMethod, type ShiftClockMethod } from "./lib/clockMethod";
+import { refreshSalesSummariesForLogs } from "./lib/barStock";
 
 type DbCtx = MutationCtx | QueryCtx;
 
@@ -302,6 +303,7 @@ async function endStaffShift(ctx: MutationCtx, staff: Doc<"staffs">) {
         });
       }
     }
+    await refreshSalesSummariesForLogs(ctx, logs);
   }
 
   const hoursResult = await draftHoursFromShift(ctx, {

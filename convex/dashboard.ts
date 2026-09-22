@@ -21,7 +21,7 @@ function overlapNights(
   const start = Math.max(stayStart, periodStart);
   const end = Math.min(stayEnd, periodEnd);
   if (end <= start) return 0;
-  return Math.max(1, Math.round((end - start) / DAY_MS));
+  return Math.max(0, Math.round((end - start) / DAY_MS));
 }
 
 export const getRoomsSnapshot = query({
@@ -117,7 +117,7 @@ export const getRoomsSnapshot = query({
         .filter((row) => row.status === 'pending' || row.status === 'confirmed' || row.status === 'checked-in')
         .sort((a, b) => a.checkInDate - b.checkInDate);
       const departureCandidates = departing
-        .filter((row) => row.status === 'confirmed' || row.status === 'checked-in')
+        .filter((row) => row.status === 'confirmed' || row.status === 'checked-in' || row.status === 'checked-out')
         .sort((a, b) => a.checkOutDate - b.checkOutDate);
 
       for (const row of arrivalCandidates.slice(0, 5)) {
@@ -162,10 +162,29 @@ export const getHousekeepingSnapshot = query({
       throw new Error('Unauthorized');
     }
 
-    const tasks = await ctx.db
+    const pending = await ctx.db
       .query('housekeepingTasks')
+      .withIndex('by_propertyId_status', (q) =>
+        q.eq('propertyId', args.propertyId).eq('status', 'pending'),
+      )
+      .collect();
+    const inProgress = await ctx.db
+      .query('housekeepingTasks')
+      .withIndex('by_propertyId_status', (q) =>
+        q.eq('propertyId', args.propertyId).eq('status', 'in-progress'),
+      )
+      .collect();
+    const tasks = [...pending, ...inProgress];
+
+    const assignments = await ctx.db
+      .query('taskAssignments')
       .withIndex('by_propertyId', (q) => q.eq('propertyId', args.propertyId))
       .collect();
+    const assignedTaskIds = new Set(
+      assignments
+        .filter((row) => row.housekeepingTaskId && row.role === 'lead')
+        .map((row) => row.housekeepingTaskId),
+    );
 
     const now = Date.now();
     let open = 0;
@@ -176,7 +195,7 @@ export const getHousekeepingSnapshot = query({
     for (const task of tasks) {
       if (!isOpenStatus(task.status)) continue;
       open += 1;
-      if (!task.assignedTo) unassigned += 1;
+      if (!assignedTaskIds.has(task._id) && !task.assignedTo) unassigned += 1;
       if (task.dueAt && task.dueAt < now) {
         overdue += 1;
         overdueRows.push(task);
@@ -273,14 +292,38 @@ export const getFinancialReport = query({
     ).length;
     const availableRoomNights = sellableRooms * nights;
 
-    const reservations = await ctx.db
+    const lookbackStart = args.start - 90 * DAY_MS;
+    const arrivingInWindow = await ctx.db
       .query('reservations')
-      .withIndex('by_propertyId', (q) => q.eq('propertyId', args.propertyId))
+      .withIndex('by_propertyId_checkInDate', (q) =>
+        q
+          .eq('propertyId', args.propertyId)
+          .gte('checkInDate', lookbackStart)
+          .lt('checkInDate', args.end),
+      )
       .collect();
+    const departingInWindow = await ctx.db
+      .query('reservations')
+      .withIndex('by_propertyId_checkOutDate', (q) =>
+        q
+          .eq('propertyId', args.propertyId)
+          .gte('checkOutDate', args.start)
+          .lt('checkOutDate', args.end),
+      )
+      .collect();
+    const currentlyInHouse = await ctx.db
+      .query('reservations')
+      .withIndex('by_propertyId_status', (q) =>
+        q.eq('propertyId', args.propertyId).eq('status', 'checked-in'),
+      )
+      .collect();
+    const reservationById = new Map(
+      [...arrivingInWindow, ...departingInWindow, ...currentlyInHouse].map((row) => [row._id, row]),
+    );
 
     let roomsSoldNights = 0;
     let roomRevenue = 0;
-    for (const reservation of reservations) {
+    for (const reservation of reservationById.values()) {
       if (!COUNTED_RESERVATION_STATUSES.has(reservation.status)) continue;
       const sold = overlapNights(
         reservation.checkInDate,
@@ -301,7 +344,12 @@ export const getFinancialReport = query({
 
     const stockLogs = await ctx.db
       .query('userStockLogs')
-      .withIndex('by_propertyId', (q) => q.eq('propertyId', args.propertyId))
+      .withIndex('by_propertyId_logDate', (q) =>
+        q
+          .eq('propertyId', args.propertyId)
+          .gte('logDate', startKey)
+          .lt('logDate', endKey),
+      )
       .collect();
     let fnbRevenue = 0;
     let fnbQtySold = 0;
@@ -336,6 +384,22 @@ export const getFinancialReport = query({
       0,
     );
 
+    const LABOR_STATUSES = ['approved', 'processed', 'paid'] as const;
+    let laborCost = 0;
+    for (const status of LABOR_STATUSES) {
+      const runs = await ctx.db
+        .query('payrolls')
+        .withIndex('by_propertyId_status', (q) =>
+          q.eq('propertyId', args.propertyId).eq('status', status),
+        )
+        .collect();
+      for (const run of runs) {
+        if (run.payDate >= args.start && run.payDate < args.end) {
+          laborCost += run.totalNetPay;
+        }
+      }
+    }
+
     const totalRevenue = roomRevenue + fnbRevenue;
     const gop = totalRevenue - totalExpenses;
     const occupancyRate = availableRoomNights === 0 ? 0 : (roomsSoldNights / availableRoomNights) * 100;
@@ -344,7 +408,7 @@ export const getFinancialReport = query({
     const trevpar = availableRoomNights === 0 ? 0 : totalRevenue / availableRoomNights;
     const goppar = availableRoomNights === 0 ? 0 : gop / availableRoomNights;
     const gopMargin = totalRevenue === 0 ? 0 : (gop / totalRevenue) * 100;
-    const laborCostPct = totalRevenue === 0 ? 0 : (expenseByCategory.staff / totalRevenue) * 100;
+    const laborCostPct = totalRevenue === 0 ? 0 : (laborCost / totalRevenue) * 100;
 
     return {
       success: true,

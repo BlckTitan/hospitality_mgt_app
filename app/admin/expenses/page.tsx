@@ -132,7 +132,14 @@ export default function ExpensesPage() {
         >
           Next
         </Button>
-        <Button size='sm' variant='outline-secondary' onClick={() => setAnchor(Date.now())}>
+        <Button
+          size='sm'
+          variant='outline-secondary'
+          onClick={() => {
+            setKind('day');
+            setAnchor(Date.now());
+          }}
+        >
           Today
         </Button>
       </div>

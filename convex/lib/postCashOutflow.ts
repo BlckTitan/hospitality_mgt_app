@@ -27,6 +27,7 @@ export type PostCashOutflowArgs = {
   amount: number;
   category: ExpenseCategory;
   subcategory?: string;
+  name?: string;
   description?: string;
   vendor?: string;
   invoiceNumber?: string;
@@ -116,6 +117,7 @@ async function insertExpense(
     propertyId: args.propertyId,
     category: args.category,
     subcategory: args.subcategory,
+    name: args.name,
     amount: args.amount,
     expenseDate,
     description: args.description,

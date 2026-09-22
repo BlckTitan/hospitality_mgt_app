@@ -109,6 +109,15 @@ export async function applyIssuedQtyToStockLog(
       ...sales,
       lastUpdatedAt: Date.now(),
     });
+    await refreshSalesSummariesForLog(ctx, {
+      propertyId: existing.propertyId,
+      barId: existing.barId,
+      userId: existing.userId,
+      beverageId: existing.beverageId,
+      logDate: existing.logDate,
+      salesQuantity: sales.salesQuantity,
+      salesValue: sales.salesValue,
+    });
     return;
   }
 
@@ -146,6 +155,15 @@ export async function applyIssuedQtyToStockLog(
     salesValue: 0,
     isFinalized: false,
     lastUpdatedAt: Date.now(),
+  });
+  await refreshSalesSummariesForLog(ctx, {
+    propertyId: args.propertyId,
+    barId: args.barId,
+    userId: args.userId,
+    beverageId: args.beverageId,
+    logDate: args.logDate,
+    salesQuantity: 0,
+    salesValue: 0,
   });
 }
 
@@ -298,21 +316,48 @@ export function currentPeriodKey(dateKey: string, periodType: PeriodType): strin
   return `${year}-W${String(week).padStart(2, "0")}`;
 }
 
+export function daysInMonth(year: number, month: number): number {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+export function isoWeekDateKeys(dateKey: string): string[] {
+  const [y, m, d] = dateKey.split("-").map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  const dayNum = date.getUTCDay() || 7;
+  const monday = new Date(date);
+  monday.setUTCDate(date.getUTCDate() - (dayNum - 1));
+  return Array.from({ length: 7 }, (_, index) => {
+    const next = new Date(monday);
+    next.setUTCDate(monday.getUTCDate() + index);
+    const yy = next.getUTCFullYear();
+    const mm = String(next.getUTCMonth() + 1).padStart(2, "0");
+    const dd = String(next.getUTCDate()).padStart(2, "0");
+    return `${yy}-${mm}-${dd}`;
+  });
+}
+
+export function monthDateKeys(year: number, month: number, throughDay?: number): string[] {
+  const lastDay = daysInMonth(year, month);
+  const endDay = Math.min(throughDay ?? lastDay, lastDay);
+  const mm = String(month).padStart(2, "0");
+  const keys: string[] = [];
+  for (let day = 1; day <= endDay; day += 1) {
+    keys.push(`${year}-${mm}-${String(day).padStart(2, "0")}`);
+  }
+  return keys;
+}
+
 export function periodDateKeys(
   dateKey: string,
   periodType: PeriodType,
 ): string[] {
   if (periodType === "daily") return [dateKey];
-  if (periodType === "weekly") return lastNDailyKeys(dateKey, 7);
+  if (periodType === "weekly") return isoWeekDateKeys(dateKey);
   if (periodType === "yearly") return lastNDailyKeys(dateKey, 30);
-  const start = `${dateKey.slice(0, 7)}-01`;
-  const keys: string[] = [];
-  let current = start;
-  for (let i = 0; i < 31 && current <= dateKey; i += 1) {
-    keys.push(current);
-    current = shiftDateKey(current, 1);
-  }
-  return keys;
+  const year = Number(dateKey.slice(0, 4));
+  const month = Number(dateKey.slice(5, 7));
+  const throughDay = Number(dateKey.slice(8, 10));
+  return monthDateKeys(year, month, throughDay);
 }
 
 export function percentChange(current: number, previous: number): number | null {
@@ -333,19 +378,19 @@ export async function findSalesSummary(
 ) {
   const rows = await ctx.db
     .query("salesSummaries")
-    .withIndex("by_propertyId_barId_period", (q) =>
+    .withIndex("by_barId_beverage_period", (q) =>
       q
-        .eq("propertyId", args.propertyId)
         .eq("barId", args.barId)
+        .eq("beverageId", args.beverageId)
         .eq("periodType", args.periodType)
         .eq("periodKey", args.periodKey),
     )
-    .take(200);
+    .collect();
 
   return (
     rows.find(
       (row) =>
-        row.beverageId === args.beverageId &&
+        row.propertyId === args.propertyId &&
         (row.userId ?? undefined) === (args.userId ?? undefined),
     ) ?? null
   );
@@ -376,4 +421,131 @@ export async function upsertSalesSummaryDoc(
     return existing._id;
   }
   return await ctx.db.insert("salesSummaries", args);
+}
+
+type SummaryLog = {
+  propertyId: Id<"properties">;
+  barId?: Id<"bars">;
+  userId: Id<"users">;
+  beverageId: Id<"beverages">;
+  logDate: string;
+  salesQuantity: number;
+  salesValue: number;
+};
+
+async function sumDailySummaries(
+  ctx: MutationCtx,
+  args: {
+    propertyId: Id<"properties">;
+    barId: Id<"bars">;
+    userId: Id<"users">;
+    beverageId: Id<"beverages">;
+    dayKeys: string[];
+  },
+) {
+  let totalQtySold = 0;
+  let totalRevenue = 0;
+  for (const periodKey of args.dayKeys) {
+    const row = await findSalesSummary(ctx, {
+      propertyId: args.propertyId,
+      barId: args.barId,
+      userId: args.userId,
+      beverageId: args.beverageId,
+      periodType: "daily",
+      periodKey,
+    });
+    if (!row) continue;
+    totalQtySold += row.totalQtySold;
+    totalRevenue += row.totalRevenue;
+  }
+  return { totalQtySold, totalRevenue };
+}
+
+export async function refreshSalesSummariesForLog(
+  ctx: MutationCtx,
+  log: SummaryLog,
+) {
+  if (!log.barId) return;
+
+  const identity = {
+    propertyId: log.propertyId,
+    barId: log.barId,
+    userId: log.userId,
+    beverageId: log.beverageId,
+  };
+  const year = Number(log.logDate.slice(0, 4));
+  const month = Number(log.logDate.slice(5, 7));
+  const { year: isoYear, week } = isoWeekNumber(log.logDate);
+  const weekKey = currentPeriodKey(log.logDate, "weekly");
+  const monthKey = currentPeriodKey(log.logDate, "monthly");
+  const yearKey = currentPeriodKey(log.logDate, "yearly");
+
+  await upsertSalesSummaryDoc(ctx, {
+    ...identity,
+    periodType: "daily",
+    periodKey: log.logDate,
+    year,
+    month,
+    weekNumber: week,
+    totalQtySold: log.salesQuantity,
+    totalRevenue: log.salesValue,
+  });
+
+  const weekly = await sumDailySummaries(ctx, {
+    ...identity,
+    dayKeys: isoWeekDateKeys(log.logDate),
+  });
+  await upsertSalesSummaryDoc(ctx, {
+    ...identity,
+    periodType: "weekly",
+    periodKey: weekKey,
+    year: isoYear,
+    weekNumber: week,
+    totalQtySold: weekly.totalQtySold,
+    totalRevenue: weekly.totalRevenue,
+  });
+
+  const monthly = await sumDailySummaries(ctx, {
+    ...identity,
+    dayKeys: monthDateKeys(year, month),
+  });
+  await upsertSalesSummaryDoc(ctx, {
+    ...identity,
+    periodType: "monthly",
+    periodKey: monthKey,
+    year,
+    month,
+    totalQtySold: monthly.totalQtySold,
+    totalRevenue: monthly.totalRevenue,
+  });
+
+  let yearlyQty = 0;
+  let yearlyRevenue = 0;
+  for (let monthIndex = 1; monthIndex <= 12; monthIndex += 1) {
+    const row = await findSalesSummary(ctx, {
+      ...identity,
+      periodType: "monthly",
+      periodKey: `${year}-${String(monthIndex).padStart(2, "0")}`,
+    });
+    if (!row) continue;
+    yearlyQty += row.totalQtySold;
+    yearlyRevenue += row.totalRevenue;
+  }
+  await upsertSalesSummaryDoc(ctx, {
+    ...identity,
+    periodType: "yearly",
+    periodKey: yearKey,
+    year,
+    totalQtySold: yearlyQty,
+    totalRevenue: yearlyRevenue,
+  });
+}
+
+export async function refreshSalesSummariesForLogs(
+  ctx: MutationCtx,
+  logs: SummaryLog[],
+) {
+  for (const log of logs) {
+    await refreshSalesSummariesForLog(ctx, log);
+  }
 }

@@ -18,6 +18,7 @@ import {
   BarElement,
 } from 'chart.js';
 import { Line, Pie, Bar } from 'react-chartjs-2';
+import { formatPropertyMoney } from '../../inventory-management/components/money';
 
 // Register Chart.js components
 ChartJS.register(
@@ -52,9 +53,10 @@ type PeriodView = (typeof PERIODS)[number]['id'];
 
 interface SalesSummaryChartsProps {
   currentPropertyId: Id<'properties'>;
+  currency?: string;
 }
 
-const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentPropertyId }) => {
+const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentPropertyId, currency }) => {
   const [periodType, setPeriodType] = useState<PeriodView>('daily');
   const [tab, setTab] = useState<(typeof CHART_TABS)[number]>('Bar Performance');
   const summaryPeriod = periodType === 'yoy' ? 'yearly' : periodType;
@@ -88,36 +90,22 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
     periodType === 'yoy' ? { propertyId: currentPropertyId } : 'skip',
   );
 
-  const categorySource = useQuery(api.salesSummaries.getSalesSummaries, {
-    propertyId: currentPropertyId,
-    periodType: summaryPeriod,
-    limit: 30,
-  });
+  const categorySource = useQuery(
+    api.salesSummaries.getSalesSummaries,
+    tab === 'Sales by Category'
+      ? {
+          propertyId: currentPropertyId,
+          periodType: summaryPeriod,
+        }
+      : 'skip',
+  );
 
   const health = useQuery(api.barHealth.getBarHealthMetrics, {
     propertyId: currentPropertyId,
     periodType,
   });
 
-  const getCurrencySymbol = (currency?: string) => {
-    switch (currency?.toUpperCase()) {
-      case 'USD': return '$';
-      case 'EUR': return '€';
-      case 'GBP': return '£';
-      case 'JPY': return '¥';
-      case 'NGN': return '₦';
-      default: return '$';
-    }
-  };
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
-  };
+  const formatCurrency = (value: number) => formatPropertyMoney(value, currency);
 
   const formatPercent = (value: number) => `${Math.round(value * 100)}%`;
 
@@ -259,7 +247,7 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
         position: 'left' as const,
         title: {
           display: true,
-          text: 'Revenue ($)',
+          text: 'Revenue',
         },
         ticks: {
           callback: (value: number) => formatCurrency(value),
@@ -286,7 +274,7 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
       y: {
         title: {
           display: true,
-          text: 'Revenue ($)',
+          text: 'Revenue',
         },
         ticks: {
           callback: (value: number) => formatCurrency(value),
@@ -298,7 +286,6 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
   if (
     salesByBarData === undefined ||
     salesByUserData === undefined ||
-    categorySource === undefined ||
     (periodType === 'yoy' ? yoyOverview === undefined : salesData === undefined)
   ) {
     return (
@@ -526,6 +513,8 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
           <div className="h-80">
             {beverageCategoryData ? (
               <Pie data={beverageCategoryData} options={{ ...chartOptions, scales: undefined }} />
+            ) : categorySource === undefined ? (
+              <p className="h-full flex items-center justify-center text-gray-500">Loading category data...</p>
             ) : (
               <p className="h-full flex items-center justify-center text-gray-500">No category data</p>
             )}

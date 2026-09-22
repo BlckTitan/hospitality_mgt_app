@@ -1,38 +1,58 @@
-import { internalMutation, query } from './_generated/server';
+import { internalMutation, query, QueryCtx } from './_generated/server';
 import { v } from 'convex/values';
 import { requirePermission } from './lib/rbac';
 import {
   currentPeriodKey,
   lastNDailyKeys,
+  monthDateKeys,
   percentChange,
   propertyDateKey,
   upsertSalesSummaryDoc,
 } from './lib/barStock';
+import { Id } from './_generated/dataModel';
 
-// Helper functions for date calculations
-const getISODateString = (date: Date) => date.toISOString().split('T')[0];
+async function summariesForPeriod(
+  ctx: QueryCtx,
+  propertyId: Id<'properties'>,
+  periodType: 'daily' | 'weekly' | 'monthly' | 'yearly',
+  periodKey: string,
+) {
+  return await ctx.db
+    .query('salesSummaries')
+    .withIndex('by_propertyId_periodType_periodKey', (q) =>
+      q.eq('propertyId', propertyId).eq('periodType', periodType).eq('periodKey', periodKey),
+    )
+    .collect();
+}
 
-const getWeekKey = (date: Date) => {
-  const year = date.getFullYear();
-  const weekNumber = getWeekNumber(date);
-  return `${year}-W${weekNumber.toString().padStart(2, '0')}`;
-};
+async function sumPeriod(
+  ctx: QueryCtx,
+  propertyId: Id<'properties'>,
+  periodType: 'daily' | 'weekly' | 'monthly' | 'yearly',
+  periodKey: string,
+) {
+  const rows = await summariesForPeriod(ctx, propertyId, periodType, periodKey);
+  return {
+    totalQtySold: rows.reduce((sum, row) => sum + row.totalQtySold, 0),
+    totalRevenue: rows.reduce((sum, row) => sum + row.totalRevenue, 0),
+  };
+}
 
-const getWeekNumber = (date: Date) => {
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-  const dayNum = d.getUTCDay() || 7;
-  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
-};
+async function sumDailyKeys(
+  ctx: QueryCtx,
+  propertyId: Id<'properties'>,
+  dayKeys: string[],
+) {
+  let totalQtySold = 0;
+  let totalRevenue = 0;
+  for (const periodKey of dayKeys) {
+    const totals = await sumPeriod(ctx, propertyId, 'daily', periodKey);
+    totalQtySold += totals.totalQtySold;
+    totalRevenue += totals.totalRevenue;
+  }
+  return { totalQtySold, totalRevenue };
+}
 
-const getMonthKey = (date: Date) => {
-  const year = date.getFullYear();
-  const month = (date.getMonth() + 1).toString().padStart(2, '0');
-  return `${year}-${month}`;
-};
-
-// Queries for sales summaries
 export const getSalesSummaries = query({
   args: {
     propertyId: v.id('properties'),
@@ -47,61 +67,30 @@ export const getSalesSummaries = query({
   handler: async (ctx, args) => {
     await requirePermission(ctx, 'reports.read', args.propertyId);
     try {
-      let query = ctx.db.query('salesSummaries')
-        .withIndex('by_propertyId_periodType', (q) => 
-          q.eq('propertyId', args.propertyId).eq('periodType', args.periodType)
-        );
+      const dateKey = await propertyDateKey(ctx, args.propertyId);
+      const periodKey = args.periodKey ?? currentPeriodKey(dateKey, args.periodType);
+      let summaries = await summariesForPeriod(
+        ctx,
+        args.propertyId,
+        args.periodType,
+        periodKey,
+      );
 
-      // Apply additional filters
       if (args.barId) {
-        query = ctx.db.query('salesSummaries')
-          .withIndex('by_propertyId_barId_period', (q) =>
-            q.eq('propertyId', args.propertyId).eq('barId', args.barId!).eq('periodType', args.periodType)
-          );
+        summaries = summaries.filter((row) => row.barId === args.barId);
       }
-
-      if (args.periodKey && args.barId) {
-        query = ctx.db.query('salesSummaries')
-          .withIndex('by_barId_period', (q) =>
-            q.eq('barId', args.barId!).eq('periodType', args.periodType).eq('periodKey', args.periodKey!)
-          );
-      }
-
       if (args.userId) {
-        query = ctx.db.query('salesSummaries')
-          .withIndex('by_userId_period', (q) =>
-            q.eq('userId', args.userId).eq('periodType', args.periodType)
-          );
+        summaries = summaries.filter((row) => row.userId === args.userId);
       }
-
       if (args.beverageId) {
-        query = ctx.db.query('salesSummaries')
-          .withIndex('by_beverageId_period', (q) =>
-            q.eq('beverageId', args.beverageId!).eq('periodType', args.periodType)
-          );
+        summaries = summaries.filter((row) => row.beverageId === args.beverageId);
       }
-
       if (args.year) {
-        query = ctx.db.query('salesSummaries')
-          .withIndex('by_year_periodType', (q) =>
-            q.eq('year', args.year!).eq('periodType', args.periodType)
-          );
+        summaries = summaries.filter((row) => row.year === args.year);
       }
 
-      let summaries = await query.collect();
-
-      // Apply periodKey filter if not already applied in index
-      if (args.periodKey && !args.barId) {
-        summaries = summaries.filter(s => s.periodKey === args.periodKey);
-      }
-
-      // Apply property filter if not already applied
-      summaries = summaries.filter(s => s.propertyId === args.propertyId);
-
-      // Sort by periodKey descending (most recent first)
       summaries.sort((a, b) => b.periodKey.localeCompare(a.periodKey));
 
-      // Apply limit
       if (args.limit && args.limit > 0) {
         summaries = summaries.slice(0, args.limit);
       }
@@ -142,11 +131,7 @@ export const getSalesByBarPeriod = query({
     const dateKey = await propertyDateKey(ctx, args.propertyId);
     const periodKey = args.periodKey ?? currentPeriodKey(dateKey, args.periodType);
 
-    const summaries = await ctx.db.query('salesSummaries')
-      .withIndex('by_propertyId_periodType_periodKey', (q) =>
-        q.eq('propertyId', args.propertyId).eq('periodType', args.periodType).eq('periodKey', periodKey)
-      )
-      .take(200);
+    const summaries = await summariesForPeriod(ctx, args.propertyId, args.periodType, periodKey);
 
       // Group by bar and aggregate
       const barAggregates = new Map();
@@ -202,11 +187,7 @@ export const getSalesByUserPeriod = query({
     await requirePermission(ctx, 'reports.read', args.propertyId);
     const dateKey = await propertyDateKey(ctx, args.propertyId);
     const periodKey = args.periodKey ?? currentPeriodKey(dateKey, args.periodType);
-    let summaries = await ctx.db.query('salesSummaries')
-      .withIndex('by_propertyId_periodType_periodKey', (q) =>
-        q.eq('propertyId', args.propertyId).eq('periodType', args.periodType).eq('periodKey', periodKey)
-      )
-      .take(200);
+    let summaries = await summariesForPeriod(ctx, args.propertyId, args.periodType, periodKey);
 
       // Filter only summaries with userId (user-specific records)
       summaries = summaries.filter(s => s.userId !== undefined);
@@ -265,14 +246,13 @@ export const getBeverageTrend = query({
     await requirePermission(ctx, 'reports.read', args.propertyId);
     try {
       const summaries = await ctx.db.query('salesSummaries')
-        .withIndex('by_beverageId_period', (q) =>
-          q.eq('beverageId', args.beverageId).eq('periodType', args.periodType)
+        .withIndex('by_propertyId_periodType', (q) =>
+          q.eq('propertyId', args.propertyId).eq('periodType', args.periodType)
         )
         .collect();
 
-      // Filter by property and sort
       const filteredSummaries = summaries
-        .filter(s => s.propertyId === args.propertyId)
+        .filter((row) => row.beverageId === args.beverageId)
         .sort((a, b) => a.periodKey.localeCompare(b.periodKey));
 
       // Apply limit
@@ -296,21 +276,16 @@ export const getYearOnYearComparison = query({
   handler: async (ctx, args) => {
     await requirePermission(ctx, 'reports.read', args.propertyId);
     try {
-      const summaries1 = await ctx.db.query('salesSummaries')
-        .withIndex('by_year_periodType', (q) =>
-          q.eq('year', args.year1).eq('periodType', args.periodType)
+      const allRows = await ctx.db.query('salesSummaries')
+        .withIndex('by_propertyId_periodType', (q) =>
+          q.eq('propertyId', args.propertyId).eq('periodType', args.periodType)
         )
         .collect();
+      const summaries1 = allRows.filter((row) => row.year === args.year1);
+      const summaries2 = allRows.filter((row) => row.year === args.year2);
 
-      const summaries2 = await ctx.db.query('salesSummaries')
-        .withIndex('by_year_periodType', (q) =>
-          q.eq('year', args.year2).eq('periodType', args.periodType)
-        )
-        .collect();
-
-      // Filter by property and group by periodKey
-      const filterAndGroup = (summaries: any[], year: number) => {
-        const filtered = summaries.filter(s => s.propertyId === args.propertyId);
+      const filterAndGroup = (summaries: typeof allRows, year: number) => {
+        const filtered = summaries;
         const grouped = new Map();
         
         filtered.forEach(summary => {
@@ -363,6 +338,7 @@ export const getYearOnYearOverview = query({
     const thisYear = Number(dateKey.slice(0, 4));
     const lastYear = thisYear - 1;
     const throughMonth = Number(dateKey.slice(5, 7));
+    const throughDay = Number(dateKey.slice(8, 10));
 
     const monthly = [];
     let currentRevenue = 0;
@@ -372,23 +348,40 @@ export const getYearOnYearOverview = query({
 
     for (let month = 1; month <= 12; month += 1) {
       const mm = String(month).padStart(2, '0');
-      const currentRows = await ctx.db
-        .query('salesSummaries')
-        .withIndex('by_propertyId_periodType_periodKey', (q) =>
-          q.eq('propertyId', args.propertyId).eq('periodType', 'monthly').eq('periodKey', `${thisYear}-${mm}`),
-        )
-        .take(200);
-      const previousRows = await ctx.db
-        .query('salesSummaries')
-        .withIndex('by_propertyId_periodType_periodKey', (q) =>
-          q.eq('propertyId', args.propertyId).eq('periodType', 'monthly').eq('periodKey', `${lastYear}-${mm}`),
-        )
-        .take(200);
+      const currentRows = await summariesForPeriod(
+        ctx,
+        args.propertyId,
+        'monthly',
+        `${thisYear}-${mm}`,
+      );
+      const previousRows = await summariesForPeriod(
+        ctx,
+        args.propertyId,
+        'monthly',
+        `${lastYear}-${mm}`,
+      );
 
-      const currentMonthRevenue = currentRows.reduce((sum, row) => sum + row.totalRevenue, 0);
-      const currentMonthQty = currentRows.reduce((sum, row) => sum + row.totalQtySold, 0);
-      const previousMonthRevenue = previousRows.reduce((sum, row) => sum + row.totalRevenue, 0);
-      const previousMonthQty = previousRows.reduce((sum, row) => sum + row.totalQtySold, 0);
+      let currentMonthRevenue = currentRows.reduce((sum, row) => sum + row.totalRevenue, 0);
+      let currentMonthQty = currentRows.reduce((sum, row) => sum + row.totalQtySold, 0);
+      let previousMonthRevenue = previousRows.reduce((sum, row) => sum + row.totalRevenue, 0);
+      let previousMonthQty = previousRows.reduce((sum, row) => sum + row.totalQtySold, 0);
+
+      if (month === throughMonth) {
+        const currentMtd = await sumDailyKeys(
+          ctx,
+          args.propertyId,
+          monthDateKeys(thisYear, month, throughDay),
+        );
+        const previousMtd = await sumDailyKeys(
+          ctx,
+          args.propertyId,
+          monthDateKeys(lastYear, month, throughDay),
+        );
+        currentMonthRevenue = currentMtd.totalRevenue;
+        currentMonthQty = currentMtd.totalQtySold;
+        previousMonthRevenue = previousMtd.totalRevenue;
+        previousMonthQty = previousMtd.totalQtySold;
+      }
 
       if (month <= throughMonth) {
         currentRevenue += currentMonthRevenue;
@@ -454,16 +447,11 @@ export const getRevenueTrend = query({
 
     const points = [];
     for (const periodKey of keys) {
-      const rows = await ctx.db
-        .query('salesSummaries')
-        .withIndex('by_propertyId_periodType_periodKey', (q) =>
-          q.eq('propertyId', args.propertyId).eq('periodType', args.periodType).eq('periodKey', periodKey),
-        )
-        .take(200);
+      const totals = await sumPeriod(ctx, args.propertyId, args.periodType, periodKey);
       points.push({
         periodKey,
-        totalQtySold: rows.reduce((sum, row) => sum + row.totalQtySold, 0),
-        totalRevenue: rows.reduce((sum, row) => sum + row.totalRevenue, 0),
+        totalQtySold: totals.totalQtySold,
+        totalRevenue: totals.totalRevenue,
       });
     }
 

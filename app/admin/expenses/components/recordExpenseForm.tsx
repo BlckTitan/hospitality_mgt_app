@@ -12,7 +12,11 @@ import { PAYMENT_METHOD_OPTIONS } from '../../billing/components/labels';
 import { cashPeriodBounds } from '../../../../lib/cashPeriod';
 import { EXPENSE_CATEGORY_OPTIONS } from './categoryLabels';
 
+const EXPENSE_NAME_MAX_LENGTH = 80;
+const INVOICE_NUMBER_MAX_LENGTH = 20;
+
 type FormData = {
+  name: string;
   amount: string;
   expenseDate: string;
   category: 'utilities' | 'supplies' | 'staff' | 'maintenance' | 'other';
@@ -43,8 +47,9 @@ export function RecordExpenseForm({
   onClose: () => void;
 }) {
   const createPaidExpense = useMutation(api.expenses.createPaidExpense);
-  const { register, handleSubmit } = useForm<FormData>({
+  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     defaultValues: {
+      name: '',
       amount: '',
       expenseDate: todayInputValue(timeZone),
       category: 'other',
@@ -65,6 +70,7 @@ export function RecordExpenseForm({
         }
         const recorded = await createPaidExpense({
           propertyId,
+          name: data.name.trim(),
           amount,
           expenseDate: dateInputToTimestamp(data.expenseDate),
           category: data.category,
@@ -81,6 +87,22 @@ export function RecordExpenseForm({
         onClose();
       })}
     >
+      <InputComponent
+        id='name'
+        label='Name *'
+        type='text'
+        inputWidth='w-full'
+        maxLength={EXPENSE_NAME_MAX_LENGTH}
+        placeholder='e.g. Office printer ink'
+        register={register('name', {
+          required: 'Name is required',
+          maxLength: {
+            value: EXPENSE_NAME_MAX_LENGTH,
+            message: `Name must be ${EXPENSE_NAME_MAX_LENGTH} characters or fewer`,
+          },
+        })}
+        error={errors.name}
+      />
       <InputComponent
         id='amount'
         label='Amount *'
@@ -119,10 +141,17 @@ export function RecordExpenseForm({
       />
       <InputComponent
         id='invoiceNumber'
-        label='Invoice number'
+        label={`Invoice number (max ${INVOICE_NUMBER_MAX_LENGTH})`}
         type='text'
         inputWidth='w-full'
-        register={register('invoiceNumber')}
+        maxLength={INVOICE_NUMBER_MAX_LENGTH}
+        register={register('invoiceNumber', {
+          maxLength: {
+            value: INVOICE_NUMBER_MAX_LENGTH,
+            message: `Invoice number must be ${INVOICE_NUMBER_MAX_LENGTH} characters or fewer`,
+          },
+        })}
+        error={errors.invoiceNumber}
       />
       <SelectComponent
         id='paymentMethod'

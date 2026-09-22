@@ -194,9 +194,13 @@ export const seriesExpensesByCategory = query({
   },
 });
 
+const EXPENSE_NAME_MAX_LENGTH = 80;
+const INVOICE_NUMBER_MAX_LENGTH = 20;
+
 export const createPaidExpense = mutation({
   args: {
     propertyId: v.id("properties"),
+    name: v.string(),
     amount: v.number(),
     expenseDate: v.number(),
     category: categoryValidator,
@@ -211,9 +215,23 @@ export const createPaidExpense = mutation({
     if (!Number.isFinite(args.amount) || args.amount <= 0) {
       return { success: false, message: "Amount must be greater than 0" };
     }
+    const name = args.name.trim();
+    if (!name) {
+      return { success: false, message: "Name is required" };
+    }
+    if (name.length > EXPENSE_NAME_MAX_LENGTH) {
+      return { success: false, message: `Name must be ${EXPENSE_NAME_MAX_LENGTH} characters or fewer` };
+    }
     const vendor = args.vendor.trim();
     if (!vendor) {
       return { success: false, message: "Vendor is required" };
+    }
+    const invoiceNumber = args.invoiceNumber?.trim() || undefined;
+    if (invoiceNumber && invoiceNumber.length > INVOICE_NUMBER_MAX_LENGTH) {
+      return {
+        success: false,
+        message: `Invoice number must be ${INVOICE_NUMBER_MAX_LENGTH} characters or fewer`,
+      };
     }
     const sourceId = crypto.randomUUID();
     const posted = await postCashOutflow(ctx, {
@@ -223,9 +241,10 @@ export const createPaidExpense = mutation({
       amount: args.amount,
       category: args.category,
       subcategory: args.subcategory?.trim() || undefined,
+      name,
       description: args.description?.trim() || undefined,
       vendor,
-      invoiceNumber: args.invoiceNumber?.trim() || undefined,
+      invoiceNumber,
       paymentMethod: args.paymentMethod,
       paymentType: "expense",
       createdBy: auth.user._id,

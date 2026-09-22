@@ -279,6 +279,7 @@ export default defineSchema({
     propertyId: v.id("properties"),
     category: v.union(v.literal("utilities"), v.literal("supplies"), v.literal("staff"), v.literal("maintenance"), v.literal("other")),
     subcategory: v.optional(v.string()),
+    name: v.optional(v.string()),
     amount: v.number(),
     expenseDate: v.number(),
     description: v.optional(v.string()),

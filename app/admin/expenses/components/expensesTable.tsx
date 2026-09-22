@@ -10,6 +10,7 @@ import { EXPENSE_CATEGORY_LABELS } from './categoryLabels';
 
 type ExpenseRow = {
   _id: Id<'expenses'>;
+  name?: string;
   category: string;
   subcategory?: string;
   amount: number;
@@ -29,6 +30,11 @@ export function ExpensesTable({ rows }: { rows: ExpenseRow[] }) {
       label: 'Date',
       key: 'expenseDate',
       render: (_value, row) => formatDate(row.expenseDate),
+    },
+    {
+      label: 'Name',
+      key: 'name',
+      render: (_value, row) => row.name || '—',
     },
     { label: 'Vendor', key: 'vendor' },
     {
