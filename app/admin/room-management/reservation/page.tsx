@@ -54,7 +54,7 @@ export default function ReservationPage() {
         </div>
       </header>
 
-      <Reservations />
+      <Reservations propertyId={currentPropertyId} />
 
       <ModalComponent
         modalShow={modalShow}

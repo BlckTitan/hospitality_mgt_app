@@ -1,19 +1,9 @@
 import * as yup from "yup";
 
-export const formSchema = yup.object().shape({
-  guestId: yup
-    .string()
-    .required("Guest is required"),
-
+const sharedReservationFields = {
   roomId: yup
     .string()
     .required("Room is required"),
-
-  checkInDate: yup
-    .date()
-    .required("Check-in date is required")
-    .typeError("Please enter a valid date")
-    .min(new Date(), "Check-in date cannot be in the past"),
 
   checkOutDate: yup
     .date()
@@ -65,4 +55,27 @@ export const formSchema = yup.object().shape({
   specialRequests: yup
     .string()
     .max(1000, "Special requests are too long"),
+};
+
+export const formSchema = yup.object().shape({
+  guestId: yup
+    .string()
+    .required("Guest is required"),
+
+  checkInDate: yup
+    .date()
+    .required("Check-in date is required")
+    .typeError("Please enter a valid date")
+    .min(new Date(), "Check-in date cannot be in the past"),
+
+  ...sharedReservationFields,
+});
+
+export const editFormSchema = yup.object().shape({
+  checkInDate: yup
+    .date()
+    .required("Check-in date is required")
+    .typeError("Please enter a valid date"),
+
+  ...sharedReservationFields,
 });

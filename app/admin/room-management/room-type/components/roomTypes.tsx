@@ -22,7 +22,7 @@ interface RoomTypeProps {
   propertyId?: string;
 }
 
-const RoomTypes = () => {
+const RoomTypes = ({ propertyId }: { propertyId: string }) => {
   const removeRoomType = useMutation(api.roomTypes.deleteRoomType);
 
   const handleDelete = async (id: string, name: string) => {
@@ -122,7 +122,7 @@ const RoomTypes = () => {
   return (
     <div className='w-full h-full overflow-x-scroll lg:!overflow-x-hidden'>
       <Suspense>
-        <PaginationComponent collectionName='roomTypes' columns={tableColumns} />
+        <PaginationComponent collectionName='roomTypes' columns={tableColumns} propertyId={propertyId} />
       </Suspense>
     </div>
   );

@@ -9,7 +9,7 @@ export const getAllRoomTypes = query({
     try {
       const roomTypes = await ctx.db
         .query('roomTypes')
-        .filter((q: any) => q.eq(q.field('propertyId'), args.propertyId))
+        .withIndex('by_propertyId', (q) => q.eq('propertyId', args.propertyId))
         .collect();
       return { success: true, data: roomTypes };
     } catch (error) {
@@ -52,12 +52,8 @@ export const createRoomType = mutation({
       // Check if room type with same name already exists for this property
       const existingRoomType = await ctx.db
         .query('roomTypes')
-        .filter((q: any) => 
-          q.and(
-            q.eq(q.field('propertyId'), args.propertyId),
-            q.eq(q.field('name'), args.name)
-          )
-        )
+        .withIndex('by_propertyId', (q) => q.eq('propertyId', args.propertyId))
+        .filter((q) => q.eq(q.field('name'), args.name))
         .first();
 
       if (existingRoomType) {
@@ -109,12 +105,8 @@ export const updateRoomType = mutation({
       if (args.name !== existingRoomType.name) {
         const duplicateName = await ctx.db
           .query('roomTypes')
-          .filter((q: any) => 
-            q.and(
-              q.eq(q.field('propertyId'), existingRoomType.propertyId),
-              q.eq(q.field('name'), args.name)
-            )
-          )
+          .withIndex('by_propertyId', (q) => q.eq('propertyId', existingRoomType.propertyId))
+          .filter((q) => q.eq(q.field('name'), args.name))
           .first();
 
         if (duplicateName) {
@@ -156,7 +148,7 @@ export const deleteRoomType = mutation({
       // Check if any rooms use this room type
       const roomsUsingType = await ctx.db
         .query('rooms')
-        .filter((q: any) => q.eq(q.field('roomTypeId'), args.roomTypeId))
+        .withIndex('by_roomTypeId', (q) => q.eq('roomTypeId', args.roomTypeId))
         .first();
 
       if (roomsUsingType) {

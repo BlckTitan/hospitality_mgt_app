@@ -23,6 +23,8 @@ interface RoomProps {
   isActive: boolean;
   createdAt: number;
   updatedAt: number;
+  isReady?: boolean;
+  hasOpenHousekeeping?: boolean;
   roomType?: {
     _id: string;
     name: string;
@@ -96,6 +98,24 @@ const Rooms = ({ currentPropertyId }: { currentPropertyId: Id<"properties"> }) =
       render: (value, row) => getStatusBadge(row.status)
     },
     {
+      label: 'Ready',
+      key: 'isReady',
+      render: (value, row) => (
+        <p
+          className={`w-fit h-fit px-2 py-1 text-white rounded-sm ${row.isReady ? 'bg-green-600' : 'bg-amber-600'}`}
+        >
+          {row.isReady ? 'Ready' : 'Not ready'}
+        </p>
+      )
+    },
+    {
+      label: 'Last Cleaned',
+      key: 'lastCleanedAt',
+      render: (value, row) => (
+        <span>{row.lastCleanedAt ? formatDate(row.lastCleanedAt) : '—'}</span>
+      )
+    },
+    {
       label: 'Active',
       key: 'isActive',
       render: (value, row) => (
@@ -139,13 +159,22 @@ const Rooms = ({ currentPropertyId }: { currentPropertyId: Id<"properties"> }) =
     },
   ];
 
+  if (roomData === undefined) {
+    return (
+      <div className='w-full h-full flex justify-center items-center py-8'>
+        Loading rooms...
+      </div>
+    );
+  }
+
   return (
     <div className='w-full h-full overflow-x-scroll lg:!overflow-x-hidden'>
       <Suspense>
         <PaginationComponent 
           collectionName='rooms' 
           columns={tableColumns}
-          jointTableData={(roomData?.success === true) && roomData?.data}  
+          propertyId={currentPropertyId}
+          jointTableData={roomData.success === true ? roomData.data : []}
         />
       </Suspense>
     </div>

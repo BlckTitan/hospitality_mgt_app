@@ -13,7 +13,7 @@ import { api } from "../../../../../convex/_generated/api";
 type FormData = {
   roomNumber: string;
   roomTypeId: string;
-  floor?: number;
+  floor: number;
   status: 'available' | 'occupied' | 'out-of-order' | 'maintenance';
   notes?: string;
   isActive: boolean;
@@ -121,7 +121,7 @@ export function EditRoomForm({ roomData, roomId, onSuccess, onClose }: EditRoomF
         <div className="flex-1">
           <InputComponent
             id="floor"
-            label="Floor"
+            label="Floor *"
             type="number"
             inputWidth="w-full"
             register={register('floor', { valueAsNumber: true })}
@@ -177,7 +177,7 @@ export function EditRoomForm({ roomData, roomId, onSuccess, onClose }: EditRoomF
       </div>
 
       <div className="flex gap-2 justify-end">
-        <Button variant="secondary" onClick={onClose}>
+        <Button type="button" variant="secondary" onClick={onClose}>
           Cancel
         </Button>
         <Button variant="dark" type="submit">

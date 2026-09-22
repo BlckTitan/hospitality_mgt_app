@@ -54,7 +54,7 @@ export default function RoomTypePage() {
         </div>
       </header>
 
-      <RoomTypes />
+      <RoomTypes propertyId={currentPropertyId} />
 
       <ModalComponent
         modalShow={modalShow}

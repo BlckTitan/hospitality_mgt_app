@@ -45,7 +45,7 @@ interface ReservationProps {
   };
 }
 
-const Reservations = () => {
+const Reservations = ({ propertyId }: { propertyId: string }) => {
   const removeReservation = useMutation(api.reservations.deleteReservation);
 
   const handleDelete = async (id: string, confirmationNumber: string) => {
@@ -175,7 +175,7 @@ const Reservations = () => {
   return (
     <div className='w-full h-full overflow-x-scroll lg:!overflow-x-hidden'>
       <Suspense>
-        <PaginationComponent collectionName='reservations' columns={tableColumns} />
+        <PaginationComponent collectionName='reservations' columns={tableColumns} propertyId={propertyId} />
       </Suspense>
     </div>
   );

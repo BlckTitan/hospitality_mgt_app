@@ -24,7 +24,7 @@ export default function EditRoomTypePage() {
       <div className="w-full p-4 bg-white">
         <div className="text-center py-8">
           <h3 className="text-red-600">Room Type not found</h3>
-          <a href="/admin/roomType" className="text-blue-600 hover:underline">
+          <a href="/admin/room-management/room-type" className="text-blue-600 hover:underline">
             Go back to Room Types
           </a>
         </div>
@@ -32,11 +32,24 @@ export default function EditRoomTypePage() {
     );
   }
 
-  if (!roomTypeData?.success) {
+  if (roomTypeData === undefined) {
     return (
       <div className="w-full p-4 bg-white">
         <div className="text-center py-8">
-          <h3 className="text-red-600">Loading...</h3>
+          <h3>Loading...</h3>
+        </div>
+      </div>
+    );
+  }
+
+  if (!roomTypeData.success || !roomTypeData.data) {
+    return (
+      <div className="w-full p-4 bg-white">
+        <div className="text-center py-8">
+          <h3 className="text-red-600">{roomTypeData.message || 'Room type not found'}</h3>
+          <a href="/admin/room-management/room-type" className="text-blue-600 hover:underline">
+            Go back to Room Types
+          </a>
         </div>
       </div>
     );

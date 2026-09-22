@@ -137,8 +137,8 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
     { value: 'other', label: 'Other' },
   ];
 
-  const availableRooms = rooms.filter((room: any) => 
-    room.isActive && (room.status === 'available' || room.status === 'occupied')
+  const availableRooms = rooms.filter((room: any) =>
+    room.isActive && room.status !== 'out-of-order' && room.status !== 'maintenance'
   );
 
   const guestOptions = guests.map((guest: any) => ({
@@ -148,7 +148,7 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
 
   const roomOptions = availableRooms.map((room: any) => ({
     value: room._id,
-    label: `${room.roomNumber} - ${room.roomType?.name || 'N/A'} (${room.status})`,
+    label: `${room.roomNumber} - ${room.roomType?.name || 'N/A'} (${room.status}${room.isReady === false ? ', not ready' : ''})`,
   }));
 
   return (

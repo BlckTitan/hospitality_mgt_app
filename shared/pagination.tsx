@@ -2,7 +2,8 @@ import { useMutation, useQuery } from 'convex/react';
 import { Dispatch, SetStateAction, useEffect, useState } from 'react';
 import Pagination from 'react-bootstrap/Pagination';
 import { api } from '../convex/_generated/api';
-import TableComponent from './table';
+import { Id } from '../convex/_generated/dataModel';
+import TableComponent, { TableColumn } from './table';
 import { Spinner } from 'react-bootstrap';
 import { FcSearch } from 'react-icons/fc';
 import { useDebounce } from 'use-debounce';
@@ -31,7 +32,17 @@ interface SearchComponentProps {
   value: string;
 }
 
-export default function PaginationComponent({ collectionName, columns, jointTableData }) {
+export default function PaginationComponent({
+  collectionName,
+  columns,
+  jointTableData,
+  propertyId,
+}: {
+  collectionName: string;
+  columns: TableColumn<any>[];
+  jointTableData?: any;
+  propertyId?: string;
+}) {
   const limit = 10;
   const [cursorHistory, setCursorHistory] = useState<(string | null)[]>([null]);
   const [currentPage, setCurrentPage] = useState(1);
@@ -65,6 +76,7 @@ export default function PaginationComponent({ collectionName, columns, jointTabl
           limit,
           cursor: currentCursor,
           ...(searchTerm ? { searchTerm } : {}),
+          ...(propertyId ? { propertyId: propertyId as Id<'properties'> } : {}),
         },
   );
 
@@ -72,7 +84,7 @@ export default function PaginationComponent({ collectionName, columns, jointTabl
     setCursorHistory([null]);
     setCurrentPage(1);
     setPageCache({});
-  }, [query, collectionName]);
+  }, [query, collectionName, propertyId]);
 
   useEffect(() => {
     if (!response?.page) return;

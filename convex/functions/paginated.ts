@@ -87,10 +87,27 @@ export const getPaginatedData = query({
     limit: v.number(), //items per page
     cursor: v.optional(v.string()), //current page cursor
     sortOrder: v.optional(v.union(v.literal("asc"), v.literal("desc"))), // optional
+    propertyId: v.optional(v.id('properties')),
   },
 
-  handler: async (ctx, { table, limit, cursor, sortOrder, searchTerm}) => {
-    const auth = await tryRequirePermission(ctx, TABLE_READ_PERMISSIONS[table]);
+  handler: async (ctx, { table, limit, cursor, sortOrder, searchTerm, propertyId}) => {
+    const PROPERTY_SCOPED_TABLES = new Set([
+      'roomTypes',
+      'rooms',
+      'reservations',
+      'guests',
+      'housekeepingTasks',
+    ]);
+
+    if (PROPERTY_SCOPED_TABLES.has(table) && !propertyId) {
+      return { page: [], isDone: true, continueCursor: "" };
+    }
+
+    const auth = await tryRequirePermission(
+      ctx,
+      TABLE_READ_PERMISSIONS[table],
+      propertyId,
+    );
     if (!auth) {
       return { page: [], isDone: true, continueCursor: "" };
     }
@@ -107,9 +124,14 @@ export const getPaginatedData = query({
       }
 
       if (term && table === 'guests') {
+        if (!propertyId) {
+          return { page: [], isDone: true, continueCursor: "" };
+        }
         return await ctx.db
           .query('guests')
-          .withSearchIndex('search_guests', (idx) => idx.search('searchName', term))
+          .withSearchIndex('search_guests', (idx) =>
+            idx.search('searchName', term).eq('propertyId', propertyId),
+          )
           .paginate(paginationOpts);
       }
 
@@ -145,20 +167,54 @@ export const getPaginatedData = query({
           page: enrichedPage,
         };
 
-      } else {
-        // if there is no search request, just return all the data in the database
+      } else if (propertyId && table === 'reservations') {
         const items = await ctx.db
+          .query('reservations')
+          .withIndex('by_propertyId', (q) => q.eq('propertyId', propertyId))
+          .order(sortOrder ?? 'desc')
+          .paginate(paginationOpts);
+        const enrichedPage = await Promise.all(
+          items.page.map(async (reservation) => {
+            const guest = await ctx.db.get(reservation.guestId);
+            const room = await ctx.db.get(reservation.roomId);
+            const roomType = room ? await ctx.db.get(room.roomTypeId) : null;
+            return {
+              ...reservation,
+              guest,
+              room: room ? { ...room, roomType } : null,
+            };
+          }),
+        );
+        return { ...items, page: enrichedPage };
+      } else if (propertyId && table === 'rooms') {
+        return await ctx.db
+          .query('rooms')
+          .withIndex('by_propertyId', (q) => q.eq('propertyId', propertyId))
+          .order(sortOrder ?? 'desc')
+          .paginate(paginationOpts);
+      } else if (propertyId && table === 'roomTypes') {
+        return await ctx.db
+          .query('roomTypes')
+          .withIndex('by_propertyId', (q) => q.eq('propertyId', propertyId))
+          .order(sortOrder ?? 'desc')
+          .paginate(paginationOpts);
+      } else if (propertyId && table === 'guests') {
+        return await ctx.db
+          .query('guests')
+          .withIndex('by_propertyId', (q) => q.eq('propertyId', propertyId))
+          .order(sortOrder ?? 'desc')
+          .paginate(paginationOpts);
+      } else if (propertyId && table === 'housekeepingTasks') {
+        return await ctx.db
+          .query('housekeepingTasks')
+          .withIndex('by_propertyId', (q) => q.eq('propertyId', propertyId))
+          .order(sortOrder ?? 'desc')
+          .paginate(paginationOpts);
+      } else {
+        return await ctx.db
           .query(table)
-          .order(sortOrder ?? "desc")// respect sortOrder if provided, default to "desc"
-          .paginate({ numItems: limit, cursor: cursor  ?? null});// Use convex pagination pattern
-
-        if(items){
-          return items;
-        }else{
-          console.log(items)
-          return { success: false, message: "No result found!", page: null, isDone: null, continueCursor: null};
-        }
-
+          .order(sortOrder ?? 'desc')
+          .paginate(paginationOpts);
       }
     } catch (error) {
 

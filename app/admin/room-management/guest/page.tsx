@@ -54,7 +54,7 @@ export default function GuestPage() {
         </div>
       </header>
 
-      <Guests />
+      <Guests propertyId={currentPropertyId} />
 
       <ModalComponent
         modalShow={modalShow}

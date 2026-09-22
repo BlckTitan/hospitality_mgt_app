@@ -61,7 +61,7 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess?: 
 
         // Reload page after submission
         setTimeout(() => {
-          window.location.href = "/admin/room-management/reservation/guest";
+          window.location.href = "/admin/room-management/guest";
         }, 2000);
       }
     } catch (error: any) {

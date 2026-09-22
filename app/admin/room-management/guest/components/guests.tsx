@@ -24,7 +24,7 @@ interface GuestProps {
   updatedAt: number;
 }
 
-const Guests = () => {
+const Guests = ({ propertyId }: { propertyId: string }) => {
   const removeGuest = useMutation(api.guests.deleteGuest);
 
   const handleDelete = async (id: string, name: string) => {
@@ -36,7 +36,7 @@ const Guests = () => {
         toast.success(response.message);
         // Reload page after deletion
         setTimeout(() => {
-          window.location.href = "/admin/room-management/reservation/guest";
+          window.location.href = "/admin/room-management/guest";
         }, 2000);
       } else {
         return toast.error(response.message);
@@ -87,7 +87,7 @@ const Guests = () => {
       render: (value, row) => (
         <div className='flex justify-evenly lg:justify-start items-center gap-1'>
           <a
-            href={`/admin/room-management/reservation/guest/edit?guest_id=${row._id}`}
+            href={`/admin/room-management/guest/edit?guest_id=${row._id}`}
             className='!mr-2 !no-underline !text-amber-400'
           >
             <i className='icon'><MdEditDocument /></i>
@@ -109,7 +109,7 @@ const Guests = () => {
   return (
     <div className='w-full h-full overflow-x-scroll lg:!overflow-x-hidden'>
       <Suspense>
-        <PaginationComponent collectionName='guests' columns={tableColumns} />
+        <PaginationComponent collectionName='guests' columns={tableColumns} propertyId={propertyId} />
       </Suspense>
     </div>
   );

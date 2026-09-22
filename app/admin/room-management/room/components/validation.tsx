@@ -14,9 +14,10 @@ export const formSchema = yup.object().shape({
 
   floor: yup
     .number()
+    .typeError("Floor is required")
     .min(0, "Floor cannot be negative")
     .max(200, "Floor cannot exceed 200")
-    .optional(),
+    .required("Floor is required"),
 
   status: yup
     .string()

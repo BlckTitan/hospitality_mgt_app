@@ -56,6 +56,7 @@ export const ADMINISTRATOR_PERMISSIONS: Record<string, boolean> = {
   "reservations.delete": true,
   "rooms.read": true,
   "rooms.update": true,
+  "rooms.delete": true,
   "fnb.read": true,
   "fnb.create": true,
   "fnb.update": true,

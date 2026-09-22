@@ -1,6 +1,40 @@
-import { mutation, query } from './_generated/server';
+import { mutation, query, QueryCtx } from './_generated/server';
 import { v } from 'convex/values';
+import { Id } from './_generated/dataModel';
 import { requirePermission } from './lib/rbac';
+
+async function openHousekeepingByRoom(ctx: QueryCtx, propertyId: Id<'properties'>) {
+  const pending = await ctx.db
+    .query('housekeepingTasks')
+    .withIndex('by_propertyId_status', (q) =>
+      q.eq('propertyId', propertyId).eq('status', 'pending'),
+    )
+    .collect();
+  const inProgress = await ctx.db
+    .query('housekeepingTasks')
+    .withIndex('by_propertyId_status', (q) =>
+      q.eq('propertyId', propertyId).eq('status', 'in-progress'),
+    )
+    .collect();
+
+  const openByRoom = new Map<string, { checkout: boolean; anyOpen: boolean }>();
+  for (const task of [...pending, ...inProgress]) {
+    const current = openByRoom.get(task.roomId) ?? { checkout: false, anyOpen: false };
+    current.anyOpen = true;
+    if (task.taskType === 'checkout') current.checkout = true;
+    openByRoom.set(task.roomId, current);
+  }
+  return openByRoom;
+}
+
+function readinessForRoom(openByRoom: Map<string, { checkout: boolean; anyOpen: boolean }>, roomId: string) {
+  const open = openByRoom.get(roomId);
+  return {
+    isReady: !open?.checkout,
+    hasOpenHousekeeping: Boolean(open?.anyOpen),
+    hasOpenCheckout: Boolean(open?.checkout),
+  };
+}
 
 export const getAllRooms = query({
   args: { propertyId: v.id('properties') },
@@ -11,14 +45,16 @@ export const getAllRooms = query({
         .query('rooms')
         .withIndex('by_propertyId', (q) => q.eq('propertyId', args.propertyId))
         .collect();
-      
-      // Fetch room types for each room
+
+      const openByRoom = await openHousekeepingByRoom(ctx, args.propertyId);
+
       const roomsWithTypes = await Promise.all(
         rooms.map(async (room) => {
           const roomType = await ctx.db.get(room.roomTypeId);
           return {
             ...room,
             roomType,
+            ...readinessForRoom(openByRoom, room._id),
           };
         })
       );
@@ -41,8 +77,12 @@ export const getRoom = query({
     await requirePermission(ctx, 'rooms.read', room.propertyId);
     try {
       const roomType = await ctx.db.get(room.roomTypeId);
-      
-      return { success: true, data: { ...room, roomType } };
+      const openByRoom = await openHousekeepingByRoom(ctx, room.propertyId);
+
+      return {
+        success: true,
+        data: { ...room, roomType, ...readinessForRoom(openByRoom, room._id) },
+      };
     } catch (error) {
       console.log(`Failed to fetch room: ${error}`);
       return { success: false, data: null, message: 'Failed to fetch room' };
@@ -75,10 +115,12 @@ export const createRoom = mutation({
         return { success: false, message: 'Room number already exists for this property' };
       }
 
-      // Verify room type exists
       const roomType = await ctx.db.get(args.roomTypeId);
       if (!roomType) {
         return { success: false, message: 'Room type does not exist' };
+      }
+      if (roomType.propertyId !== args.propertyId) {
+        return { success: false, message: 'Room type does not belong to this property' };
       }
 
       const now = Date.now();
@@ -136,10 +178,12 @@ export const updateRoom = mutation({
         }
       }
 
-      // Verify room type exists
       const roomType = await ctx.db.get(args.roomTypeId);
       if (!roomType) {
         return { success: false, message: 'Room type does not exist' };
+      }
+      if (roomType.propertyId !== existingRoom.propertyId) {
+        return { success: false, message: 'Room type does not belong to this property' };
       }
 
       const now = Date.now();

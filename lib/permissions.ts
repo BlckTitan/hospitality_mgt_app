@@ -389,6 +389,8 @@ export const GRANULAR_PERMISSIONS = {
   },
   rooms: {
     'rooms.read': 'reservations.read',
+    'rooms.update': 'reservations.update',
+    'rooms.delete': 'reservations.delete',
   },
   maintenance: {
     'maintenance.order.read': 'maintenance.read',

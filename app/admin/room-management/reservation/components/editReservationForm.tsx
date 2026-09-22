@@ -2,7 +2,7 @@ import { useMutation, useQuery } from "convex/react";
 import { Button, Modal } from "react-bootstrap";
 import { api } from "../../../../../convex/_generated/api";
 import { yupResolver } from "@hookform/resolvers/yup";
-import { formSchema } from "./validation";
+import { editFormSchema } from "./validation";
 import { FieldValues, SubmitHandler, useForm } from "react-hook-form";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { toast } from "sonner";
@@ -63,7 +63,7 @@ export function FormComponent({
   };
 
   const { register, handleSubmit, formState: { errors }, watch, setValue } = useForm<FormData>({
-    resolver: yupResolver(formSchema) as any,
+    resolver: yupResolver(editFormSchema) as any,
     defaultValues: {
       roomId: roomId,
       checkInDate: formatDateForInput(checkInDate),
@@ -151,11 +151,16 @@ export function FormComponent({
     { value: 'other', label: 'Other' },
   ];
 
-  const availableRooms = rooms.filter((room: any) => room.isActive);
+  const availableRooms = rooms.filter((room: any) =>
+    room.isActive && (
+      room._id === roomId ||
+      (room.status !== 'out-of-order' && room.status !== 'maintenance')
+    )
+  );
 
   const roomOptions = availableRooms.map((room: any) => ({
     value: room._id,
-    label: `${room.roomNumber} - ${room.roomType?.name || 'N/A'} (${room.status})`,
+    label: `${room.roomNumber} - ${room.roomType?.name || 'N/A'} (${room.status}${room.isReady === false ? ', not ready' : ''})`,
   }));
 
   return (
@@ -172,7 +177,7 @@ export function FormComponent({
             className="w-full border rounded p-2"
           >
             {roomOptions.map((option) => (
-              <option key={option.value} value={option.value} selected={option.value === roomId}>
+              <option key={option.value} value={option.value}>
                 {option.label}
               </option>
             ))}
@@ -312,7 +317,7 @@ export function FormComponent({
       </div>
 
       <Modal.Footer>
-        <Button variant="secondary" onClick={() => window.history.back()}>
+        <Button type="button" variant="secondary" onClick={() => window.history.back()}>
           Cancel
         </Button>
         <Button type="submit" variant='dark'>Submit</Button>

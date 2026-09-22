@@ -281,7 +281,10 @@ export const updateHousekeepingTask = mutation({
         updateData.completedAt = now;
         const startTime = args.startedAt || existingTask.startedAt || now;
         updateData.actualDuration = Math.round((now - startTime) / (1000 * 60));
-        await ctx.db.patch(existingTask.roomId, { lastCleanedAt: now, updatedAt: now });
+        const completedType = args.taskType ?? existingTask.taskType;
+        if (completedType === 'checkout') {
+          await ctx.db.patch(existingTask.roomId, { lastCleanedAt: now, updatedAt: now });
+        }
       } else if (args.completedAt !== undefined) {
         updateData.completedAt = args.completedAt;
       }
