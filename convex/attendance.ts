@@ -21,7 +21,7 @@ import {
 import { punctualityFieldsForClock, punctualityInsertFields } from "./lib/punctuality";
 import { canSeeAllTeamRecords, currentUsersStaff, isActiveStatus } from "./lib/staffAccess";
 import { resolveStaffClockMethod, type ShiftClockMethod } from "./lib/clockMethod";
-import { refreshSalesSummariesForLogs } from "./lib/barStock";
+import { computeCogsSnapshot, refreshSalesSummariesForLogs } from "./lib/barStock";
 
 type DbCtx = MutationCtx | QueryCtx;
 
@@ -295,15 +295,21 @@ async function endStaffShift(ctx: MutationCtx, staff: Doc<"staffs">) {
       .query("userStockLogs")
       .withIndex("by_shiftId", (q) => q.eq("shiftId", shift._id))
       .collect();
+    const refreshed = [];
     for (const log of logs) {
+      const cogs = await computeCogsSnapshot(ctx, log);
       if (!log.isFinalized) {
         await ctx.db.patch(log._id, {
           isFinalized: true,
+          ...cogs,
           lastUpdatedAt: Date.now(),
         });
+      } else if (log.cogsValue === undefined || log.unitCostAtSale === undefined) {
+        await ctx.db.patch(log._id, cogs);
       }
+      refreshed.push({ ...log, ...cogs });
     }
-    await refreshSalesSummariesForLogs(ctx, logs);
+    await refreshSalesSummariesForLogs(ctx, refreshed);
   }
 
   const hoursResult = await draftHoursFromShift(ctx, {

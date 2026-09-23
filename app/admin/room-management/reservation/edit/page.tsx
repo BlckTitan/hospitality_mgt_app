@@ -40,6 +40,7 @@ export default function Page() {
         source={reservation.source}
         specialRequests={reservation.specialRequests}
         propertyId={reservation.propertyId}
+        paidTotal={reservation.paidTotal ?? 0}
       />
     </div>
   );

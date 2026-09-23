@@ -32,6 +32,12 @@ export const formSchema = yup.object().shape({
     .min(0, "Unit price cannot be negative")
     .required("Unit price is required"),
 
+  unitCost: yup
+    .number()
+    .min(0, "Unit cost cannot be negative")
+    .transform((value, original) => (original === "" || Number.isNaN(value) ? undefined : value))
+    .optional(),
+
   reorderLevel: yup
     .number()
     .min(0, "Reorder level cannot be negative")

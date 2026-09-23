@@ -853,12 +853,24 @@ export default defineSchema({
     category: v.union(v.literal("spirits"), v.literal("wine"), v.literal("Lager beer"), v.literal("cocktails"), v.literal("non-alcoholic"), v.literal("liqueurs"), v.literal("whiskey"), v.literal("vodka"), v.literal("rum"), v.literal("gin"), v.literal("tequila"), v.literal("brandy"), v.literal("cognac"), v.literal("champagne"), v.literal("other")),
     unitOfMeasure: v.string(),
     unitPrice: v.number(),
+    unitCost: v.optional(v.number()),
+    inventoryItemId: v.optional(v.id("inventoryItems")),
     reorderLevel: v.number(),
     isActive: v.boolean(),
   })
     .index("by_propertyId", ["propertyId"])
     .index("by_category", ["category"])
-    .index("by_isActive", ["isActive"]),
+    .index("by_isActive", ["isActive"])
+    .index("by_inventoryItemId", ["inventoryItemId"]),
+
+  beverageRecipeLines: defineTable({
+    beverageId: v.id("beverages"),
+    inventoryItemId: v.id("inventoryItems"),
+    quantity: v.number(),
+    wastePercent: v.optional(v.number()),
+  })
+    .index("by_beverageId", ["beverageId"])
+    .index("by_inventoryItemId", ["inventoryItemId"]),
 
   // Shifts table: property-wide working sessions (any department).
   // barId is required only for F&B. userId is denormalized from staff when they have a login.
@@ -964,8 +976,14 @@ export default defineSchema({
     newStockReceived: v.number(),         // cumulative qty issued today via storeTransactions
     totalStock: v.number(),         // openingStock + newStockReceived (persisted)
     closingStock: v.number(),         // physical count at end of day
-    salesQuantity: v.number(),         // totalStock − closingStock (persisted)
+    salesQuantity: v.number(),         // disappeared − waste − comps (persisted)
     salesValue: v.number(),         // salesQuantity × unitPrice (persisted)
+    wasteQuantity: v.optional(v.number()),
+    wasteReason: v.optional(v.string()),
+    compQuantity: v.optional(v.number()),
+    compReason: v.optional(v.string()),
+    unitCostAtSale: v.optional(v.number()), // resolved cost snapshotted at write/finalize
+    cogsValue: v.optional(v.number()),      // disappeared qty × unitCostAtSale (persisted)
     isFinalized: v.boolean(),        // true after end-of-day reconciliation
     lastUpdatedAt: v.number(),         // epoch ms of last mutation
   })
@@ -1053,6 +1071,9 @@ export default defineSchema({
     weekNumber: v.optional(v.number()),
     totalQtySold: v.number(),
     totalRevenue: v.number(),
+    totalCogs: v.optional(v.number()),
+    totalWasteQty: v.optional(v.number()),
+    totalCompQty: v.optional(v.number()),
   })
     .index("by_propertyId", ["propertyId"])
     .index("by_barId_period", ["barId", "periodType", "periodKey"])

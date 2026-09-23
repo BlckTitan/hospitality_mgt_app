@@ -9,6 +9,7 @@ import { api } from '../../../../convex/_generated/api';
 import RoomTypes from './components/roomTypes';
 import BootstrapModal from '../../../../shared/modal';
 import { FormComponent } from './components/createRoomTypeForm';
+import { RoomPageGuide } from '../components/roomPageGuide';
 
 export default function RoomTypePage() {
   const [modalShow, setModalShow] = useState(false);
@@ -54,6 +55,7 @@ export default function RoomTypePage() {
         </div>
       </header>
 
+      <RoomPageGuide page="room-types" />
       <RoomTypes propertyId={currentPropertyId} />
 
       <ModalComponent

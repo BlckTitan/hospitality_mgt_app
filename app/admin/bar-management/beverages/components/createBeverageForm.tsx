@@ -17,6 +17,7 @@ type FormData = {
   category: BeverageCategory;
   unitOfMeasure: string;
   unitPrice: number;
+  unitCost?: number;
   reorderLevel: number;
   isActive: boolean;
 };
@@ -31,6 +32,7 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
       category: 'other',
       unitOfMeasure: '',
       unitPrice: 0,
+      unitCost: undefined,
       reorderLevel: 0,
       isActive: true,
     },
@@ -44,6 +46,7 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
         category: data.category,
         unitOfMeasure: data.unitOfMeasure,
         unitPrice: data.unitPrice,
+        unitCost: Number.isFinite(data.unitCost) ? data.unitCost : undefined,
         reorderLevel: data.reorderLevel,
         isActive: data.isActive,
       });
@@ -97,6 +100,10 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
 
       <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-1 mb-4">
         <InputComponent id="unitPrice" label="Unit Price *" type="number" inputWidth="w-full" register={register('unitPrice', { valueAsNumber: true })} error={errors.unitPrice} />
+      </div>
+
+      <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-1 mb-4">
+        <InputComponent id="unitCost" label="Unit Cost" type="number" inputWidth="w-full" register={register('unitCost', { valueAsNumber: true })} error={errors.unitCost} />
       </div>
 
       <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-1 mb-4">

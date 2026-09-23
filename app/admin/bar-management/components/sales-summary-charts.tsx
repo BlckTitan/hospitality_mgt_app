@@ -297,7 +297,7 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
 
   return (
     <div className="w-full">
-      <div className="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="mb-6 grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-4">
         <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
           <div className="text-sm text-blue-600 font-medium">Total Revenue</div>
           <div className="text-xl font-bold text-blue-800">
@@ -314,6 +314,46 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
               {formatYoY(yoyTrend?.revenueChange)}
             </div>
           )}
+        </div>
+        <div className="bg-emerald-50 p-4 rounded-lg border border-emerald-200">
+          <div className="text-sm text-emerald-600 font-medium">Gross Profit</div>
+          <div className="text-xl font-bold text-emerald-800">
+            {formatCurrency(
+              periodType === 'yoy'
+                ? (yoyTrend?.current.totalRevenue || 0) - (yoyTrend?.current.totalCogs || 0)
+                : (salesByBarData.data?.reduce((sum, item) => sum + item.totalRevenue, 0) || 0)
+                  - (salesByBarData.data?.reduce((sum, item) => sum + (item.totalCogs ?? 0), 0) || 0)
+            )}
+          </div>
+          {periodType === 'yoy' && (
+            <div className={`text-xs mt-1 ${
+              (yoyTrend?.profitChange ?? 0) >= 0 ? 'text-green-700' : 'text-red-700'
+            }`}>
+              {formatYoY(yoyTrend?.profitChange)}
+            </div>
+          )}
+        </div>
+        <div className="bg-teal-50 p-4 rounded-lg border border-teal-200">
+          <div className="text-sm text-teal-600 font-medium">Gross Margin</div>
+          <div className="text-xl font-bold text-teal-800">
+            {(() => {
+              const revenue = periodType === 'yoy'
+                ? yoyTrend?.current.totalRevenue || 0
+                : salesByBarData.data?.reduce((sum, item) => sum + item.totalRevenue, 0) || 0;
+              const cogs = periodType === 'yoy'
+                ? yoyTrend?.current.totalCogs || 0
+                : salesByBarData.data?.reduce((sum, item) => sum + (item.totalCogs ?? 0), 0) || 0;
+              if (revenue === 0) return '—';
+              return `${Math.round(((revenue - cogs) / revenue) * 100)}%`;
+            })()}
+          </div>
+          <div className="text-xs text-gray-600 mt-1">
+            {formatCurrency(
+              periodType === 'yoy'
+                ? yoyTrend?.current.totalCogs || 0
+                : salesByBarData.data?.reduce((sum, item) => sum + (item.totalCogs ?? 0), 0) || 0
+            )} COGS
+          </div>
         </div>
         <div className="bg-green-50 p-4 rounded-lg border border-green-200">
           <div className="text-sm text-green-600 font-medium">Total Quantity Sold</div>

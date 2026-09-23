@@ -13,7 +13,7 @@ import {
   SHIFT_DEPARTMENTS,
   staffForUser,
 } from './lib/shiftHelpers';
-import { refreshSalesSummariesForLogs } from './lib/barStock';
+import { computeCogsSnapshot, refreshSalesSummariesForLogs } from './lib/barStock';
 
 const departmentValidator = v.union(
   v.literal('front-office'),
@@ -364,15 +364,21 @@ export const finalizeShift = mutation({
           .query('userStockLogs')
           .withIndex('by_shiftId', (q) => q.eq('shiftId', args.shiftId))
           .collect();
+        const refreshed = [];
         for (const log of logs) {
+          const cogs = await computeCogsSnapshot(ctx, log);
           if (!log.isFinalized) {
             await ctx.db.patch(log._id, {
               isFinalized: true,
+              ...cogs,
               lastUpdatedAt: Date.now(),
             });
+          } else if (log.cogsValue === undefined || log.unitCostAtSale === undefined) {
+            await ctx.db.patch(log._id, cogs);
           }
+          refreshed.push({ ...log, ...cogs });
         }
-        await refreshSalesSummariesForLogs(ctx, logs);
+        await refreshSalesSummariesForLogs(ctx, refreshed);
       }
 
       const staff = await resolveStaffForShift(ctx, {

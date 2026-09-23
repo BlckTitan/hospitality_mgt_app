@@ -10,6 +10,8 @@ import { api } from "../../../../../convex/_generated/api";
 import { TableColumn } from "../../../../../shared/table";
 import PaginationComponent from "../../../../../shared/pagination";
 import { Id } from "../../../../../convex/_generated/dataModel";
+import { ReservationLifecycleActions, ReservationStatusBadge } from "./reservationLifecycle";
+import { formatPropertyMoney, usePropertyCurrency } from "../../../inventory-management/components/money";
 
 interface ReservationProps {
   _id: string;
@@ -46,6 +48,7 @@ interface ReservationProps {
 }
 
 const Reservations = ({ propertyId }: { propertyId: string }) => {
+  const currency = usePropertyCurrency(propertyId);
   const removeReservation = useMutation(api.reservations.deleteReservation);
 
   const handleDelete = async (id: string, confirmationNumber: string) => {
@@ -73,23 +76,6 @@ const Reservations = ({ propertyId }: { propertyId: string }) => {
 
   const formatDateTime = (timestamp: number) => {
     return new Date(timestamp).toLocaleString();
-  };
-
-  const getStatusBadge = (status: string) => {
-    const statusConfig: Record<string, { bg: string; text: string }> = {
-      'pending': { bg: 'bg-yellow-600', text: 'Pending' },
-      'confirmed': { bg: 'bg-blue-600', text: 'Confirmed' },
-      'checked-in': { bg: 'bg-green-600', text: 'Checked In' },
-      'checked-out': { bg: 'bg-gray-600', text: 'Checked Out' },
-      'cancelled': { bg: 'bg-red-600', text: 'Cancelled' },
-    };
-
-    const config = statusConfig[status] || { bg: 'bg-gray-400', text: status };
-    return (
-      <p className={`w-fit h-fit px-2 py-1 text-white rounded-sm ${config.bg}`}>
-        {config.text}
-      </p>
-    );
   };
 
   const tableColumns: TableColumn<ReservationProps>[] = [
@@ -130,13 +116,13 @@ const Reservations = ({ propertyId }: { propertyId: string }) => {
       label: 'Total Amount',
       key: 'totalAmount',
       render: (value, row) => (
-        <span>${row.totalAmount.toFixed(2)}</span>
+        <span>{formatPropertyMoney(row.totalAmount, currency)}</span>
       )
     },
     {
       label: 'Status',
       key: 'status',
-      render: (value, row) => getStatusBadge(row.status)
+      render: (value, row) => <ReservationStatusBadge status={row.status} />
     },
     {
       label: 'Created At',
@@ -149,24 +135,35 @@ const Reservations = ({ propertyId }: { propertyId: string }) => {
       label: 'Action',
       key: '_id',
       render: (value, row) => (
-        <div className='flex justify-evenly lg:justify-start items-center gap-1'>
-          <a
-            href={`/admin/room-management/reservation/edit?reservation_id=${row._id}`}
-            className='!mr-2 !no-underline !text-amber-400'
-          >
-            <i className='icon'><MdEditDocument /></i>
-          </a>
+        <div className='flex flex-col items-start gap-2'>
+          <ReservationLifecycleActions
+            reservationId={row._id as Id<'reservations'>}
+            status={row.status}
+            totalAmount={row.totalAmount}
+            depositAmount={row.depositAmount ?? 0}
+            currency={currency}
+            layout="compact"
+          />
+          <div className='flex justify-evenly lg:justify-start items-center gap-1'>
+            <a
+              href={`/admin/room-management/reservation/edit?reservation_id=${row._id}`}
+              className='!mr-2 !no-underline !text-amber-400'
+              title="Edit booking details"
+            >
+              <i className='icon'><MdEditDocument /></i>
+            </a>
 
-          <Button
-            variant='white'
-            onClick={() => handleDelete(row._id, row.confirmationNumber)}
-            title='Delete reservation'
-            disabled={row.status === 'checked-in' || row.status === 'checked-out'}
-          >
-            <i className='icon'>
-              <FcEmptyTrash />
-            </i>
-          </Button>
+            <Button
+              variant='white'
+              onClick={() => handleDelete(row._id, row.confirmationNumber)}
+              title='Delete reservation'
+              disabled={row.status === 'checked-in' || row.status === 'checked-out'}
+            >
+              <i className='icon'>
+                <FcEmptyTrash />
+              </i>
+            </Button>
+          </div>
         </div>
       ),
     },

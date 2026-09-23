@@ -8,6 +8,7 @@ import InputComponent from "../../../../../shared/input";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { api } from "../../../../../convex/_generated/api";
 import { useState, useEffect } from "react";
+import { formatPropertyMoney, usePropertyCurrency } from "../../../inventory-management/components/money";
 
 type FormData = {
   guestId: string;
@@ -18,13 +19,14 @@ type FormData = {
   rate: number;
   totalAmount: number;
   depositAmount?: number;
-  status: 'pending' | 'confirmed' | 'checked-in' | 'checked-out' | 'cancelled';
+  status: 'pending' | 'confirmed';
   source?: 'direct' | 'ota' | 'walk-in' | 'phone' | 'other';
   specialRequests?: string;
 };
 
 export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: () => void; onClose: () => void; propertyId: string }) {
   const createReservation = useMutation(api.reservations.createReservation);
+  const currency = usePropertyCurrency(propertyId);
   const guestsResponse = useQuery(api.guests.getAllGuests, { propertyId: propertyId as Id<'properties'> });
   const roomsResponse = useQuery(api.rooms.getAllRooms, { propertyId: propertyId as Id<'properties'> });
   
@@ -124,9 +126,6 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
   const statusOptions = [
     { value: 'pending', label: 'Pending' },
     { value: 'confirmed', label: 'Confirmed' },
-    { value: 'checked-in', label: 'Checked In' },
-    { value: 'checked-out', label: 'Checked Out' },
-    { value: 'cancelled', label: 'Cancelled' },
   ];
 
   const sourceOptions = [
@@ -219,7 +218,7 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
       {nights > 0 && (
         <div className="w-full mb-4 p-2 bg-blue-50 rounded">
           <p className="text-sm text-gray-700">
-            <strong>Nights:</strong> {nights} | <strong>Rate per night:</strong> ${watchRate.toFixed(2)} | <strong>Total:</strong> ${calculatedTotal.toFixed(2)}
+            <strong>Nights:</strong> {nights} | <strong>Rate per night:</strong> {formatPropertyMoney(watchRate, currency)} | <strong>Total:</strong> {formatPropertyMoney(calculatedTotal, currency)}
           </p>
         </div>
       )}
@@ -239,7 +238,7 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
 
         <InputComponent
           id='rate'
-          label='Rate per Night *'
+          label={`Rate per Night (${currency}) *`}
           type='number'
           inputWidth='w-1/2'
           register={register('rate', { valueAsNumber: true, required: true })}
@@ -253,7 +252,7 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
       >
         <InputComponent
           id='totalAmount'
-          label='Total Amount *'
+          label={`Total Amount (${currency}) *`}
           type='number'
           inputWidth='w-1/2'
           register={register('totalAmount', { valueAsNumber: true, required: true })}
@@ -262,7 +261,7 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
 
         <InputComponent
           id='depositAmount'
-          label='Deposit Amount'
+          label={`Deposit Amount (${currency})`}
           type='number'
           inputWidth='w-1/2'
           register={register('depositAmount', { valueAsNumber: true })}
@@ -275,7 +274,7 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
         [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4'
       >
         <div className="flex-1">
-          <label htmlFor="status" className="block text-sm font-medium mb-1">Status *</label>
+          <label htmlFor="status" className="block text-sm font-medium mb-1">Booking status *</label>
           <select
             id="status"
             {...register('status', { required: true })}
@@ -288,6 +287,7 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
               </option>
             ))}
           </select>
+          <span className="text-xs text-gray-500">Check-in and check-out happen after the booking is saved.</span>
           {errors.status && <span className="text-red-500 text-sm">{errors.status.message}</span>}
         </div>
         <div className="flex-1">

@@ -54,14 +54,91 @@ export async function lastFinalizedClosingStock(
   return finalized?.closingStock ?? 0;
 }
 
-function derivedSales(totalStock: number, closingStock: number, unitPrice: number) {
-  const salesQuantity = totalStock - closingStock;
-  if (salesQuantity < 0) {
+export function resolveUnitCost(unitCost?: number | null): number {
+  return typeof unitCost === "number" && Number.isFinite(unitCost) && unitCost >= 0
+    ? unitCost
+    : 0;
+}
+
+export function recipeLineCost(quantity: number, unitCost: number, wastePercent?: number): number {
+  const waste = typeof wastePercent === "number" && wastePercent > 0 ? wastePercent / 100 : 0;
+  return quantity * unitCost * (1 + waste);
+}
+
+export async function resolveBeverageUnitCost(
+  ctx: DbCtx,
+  beverage: Doc<"beverages"> | null | undefined,
+): Promise<number> {
+  if (!beverage) return 0;
+
+  const recipeLines = await ctx.db
+    .query("beverageRecipeLines")
+    .withIndex("by_beverageId", (q) => q.eq("beverageId", beverage._id))
+    .collect();
+  if (recipeLines.length > 0) {
+    let cost = 0;
+    for (const line of recipeLines) {
+      const item = await ctx.db.get(line.inventoryItemId);
+      cost += recipeLineCost(line.quantity, resolveUnitCost(item?.unitCost), line.wastePercent);
+    }
+    return cost;
+  }
+
+  if (beverage.inventoryItemId) {
+    const item = await ctx.db.get(beverage.inventoryItemId);
+    if (item && item.unitCost !== undefined && item.unitCost !== null) {
+      return resolveUnitCost(item.unitCost);
+    }
+  }
+
+  return resolveUnitCost(beverage.unitCost);
+}
+
+export function derivedSales(
+  totalStock: number,
+  closingStock: number,
+  unitPrice: number,
+  unitCost: number,
+  wasteQuantity = 0,
+  compQuantity = 0,
+) {
+  const disappeared = totalStock - closingStock;
+  if (disappeared < 0) {
     throw new Error("Closing stock cannot be greater than total stock");
   }
+  const waste = resolveUnitCost(wasteQuantity);
+  const comps = resolveUnitCost(compQuantity);
+  if (waste + comps > disappeared) {
+    throw new Error("Waste and comps cannot exceed stock that disappeared");
+  }
+  const salesQuantity = disappeared - waste - comps;
   return {
     salesQuantity,
     salesValue: salesQuantity * unitPrice,
+    wasteQuantity: waste,
+    compQuantity: comps,
+    unitCostAtSale: unitCost,
+    cogsValue: disappeared * unitCost,
+  };
+}
+
+export async function computeCogsSnapshot(
+  ctx: DbCtx,
+  log: Pick<
+    Doc<"userStockLogs">,
+    "beverageId" | "salesQuantity" | "wasteQuantity" | "compQuantity" | "unitCostAtSale" | "cogsValue"
+  >,
+): Promise<{ unitCostAtSale: number; cogsValue: number }> {
+  if (log.unitCostAtSale !== undefined && log.cogsValue !== undefined) {
+    return { unitCostAtSale: log.unitCostAtSale, cogsValue: log.cogsValue };
+  }
+  const beverage = await ctx.db.get(log.beverageId);
+  const unitCostAtSale = log.unitCostAtSale ?? (await resolveBeverageUnitCost(ctx, beverage));
+  const disappeared =
+    log.salesQuantity + (log.wasteQuantity ?? 0) + (log.compQuantity ?? 0);
+  return {
+    unitCostAtSale,
+    cogsValue: log.cogsValue ?? disappeared * unitCostAtSale,
   };
 }
 
@@ -75,6 +152,7 @@ export async function applyIssuedQtyToStockLog(
     logDate: string;
     qty: number;
     unitPrice: number;
+    unitCost?: number;
   },
 ): Promise<void> {
   if (args.qty === 0) return;
@@ -101,7 +179,14 @@ export async function applyIssuedQtyToStockLog(
     const totalStock = existing.openingStock + newStockReceived;
     const countedClosing = existing.closingStock !== existing.totalStock;
     const closingStock = countedClosing ? existing.closingStock : totalStock;
-    const sales = derivedSales(totalStock, closingStock, args.unitPrice);
+    const sales = derivedSales(
+      totalStock,
+      closingStock,
+      args.unitPrice,
+      resolveUnitCost(args.unitCost),
+      existing.wasteQuantity,
+      existing.compQuantity,
+    );
     await ctx.db.patch(existing._id, {
       newStockReceived,
       totalStock,
@@ -117,6 +202,9 @@ export async function applyIssuedQtyToStockLog(
       logDate: existing.logDate,
       salesQuantity: sales.salesQuantity,
       salesValue: sales.salesValue,
+      cogsValue: sales.cogsValue,
+      wasteQuantity: sales.wasteQuantity,
+      compQuantity: sales.compQuantity,
     });
     return;
   }
@@ -153,6 +241,10 @@ export async function applyIssuedQtyToStockLog(
     closingStock: totalStock,
     salesQuantity: 0,
     salesValue: 0,
+    wasteQuantity: 0,
+    compQuantity: 0,
+    unitCostAtSale: resolveUnitCost(args.unitCost),
+    cogsValue: 0,
     isFinalized: false,
     lastUpdatedAt: Date.now(),
   });
@@ -164,6 +256,9 @@ export async function applyIssuedQtyToStockLog(
     logDate: args.logDate,
     salesQuantity: 0,
     salesValue: 0,
+    cogsValue: 0,
+    wasteQuantity: 0,
+    compQuantity: 0,
   });
 }
 
@@ -410,17 +505,24 @@ export async function upsertSalesSummaryDoc(
     weekNumber?: number;
     totalQtySold: number;
     totalRevenue: number;
+    totalCogs?: number;
+    totalWasteQty?: number;
+    totalCompQty?: number;
   },
 ) {
   const existing = await findSalesSummary(ctx, args);
+  const totals = {
+    totalQtySold: args.totalQtySold,
+    totalRevenue: args.totalRevenue,
+    totalCogs: args.totalCogs ?? 0,
+    totalWasteQty: args.totalWasteQty ?? 0,
+    totalCompQty: args.totalCompQty ?? 0,
+  };
   if (existing) {
-    await ctx.db.patch(existing._id, {
-      totalQtySold: args.totalQtySold,
-      totalRevenue: args.totalRevenue,
-    });
+    await ctx.db.patch(existing._id, totals);
     return existing._id;
   }
-  return await ctx.db.insert("salesSummaries", args);
+  return await ctx.db.insert("salesSummaries", { ...args, ...totals });
 }
 
 type SummaryLog = {
@@ -431,6 +533,9 @@ type SummaryLog = {
   logDate: string;
   salesQuantity: number;
   salesValue: number;
+  cogsValue?: number;
+  wasteQuantity?: number;
+  compQuantity?: number;
 };
 
 async function sumDailySummaries(
@@ -445,6 +550,9 @@ async function sumDailySummaries(
 ) {
   let totalQtySold = 0;
   let totalRevenue = 0;
+  let totalCogs = 0;
+  let totalWasteQty = 0;
+  let totalCompQty = 0;
   for (const periodKey of args.dayKeys) {
     const row = await findSalesSummary(ctx, {
       propertyId: args.propertyId,
@@ -457,8 +565,11 @@ async function sumDailySummaries(
     if (!row) continue;
     totalQtySold += row.totalQtySold;
     totalRevenue += row.totalRevenue;
+    totalCogs += row.totalCogs ?? 0;
+    totalWasteQty += row.totalWasteQty ?? 0;
+    totalCompQty += row.totalCompQty ?? 0;
   }
-  return { totalQtySold, totalRevenue };
+  return { totalQtySold, totalRevenue, totalCogs, totalWasteQty, totalCompQty };
 }
 
 export async function refreshSalesSummariesForLog(
@@ -489,6 +600,9 @@ export async function refreshSalesSummariesForLog(
     weekNumber: week,
     totalQtySold: log.salesQuantity,
     totalRevenue: log.salesValue,
+    totalCogs: log.cogsValue ?? 0,
+    totalWasteQty: log.wasteQuantity ?? 0,
+    totalCompQty: log.compQuantity ?? 0,
   });
 
   const weekly = await sumDailySummaries(ctx, {
@@ -503,6 +617,9 @@ export async function refreshSalesSummariesForLog(
     weekNumber: week,
     totalQtySold: weekly.totalQtySold,
     totalRevenue: weekly.totalRevenue,
+    totalCogs: weekly.totalCogs,
+    totalWasteQty: weekly.totalWasteQty,
+    totalCompQty: weekly.totalCompQty,
   });
 
   const monthly = await sumDailySummaries(ctx, {
@@ -517,10 +634,16 @@ export async function refreshSalesSummariesForLog(
     month,
     totalQtySold: monthly.totalQtySold,
     totalRevenue: monthly.totalRevenue,
+    totalCogs: monthly.totalCogs,
+    totalWasteQty: monthly.totalWasteQty,
+    totalCompQty: monthly.totalCompQty,
   });
 
   let yearlyQty = 0;
   let yearlyRevenue = 0;
+  let yearlyCogs = 0;
+  let yearlyWaste = 0;
+  let yearlyComp = 0;
   for (let monthIndex = 1; monthIndex <= 12; monthIndex += 1) {
     const row = await findSalesSummary(ctx, {
       ...identity,
@@ -530,6 +653,9 @@ export async function refreshSalesSummariesForLog(
     if (!row) continue;
     yearlyQty += row.totalQtySold;
     yearlyRevenue += row.totalRevenue;
+    yearlyCogs += row.totalCogs ?? 0;
+    yearlyWaste += row.totalWasteQty ?? 0;
+    yearlyComp += row.totalCompQty ?? 0;
   }
   await upsertSalesSummaryDoc(ctx, {
     ...identity,
@@ -538,6 +664,9 @@ export async function refreshSalesSummariesForLog(
     year,
     totalQtySold: yearlyQty,
     totalRevenue: yearlyRevenue,
+    totalCogs: yearlyCogs,
+    totalWasteQty: yearlyWaste,
+    totalCompQty: yearlyComp,
   });
 }
 

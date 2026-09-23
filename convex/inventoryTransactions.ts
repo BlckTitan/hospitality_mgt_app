@@ -4,7 +4,7 @@ import { requirePermission } from './lib/rbac';
 import { maybeCreateRestockTask } from './lib/taskAssignment';
 import { MutationCtx } from './_generated/server';
 import { Id } from './_generated/dataModel';
-import { postInventoryTransaction, quantityChangeForType } from './lib/inventoryStock';
+import { postInventoryTransaction, quantityChangeForType, weightedAverageCost } from './lib/inventoryStock';
 
 async function restockIfNeeded(ctx: MutationCtx, inventoryItemId: Id<'inventoryItems'>) {
   const item = await ctx.db.get(inventoryItemId);
@@ -225,20 +225,27 @@ export const updateInventoryTransaction = mutation({
         transactionDate: args.transactionDate,
       });
 
-      // Update inventory item quantity
-      await ctx.db.patch(existingTransaction.inventoryItemId, {
+      const qtyAfterReverse = inventoryItem.currentQuantity + oldQuantityChange;
+      const itemPatch: {
+        currentQuantity: number;
+        updatedAt: number;
+        unitCost?: number;
+        lastCostUpdate?: number;
+      } = {
         currentQuantity: newQuantity,
         updatedAt: now,
-      });
-      await restockIfNeeded(ctx, existingTransaction.inventoryItemId);
-
-      // Update unit cost if it's a purchase transaction
+      };
       if (args.transactionType === 'purchase' && args.unitCost !== undefined && args.unitCost !== null) {
-        await ctx.db.patch(existingTransaction.inventoryItemId, {
-          unitCost: args.unitCost,
-          lastCostUpdate: now,
-        });
+        itemPatch.unitCost = weightedAverageCost(
+          qtyAfterReverse,
+          inventoryItem.unitCost ?? 0,
+          Math.abs(args.quantity),
+          args.unitCost,
+        );
+        itemPatch.lastCostUpdate = now;
       }
+      await ctx.db.patch(existingTransaction.inventoryItemId, itemPatch);
+      await restockIfNeeded(ctx, existingTransaction.inventoryItemId);
 
       return { success: true, message: 'Inventory transaction updated successfully' };
     } catch (error) {

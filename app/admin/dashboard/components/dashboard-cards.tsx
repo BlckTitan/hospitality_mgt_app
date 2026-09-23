@@ -332,9 +332,10 @@ export function FnBCard({
 
   return (
     <CardShell href="/admin/bar-management" linkLabel="Bar management">
-      <KpiGrid className="md:grid-cols-2 lg:grid-cols-4">
+      <KpiGrid className="md:grid-cols-2 lg:grid-cols-5">
         <Kpi label="Qty sold" value={data.totalQtySold} />
         <Kpi label="Revenue" value={formatPropertyMoney(data.totalRevenue, currency)} />
+        <Kpi label="Gross profit" value={formatPropertyMoney(data.grossProfit ?? (data.totalRevenue - (data.totalCogs ?? 0)), currency)} />
         <Kpi label="Open logs" value={data.openLogCount} />
         <Kpi
           label="Reorder alerts"

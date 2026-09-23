@@ -45,8 +45,8 @@ const sharedReservationFields = {
 
   status: yup
     .string()
-    .oneOf(["pending", "confirmed", "checked-in", "checked-out", "cancelled"], "Invalid status")
-    .required("Status is required"),
+    .oneOf(["pending", "confirmed"], "Choose pending or confirmed")
+    .required("Booking status is required"),
 
   source: yup
     .string()
@@ -77,5 +77,12 @@ export const editFormSchema = yup.object().shape({
     .required("Check-in date is required")
     .typeError("Please enter a valid date"),
 
-  ...sharedReservationFields,
+  roomId: sharedReservationFields.roomId,
+  checkOutDate: sharedReservationFields.checkOutDate,
+  numberOfGuests: sharedReservationFields.numberOfGuests,
+  rate: sharedReservationFields.rate,
+  totalAmount: sharedReservationFields.totalAmount,
+  depositAmount: sharedReservationFields.depositAmount,
+  source: sharedReservationFields.source,
+  specialRequests: sharedReservationFields.specialRequests,
 });

@@ -117,6 +117,8 @@ export function EditUserStockLogForm({ stockLogData, stockLogId, onSuccess, onCl
             <p className="text-sm">Total Stock: <span className="font-bold">{totalStock}</span></p>
             <p className="text-sm">Sales Quantity: <span className="font-bold">{salesQuantity}</span></p>
             <p className="text-sm">Sales Value: <span className="font-bold">${salesQuantity * (stockLogData.beverage?.unitPrice || 0)}</span></p>
+            <p className="text-sm">COGS: <span className="font-bold">${salesQuantity * (stockLogData.beverage?.unitCost || 0)}</span></p>
+            <p className="text-sm">Gross Profit: <span className="font-bold">${salesQuantity * ((stockLogData.beverage?.unitPrice || 0) - (stockLogData.beverage?.unitCost || 0))}</span></p>
             {salesQuantity < 0 && <p className="text-red-500 text-sm">Warning: Closing stock exceeds total stock!</p>}
           </div>
         </div>

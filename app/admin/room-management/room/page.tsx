@@ -9,6 +9,7 @@ import { FormComponent } from './components/createRoomForm';
 import { useQuery } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 import BootstrapModal from '../../../../shared/modal';
+import { RoomPageGuide } from '../components/roomPageGuide';
 
 export default function RoomPage() {
   const [modalShow, setModalShow] = useState(false);
@@ -54,6 +55,7 @@ export default function RoomPage() {
         </div>
       </header>
 
+      <RoomPageGuide page="rooms" />
       <Rooms currentPropertyId={currentPropertyId}/>
 
       <ModalComponent

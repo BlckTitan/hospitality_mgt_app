@@ -87,6 +87,7 @@ async function rollupDailiesForKeys(
       beverageId: Id<'beverages'>;
       totalQtySold: number;
       totalRevenue: number;
+      totalCogs: number;
     }
   >();
 
@@ -109,9 +110,11 @@ async function rollupDailiesForKeys(
         beverageId: row.beverageId,
         totalQtySold: 0,
         totalRevenue: 0,
+        totalCogs: 0,
       };
       current.totalQtySold += row.totalQtySold;
       current.totalRevenue += row.totalRevenue;
+      current.totalCogs += row.totalCogs ?? 0;
       grouped.set(key, current);
     }
   }
@@ -129,6 +132,7 @@ async function rollupDailiesForKeys(
       weekNumber: args.weekNumber,
       totalQtySold: group.totalQtySold,
       totalRevenue: group.totalRevenue,
+      totalCogs: group.totalCogs,
     });
   }
 }
@@ -226,6 +230,7 @@ export const aggregateYearlySummaries = internalMutation({
           beverageId: Id<'beverages'>;
           totalQtySold: number;
           totalRevenue: number;
+          totalCogs: number;
         }
       >();
 
@@ -247,9 +252,11 @@ export const aggregateYearlySummaries = internalMutation({
             beverageId: row.beverageId,
             totalQtySold: 0,
             totalRevenue: 0,
+            totalCogs: 0,
           };
           current.totalQtySold += row.totalQtySold;
           current.totalRevenue += row.totalRevenue;
+          current.totalCogs += row.totalCogs ?? 0;
           grouped.set(key, current);
         }
       }
@@ -265,6 +272,7 @@ export const aggregateYearlySummaries = internalMutation({
           year: lastYear,
           totalQtySold: group.totalQtySold,
           totalRevenue: group.totalRevenue,
+          totalCogs: group.totalCogs,
         });
       }
     }

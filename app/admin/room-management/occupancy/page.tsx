@@ -1,12 +1,12 @@
 'use client';
 
-import { BackLink } from '../../../shared/pageHeader';
+import { BackLink } from '../../../../shared/pageHeader';
 import { useQuery } from 'convex/react';
-import { api } from '../../../convex/_generated/api';
-import { OccupancyCalendar } from './occupancy/occupancyCalendar';
-import { RoomPageGuide } from './components/roomPageGuide';
+import { api } from '../../../../convex/_generated/api';
+import { OccupancyCalendar } from './occupancyCalendar';
+import { RoomPageGuide } from '../components/roomPageGuide';
 
-export default function RoomManagementPage() {
+export default function OccupancyPage() {
   const propertiesResponse = useQuery(api.property.getAllProperties);
   const currentPropertyId = propertiesResponse?.data?.[0]?._id;
 
@@ -20,11 +20,7 @@ export default function RoomManagementPage() {
 
   if (propertiesResponse.data.length === 0 || !currentPropertyId) {
     return (
-      <div className="w-full p-4 bg-white">
-        <header className="w-full border-b flex justify-between items-center mb-4">
-          <h3>Room Management</h3>
-          <BackLink />
-        </header>
+      <div className="w-full h-full flex justify-center items-center">
         <p className="text-xl">No properties yet!</p>
       </div>
     );
@@ -36,7 +32,7 @@ export default function RoomManagementPage() {
         <h3>Occupancy</h3>
         <BackLink />
       </header>
-      <RoomPageGuide page="hub" />
+      <RoomPageGuide page="occupancy" />
       <OccupancyCalendar propertyId={currentPropertyId} />
     </div>
   );

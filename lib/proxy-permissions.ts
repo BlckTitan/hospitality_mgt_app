@@ -38,6 +38,7 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermission> = {
 
   // Room Management & Reservations
   '/admin/room-management': { granular: 'reservations.read' },
+  '/admin/room-management/occupancy': { granular: ['reservations.read', 'rooms.read'] },
   '/admin/room-management/room-type': { granular: 'rooms.read' },
   '/admin/room-management/room': { granular: 'rooms.read' },
   '/admin/room-management/reservation': { granular: 'reservations.read' },

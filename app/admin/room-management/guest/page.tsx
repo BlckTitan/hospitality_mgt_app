@@ -9,6 +9,7 @@ import { api } from '../../../../convex/_generated/api';
 import BootstrapModal from '../../../../shared/modal';
 import Guests from './components/guests';
 import { FormComponent } from './components/createGuestForm';
+import { RoomPageGuide } from '../components/roomPageGuide';
 
 export default function GuestPage() {
   const [modalShow, setModalShow] = useState(false);
@@ -54,6 +55,7 @@ export default function GuestPage() {
         </div>
       </header>
 
+      <RoomPageGuide page="guests" />
       <Guests propertyId={currentPropertyId} />
 
       <ModalComponent

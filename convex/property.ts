@@ -74,6 +74,18 @@ export const getProperty = query({
   },
 });
 
+export const getPropertyCurrency = query({
+  args: { propertyId: v.id('properties') },
+  handler: async (ctx, args) => {
+    const authContext = await getAuthContext(ctx);
+    if (!authContext?.propertyIds.includes(args.propertyId)) {
+      return 'USD';
+    }
+    const property = await ctx.db.get(args.propertyId);
+    return property?.currency || 'USD';
+  },
+});
+
 export const createProperty = mutation({
   args: {
     name: v.string(),

@@ -18,6 +18,7 @@ interface BeverageProps {
   category: string;
   unitOfMeasure: string;
   unitPrice: number;
+  unitCost?: number;
   reorderLevel: number;
   isActive: boolean;
   _creationTime: number;
@@ -70,6 +71,18 @@ const Beverages = ({ currentPropertyId }: { currentPropertyId: Id<"properties"> 
       render: (value) => {
         const currency = propertyData?.success ? propertyData.data?.currency : 'USD';
         const symbol = getCurrencySymbol(currency);
+        return <span>{symbol}{Number(value).toFixed(2)}</span>;
+      }
+    },
+    {
+      label: 'Unit Cost',
+      key: 'unitCost',
+      render: (value) => {
+        const currency = propertyData?.success ? propertyData.data?.currency : 'USD';
+        const symbol = getCurrencySymbol(currency);
+        if (value === undefined || value === null || Number.isNaN(Number(value))) {
+          return <span className="text-gray-400">—</span>;
+        }
         return <span>{symbol}{Number(value).toFixed(2)}</span>;
       }
     },

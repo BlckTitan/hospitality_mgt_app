@@ -35,6 +35,7 @@ async function sumPeriod(
   return {
     totalQtySold: rows.reduce((sum, row) => sum + row.totalQtySold, 0),
     totalRevenue: rows.reduce((sum, row) => sum + row.totalRevenue, 0),
+    totalCogs: rows.reduce((sum, row) => sum + (row.totalCogs ?? 0), 0),
   };
 }
 
@@ -45,12 +46,14 @@ async function sumDailyKeys(
 ) {
   let totalQtySold = 0;
   let totalRevenue = 0;
+  let totalCogs = 0;
   for (const periodKey of dayKeys) {
     const totals = await sumPeriod(ctx, propertyId, 'daily', periodKey);
     totalQtySold += totals.totalQtySold;
     totalRevenue += totals.totalRevenue;
+    totalCogs += totals.totalCogs;
   }
-  return { totalQtySold, totalRevenue };
+  return { totalQtySold, totalRevenue, totalCogs };
 }
 
 export const getSalesSummaries = query({
@@ -143,6 +146,7 @@ export const getSalesByBarPeriod = query({
             barId,
             totalQtySold: 0,
             totalRevenue: 0,
+            totalCogs: 0,
             periodType: summary.periodType,
             periodKey: summary.periodKey,
           });
@@ -151,6 +155,7 @@ export const getSalesByBarPeriod = query({
         const aggregate = barAggregates.get(barId);
         aggregate.totalQtySold += summary.totalQtySold;
         aggregate.totalRevenue += summary.totalRevenue;
+        aggregate.totalCogs += summary.totalCogs ?? 0;
       });
 
       // Fetch bar details
@@ -202,6 +207,7 @@ export const getSalesByUserPeriod = query({
             userId,
             totalQtySold: 0,
             totalRevenue: 0,
+            totalCogs: 0,
             periodType: summary.periodType,
             periodKey: summary.periodKey,
           });
@@ -210,6 +216,7 @@ export const getSalesByUserPeriod = query({
         const aggregate = userAggregates.get(userId);
         aggregate.totalQtySold += summary.totalQtySold;
         aggregate.totalRevenue += summary.totalRevenue;
+        aggregate.totalCogs += summary.totalCogs ?? 0;
       });
 
       // Fetch user details
@@ -296,12 +303,14 @@ export const getYearOnYearComparison = query({
               year,
               totalQtySold: 0,
               totalRevenue: 0,
+              totalCogs: 0,
             });
           }
           
           const group = grouped.get(periodKey);
           group.totalQtySold += summary.totalQtySold;
           group.totalRevenue += summary.totalRevenue;
+          group.totalCogs += summary.totalCogs ?? 0;
         });
         
         return Array.from(grouped.values());
@@ -343,8 +352,10 @@ export const getYearOnYearOverview = query({
     const monthly = [];
     let currentRevenue = 0;
     let currentQty = 0;
+    let currentCogs = 0;
     let previousRevenue = 0;
     let previousQty = 0;
+    let previousCogs = 0;
 
     for (let month = 1; month <= 12; month += 1) {
       const mm = String(month).padStart(2, '0');
@@ -363,8 +374,10 @@ export const getYearOnYearOverview = query({
 
       let currentMonthRevenue = currentRows.reduce((sum, row) => sum + row.totalRevenue, 0);
       let currentMonthQty = currentRows.reduce((sum, row) => sum + row.totalQtySold, 0);
+      let currentMonthCogs = currentRows.reduce((sum, row) => sum + (row.totalCogs ?? 0), 0);
       let previousMonthRevenue = previousRows.reduce((sum, row) => sum + row.totalRevenue, 0);
       let previousMonthQty = previousRows.reduce((sum, row) => sum + row.totalQtySold, 0);
+      let previousMonthCogs = previousRows.reduce((sum, row) => sum + (row.totalCogs ?? 0), 0);
 
       if (month === throughMonth) {
         const currentMtd = await sumDailyKeys(
@@ -379,15 +392,19 @@ export const getYearOnYearOverview = query({
         );
         currentMonthRevenue = currentMtd.totalRevenue;
         currentMonthQty = currentMtd.totalQtySold;
+        currentMonthCogs = currentMtd.totalCogs;
         previousMonthRevenue = previousMtd.totalRevenue;
         previousMonthQty = previousMtd.totalQtySold;
+        previousMonthCogs = previousMtd.totalCogs;
       }
 
       if (month <= throughMonth) {
         currentRevenue += currentMonthRevenue;
         currentQty += currentMonthQty;
+        currentCogs += currentMonthCogs;
         previousRevenue += previousMonthRevenue;
         previousQty += previousMonthQty;
+        previousCogs += previousMonthCogs;
       }
 
       monthly.push({
@@ -397,8 +414,13 @@ export const getYearOnYearOverview = query({
         previousRevenue: previousMonthRevenue,
         currentQty: currentMonthQty,
         previousQty: previousMonthQty,
+        currentCogs: currentMonthCogs,
+        previousCogs: previousMonthCogs,
       });
     }
+
+    const currentProfit = currentRevenue - currentCogs;
+    const previousProfit = previousRevenue - previousCogs;
 
     return {
       success: true,
@@ -406,10 +428,11 @@ export const getYearOnYearOverview = query({
         thisYear,
         lastYear,
         throughMonth,
-        current: { totalRevenue: currentRevenue, totalQtySold: currentQty },
-        previous: { totalRevenue: previousRevenue, totalQtySold: previousQty },
+        current: { totalRevenue: currentRevenue, totalQtySold: currentQty, totalCogs: currentCogs },
+        previous: { totalRevenue: previousRevenue, totalQtySold: previousQty, totalCogs: previousCogs },
         revenueChange: percentChange(currentRevenue, previousRevenue),
         qtyChange: percentChange(currentQty, previousQty),
+        profitChange: percentChange(currentProfit, previousProfit),
         monthly,
       },
     };
@@ -452,6 +475,7 @@ export const getRevenueTrend = query({
         periodKey,
         totalQtySold: totals.totalQtySold,
         totalRevenue: totals.totalRevenue,
+        totalCogs: totals.totalCogs,
       });
     }
 
@@ -472,6 +496,7 @@ export const upsertSalesSummary = internalMutation({
     weekNumber: v.optional(v.number()),
     totalQtySold: v.number(),
     totalRevenue: v.number(),
+    totalCogs: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const id = await upsertSalesSummaryDoc(ctx, args);

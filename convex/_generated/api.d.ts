@@ -46,6 +46,7 @@ import type * as lib_taskAssignment from "../lib/taskAssignment.js";
 import type * as lib_userIdentity from "../lib/userIdentity.js";
 import type * as lib_userRoleAssignment from "../lib/userRoleAssignment.js";
 import type * as maintenanceOrders from "../maintenanceOrders.js";
+import type * as occupancy from "../occupancy.js";
 import type * as payrollConfig from "../payrollConfig.js";
 import type * as payrolls from "../payrolls.js";
 import type * as property from "../property.js";
@@ -120,6 +121,7 @@ declare const fullApi: ApiFromModules<{
   "lib/userIdentity": typeof lib_userIdentity;
   "lib/userRoleAssignment": typeof lib_userRoleAssignment;
   maintenanceOrders: typeof maintenanceOrders;
+  occupancy: typeof occupancy;
   payrollConfig: typeof payrollConfig;
   payrolls: typeof payrolls;
   property: typeof property;

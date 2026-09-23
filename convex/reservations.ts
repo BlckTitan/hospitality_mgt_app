@@ -115,6 +115,13 @@ export const getReservation = query({
       const room = await ctx.db.get(reservation.roomId);
       const roomType = room ? await ctx.db.get(room.roomTypeId) : null;
       const property = await ctx.db.get(reservation.propertyId);
+      const payments = await ctx.db
+        .query('payments')
+        .withIndex('by_reference', (q) =>
+          q.eq('referenceType', 'Reservation').eq('referenceId', args.reservationId),
+        )
+        .collect();
+      const paidTotal = payments.reduce((sum, row) => sum + row.amount, 0);
 
       return {
         success: true,
@@ -123,6 +130,8 @@ export const getReservation = query({
           guest,
           room: room ? { ...room, roomType } : null,
           property,
+          payments,
+          paidTotal,
         },
       };
     } catch (error) {
@@ -143,12 +152,12 @@ export const createReservation = mutation({
     rate: v.number(),
     totalAmount: v.number(),
     depositAmount: v.optional(v.number()),
-    status: v.union(v.literal("pending"), v.literal("confirmed"), v.literal("checked-in"), v.literal("checked-out"), v.literal("cancelled")),
+    status: v.union(v.literal('pending'), v.literal('confirmed')),
     source: v.optional(v.union(v.literal("direct"), v.literal("ota"), v.literal("walk-in"), v.literal("phone"), v.literal("other"))),
     specialRequests: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const auth = await requirePermission(ctx, 'reservations.create', args.propertyId);
+    await requirePermission(ctx, 'reservations.create', args.propertyId);
     try {
       if (args.checkOutDate <= args.checkInDate) {
         return { success: false, message: 'Check-out date must be after check-in date' };
@@ -209,21 +218,11 @@ export const createReservation = mutation({
         status: args.status,
         source: args.source,
         specialRequests: args.specialRequests,
-        checkedInAt: args.status === 'checked-in' ? now : undefined,
-        checkedOutAt: args.status === 'checked-out' ? now : undefined,
         createdAt: now,
         updatedAt: now,
       });
 
       await syncRoomOccupancy(ctx, args.roomId);
-
-      const created = await ctx.db.get(reservationId);
-      if (created && args.status === 'checked-in') {
-        await maybeCreateStayoverOnCheckIn(ctx, created, auth.user._id);
-      }
-      if (created && args.status === 'checked-out') {
-        await maybeCreateCheckoutOnCheckOut(ctx, created, auth.user._id);
-      }
 
       return { success: true, message: 'Reservation created successfully', id: reservationId, confirmationNumber };
     } catch (error) {
@@ -232,6 +231,39 @@ export const createReservation = mutation({
     }
   },
 });
+
+const paymentMethodValidator = v.union(
+  v.literal('cash'),
+  v.literal('card'),
+  v.literal('bank_transfer'),
+  v.literal('other'),
+);
+
+async function recordReservationPayment(
+  ctx: MutationCtx,
+  args: {
+    propertyId: Id<'properties'>;
+    reservationId: Id<'reservations'>;
+    amount: number;
+    paymentMethod: 'cash' | 'card' | 'bank_transfer' | 'other';
+    createdBy: Id<'users'>;
+  },
+) {
+  if (!Number.isFinite(args.amount) || args.amount <= 0) return;
+  const now = Date.now();
+  await ctx.db.insert('payments', {
+    propertyId: args.propertyId,
+    paymentType: 'reservation',
+    referenceType: 'Reservation',
+    referenceId: args.reservationId,
+    amount: args.amount,
+    paymentMethod: args.paymentMethod,
+    status: 'completed',
+    paidAt: now,
+    createdBy: args.createdBy,
+    createdAt: now,
+  });
+}
 
 export const updateReservation = mutation({
   args: {
@@ -243,7 +275,6 @@ export const updateReservation = mutation({
     rate: v.number(),
     totalAmount: v.number(),
     depositAmount: v.optional(v.number()),
-    status: v.union(v.literal("pending"), v.literal("confirmed"), v.literal("checked-in"), v.literal("checked-out"), v.literal("cancelled")),
     source: v.optional(v.union(v.literal("direct"), v.literal("ota"), v.literal("walk-in"), v.literal("phone"), v.literal("other"))),
     specialRequests: v.optional(v.string()),
   },
@@ -254,9 +285,13 @@ export const updateReservation = mutation({
       return { success: false, message: 'Reservation does not exist' };
     }
 
-    const auth = await requirePermission(ctx, 'reservations.update', existingReservation.propertyId);
+    await requirePermission(ctx, 'reservations.update', existingReservation.propertyId);
 
     try {
+      if (existingReservation.status === 'checked-out' || existingReservation.status === 'cancelled') {
+        return { success: false, message: 'Checked-out or cancelled reservations cannot be edited' };
+      }
+
       if (args.checkOutDate <= args.checkInDate) {
         return { success: false, message: 'Check-out date must be after check-in date' };
       }
@@ -272,13 +307,9 @@ export const updateReservation = mutation({
         return { success: false, message: 'Room is inactive' };
       }
       const stayingInSameRoom =
-        existingReservation.roomId === args.roomId &&
-        existingReservation.status === 'checked-in' &&
-        args.status === 'checked-in';
+        existingReservation.roomId === args.roomId && existingReservation.status === 'checked-in';
       if (
         (room.status === 'out-of-order' || room.status === 'maintenance') &&
-        args.status !== 'cancelled' &&
-        args.status !== 'checked-out' &&
         !stayingInSameRoom
       ) {
         return { success: false, message: 'Room is not available for booking' };
@@ -289,7 +320,7 @@ export const updateReservation = mutation({
         return { success: false, message: `Guest count exceeds max occupancy (${roomType.maxOccupancy})` };
       }
 
-      if (isBlockingStatus(args.status)) {
+      if (isBlockingStatus(existingReservation.status)) {
         const overlappingReservation = await findOverlappingReservation(ctx, {
           roomId: args.roomId,
           checkInDate: args.checkInDate,
@@ -302,7 +333,7 @@ export const updateReservation = mutation({
       }
 
       const now = Date.now();
-      const updateData: Record<string, unknown> = {
+      await ctx.db.patch(args.reservationId, {
         roomId: args.roomId,
         checkInDate: args.checkInDate,
         checkOutDate: args.checkOutDate,
@@ -310,35 +341,14 @@ export const updateReservation = mutation({
         rate: args.rate,
         totalAmount: args.totalAmount,
         depositAmount: args.depositAmount,
-        status: args.status,
         source: args.source,
         specialRequests: args.specialRequests,
         updatedAt: now,
-      };
-
-      if (args.status === 'checked-in' && existingReservation.status !== 'checked-in') {
-        updateData.checkedInAt = now;
-      }
-
-      if (args.status === 'checked-out' && existingReservation.status !== 'checked-out') {
-        updateData.checkedOutAt = now;
-      }
-
-      await ctx.db.patch(args.reservationId, updateData);
+      });
 
       await syncRoomOccupancy(ctx, args.roomId);
       if (args.roomId !== existingReservation.roomId) {
         await syncRoomOccupancy(ctx, existingReservation.roomId);
-      }
-
-      const updated = await ctx.db.get(args.reservationId);
-      if (updated) {
-        if (args.status === 'checked-in' && existingReservation.status !== 'checked-in') {
-          await maybeCreateStayoverOnCheckIn(ctx, updated, auth.user._id);
-        }
-        if (args.status === 'checked-out' && existingReservation.status !== 'checked-out') {
-          await maybeCreateCheckoutOnCheckOut(ctx, updated, auth.user._id);
-        }
       }
 
       return { success: true, message: 'Reservation updated successfully' };
@@ -346,6 +356,150 @@ export const updateReservation = mutation({
       console.log(`Failed to update reservation: ${error}`);
       return { success: false, message: 'Failed to update reservation' };
     }
+  },
+});
+
+export const confirmReservation = mutation({
+  args: { reservationId: v.id('reservations') },
+  handler: async (ctx, args) => {
+    const reservation = await ctx.db.get(args.reservationId);
+    if (!reservation) {
+      return { success: false, message: 'Reservation does not exist' };
+    }
+    await requirePermission(ctx, 'reservations.update', reservation.propertyId);
+    if (reservation.status !== 'pending') {
+      return { success: false, message: 'Only pending reservations can be confirmed' };
+    }
+    const overlap = await findOverlappingReservation(ctx, {
+      roomId: reservation.roomId,
+      checkInDate: reservation.checkInDate,
+      checkOutDate: reservation.checkOutDate,
+      excludeId: reservation._id,
+    });
+    if (overlap) {
+      return { success: false, message: 'Room is already reserved for these dates' };
+    }
+    await ctx.db.patch(args.reservationId, { status: 'confirmed', updatedAt: Date.now() });
+    return { success: true, message: 'Reservation confirmed' };
+  },
+});
+
+export const checkInReservation = mutation({
+  args: {
+    reservationId: v.id('reservations'),
+    amountCollected: v.optional(v.number()),
+    paymentMethod: v.optional(paymentMethodValidator),
+  },
+  handler: async (ctx, args) => {
+    const reservation = await ctx.db.get(args.reservationId);
+    if (!reservation) {
+      return { success: false, message: 'Reservation does not exist' };
+    }
+    const auth = await requirePermission(ctx, 'reservations.update', reservation.propertyId);
+    if (reservation.status !== 'pending' && reservation.status !== 'confirmed') {
+      return { success: false, message: 'Only pending or confirmed reservations can be checked in' };
+    }
+
+    const room = await ctx.db.get(reservation.roomId);
+    if (!room) {
+      return { success: false, message: 'Room does not exist' };
+    }
+    if (!room.isActive) {
+      return { success: false, message: 'Room is inactive' };
+    }
+    if (room.status === 'out-of-order' || room.status === 'maintenance') {
+      return { success: false, message: 'Room is not available for check-in' };
+    }
+
+    const overlap = await findOverlappingReservation(ctx, {
+      roomId: reservation.roomId,
+      checkInDate: reservation.checkInDate,
+      checkOutDate: reservation.checkOutDate,
+      excludeId: reservation._id,
+    });
+    if (overlap) {
+      return { success: false, message: 'Room is already reserved for these dates' };
+    }
+
+    const now = Date.now();
+    const amount = args.amountCollected ?? 0;
+    await recordReservationPayment(ctx, {
+      propertyId: reservation.propertyId,
+      reservationId: reservation._id,
+      amount,
+      paymentMethod: args.paymentMethod ?? 'cash',
+      createdBy: auth.user._id,
+    });
+    const nextDeposit = (reservation.depositAmount ?? 0) + (amount > 0 ? amount : 0);
+
+    await ctx.db.patch(args.reservationId, {
+      status: 'checked-in',
+      checkedInAt: now,
+      depositAmount: nextDeposit,
+      updatedAt: now,
+    });
+    await syncRoomOccupancy(ctx, reservation.roomId);
+    const updated = await ctx.db.get(args.reservationId);
+    if (updated) {
+      await maybeCreateStayoverOnCheckIn(ctx, updated, auth.user._id);
+    }
+    return { success: true, message: 'Guest checked in' };
+  },
+});
+
+export const checkOutReservation = mutation({
+  args: {
+    reservationId: v.id('reservations'),
+    amountCollected: v.optional(v.number()),
+    paymentMethod: v.optional(paymentMethodValidator),
+  },
+  handler: async (ctx, args) => {
+    const reservation = await ctx.db.get(args.reservationId);
+    if (!reservation) {
+      return { success: false, message: 'Reservation does not exist' };
+    }
+    const auth = await requirePermission(ctx, 'reservations.update', reservation.propertyId);
+    if (reservation.status !== 'checked-in') {
+      return { success: false, message: 'Only checked-in reservations can be checked out' };
+    }
+
+    const now = Date.now();
+    await recordReservationPayment(ctx, {
+      propertyId: reservation.propertyId,
+      reservationId: reservation._id,
+      amount: args.amountCollected ?? 0,
+      paymentMethod: args.paymentMethod ?? 'cash',
+      createdBy: auth.user._id,
+    });
+
+    await ctx.db.patch(args.reservationId, {
+      status: 'checked-out',
+      checkedOutAt: now,
+      updatedAt: now,
+    });
+    await syncRoomOccupancy(ctx, reservation.roomId);
+    const updated = await ctx.db.get(args.reservationId);
+    if (updated) {
+      await maybeCreateCheckoutOnCheckOut(ctx, updated, auth.user._id);
+    }
+    return { success: true, message: 'Guest checked out' };
+  },
+});
+
+export const cancelReservation = mutation({
+  args: { reservationId: v.id('reservations') },
+  handler: async (ctx, args) => {
+    const reservation = await ctx.db.get(args.reservationId);
+    if (!reservation) {
+      return { success: false, message: 'Reservation does not exist' };
+    }
+    await requirePermission(ctx, 'reservations.update', reservation.propertyId);
+    if (reservation.status !== 'pending' && reservation.status !== 'confirmed') {
+      return { success: false, message: 'Only pending or confirmed reservations can be cancelled' };
+    }
+    await ctx.db.patch(args.reservationId, { status: 'cancelled', updatedAt: Date.now() });
+    await syncRoomOccupancy(ctx, reservation.roomId);
+    return { success: true, message: 'Reservation cancelled' };
   },
 });
 

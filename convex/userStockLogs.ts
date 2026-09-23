@@ -3,10 +3,13 @@ import { v } from 'convex/values';
 import { requirePermission } from './lib/rbac';
 import { findOrCreateFnBShift } from './lib/shiftHelpers';
 import {
+  computeCogsSnapshot,
+  derivedSales,
   lastFinalizedClosingStock,
   propertyDateKey,
   refreshSalesSummariesForLog,
   refreshSalesSummariesForLogs,
+  resolveUnitCost,
 } from './lib/barStock';
 
 export const getAllUserStockLogs = query({
@@ -413,12 +416,17 @@ export const createUserStockLog = mutation({
     const newStockReceived = 0;
     const totalStock = openingStock + newStockReceived;
     const closingStock = args.closingStock ?? totalStock;
-    const salesQuantity = totalStock - closingStock;
-    if (salesQuantity < 0) {
+    let sales;
+    try {
+      sales = derivedSales(
+        totalStock,
+        closingStock,
+        beverage.unitPrice,
+        resolveUnitCost(beverage.unitCost),
+      );
+    } catch {
       return { success: false, message: 'Closing stock cannot be greater than total stock' };
     }
-
-    const salesValue = salesQuantity * beverage.unitPrice;
     const stockLogId = await ctx.db.insert('userStockLogs', {
       propertyId: args.propertyId,
       shiftId,
@@ -430,8 +438,7 @@ export const createUserStockLog = mutation({
       newStockReceived,
       totalStock,
       closingStock,
-      salesQuantity,
-      salesValue,
+      ...sales,
       isFinalized: false,
       lastUpdatedAt: Date.now(),
     });
@@ -441,8 +448,9 @@ export const createUserStockLog = mutation({
       userId: args.userId,
       beverageId: args.beverageId,
       logDate,
-      salesQuantity,
-      salesValue,
+      salesQuantity: sales.salesQuantity,
+      salesValue: sales.salesValue,
+      cogsValue: sales.cogsValue,
     });
 
     return { success: true, message: 'User stock log created successfully', id: stockLogId };
@@ -476,26 +484,30 @@ export const updateUserStockLog = mutation({
 
       // Calculate derived fields (newStockReceived remains unchanged)
       const totalStock = args.openingStock + existingLog.newStockReceived;
-      const salesQuantity = totalStock - args.closingStock;
-      
-      if (salesQuantity < 0) {
+      let sales;
+      try {
+        sales = derivedSales(
+          totalStock,
+          args.closingStock,
+          beverage.unitPrice,
+          resolveUnitCost(beverage.unitCost),
+        );
+      } catch {
         return { success: false, message: 'Closing stock cannot be greater than total stock' };
       }
-
-      const salesValue = salesQuantity * beverage.unitPrice;
 
       await ctx.db.patch(args.stockLogId, {
         openingStock: args.openingStock,
         totalStock,
         closingStock: args.closingStock,
-        salesQuantity,
-        salesValue,
+        ...sales,
         lastUpdatedAt: Date.now(),
       });
       await refreshSalesSummariesForLog(ctx, {
         ...existingLog,
-        salesQuantity,
-        salesValue,
+        salesQuantity: sales.salesQuantity,
+        salesValue: sales.salesValue,
+        cogsValue: sales.cogsValue,
       });
 
       return { success: true, message: 'User stock log updated successfully' };
@@ -525,6 +537,7 @@ export const deleteUserStockLog = mutation({
         ...existingLog,
         salesQuantity: 0,
         salesValue: 0,
+        cogsValue: 0,
       });
       return { success: true, message: 'User stock log deleted successfully' };
     } catch (error) {
@@ -550,11 +563,16 @@ export const finalizeUserStockLog = mutation({
         return { success: false, message: 'Stock log is already finalized' };
       }
 
+      const cogs = await computeCogsSnapshot(ctx, existingLog);
       await ctx.db.patch(args.stockLogId, {
         isFinalized: true,
+        ...cogs,
         lastUpdatedAt: Date.now(),
       });
-      await refreshSalesSummariesForLog(ctx, existingLog);
+      await refreshSalesSummariesForLog(ctx, {
+        ...existingLog,
+        ...cogs,
+      });
 
       return { success: true, message: 'User stock log finalized successfully' };
     } catch (error) {
@@ -678,6 +696,8 @@ export const addMyTodayBeverage = mutation({
       closingStock: openingStock,
       salesQuantity: 0,
       salesValue: 0,
+      unitCostAtSale: resolveUnitCost(beverage.unitCost),
+      cogsValue: 0,
       isFinalized: false,
       lastUpdatedAt: Date.now(),
     });
@@ -689,6 +709,7 @@ export const addMyTodayBeverage = mutation({
       logDate,
       salesQuantity: 0,
       salesValue: 0,
+      cogsValue: 0,
     });
 
     return { success: true, message: 'Beverage added to today\'s log', id: stockLogId };
@@ -724,22 +745,27 @@ export const saveMyClosingStock = mutation({
     if (!beverage) {
       return { success: false, message: 'Associated beverage does not exist' };
     }
-    const salesQuantity = existingLog.totalStock - args.closingStock;
-    if (salesQuantity < 0) {
+    let sales;
+    try {
+      sales = derivedSales(
+        existingLog.totalStock,
+        args.closingStock,
+        beverage.unitPrice,
+        resolveUnitCost(beverage.unitCost),
+      );
+    } catch {
       return { success: false, message: 'Closing stock cannot be greater than total stock' };
     }
-
-    const salesValue = salesQuantity * beverage.unitPrice;
     await ctx.db.patch(args.stockLogId, {
       closingStock: args.closingStock,
-      salesQuantity,
-      salesValue,
+      ...sales,
       lastUpdatedAt: Date.now(),
     });
     await refreshSalesSummariesForLog(ctx, {
       ...existingLog,
-      salesQuantity,
-      salesValue,
+      salesQuantity: sales.salesQuantity,
+      salesValue: sales.salesValue,
+      cogsValue: sales.cogsValue,
     });
     return { success: true, message: 'Closing stock saved' };
   },
@@ -765,14 +791,17 @@ export const finalizeMyToday = mutation({
     }
 
     const now = Date.now();
-    const finalized: typeof logs = [];
+    const finalized: Array<(typeof logs)[number] & { cogsValue: number }> = [];
     for (const log of logs) {
+      const cogs = await computeCogsSnapshot(ctx, log);
       if (!log.isFinalized) {
-        await ctx.db.patch(log._id, { isFinalized: true, lastUpdatedAt: now });
-        finalized.push(log);
+        await ctx.db.patch(log._id, { isFinalized: true, ...cogs, lastUpdatedAt: now });
+      } else if (log.cogsValue === undefined || log.unitCostAtSale === undefined) {
+        await ctx.db.patch(log._id, { ...cogs, lastUpdatedAt: now });
       }
+      finalized.push({ ...log, ...cogs });
     }
-    await refreshSalesSummariesForLogs(ctx, finalized.length > 0 ? finalized : logs);
+    await refreshSalesSummariesForLogs(ctx, finalized);
     return { success: true, message: 'Today\'s stock logs finalized' };
   },
 });

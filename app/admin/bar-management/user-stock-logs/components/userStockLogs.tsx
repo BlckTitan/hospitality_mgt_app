@@ -25,6 +25,8 @@ interface UserStockLogProps {
   closingStock: number;
   salesQuantity: number;
   salesValue: number;
+  unitCostAtSale?: number;
+  cogsValue?: number;
   isFinalized: boolean;
   lastUpdatedAt: number;
   shift?: {
@@ -228,6 +230,27 @@ const UserStockLogs = ({
           {formatCurrency(row.salesValue)}
         </span>
       )
+    },
+    {
+      label: 'COGS',
+      key: 'cogsValue',
+      render: (value, row) => (
+        <span className="text-gray-700">
+          {formatCurrency(row.cogsValue ?? 0)}
+        </span>
+      )
+    },
+    {
+      label: 'Gross Profit',
+      key: 'unitCostAtSale',
+      render: (value, row) => {
+        const profit = row.salesValue - (row.cogsValue ?? 0);
+        return (
+          <span className={profit > 0 ? 'text-green-600 font-semibold' : profit < 0 ? 'text-red-600 font-semibold' : 'text-gray-600'}>
+            {formatCurrency(profit)}
+          </span>
+        );
+      }
     },
     {
       label: 'Status',

@@ -27,7 +27,7 @@ export function formatPropertyMoney(amount: number | undefined | null, currency?
 
 export function usePropertyCurrency(propertyId?: string) {
   const currency = useQuery(
-    api.inventoryItems.getPropertyCurrency,
+    api.property.getPropertyCurrency,
     propertyId ? { propertyId: propertyId as Id<'properties'> } : 'skip',
   );
   return propertyCurrencyCode(currency);

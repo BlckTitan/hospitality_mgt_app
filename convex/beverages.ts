@@ -65,6 +65,7 @@ export const createBeverage = mutation({
     category: v.union(v.literal("spirits"), v.literal("wine"), v.literal("Lager beer"), v.literal("cocktails"), v.literal("non-alcoholic"), v.literal("liqueurs"), v.literal("whiskey"), v.literal("vodka"), v.literal("rum"), v.literal("gin"), v.literal("tequila"), v.literal("brandy"), v.literal("cognac"), v.literal("champagne"), v.literal("other")),
     unitOfMeasure: v.string(),
     unitPrice: v.number(),
+    unitCost: v.optional(v.number()),
     reorderLevel: v.number(),
     isActive: v.boolean(),
   },
@@ -82,7 +83,11 @@ export const createBeverage = mutation({
         return { success: false, message: 'Beverage with this name already exists for this property' };
       }
 
-      const beverageId = await ctx.db.insert('beverages', args);
+      const { unitCost, ...rest } = args;
+      const beverageId = await ctx.db.insert('beverages', {
+        ...rest,
+        ...(unitCost !== undefined ? { unitCost } : {}),
+      });
       return { success: true, data: beverageId, message: 'Beverage created successfully' };
     } catch (error) {
       console.log(`Failed to create beverage: ${error}`);
@@ -99,6 +104,7 @@ export const updateBeverage = mutation({
     category: v.optional(v.union(v.literal("spirits"), v.literal("wine"), v.literal("Lager beer"), v.literal("cocktails"), v.literal("non-alcoholic"), v.literal("liqueurs"), v.literal("whiskey"), v.literal("vodka"), v.literal("rum"), v.literal("gin"), v.literal("tequila"), v.literal("brandy"), v.literal("cognac"), v.literal("champagne"), v.literal("other"))),
     unitOfMeasure: v.optional(v.string()),
     unitPrice: v.optional(v.number()),
+    unitCost: v.optional(v.number()),
     reorderLevel: v.optional(v.number()),
     isActive: v.optional(v.boolean()),
   },

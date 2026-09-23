@@ -8,6 +8,8 @@ import { Id } from "../../../../../convex/_generated/dataModel";
 import { toast } from "sonner";
 import InputComponent from "../../../../../shared/input";
 import { useState, useEffect } from "react";
+import { ReservationLifecycleActions } from "./reservationLifecycle";
+import { formatPropertyMoney, usePropertyCurrency } from "../../../inventory-management/components/money";
 
 type FormData = {
   id: Id<'reservations'>;
@@ -18,7 +20,6 @@ type FormData = {
   rate: number;
   totalAmount: number;
   depositAmount?: number;
-  status: 'pending' | 'confirmed' | 'checked-in' | 'checked-out' | 'cancelled';
   source?: 'direct' | 'ota' | 'walk-in' | 'phone' | 'other';
   specialRequests?: string;
 };
@@ -36,6 +37,7 @@ export function FormComponent({
   source,
   specialRequests,
   propertyId,
+  paidTotal = 0,
 }: {
   id: Id<'reservations'>;
   roomId: string;
@@ -49,8 +51,10 @@ export function FormComponent({
   source?: string;
   specialRequests?: string;
   propertyId: string;
+  paidTotal?: number;
 }) {
   const updateReservation = useMutation(api.reservations.updateReservation);
+  const currency = usePropertyCurrency(propertyId);
   const roomsResponse = useQuery(api.rooms.getAllRooms, { propertyId: propertyId as Id<'properties'> });
   
   const rooms = roomsResponse?.data || [];
@@ -72,7 +76,6 @@ export function FormComponent({
       rate: rate,
       totalAmount: totalAmount,
       depositAmount: depositAmount,
-      status: status as 'pending' | 'confirmed' | 'checked-in' | 'checked-out' | 'cancelled',
       source: source as 'direct' | 'ota' | 'walk-in' | 'phone' | 'other' | undefined,
       specialRequests: specialRequests || '',
     },
@@ -113,7 +116,6 @@ export function FormComponent({
         rate: data.rate as number,
         totalAmount: data.totalAmount as number,
         depositAmount: data.depositAmount,
-        status: data.status as 'pending' | 'confirmed' | 'checked-in' | 'checked-out' | 'cancelled',
         source: data.source as 'direct' | 'ota' | 'walk-in' | 'phone' | 'other' | undefined,
         specialRequests: data.specialRequests || undefined,
       });
@@ -135,14 +137,6 @@ export function FormComponent({
     }
   };
 
-  const statusOptions = [
-    { value: 'pending', label: 'Pending' },
-    { value: 'confirmed', label: 'Confirmed' },
-    { value: 'checked-in', label: 'Checked In' },
-    { value: 'checked-out', label: 'Checked Out' },
-    { value: 'cancelled', label: 'Cancelled' },
-  ];
-
   const sourceOptions = [
     { value: 'direct', label: 'Direct' },
     { value: 'ota', label: 'OTA (Online Travel Agency)' },
@@ -163,8 +157,26 @@ export function FormComponent({
     label: `${room.roomNumber} - ${room.roomType?.name || 'N/A'} (${room.status}${room.isReady === false ? ', not ready' : ''})`,
   }));
 
+  const isClosed = status === 'checked-out' || status === 'cancelled';
+
   return (
     <form onSubmit={handleSubmit(onSubmit)} className='editReservationForm'>
+      <ReservationLifecycleActions
+        reservationId={id}
+        status={status}
+        totalAmount={totalAmount}
+        paidTotal={paidTotal}
+        depositAmount={depositAmount ?? 0}
+        currency={currency}
+      />
+
+      {isClosed && (
+        <p className="mb-4 text-sm text-gray-600">
+          This reservation is {status === 'checked-out' ? 'checked out' : 'cancelled'} and can no longer be edited.
+        </p>
+      )}
+
+      <fieldset disabled={isClosed} className="min-w-0 border-0 p-0">
       <div
         className='w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-1 
         [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4'
@@ -212,7 +224,7 @@ export function FormComponent({
       {nights > 0 && (
         <div className="w-full mb-4 p-2 bg-blue-50 rounded">
           <p className="text-sm text-gray-700">
-            <strong>Nights:</strong> {nights} | <strong>Rate per night:</strong> ${watchRate.toFixed(2)} | <strong>Total:</strong> ${calculatedTotal.toFixed(2)}
+            <strong>Nights:</strong> {nights} | <strong>Rate per night:</strong> {formatPropertyMoney(watchRate, currency)} | <strong>Total:</strong> {formatPropertyMoney(calculatedTotal, currency)}
           </p>
         </div>
       )}
@@ -232,7 +244,7 @@ export function FormComponent({
 
         <InputComponent
           id='rate'
-          label='Rate per Night *'
+          label={`Rate per Night (${currency}) *`}
           type='number'
           inputWidth='w-1/2'
           register={register('rate', { valueAsNumber: true, required: true })}
@@ -246,7 +258,7 @@ export function FormComponent({
       >
         <InputComponent
           id='totalAmount'
-          label='Total Amount *'
+          label={`Total Amount (${currency}) *`}
           type='number'
           inputWidth='w-1/2'
           register={register('totalAmount', { valueAsNumber: true, required: true })}
@@ -255,7 +267,7 @@ export function FormComponent({
 
         <InputComponent
           id='depositAmount'
-          label='Deposit Amount'
+          label={`Deposit Amount (${currency})`}
           type='number'
           inputWidth='w-1/2'
           register={register('depositAmount', { valueAsNumber: true })}
@@ -267,21 +279,6 @@ export function FormComponent({
         className='w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-1 
         [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4'
       >
-        <div className="flex-1">
-          <label htmlFor="status" className="block text-sm font-medium mb-1">Status *</label>
-          <select
-            id="status"
-            {...register('status', { required: true })}
-            className="w-full border rounded p-2"
-          >
-            {statusOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-          {errors.status && <span className="text-red-500 text-sm">{errors.status.message}</span>}
-        </div>
         <div className="flex-1">
           <label htmlFor="source" className="block text-sm font-medium mb-1">Booking Source</label>
           <select
@@ -315,12 +312,13 @@ export function FormComponent({
           {errors.specialRequests && <span className="text-red-500 text-sm">{errors.specialRequests.message}</span>}
         </div>
       </div>
+      </fieldset>
 
       <Modal.Footer>
         <Button type="button" variant="secondary" onClick={() => window.history.back()}>
-          Cancel
+          Back
         </Button>
-        <Button type="submit" variant='dark'>Submit</Button>
+        {!isClosed && <Button type="submit" variant='dark'>Save booking</Button>}
       </Modal.Footer>
     </form>
   );

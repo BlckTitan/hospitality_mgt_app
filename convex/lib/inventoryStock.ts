@@ -27,6 +27,22 @@ export function quantityChangeForType(type: string, quantity: number): number {
   }
 }
 
+export function weightedAverageCost(
+  onHandQty: number,
+  onHandCost: number,
+  inboundQty: number,
+  inboundCost: number,
+): number {
+  const safeOnHand = Math.max(onHandQty, 0);
+  const safeInbound = Math.max(inboundQty, 0);
+  const currentCost = Number.isFinite(onHandCost) && onHandCost >= 0 ? onHandCost : 0;
+  const purchaseCost = Number.isFinite(inboundCost) && inboundCost >= 0 ? inboundCost : 0;
+  const newQty = safeOnHand + safeInbound;
+  if (safeInbound <= 0) return currentCost;
+  if (newQty <= 0) return purchaseCost;
+  return (safeOnHand * currentCost + safeInbound * purchaseCost) / newQty;
+}
+
 export function signedDisplayQuantity(type: string, quantity: number): number {
   switch (type) {
     case "usage":
@@ -112,7 +128,12 @@ export async function postInventoryTransaction(
     updatedAt: now,
   };
   if (args.transactionType === "purchase" && args.unitCost !== undefined && args.unitCost !== null) {
-    patch.unitCost = args.unitCost;
+    patch.unitCost = weightedAverageCost(
+      inventoryItem.currentQuantity,
+      inventoryItem.unitCost ?? 0,
+      Math.abs(quantityChange),
+      args.unitCost,
+    );
     patch.lastCostUpdate = now;
   }
   await ctx.db.patch(args.inventoryItemId, patch);

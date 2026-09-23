@@ -47,6 +47,7 @@ const navItems = [
     {id: 805, href: '/admin/inventory-management/tasks', label: 'Inventory Tasks'},
   ]},
   {id: 9, href: "/admin/room-management", label: "Room Management", icon: <MdOutlineBedroomChild />,  subLink: [
+    {id: 900, href: '/admin/room-management/occupancy', label: 'Occupancy'},
     {id: 901, href: '/admin/room-management/room-type', label: 'Room Types'}, 
     {id: 902, href: '/admin/room-management/room', label: 'Room'},
     {id: 903, href: '/admin/room-management/reservation', label: 'Reservation'}, 
