@@ -248,6 +248,8 @@ export const getFnBTodaySnapshot = query({
     let totalQtySold = 0;
     let totalRevenue = 0;
     let totalCogs = 0;
+    let totalWasteQty = 0;
+    let totalCompQty = 0;
     let openLogCount = 0;
     let finalizedLogCount = 0;
 
@@ -255,6 +257,8 @@ export const getFnBTodaySnapshot = query({
       totalQtySold += log.salesQuantity;
       totalRevenue += log.salesValue;
       totalCogs += log.cogsValue ?? 0;
+      totalWasteQty += log.wasteQuantity ?? 0;
+      totalCompQty += log.compQuantity ?? 0;
       if (log.isFinalized) finalizedLogCount += 1;
       else openLogCount += 1;
     }
@@ -266,6 +270,8 @@ export const getFnBTodaySnapshot = query({
         totalQtySold,
         totalRevenue,
         totalCogs,
+        totalWasteQty,
+        totalCompQty,
         grossProfit: totalRevenue - totalCogs,
         openLogCount,
         finalizedLogCount,

@@ -15,6 +15,8 @@ export default function MyStockPage() {
   const [barId, setBarId] = useState<string>('');
   const [beverageId, setBeverageId] = useState<string>('');
   const [closingEdits, setClosingEdits] = useState<Record<string, string>>({});
+  const [wasteEdits, setWasteEdits] = useState<Record<string, string>>({});
+  const [compEdits, setCompEdits] = useState<Record<string, string>>({});
 
   const currentPropertyId = propertyId || properties[0]?._id || '';
   const today = useQuery(
@@ -70,9 +72,19 @@ export default function MyStockPage() {
       return;
     }
     try {
+      const wasteRaw = wasteEdits[stockLogId];
+      const compRaw = compEdits[stockLogId];
+      const wasteQuantity = wasteRaw === undefined || wasteRaw === '' ? undefined : Number(wasteRaw);
+      const compQuantity = compRaw === undefined || compRaw === '' ? undefined : Number(compRaw);
+      if ((wasteQuantity !== undefined && Number.isNaN(wasteQuantity)) || (compQuantity !== undefined && Number.isNaN(compQuantity))) {
+        toast.error('Waste and comps must be numbers');
+        return;
+      }
       const response = await saveClosing({
         stockLogId: stockLogId as Id<'userStockLogs'>,
         closingStock,
+        wasteQuantity,
+        compQuantity,
       });
       if (response.success === false) toast.error(response.message);
       else toast.success(response.message);
@@ -175,6 +187,8 @@ export default function MyStockPage() {
                 <th className="p-2 text-left text-sm">Received</th>
                 <th className="p-2 text-left text-sm">Total</th>
                 <th className="p-2 text-left text-sm">Closing</th>
+                <th className="p-2 text-left text-sm">Waste</th>
+                <th className="p-2 text-left text-sm">Comps</th>
                 <th className="p-2 text-left text-sm">Sales</th>
                 <th className="p-2 text-left text-sm">Status</th>
                 <th className="p-2 text-left text-sm">Action</th>
@@ -183,8 +197,13 @@ export default function MyStockPage() {
             <tbody>
               {logs.map((log) => {
                 const closingValue = closingEdits[log._id] ?? String(log.closingStock);
+                const wasteValue = wasteEdits[log._id] ?? String(log.wasteQuantity ?? 0);
+                const compValue = compEdits[log._id] ?? String(log.compQuantity ?? 0);
                 const closingNumber = Number(closingValue);
-                const sales = Number.isNaN(closingNumber) ? log.salesQuantity : log.totalStock - closingNumber;
+                const wasteNumber = Number(wasteValue);
+                const compNumber = Number(compValue);
+                const disappeared = Number.isNaN(closingNumber) ? (log.salesQuantity + (log.wasteQuantity ?? 0) + (log.compQuantity ?? 0)) : log.totalStock - closingNumber;
+                const sales = disappeared - (Number.isNaN(wasteNumber) ? 0 : wasteNumber) - (Number.isNaN(compNumber) ? 0 : compNumber);
                 return (
                   <tr key={log._id} className="border-t">
                     <td className="p-2">{log.beverage?.name || 'Unknown'}</td>
@@ -200,6 +219,30 @@ export default function MyStockPage() {
                         disabled={log.isFinalized}
                         onChange={(event) =>
                           setClosingEdits((current) => ({ ...current, [log._id]: event.target.value }))
+                        }
+                      />
+                    </td>
+                    <td className="p-2">
+                      <input
+                        type="number"
+                        min={0}
+                        className="w-20 border rounded p-1"
+                        value={wasteValue}
+                        disabled={log.isFinalized}
+                        onChange={(event) =>
+                          setWasteEdits((current) => ({ ...current, [log._id]: event.target.value }))
+                        }
+                      />
+                    </td>
+                    <td className="p-2">
+                      <input
+                        type="number"
+                        min={0}
+                        className="w-20 border rounded p-1"
+                        value={compValue}
+                        disabled={log.isFinalized}
+                        onChange={(event) =>
+                          setCompEdits((current) => ({ ...current, [log._id]: event.target.value }))
                         }
                       />
                     </td>

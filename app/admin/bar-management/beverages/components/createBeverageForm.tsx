@@ -1,6 +1,7 @@
 'use client'
 
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
+import { useState } from "react";
 import { SubmitHandler, useForm } from "react-hook-form";
 import { formSchema, beverageCategories } from "./validation";
 import { yupResolver } from "@hookform/resolvers/yup";
@@ -9,6 +10,7 @@ import { Button } from "react-bootstrap";
 import InputComponent from "../../../../../shared/input";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { api } from "../../../../../convex/_generated/api";
+import { BeverageCostFields, recipeLinesPayload, type RecipeLineDraft } from "./beverageCostFields";
 
 type BeverageCategory = "spirits" | "wine" | "Lager beer" | "cocktails" | "non-alcoholic" | "liqueurs" | "whiskey" | "vodka" | "rum" | "gin" | "tequila" | "brandy" | "cognac" | "champagne" | "other";
 
@@ -24,6 +26,9 @@ type FormData = {
 
 export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: () => void; onClose: () => void; propertyId: string }) {
   const createBeverage = useMutation(api.beverages.createBeverage);
+  const catalog = useQuery(api.beverages.getCostCatalog, { propertyId: propertyId as Id<'properties'> });
+  const [inventoryItemId, setInventoryItemId] = useState('');
+  const [recipeLines, setRecipeLines] = useState<RecipeLineDraft[]>([]);
 
   const { register, handleSubmit, formState: { errors }, reset } = useForm<FormData>({
     resolver: yupResolver(formSchema) as any,
@@ -47,6 +52,8 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
         unitOfMeasure: data.unitOfMeasure,
         unitPrice: data.unitPrice,
         unitCost: Number.isFinite(data.unitCost) ? data.unitCost : undefined,
+        inventoryItemId: inventoryItemId ? inventoryItemId as Id<'inventoryItems'> : undefined,
+        recipeLines: recipeLinesPayload(recipeLines),
         reorderLevel: data.reorderLevel,
         isActive: data.isActive,
       });
@@ -103,8 +110,16 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
       </div>
 
       <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-1 mb-4">
-        <InputComponent id="unitCost" label="Unit Cost" type="number" inputWidth="w-full" register={register('unitCost', { valueAsNumber: true })} error={errors.unitCost} />
+        <InputComponent id="unitCost" label="Manual unit cost (fallback)" type="number" inputWidth="w-full" register={register('unitCost', { valueAsNumber: true })} error={errors.unitCost} />
       </div>
+
+      <BeverageCostFields
+        catalog={catalog?.data ?? []}
+        inventoryItemId={inventoryItemId}
+        onInventoryItemIdChange={setInventoryItemId}
+        recipeLines={recipeLines}
+        onRecipeLinesChange={setRecipeLines}
+      />
 
       <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-1 mb-4">
         <InputComponent id="reorderLevel" label="Reorder Level *" type="number" inputWidth="w-full" register={register('reorderLevel', { valueAsNumber: true })} error={errors.reorderLevel} />

@@ -9,7 +9,7 @@ import {
   maybeOpenReorderAlert,
   previewIssueToStockLog,
   propertyDateKey,
-  resolveUnitCost,
+  resolveBeverageUnitCost,
 } from './lib/barStock';
 export const getAllStoreTransactions = query({
   args: { propertyId: v.id('properties') },
@@ -124,7 +124,7 @@ export const createStoreTransaction = mutation({
         logDate: txnDateKey,
         qty: args.qty,
         unitPrice: beverage.unitPrice,
-        unitCost: resolveUnitCost(beverage.unitCost),
+        unitCost: await resolveBeverageUnitCost(ctx, beverage),
       });
       await maybeOpenReorderAlert(ctx, {
         propertyId: args.propertyId,
@@ -258,7 +258,7 @@ export const updateStoreTransaction = mutation({
 
     const oldBeverage = await ctx.db.get(existing.beverageId);
     const oldUnitPrice = oldBeverage?.unitPrice ?? 0;
-    const oldUnitCost = resolveUnitCost(oldBeverage?.unitCost);
+    const oldUnitCost = await resolveBeverageUnitCost(ctx, oldBeverage);
 
     if (existing.txnType === 'issue' && existing.userId && existing.barId) {
       await applyIssuedQtyToStockLog(ctx, {
@@ -297,7 +297,7 @@ export const updateStoreTransaction = mutation({
         logDate: existing.txnDateKey,
         qty: args.qty,
         unitPrice: beverage.unitPrice,
-        unitCost: resolveUnitCost(beverage.unitCost),
+        unitCost: await resolveBeverageUnitCost(ctx, beverage),
       });
       await maybeOpenReorderAlert(ctx, {
         propertyId: existing.propertyId,
@@ -369,7 +369,7 @@ export const deleteStoreTransaction = mutation({
         logDate: existing.txnDateKey,
         qty: -existing.qty,
         unitPrice: beverage?.unitPrice ?? 0,
-        unitCost: resolveUnitCost(beverage?.unitCost),
+        unitCost: await resolveBeverageUnitCost(ctx, beverage),
       });
     }
     await applyStoreQtyChange(ctx, inventory, storeDelta);

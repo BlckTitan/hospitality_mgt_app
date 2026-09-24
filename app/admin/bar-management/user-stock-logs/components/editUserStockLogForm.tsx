@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery } from "convex/react";
 import { SubmitHandler, useForm } from "react-hook-form";
-import { editFormSchema } from "./validation";
+import { COMP_REASONS, editFormSchema, WASTE_REASONS } from "./validation";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { toast } from "sonner";
 import { Button } from "react-bootstrap";
@@ -13,6 +13,10 @@ import InputComponent from "../../../../../shared/input";
 type FormData = {
   openingStock: number;
   closingStock: number;
+  wasteQuantity?: number;
+  wasteReason?: string;
+  compQuantity?: number;
+  compReason?: string;
 };
 
 interface EditUserStockLogFormProps {
@@ -30,6 +34,10 @@ export function EditUserStockLogForm({ stockLogData, stockLogId, onSuccess, onCl
     defaultValues: {
       openingStock: stockLogData.openingStock || 0,
       closingStock: stockLogData.closingStock || 0,
+      wasteQuantity: stockLogData.wasteQuantity || 0,
+      wasteReason: stockLogData.wasteReason || '',
+      compQuantity: stockLogData.compQuantity || 0,
+      compReason: stockLogData.compReason || '',
     },
   });
 
@@ -37,7 +45,10 @@ export function EditUserStockLogForm({ stockLogData, stockLogId, onSuccess, onCl
   
   // Calculate current totals for display
   const totalStock = (watchedValues.openingStock || 0) + (stockLogData.newStockReceived || 0);
-  const salesQuantity = totalStock - (watchedValues.closingStock || 0);
+  const disappeared = totalStock - (watchedValues.closingStock || 0);
+  const wasteQuantity = Number(watchedValues.wasteQuantity) || 0;
+  const compQuantity = Number(watchedValues.compQuantity) || 0;
+  const salesQuantity = disappeared - wasteQuantity - compQuantity;
 
   const onSubmit: SubmitHandler<FormData> = async (data) => {
     try {
@@ -45,6 +56,10 @@ export function EditUserStockLogForm({ stockLogData, stockLogId, onSuccess, onCl
         stockLogId: stockLogId as Id<'userStockLogs'>,
         openingStock: data.openingStock,
         closingStock: data.closingStock,
+        wasteQuantity: Number(data.wasteQuantity) || 0,
+        wasteReason: data.wasteReason || undefined,
+        compQuantity: Number(data.compQuantity) || 0,
+        compReason: data.compReason || undefined,
       });
 
       if (response.success === false) {
@@ -110,16 +125,59 @@ export function EditUserStockLogForm({ stockLogData, stockLogId, onSuccess, onCl
 
       <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-start gap-2 mb-2 lg:mb-4">
         <div className="flex-1">
+          <InputComponent
+            id="wasteQuantity"
+            label="Waste quantity"
+            type="number"
+            inputWidth="w-full"
+            register={register('wasteQuantity', { valueAsNumber: true, min: 0 })}
+            error={errors.wasteQuantity}
+          />
+          <select
+            className="w-full border rounded p-2 mt-2"
+            {...register('wasteReason')}
+          >
+            <option value="">Waste reason</option>
+            {WASTE_REASONS.map((reason) => (
+              <option key={reason} value={reason}>{reason}</option>
+            ))}
+          </select>
+        </div>
+        <div className="flex-1">
+          <InputComponent
+            id="compQuantity"
+            label="Comp quantity"
+            type="number"
+            inputWidth="w-full"
+            register={register('compQuantity', { valueAsNumber: true, min: 0 })}
+            error={errors.compQuantity}
+          />
+          <select
+            className="w-full border rounded p-2 mt-2"
+            {...register('compReason')}
+          >
+            <option value="">Comp reason</option>
+            {COMP_REASONS.map((reason) => (
+              <option key={reason} value={reason}>{reason}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-start gap-2 mb-2 lg:mb-4">
+        <div className="flex-1">
           <div className="bg-gray-100 p-3 rounded">
             <p className="text-sm font-semibold mb-2">Current Values:</p>
             <p className="text-sm">Opening Stock: <span className="font-bold">{watchedValues.openingStock || 0}</span></p>
             <p className="text-sm">New Stock Received: <span className="font-bold">{stockLogData.newStockReceived || 0}</span></p>
             <p className="text-sm">Total Stock: <span className="font-bold">{totalStock}</span></p>
+            <p className="text-sm">Disappeared: <span className="font-bold">{disappeared}</span></p>
             <p className="text-sm">Sales Quantity: <span className="font-bold">{salesQuantity}</span></p>
             <p className="text-sm">Sales Value: <span className="font-bold">${salesQuantity * (stockLogData.beverage?.unitPrice || 0)}</span></p>
-            <p className="text-sm">COGS: <span className="font-bold">${salesQuantity * (stockLogData.beverage?.unitCost || 0)}</span></p>
-            <p className="text-sm">Gross Profit: <span className="font-bold">${salesQuantity * ((stockLogData.beverage?.unitPrice || 0) - (stockLogData.beverage?.unitCost || 0))}</span></p>
-            {salesQuantity < 0 && <p className="text-red-500 text-sm">Warning: Closing stock exceeds total stock!</p>}
+            <p className="text-sm">COGS: <span className="font-bold">${disappeared * (stockLogData.beverage?.resolvedUnitCost ?? stockLogData.beverage?.unitCost || 0)}</span></p>
+            <p className="text-sm">Gross Profit: <span className="font-bold">${salesQuantity * (stockLogData.beverage?.unitPrice || 0) - disappeared * (stockLogData.beverage?.resolvedUnitCost ?? stockLogData.beverage?.unitCost || 0)}</span></p>
+            {disappeared < 0 && <p className="text-red-500 text-sm">Warning: Closing stock exceeds total stock!</p>}
+            {disappeared >= 0 && salesQuantity < 0 && <p className="text-red-500 text-sm">Warning: Waste and comps exceed stock that disappeared!</p>}
           </div>
         </div>
         <div className="flex-1">

@@ -36,6 +36,8 @@ async function sumPeriod(
     totalQtySold: rows.reduce((sum, row) => sum + row.totalQtySold, 0),
     totalRevenue: rows.reduce((sum, row) => sum + row.totalRevenue, 0),
     totalCogs: rows.reduce((sum, row) => sum + (row.totalCogs ?? 0), 0),
+    totalWasteQty: rows.reduce((sum, row) => sum + (row.totalWasteQty ?? 0), 0),
+    totalCompQty: rows.reduce((sum, row) => sum + (row.totalCompQty ?? 0), 0),
   };
 }
 
@@ -47,13 +49,17 @@ async function sumDailyKeys(
   let totalQtySold = 0;
   let totalRevenue = 0;
   let totalCogs = 0;
+  let totalWasteQty = 0;
+  let totalCompQty = 0;
   for (const periodKey of dayKeys) {
     const totals = await sumPeriod(ctx, propertyId, 'daily', periodKey);
     totalQtySold += totals.totalQtySold;
     totalRevenue += totals.totalRevenue;
     totalCogs += totals.totalCogs;
+    totalWasteQty += totals.totalWasteQty;
+    totalCompQty += totals.totalCompQty;
   }
-  return { totalQtySold, totalRevenue, totalCogs };
+  return { totalQtySold, totalRevenue, totalCogs, totalWasteQty, totalCompQty };
 }
 
 export const getSalesSummaries = query({
@@ -147,6 +153,8 @@ export const getSalesByBarPeriod = query({
             totalQtySold: 0,
             totalRevenue: 0,
             totalCogs: 0,
+            totalWasteQty: 0,
+            totalCompQty: 0,
             periodType: summary.periodType,
             periodKey: summary.periodKey,
           });
@@ -156,6 +164,8 @@ export const getSalesByBarPeriod = query({
         aggregate.totalQtySold += summary.totalQtySold;
         aggregate.totalRevenue += summary.totalRevenue;
         aggregate.totalCogs += summary.totalCogs ?? 0;
+        aggregate.totalWasteQty += summary.totalWasteQty ?? 0;
+        aggregate.totalCompQty += summary.totalCompQty ?? 0;
       });
 
       // Fetch bar details
@@ -497,6 +507,8 @@ export const upsertSalesSummary = internalMutation({
     totalQtySold: v.number(),
     totalRevenue: v.number(),
     totalCogs: v.optional(v.number()),
+    totalWasteQty: v.optional(v.number()),
+    totalCompQty: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const id = await upsertSalesSummaryDoc(ctx, args);

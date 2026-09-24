@@ -297,7 +297,7 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
 
   return (
     <div className="w-full">
-      <div className="mb-6 grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-4">
+      <div className="mb-6 grid grid-cols-1 md:grid-cols-3 xl:grid-cols-7 gap-4">
         <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
           <div className="text-sm text-blue-600 font-medium">Total Revenue</div>
           <div className="text-xl font-bold text-blue-800">
@@ -353,6 +353,19 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
                 ? yoyTrend?.current.totalCogs || 0
                 : salesByBarData.data?.reduce((sum, item) => sum + (item.totalCogs ?? 0), 0) || 0
             )} COGS
+          </div>
+        </div>
+        <div className="bg-rose-50 p-4 rounded-lg border border-rose-200">
+          <div className="text-sm text-rose-600 font-medium">Waste & comps</div>
+          <div className="text-xl font-bold text-rose-800">
+            {(
+              periodType === 'yoy'
+                ? 0
+                : (salesByBarData.data?.reduce((sum, item) => sum + (item.totalWasteQty ?? 0) + (item.totalCompQty ?? 0), 0) || 0)
+            ).toLocaleString()}
+          </div>
+          <div className="text-xs text-gray-600 mt-1">
+            Excluded from sales qty / revenue
           </div>
         </div>
         <div className="bg-green-50 p-4 rounded-lg border border-green-200">

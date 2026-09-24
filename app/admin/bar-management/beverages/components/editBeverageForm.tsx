@@ -1,6 +1,7 @@
 'use client';
 
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
+import { useState } from "react";
 import { SubmitHandler, useForm } from "react-hook-form";
 import { formSchema, beverageCategories } from "./validation";
 import { yupResolver } from "@hookform/resolvers/yup";
@@ -9,6 +10,7 @@ import { Button } from "react-bootstrap";
 import InputComponent from "../../../../../shared/input";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { api } from "../../../../../convex/_generated/api";
+import { BeverageCostFields, recipeLinesPayload, type RecipeLineDraft } from "./beverageCostFields";
 
 type BeverageCategory = "spirits" | "wine" | "Lager beer" | "cocktails" | "non-alcoholic" | "liqueurs" | "whiskey" | "vodka" | "rum" | "gin" | "tequila" | "brandy" | "cognac" | "champagne" | "other";
 
@@ -31,7 +33,19 @@ interface EditBeverageFormProps {
 
 export function EditBeverageForm({ beverageData, beverageId, onSuccess, onClose }: EditBeverageFormProps) {
   const updateBeverage = useMutation(api.beverages.updateBeverage);
-
+  const catalog = useQuery(
+    api.beverages.getCostCatalog,
+    beverageData.propertyId ? { propertyId: beverageData.propertyId as Id<'properties'> } : 'skip',
+  );
+  const [inventoryItemId, setInventoryItemId] = useState(beverageData.inventoryItemId || '');
+  const [recipeLines, setRecipeLines] = useState<RecipeLineDraft[]>(
+    (beverageData.recipeLines ?? []).map((line: any) => ({
+      key: line._id,
+      inventoryItemId: line.inventoryItemId,
+      quantity: String(line.quantity ?? 1),
+      wastePercent: line.wastePercent != null ? String(line.wastePercent) : '',
+    })),
+  );
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: yupResolver(formSchema) as any,
     defaultValues: {
@@ -54,6 +68,8 @@ export function EditBeverageForm({ beverageData, beverageId, onSuccess, onClose 
         unitOfMeasure: data.unitOfMeasure,
         unitPrice: data.unitPrice,
         unitCost: Number.isFinite(data.unitCost) ? data.unitCost : undefined,
+        inventoryItemId: inventoryItemId ? inventoryItemId as Id<'inventoryItems'> : null,
+        recipeLines: recipeLinesPayload(recipeLines),
         reorderLevel: data.reorderLevel,
         isActive: data.isActive,
       });
@@ -109,8 +125,16 @@ export function EditBeverageForm({ beverageData, beverageId, onSuccess, onClose 
       </div>
 
       <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-1 mb-4">
-        <InputComponent id="unitCost" label="Unit Cost" type="number" inputWidth="w-full" register={register('unitCost', { valueAsNumber: true })} error={errors.unitCost} />
+        <InputComponent id="unitCost" label="Manual unit cost (fallback)" type="number" inputWidth="w-full" register={register('unitCost', { valueAsNumber: true })} error={errors.unitCost} />
       </div>
+
+      <BeverageCostFields
+        catalog={catalog?.data ?? []}
+        inventoryItemId={inventoryItemId}
+        onInventoryItemIdChange={setInventoryItemId}
+        recipeLines={recipeLines}
+        onRecipeLinesChange={setRecipeLines}
+      />
 
       <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-1 mb-4">
         <InputComponent id="reorderLevel" label="Reorder Level *" type="number" inputWidth="w-full" register={register('reorderLevel', { valueAsNumber: true })} error={errors.reorderLevel} />

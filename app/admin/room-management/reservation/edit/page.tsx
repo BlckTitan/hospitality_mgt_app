@@ -41,6 +41,7 @@ export default function Page() {
         specialRequests={reservation.specialRequests}
         propertyId={reservation.propertyId}
         paidTotal={reservation.paidTotal ?? 0}
+        payments={reservation.payments ?? []}
       />
     </div>
   );

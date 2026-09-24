@@ -121,6 +121,18 @@ export const getReservation = query({
           q.eq('referenceType', 'Reservation').eq('referenceId', args.reservationId),
         )
         .collect();
+      const evidenceRows = await ctx.db
+        .query('reservationPaymentDocuments')
+        .withIndex('by_reservationId', (q) => q.eq('reservationId', args.reservationId))
+        .collect();
+      const paymentsWithEvidence = await Promise.all(
+        payments.map(async (payment) => {
+          const evidence = evidenceRows.find((row) => row.paymentId === payment._id) ?? null;
+          const fileUrl =
+            evidence?.storageId ? await ctx.storage.getUrl(evidence.storageId) : null;
+          return { ...payment, evidence: evidence ? { ...evidence, fileUrl } : null };
+        }),
+      );
       const paidTotal = payments.reduce((sum, row) => sum + row.amount, 0);
 
       return {
@@ -130,7 +142,7 @@ export const getReservation = query({
           guest,
           room: room ? { ...room, roomType } : null,
           property,
-          payments,
+          payments: paymentsWithEvidence,
           paidTotal,
         },
       };
@@ -239,6 +251,42 @@ const paymentMethodValidator = v.union(
   v.literal('other'),
 );
 
+const paymentEvidenceArgs = {
+  cashAttested: v.optional(v.boolean()),
+  evidenceStorageId: v.optional(v.id('_storage')),
+  evidenceFileName: v.optional(v.string()),
+  evidenceMimeType: v.optional(v.string()),
+  evidenceFileSize: v.optional(v.number()),
+  evidenceNote: v.optional(v.string()),
+};
+
+type PaymentEvidenceInput = {
+  cashAttested?: boolean;
+  evidenceStorageId?: Id<'_storage'>;
+  evidenceFileName?: string;
+  evidenceMimeType?: string;
+  evidenceFileSize?: number;
+  evidenceNote?: string;
+};
+
+function validatePaymentEvidence(
+  amount: number,
+  paymentMethod: 'cash' | 'card' | 'bank_transfer' | 'other',
+  evidence: PaymentEvidenceInput,
+): string | null {
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+  if (paymentMethod === 'cash') {
+    if (!evidence.cashAttested) {
+      return 'Confirm cash was received and counted before recording payment';
+    }
+    return null;
+  }
+  if (!evidence.evidenceStorageId) {
+    return 'Attach a receipt or transfer confirmation before recording payment';
+  }
+  return null;
+}
+
 async function recordReservationPayment(
   ctx: MutationCtx,
   args: {
@@ -247,11 +295,15 @@ async function recordReservationPayment(
     amount: number;
     paymentMethod: 'cash' | 'card' | 'bank_transfer' | 'other';
     createdBy: Id<'users'>;
-  },
-) {
-  if (!Number.isFinite(args.amount) || args.amount <= 0) return;
+  } & PaymentEvidenceInput,
+): Promise<{ paymentId: Id<'payments'> } | { error: string } | null> {
+  if (!Number.isFinite(args.amount) || args.amount <= 0) return null;
+
+  const evidenceError = validatePaymentEvidence(args.amount, args.paymentMethod, args);
+  if (evidenceError) return { error: evidenceError };
+
   const now = Date.now();
-  await ctx.db.insert('payments', {
+  const paymentId = await ctx.db.insert('payments', {
     propertyId: args.propertyId,
     paymentType: 'reservation',
     referenceType: 'Reservation',
@@ -263,7 +315,45 @@ async function recordReservationPayment(
     createdBy: args.createdBy,
     createdAt: now,
   });
+
+  if (args.paymentMethod === 'cash') {
+    await ctx.db.insert('reservationPaymentDocuments', {
+      reservationId: args.reservationId,
+      paymentId,
+      kind: 'cash_attestation',
+      note: args.evidenceNote?.trim() || 'Cash received and counted at front desk',
+      uploadedBy: args.createdBy,
+      createdAt: now,
+    });
+  } else if (args.evidenceStorageId) {
+    await ctx.db.insert('reservationPaymentDocuments', {
+      reservationId: args.reservationId,
+      paymentId,
+      kind: 'receipt',
+      storageId: args.evidenceStorageId,
+      fileName: args.evidenceFileName || 'receipt',
+      mimeType: args.evidenceMimeType,
+      fileSize: args.evidenceFileSize,
+      note: args.evidenceNote,
+      uploadedBy: args.createdBy,
+      createdAt: now,
+    });
+  }
+
+  return { paymentId };
 }
+
+export const generateReservationPaymentUploadUrl = mutation({
+  args: { reservationId: v.id('reservations') },
+  handler: async (ctx, args) => {
+    const reservation = await ctx.db.get(args.reservationId);
+    if (!reservation) {
+      throw new Error('Reservation not found');
+    }
+    await requirePermission(ctx, 'reservations.update', reservation.propertyId);
+    return await ctx.storage.generateUploadUrl();
+  },
+});
 
 export const updateReservation = mutation({
   args: {
@@ -389,6 +479,7 @@ export const checkInReservation = mutation({
     reservationId: v.id('reservations'),
     amountCollected: v.optional(v.number()),
     paymentMethod: v.optional(paymentMethodValidator),
+    ...paymentEvidenceArgs,
   },
   handler: async (ctx, args) => {
     const reservation = await ctx.db.get(args.reservationId);
@@ -423,13 +514,23 @@ export const checkInReservation = mutation({
 
     const now = Date.now();
     const amount = args.amountCollected ?? 0;
-    await recordReservationPayment(ctx, {
+    const paymentMethod = args.paymentMethod ?? 'cash';
+    const posted = await recordReservationPayment(ctx, {
       propertyId: reservation.propertyId,
       reservationId: reservation._id,
       amount,
-      paymentMethod: args.paymentMethod ?? 'cash',
+      paymentMethod,
       createdBy: auth.user._id,
+      cashAttested: args.cashAttested,
+      evidenceStorageId: args.evidenceStorageId,
+      evidenceFileName: args.evidenceFileName,
+      evidenceMimeType: args.evidenceMimeType,
+      evidenceFileSize: args.evidenceFileSize,
+      evidenceNote: args.evidenceNote,
     });
+    if (posted && 'error' in posted) {
+      return { success: false, message: posted.error };
+    }
     const nextDeposit = (reservation.depositAmount ?? 0) + (amount > 0 ? amount : 0);
 
     await ctx.db.patch(args.reservationId, {
@@ -452,6 +553,7 @@ export const checkOutReservation = mutation({
     reservationId: v.id('reservations'),
     amountCollected: v.optional(v.number()),
     paymentMethod: v.optional(paymentMethodValidator),
+    ...paymentEvidenceArgs,
   },
   handler: async (ctx, args) => {
     const reservation = await ctx.db.get(args.reservationId);
@@ -464,13 +566,24 @@ export const checkOutReservation = mutation({
     }
 
     const now = Date.now();
-    await recordReservationPayment(ctx, {
+    const amount = args.amountCollected ?? 0;
+    const paymentMethod = args.paymentMethod ?? 'cash';
+    const posted = await recordReservationPayment(ctx, {
       propertyId: reservation.propertyId,
       reservationId: reservation._id,
-      amount: args.amountCollected ?? 0,
-      paymentMethod: args.paymentMethod ?? 'cash',
+      amount,
+      paymentMethod,
       createdBy: auth.user._id,
+      cashAttested: args.cashAttested,
+      evidenceStorageId: args.evidenceStorageId,
+      evidenceFileName: args.evidenceFileName,
+      evidenceMimeType: args.evidenceMimeType,
+      evidenceFileSize: args.evidenceFileSize,
+      evidenceNote: args.evidenceNote,
     });
+    if (posted && 'error' in posted) {
+      return { success: false, message: posted.error };
+    }
 
     await ctx.db.patch(args.reservationId, {
       status: 'checked-out',

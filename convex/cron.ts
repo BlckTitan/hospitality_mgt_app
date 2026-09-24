@@ -88,6 +88,8 @@ async function rollupDailiesForKeys(
       totalQtySold: number;
       totalRevenue: number;
       totalCogs: number;
+      totalWasteQty: number;
+      totalCompQty: number;
     }
   >();
 
@@ -111,10 +113,14 @@ async function rollupDailiesForKeys(
         totalQtySold: 0,
         totalRevenue: 0,
         totalCogs: 0,
+        totalWasteQty: 0,
+        totalCompQty: 0,
       };
       current.totalQtySold += row.totalQtySold;
       current.totalRevenue += row.totalRevenue;
       current.totalCogs += row.totalCogs ?? 0;
+      current.totalWasteQty += row.totalWasteQty ?? 0;
+      current.totalCompQty += row.totalCompQty ?? 0;
       grouped.set(key, current);
     }
   }
@@ -133,6 +139,8 @@ async function rollupDailiesForKeys(
       totalQtySold: group.totalQtySold,
       totalRevenue: group.totalRevenue,
       totalCogs: group.totalCogs,
+      totalWasteQty: group.totalWasteQty,
+      totalCompQty: group.totalCompQty,
     });
   }
 }
@@ -231,6 +239,8 @@ export const aggregateYearlySummaries = internalMutation({
           totalQtySold: number;
           totalRevenue: number;
           totalCogs: number;
+          totalWasteQty: number;
+          totalCompQty: number;
         }
       >();
 
@@ -253,10 +263,14 @@ export const aggregateYearlySummaries = internalMutation({
             totalQtySold: 0,
             totalRevenue: 0,
             totalCogs: 0,
+            totalWasteQty: 0,
+            totalCompQty: 0,
           };
           current.totalQtySold += row.totalQtySold;
           current.totalRevenue += row.totalRevenue;
           current.totalCogs += row.totalCogs ?? 0;
+          current.totalWasteQty += row.totalWasteQty ?? 0;
+          current.totalCompQty += row.totalCompQty ?? 0;
           grouped.set(key, current);
         }
       }
@@ -273,6 +287,8 @@ export const aggregateYearlySummaries = internalMutation({
           totalQtySold: group.totalQtySold,
           totalRevenue: group.totalRevenue,
           totalCogs: group.totalCogs,
+          totalWasteQty: group.totalWasteQty,
+          totalCompQty: group.totalCompQty,
         });
       }
     }

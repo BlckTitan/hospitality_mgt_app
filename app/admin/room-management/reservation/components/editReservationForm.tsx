@@ -8,7 +8,7 @@ import { Id } from "../../../../../convex/_generated/dataModel";
 import { toast } from "sonner";
 import InputComponent from "../../../../../shared/input";
 import { useState, useEffect } from "react";
-import { ReservationLifecycleActions } from "./reservationLifecycle";
+import { ReservationLifecycleActions, ReservationPaymentHistory } from "./reservationLifecycle";
 import { formatPropertyMoney, usePropertyCurrency } from "../../../inventory-management/components/money";
 
 type FormData = {
@@ -38,6 +38,7 @@ export function FormComponent({
   specialRequests,
   propertyId,
   paidTotal = 0,
+  payments = [],
 }: {
   id: Id<'reservations'>;
   roomId: string;
@@ -52,6 +53,19 @@ export function FormComponent({
   specialRequests?: string;
   propertyId: string;
   paidTotal?: number;
+  payments?: Array<{
+    _id: string;
+    amount: number;
+    paymentMethod: string;
+    paidAt?: number;
+    evidence?: {
+      kind: 'receipt' | 'cash_attestation';
+      fileName?: string | null;
+      note?: string | null;
+      fileUrl?: string | null;
+      createdAt: number;
+    } | null;
+  }>;
 }) {
   const updateReservation = useMutation(api.reservations.updateReservation);
   const currency = usePropertyCurrency(propertyId);
@@ -169,6 +183,7 @@ export function FormComponent({
         depositAmount={depositAmount ?? 0}
         currency={currency}
       />
+      <ReservationPaymentHistory payments={payments} currency={currency} />
 
       {isClosed && (
         <p className="mb-4 text-sm text-gray-600">

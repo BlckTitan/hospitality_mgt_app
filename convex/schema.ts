@@ -1418,6 +1418,23 @@ export default defineSchema({
     .index("by_propertyId", ["propertyId"])
     .index("by_reference", ["referenceType", "referenceId"]),
 
+  // Guest payment evidence for reservation check-in / check-out collections.
+  // Cash uses attestation; card / transfer / other use a receipt file in _storage.
+  reservationPaymentDocuments: defineTable({
+    reservationId: v.id("reservations"),
+    paymentId: v.id("payments"),
+    kind: v.union(v.literal("receipt"), v.literal("cash_attestation")),
+    storageId: v.optional(v.id("_storage")),
+    fileName: v.optional(v.string()),
+    mimeType: v.optional(v.string()),
+    fileSize: v.optional(v.number()),
+    note: v.optional(v.string()),
+    uploadedBy: v.id("users"),
+    createdAt: v.number(),
+  })
+    .index("by_reservationId", ["reservationId"])
+    .index("by_paymentId", ["paymentId"]),
+
   assets: defineTable({
     propertyId: v.id("properties"),
     roomId: v.optional(v.id("rooms")),

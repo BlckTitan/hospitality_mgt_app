@@ -25,6 +25,8 @@ interface UserStockLogProps {
   closingStock: number;
   salesQuantity: number;
   salesValue: number;
+  wasteQuantity?: number;
+  compQuantity?: number;
   unitCostAtSale?: number;
   cogsValue?: number;
   isFinalized: boolean;
@@ -211,6 +213,20 @@ const UserStockLogs = ({
       key: 'closingStock',
       render: (value, row) => (
         <span>{row.closingStock} {row.beverage?.unitOfMeasure || 'units'}</span>
+      )
+    },
+    {
+      label: 'Waste',
+      key: 'wasteQuantity',
+      render: (value, row) => (
+        <span>{row.wasteQuantity ?? 0} {row.beverage?.unitOfMeasure || 'units'}</span>
+      )
+    },
+    {
+      label: 'Comps',
+      key: 'compQuantity',
+      render: (value, row) => (
+        <span>{row.compQuantity ?? 0} {row.beverage?.unitOfMeasure || 'units'}</span>
       )
     },
     {

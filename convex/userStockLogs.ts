@@ -9,7 +9,7 @@ import {
   propertyDateKey,
   refreshSalesSummariesForLog,
   refreshSalesSummariesForLogs,
-  resolveUnitCost,
+  resolveBeverageUnitCost,
 } from './lib/barStock';
 
 export const getAllUserStockLogs = query({
@@ -68,7 +68,18 @@ export const getUserStockLog = query({
         stockLog.barId ? ctx.db.get(stockLog.barId) : null
       ]);
       
-      return { success: true, data: { ...stockLog, shift, beverage, user, bar } };
+      return {
+        success: true,
+        data: {
+          ...stockLog,
+          shift,
+          beverage: beverage
+            ? { ...beverage, resolvedUnitCost: await resolveBeverageUnitCost(ctx, beverage) }
+            : beverage,
+          user,
+          bar,
+        },
+      };
     } catch (error) {
       console.log(`Failed to fetch user stock log: ${error}`);
       return { success: false, data: null, message: 'Failed to fetch user stock log' };
@@ -347,6 +358,10 @@ export const createUserStockLog = mutation({
     logDate: v.optional(v.string()),
     openingStock: v.optional(v.number()),
     closingStock: v.optional(v.number()),
+    wasteQuantity: v.optional(v.number()),
+    wasteReason: v.optional(v.string()),
+    compQuantity: v.optional(v.number()),
+    compReason: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     await requirePermission(ctx, 'fnb.create', args.propertyId);
@@ -422,10 +437,12 @@ export const createUserStockLog = mutation({
         totalStock,
         closingStock,
         beverage.unitPrice,
-        resolveUnitCost(beverage.unitCost),
+        await resolveBeverageUnitCost(ctx, beverage),
+        args.wasteQuantity,
+        args.compQuantity,
       );
-    } catch {
-      return { success: false, message: 'Closing stock cannot be greater than total stock' };
+    } catch (error: any) {
+      return { success: false, message: error?.message || 'Closing stock cannot be greater than total stock' };
     }
     const stockLogId = await ctx.db.insert('userStockLogs', {
       propertyId: args.propertyId,
@@ -439,6 +456,8 @@ export const createUserStockLog = mutation({
       totalStock,
       closingStock,
       ...sales,
+      ...(args.wasteReason ? { wasteReason: args.wasteReason } : {}),
+      ...(args.compReason ? { compReason: args.compReason } : {}),
       isFinalized: false,
       lastUpdatedAt: Date.now(),
     });
@@ -451,6 +470,8 @@ export const createUserStockLog = mutation({
       salesQuantity: sales.salesQuantity,
       salesValue: sales.salesValue,
       cogsValue: sales.cogsValue,
+      wasteQuantity: sales.wasteQuantity,
+      compQuantity: sales.compQuantity,
     });
 
     return { success: true, message: 'User stock log created successfully', id: stockLogId };
@@ -462,6 +483,10 @@ export const updateUserStockLog = mutation({
     stockLogId: v.id('userStockLogs'),
     openingStock: v.number(),
     closingStock: v.number(),
+    wasteQuantity: v.optional(v.number()),
+    wasteReason: v.optional(v.string()),
+    compQuantity: v.optional(v.number()),
+    compReason: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const existingLog = await ctx.db.get(args.stockLogId);
@@ -490,10 +515,12 @@ export const updateUserStockLog = mutation({
           totalStock,
           args.closingStock,
           beverage.unitPrice,
-          resolveUnitCost(beverage.unitCost),
+          await resolveBeverageUnitCost(ctx, beverage),
+          args.wasteQuantity ?? existingLog.wasteQuantity,
+          args.compQuantity ?? existingLog.compQuantity,
         );
-      } catch {
-        return { success: false, message: 'Closing stock cannot be greater than total stock' };
+      } catch (error: any) {
+        return { success: false, message: error?.message || 'Closing stock cannot be greater than total stock' };
       }
 
       await ctx.db.patch(args.stockLogId, {
@@ -501,6 +528,8 @@ export const updateUserStockLog = mutation({
         totalStock,
         closingStock: args.closingStock,
         ...sales,
+        ...(args.wasteReason !== undefined ? { wasteReason: args.wasteReason } : {}),
+        ...(args.compReason !== undefined ? { compReason: args.compReason } : {}),
         lastUpdatedAt: Date.now(),
       });
       await refreshSalesSummariesForLog(ctx, {
@@ -508,6 +537,8 @@ export const updateUserStockLog = mutation({
         salesQuantity: sales.salesQuantity,
         salesValue: sales.salesValue,
         cogsValue: sales.cogsValue,
+        wasteQuantity: sales.wasteQuantity,
+        compQuantity: sales.compQuantity,
       });
 
       return { success: true, message: 'User stock log updated successfully' };
@@ -538,6 +569,8 @@ export const deleteUserStockLog = mutation({
         salesQuantity: 0,
         salesValue: 0,
         cogsValue: 0,
+        wasteQuantity: 0,
+        compQuantity: 0,
       });
       return { success: true, message: 'User stock log deleted successfully' };
     } catch (error) {
@@ -696,7 +729,9 @@ export const addMyTodayBeverage = mutation({
       closingStock: openingStock,
       salesQuantity: 0,
       salesValue: 0,
-      unitCostAtSale: resolveUnitCost(beverage.unitCost),
+      wasteQuantity: 0,
+      compQuantity: 0,
+      unitCostAtSale: await resolveBeverageUnitCost(ctx, beverage),
       cogsValue: 0,
       isFinalized: false,
       lastUpdatedAt: Date.now(),
@@ -720,6 +755,10 @@ export const saveMyClosingStock = mutation({
   args: {
     stockLogId: v.id('userStockLogs'),
     closingStock: v.number(),
+    wasteQuantity: v.optional(v.number()),
+    wasteReason: v.optional(v.string()),
+    compQuantity: v.optional(v.number()),
+    compReason: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const existingLog = await ctx.db.get(args.stockLogId);
@@ -751,14 +790,18 @@ export const saveMyClosingStock = mutation({
         existingLog.totalStock,
         args.closingStock,
         beverage.unitPrice,
-        resolveUnitCost(beverage.unitCost),
+        await resolveBeverageUnitCost(ctx, beverage),
+        args.wasteQuantity ?? existingLog.wasteQuantity,
+        args.compQuantity ?? existingLog.compQuantity,
       );
-    } catch {
-      return { success: false, message: 'Closing stock cannot be greater than total stock' };
+    } catch (error: any) {
+      return { success: false, message: error?.message || 'Closing stock cannot be greater than total stock' };
     }
     await ctx.db.patch(args.stockLogId, {
       closingStock: args.closingStock,
       ...sales,
+      ...(args.wasteReason !== undefined ? { wasteReason: args.wasteReason } : {}),
+      ...(args.compReason !== undefined ? { compReason: args.compReason } : {}),
       lastUpdatedAt: Date.now(),
     });
     await refreshSalesSummariesForLog(ctx, {
@@ -766,6 +809,8 @@ export const saveMyClosingStock = mutation({
       salesQuantity: sales.salesQuantity,
       salesValue: sales.salesValue,
       cogsValue: sales.cogsValue,
+      wasteQuantity: sales.wasteQuantity,
+      compQuantity: sales.compQuantity,
     });
     return { success: true, message: 'Closing stock saved' };
   },

@@ -19,6 +19,10 @@ interface BeverageProps {
   unitOfMeasure: string;
   unitPrice: number;
   unitCost?: number;
+  resolvedUnitCost?: number;
+  costSource?: string;
+  inventoryItem?: { name?: string } | null;
+  recipeLines?: unknown[];
   reorderLevel: number;
   isActive: boolean;
   _creationTime: number;
@@ -76,14 +80,22 @@ const Beverages = ({ currentPropertyId }: { currentPropertyId: Id<"properties"> 
     },
     {
       label: 'Unit Cost',
-      key: 'unitCost',
-      render: (value) => {
+      key: 'resolvedUnitCost',
+      render: (_value, row) => {
         const currency = propertyData?.success ? propertyData.data?.currency : 'USD';
         const symbol = getCurrencySymbol(currency);
-        if (value === undefined || value === null || Number.isNaN(Number(value))) {
+        const cost = row.resolvedUnitCost ?? row.unitCost;
+        if (cost === undefined || cost === null || Number.isNaN(Number(cost))) {
           return <span className="text-gray-400">—</span>;
         }
-        return <span>{symbol}{Number(value).toFixed(2)}</span>;
+        const source = row.costSource === 'recipe'
+          ? 'recipe'
+          : row.costSource === 'inventory'
+            ? row.inventoryItem?.name || 'inventory'
+            : row.costSource === 'manual'
+              ? 'manual'
+              : '';
+        return <span>{symbol}{Number(cost).toFixed(2)}{source ? <span className="text-xs text-gray-500"> · {source}</span> : null}</span>;
       }
     },
     {
