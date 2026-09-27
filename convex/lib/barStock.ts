@@ -5,7 +5,79 @@ import { findOrCreateFnBShift } from "./shiftHelpers";
 
 type DbCtx = MutationCtx | QueryCtx;
 
-export type StoreTxnType = "receive" | "issue";
+export type StoreTxnType = "receive" | "issue" | "count_adjust";
+
+export async function issueStockToUser(
+  ctx: MutationCtx,
+  args: {
+    propertyId: Id<"properties">;
+    beverageId: Id<"beverages">;
+    barId: Id<"bars">;
+    userId: Id<"users">;
+    qty: number;
+    notes?: string;
+    stockRequestLineId?: Id<"stockRequestLines">;
+    unitPrice: number;
+    unitCost: number;
+    now?: number;
+  },
+): Promise<{ success: true; transactionId: Id<"storeTransactions"> } | { success: false; message: string }> {
+  if (args.qty <= 0) {
+    return { success: false, message: "Quantity must be greater than 0" };
+  }
+
+  const now = args.now ?? Date.now();
+  const txnDateKey = await propertyDateKey(ctx, args.propertyId, now);
+  const inventory = await findStoreInventory(ctx, args.propertyId, args.beverageId);
+  if (!inventory) {
+    return { success: false, message: "No store inventory exists for this beverage. Receive stock first." };
+  }
+  if (inventory.qtyInStore < args.qty) {
+    return { success: false, message: "Insufficient stock in store" };
+  }
+
+  const preview = await previewIssueToStockLog(ctx, {
+    userId: args.userId,
+    barId: args.barId,
+    beverageId: args.beverageId,
+    logDate: txnDateKey,
+    qty: args.qty,
+  });
+  if (preview.error) {
+    return { success: false, message: preview.error };
+  }
+
+  const transactionId = await ctx.db.insert("storeTransactions", {
+    propertyId: args.propertyId,
+    beverageId: args.beverageId,
+    barId: args.barId,
+    userId: args.userId,
+    txnType: "issue",
+    qty: args.qty,
+    txnDate: now,
+    txnDateKey,
+    notes: args.notes,
+    stockRequestLineId: args.stockRequestLineId,
+  });
+  const newQty = await applyStoreQtyChange(ctx, inventory, -args.qty);
+  await applyIssuedQtyToStockLog(ctx, {
+    propertyId: args.propertyId,
+    userId: args.userId,
+    barId: args.barId,
+    beverageId: args.beverageId,
+    logDate: txnDateKey,
+    qty: args.qty,
+    unitPrice: args.unitPrice,
+    unitCost: args.unitCost,
+  });
+  await maybeOpenReorderAlert(ctx, {
+    propertyId: args.propertyId,
+    beverageId: args.beverageId,
+    qtyInStore: newQty,
+    reorderThreshold: inventory.reorderThreshold,
+  });
+  return { success: true, transactionId };
+}
 
 export async function propertyDateKey(
   ctx: DbCtx,

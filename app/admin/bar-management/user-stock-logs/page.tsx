@@ -11,6 +11,7 @@ import { useQuery } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 import { Id } from '../../../../convex/_generated/dataModel';
 import BootstrapModal from '../../../../shared/modal';
+import { BarManagementPageGuide } from '../components/barManagementPageGuide';
 
 export default function UserStockLogPage() {
   const [modalShow, setModalShow] = useState(false);
@@ -64,6 +65,8 @@ export default function UserStockLogPage() {
       
         </div>
       </header>
+
+      <BarManagementPageGuide page="user-stock-logs" />
 
       <FilterComponent
         propertyId={currentPropertyId as Id<'properties'>}

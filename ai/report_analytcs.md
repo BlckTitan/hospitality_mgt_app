@@ -4,8 +4,8 @@ This document is the **financial metrics** catalog (RevPAR, GOPPAR, cost %, liqu
 
 - Property dashboard after login: `/admin/dashboard` (`reports.read`) — P&L / RevPAR for the selected property, plus rooms, housekeeping, inventory, today’s F&B, billing. Spec: `ai/dashboard.md`.
 - Users without `reports.read` land on `/admin/staff/myProfile`, not the dashboard.
-- **Bar hub (implemented):** `/admin/bar-management` (`fnb.read`). Periods Daily / Weekly / Monthly / Yearly / YoY. Commercial KPIs and tabbed charts from `salesSummaries`; health KPIs (finalization, reorder aging, revenue per waiter-shift, top/slowest SKUs) from `getBarHealthMetrics`. Spec: `ai/Bar inventory and sales management system design PRD.md`.
-- Bar **sales** in this product are stock disappearance (`totalStock − closingStock` × `unitPrice`), not POS tickets. Average check, RevPASH, and beverage cost % stay catalog-only until covers and unit cost exist.
+- **Bar hub (implemented):** `/admin/bar-management` (`fnb.read`). Periods Daily / Weekly / Monthly / Yearly / YoY. Commercial KPIs (revenue, gross profit, pour cost %, waste/comps, store variance) and tabbed charts from `salesSummaries`; health KPIs (finalization, reorder aging, open stock requests, revenue per waiter-shift, top/slowest SKUs) from `getBarHealthMetrics`. Spec: `ai/Bar inventory and sales management system design PRD.md`.
+- Bar **sales** in this product are stock disappearance after waste/comps (`totalStock − closingStock − waste − comps` × `unitPrice`), not POS tickets. Pour cost % uses snapshotted COGS (`cogsValue` / revenue). Average check and RevPASH stay catalog-only until covers exist.
 
 To truly measure the financial health of a hospitality enterprise (hotels, resorts, restaurants, etc.), you must track a comprehensive set of metrics that address four core areas: Operational Performance, Profitability, Liquidity & Solvency, and Efficiency.
 

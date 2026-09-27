@@ -17,6 +17,7 @@ interface BeverageProps {
   name: string;
   category: string;
   unitOfMeasure: string;
+  size?: string;
   unitPrice: number;
   unitCost?: number;
   resolvedUnitCost?: number;
@@ -69,6 +70,11 @@ const Beverages = ({ currentPropertyId }: { currentPropertyId: Id<"properties"> 
     { label: 'Name', key: 'name' },
     { label: 'Category', key: 'category' },
     { label: 'Unit', key: 'unitOfMeasure' },
+    {
+      label: 'Size',
+      key: 'size',
+      render: (value) => <span>{value ? String(value) : '—'}</span>,
+    },
     {
       label: 'Unit Price',
       key: 'unitPrice',

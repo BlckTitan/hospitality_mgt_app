@@ -164,8 +164,12 @@ transaction's calendar date (`txnDateKey`) only — prior days are never mutated
 | `newStockReceived` | `v.number()`           | Cumulative qty issued via `storeTransactions` on this day    |
 | `totalStock`       | `v.number()`           | `openingStock + newStockReceived` (persisted)                |
 | `closingStock`     | `v.number()`           | Physical count at end of day                                 |
-| `salesQuantity`    | `v.number()`           | `totalStock − closingStock` (persisted)                      |
+| `salesQuantity`    | `v.number()`           | `totalStock − closingStock − waste − comps` (persisted)  |
 | `salesValue`       | `v.number()`           | `salesQuantity × unitPrice` (persisted)                      |
+| `wasteQuantity`    | `v.optional(v.number())` | Spill / breakage excluded from sales                      |
+| `compQuantity`     | `v.optional(v.number())` | Comps excluded from sales                                 |
+| `unitCostAtSale`   | `v.optional(v.number())` | Snapshotted unit cost                                     |
+| `cogsValue`        | `v.optional(v.number())` | Disappeared × unitCostAtSale                              |
 | `isFinalized`      | `v.boolean()`          | **[NEW]** `true` after end-of-day reconciliation; blocks further updates |
 | `lastUpdatedAt`    | `v.number()`           | **[NEW]** Epoch ms of last mutation (replaces `recordedAt`)  |
 
@@ -239,11 +243,13 @@ updates for the matching calendar day.
 | `beverageId`    | `v.id("beverages")`                                      | Beverage being transacted                                   |
 | `barId`         | `v.optional(v.id("bars"))`                               | Destination/source bar (`undefined` for supplier receive)   |
 | `userId`        | `v.optional(v.id("users"))`                              | User who initiated the transaction                          |
-| `txnType`       | `v.union(v.literal("receive"), v.literal("issue"))`      | `"receive"` = supplier in; `"issue"` = bar/user out        |
-| `qty`           | `v.number()`                                             | Quantity transacted                                         |
+| `txnType`       | `v.union(v.literal("receive"), v.literal("issue"), v.literal("count_adjust"))` | receive / issue / posted count variance |
+| `qty`           | `v.number()`                                             | Quantity; for `count_adjust` this is the signed variance (counted − book) |
 | `txnDate`       | `v.number()`                                             | Epoch ms timestamp — used for ordering                      |
 | `txnDateKey`    | `v.string()`                                             | **[NEW]** ISO 8601 date e.g. `"2026-03-26"` — used for day-scoped `userStockLogs` lookups |
 | `notes`         | `v.optional(v.string())`                                 | Optional reference or remarks                               |
+| `stockRequestLineId` | `v.optional(v.id("stockRequestLines"))`             | Set when issue came from an approved request line           |
+| `storeCountLineId`   | `v.optional(v.id("storeCountLines"))`               | Set when txn is a posted count adjust                       |
 
 **Indexes:**
 
@@ -256,6 +262,23 @@ updates for the matching calendar day.
 | `by_beverageId_date`      | `[beverageId, txnDateKey]`          | Beverage movement on a specific calendar day (updated to string key) |
 | `by_userId_beverage_date` | `[userId, beverageId, txnDateKey]`  | **[NEW]** Issues to a user for a beverage on a given day        |
 | `by_barId_beverage_date`  | `[barId, beverageId, txnDateKey]`   | **[NEW]** Issues to a bar for a beverage on a given day         |
+
+---
+
+### 7b. `stockRequests` / `stockRequestLines` (v2.3)
+
+Waiter replenishment queue. Approve line = store issue to requester.
+
+| Field | Notes |
+|-------|-------|
+| `status` | request: `pending` \| `approved` \| `partial` \| `rejected` \| `cancelled` |
+| line `status` | `pending` \| `approved` \| `rejected` |
+| `qtyApproved` | May be ≤ `qtyRequested` on approve |
+
+### 7c. `storeCounts` / `storeCountLines` (v2.3)
+
+Central store physical count. Draft snapshots `bookQty`; post sets `qtyInStore`
+to `countedQty` and writes `count_adjust` transactions.
 
 ---
 

@@ -10,6 +10,7 @@ import { api } from "../../../../../convex/_generated/api";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { TableColumn } from "../../../../../shared/table";
 import PaginationComponent from "../../../../../shared/pagination";
+import { formatPropertyMoney, usePropertyCurrency } from "../../../inventory-management/components/money";
 
 interface UserStockLogProps {
   _id: string;
@@ -69,6 +70,8 @@ const UserStockLogs = ({
   currentPropertyId: Id<"properties">;
   filters?: any;
 }) => {
+  const currency = usePropertyCurrency(currentPropertyId);
+
   // Use different queries based on active filters
   let stockLogData;
   
@@ -143,12 +146,7 @@ const UserStockLogs = ({
     return new Date(timestamp).toLocaleString();
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(amount);
-  };
+  const formatCurrency = (amount: number) => formatPropertyMoney(amount, currency);
 
   const getStockLogStatusBadge = (isFinalized: boolean) => {
     return (
@@ -327,13 +325,12 @@ const UserStockLogs = ({
   ];
 
   return (
-    <div className='w-full h-full overflow-x-scroll lg:!overflow-x-hidden'>
-      
+    <div className="w-full h-full min-w-0 overflow-x-auto">
       <Suspense>
-        <PaginationComponent 
-          collectionName='userStockLogs' 
+        <PaginationComponent
+          collectionName="userStockLogs"
           columns={tableColumns}
-          jointTableData={(stockLogData?.success === true) && stockLogData?.data}  
+          jointTableData={(stockLogData?.success === true) && stockLogData?.data}
         />
       </Suspense>
     </div>

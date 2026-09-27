@@ -20,14 +20,14 @@ function TableComponent<T extends Record <string, any>>({data, columns}: TablePr
   return (
     <>
   
-      <Table striped bordered hover >
+      <Table responsive striped bordered hover className="mb-0">
         <thead>
           <tr>
               <th>SN</th>
               {columns && columns.map((items, index) => (
-                  <th 
+                  <th
                     key={index}
-                    style={{textWrap: 'nowrap'}}
+                    className="whitespace-nowrap"
                   >
                     {items.label}
                   </th>
@@ -41,7 +41,7 @@ function TableComponent<T extends Record <string, any>>({data, columns}: TablePr
                 <tr key={index}>
                   <td>{index+1}</td>
                   {columns.map((col, i) => (
-                    <td key={i}>
+                    <td key={i} className="whitespace-nowrap">
                       {col.render ? col.render(row[col.key], row) : (row[col.key] as React.ReactNode)}
                     </td>
                   ))}

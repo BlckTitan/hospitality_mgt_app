@@ -2,6 +2,7 @@ import { MutationCtx, QueryCtx } from "../_generated/server";
 import { Doc, Id } from "../_generated/dataModel";
 import { currentUtcHHmm } from "./payrollHelpers";
 import { punctualityFieldsForClock, punctualityInsertFields } from "./punctuality";
+import { isActiveStatus } from "./staffAccess";
 
 type DbCtx = MutationCtx | QueryCtx;
 
@@ -47,6 +48,62 @@ export function todayIsoDate(): string {
 export function staffDisplayName(staff: { firstName: string; lastName: string } | null) {
   if (!staff) return "Unknown";
   return `${staff.firstName} ${staff.lastName}`;
+}
+
+/** Active employed staff with a login, assigned to an F&B shift template for the bar. */
+export async function listActiveUsersTiedToBar(
+  ctx: DbCtx,
+  args: { propertyId: Id<"properties">; barId?: Id<"bars"> },
+) {
+  const templates = await ctx.db
+    .query("shiftTemplates")
+    .withIndex("by_propertyId_department", (q) =>
+      q.eq("propertyId", args.propertyId).eq("department", "fnb"),
+    )
+    .collect();
+
+  const relevant = templates.filter(
+    (row) => row.isActive && row.barId && (!args.barId || row.barId === args.barId),
+  );
+
+  const byUserId = new Map<
+    string,
+    { _id: Id<"users">; name: string; email: string; barId: Id<"bars"> }
+  >();
+
+  for (const template of relevant) {
+    if (!template.barId) continue;
+    const staffRows = await ctx.db
+      .query("staffs")
+      .withIndex("by_shiftTemplateId", (q) => q.eq("shiftTemplateId", template._id))
+      .collect();
+
+    for (const staff of staffRows) {
+      if (!isActiveStatus(staff.employmentStatus) || !staff.userId) continue;
+      if (byUserId.has(staff.userId)) continue;
+      const user = await ctx.db.get(staff.userId);
+      if (!user?.isActive) continue;
+      byUserId.set(staff.userId, {
+        _id: user._id,
+        name: user.name || staffDisplayName(staff),
+        email: user.email,
+        barId: template.barId,
+      });
+    }
+  }
+
+  return [...byUserId.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export async function userIsActiveAndTiedToBar(
+  ctx: DbCtx,
+  args: { propertyId: Id<"properties">; barId: Id<"bars">; userId: Id<"users"> },
+) {
+  const users = await listActiveUsersTiedToBar(ctx, {
+    propertyId: args.propertyId,
+    barId: args.barId,
+  });
+  return users.some((user) => user._id === args.userId);
 }
 
 export async function staffForUser(ctx: DbCtx, userId: Id<"users">) {

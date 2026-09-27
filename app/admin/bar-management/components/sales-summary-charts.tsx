@@ -334,8 +334,25 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
           )}
         </div>
         <div className="bg-teal-50 p-4 rounded-lg border border-teal-200">
-          <div className="text-sm text-teal-600 font-medium">Gross Margin</div>
+          <div className="text-sm text-teal-600 font-medium">Pour cost %</div>
           <div className="text-xl font-bold text-teal-800">
+            {(() => {
+              const revenue = periodType === 'yoy'
+                ? yoyTrend?.current.totalRevenue || 0
+                : salesByBarData.data?.reduce((sum, item) => sum + item.totalRevenue, 0) || 0;
+              const cogs = periodType === 'yoy'
+                ? yoyTrend?.current.totalCogs || 0
+                : salesByBarData.data?.reduce((sum, item) => sum + (item.totalCogs ?? 0), 0) || 0;
+              if (revenue === 0) return '—';
+              return `${Math.round((cogs / revenue) * 100)}%`;
+            })()}
+          </div>
+          <div className="text-xs text-gray-600 mt-1">
+            {formatCurrency(
+              periodType === 'yoy'
+                ? yoyTrend?.current.totalCogs || 0
+                : salesByBarData.data?.reduce((sum, item) => sum + (item.totalCogs ?? 0), 0) || 0
+            )} COGS · margin{' '}
             {(() => {
               const revenue = periodType === 'yoy'
                 ? yoyTrend?.current.totalRevenue || 0
@@ -346,13 +363,6 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
               if (revenue === 0) return '—';
               return `${Math.round(((revenue - cogs) / revenue) * 100)}%`;
             })()}
-          </div>
-          <div className="text-xs text-gray-600 mt-1">
-            {formatCurrency(
-              periodType === 'yoy'
-                ? yoyTrend?.current.totalCogs || 0
-                : salesByBarData.data?.reduce((sum, item) => sum + (item.totalCogs ?? 0), 0) || 0
-            )} COGS
           </div>
         </div>
         <div className="bg-rose-50 p-4 rounded-lg border border-rose-200">
@@ -400,7 +410,7 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
       {health === undefined ? (
         <div className="mb-6 text-sm text-gray-500">Loading health metrics…</div>
       ) : (
-        <div className="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="mb-6 grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-4">
           <div className={`p-4 rounded-lg border ${
             health.openLogCount > 0
               ? 'bg-yellow-50 border-yellow-200'
@@ -458,6 +468,50 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
               Unresolved open or acknowledged alerts
             </div>
           </div>
+          <div className={`p-4 rounded-lg border ${
+            (health.openStockRequestCount ?? 0) > 0
+              ? 'bg-orange-50 border-orange-200'
+              : 'bg-slate-50 border-slate-200'
+          }`}>
+            <div className={`text-sm font-medium ${(health.openStockRequestCount ?? 0) > 0 ? 'text-orange-700' : 'text-slate-600'}`}>
+              Open stock requests
+            </div>
+            <div className={`text-xl font-bold ${(health.openStockRequestCount ?? 0) > 0 ? 'text-orange-900' : 'text-slate-800'}`}>
+              {health.openStockRequestCount ?? '—'}
+            </div>
+            <div className="text-xs text-gray-600 mt-1">
+              {health.openStockRequestCount === null
+                ? 'Needs inventory access'
+                : (
+                  <a href="/admin/bar-management/stock-requests" className="text-blue-700 underline">
+                    Review queue
+                  </a>
+                )}
+            </div>
+          </div>
+          <div className={`p-4 rounded-lg border ${
+            (health.latestStoreVarianceQty ?? 0) < 0
+              ? 'bg-rose-50 border-rose-200'
+              : 'bg-slate-50 border-slate-200'
+          }`}>
+            <div className={`text-sm font-medium ${(health.latestStoreVarianceQty ?? 0) < 0 ? 'text-rose-700' : 'text-slate-600'}`}>
+              Store variance
+            </div>
+            <div className={`text-xl font-bold ${(health.latestStoreVarianceQty ?? 0) < 0 ? 'text-rose-900' : 'text-slate-800'}`}>
+              {health.latestStoreVarianceQty === null || health.latestStoreVarianceQty === undefined
+                ? '—'
+                : health.latestStoreVarianceQty > 0
+                  ? `+${health.latestStoreVarianceQty}`
+                  : health.latestStoreVarianceQty}
+            </div>
+            <div className="text-xs text-gray-600 mt-1">
+              {health.latestStoreCountDateKey
+                ? `Latest count ${health.latestStoreCountDateKey}`
+                : health.latestStoreVarianceQty === null
+                  ? 'Needs inventory access'
+                  : 'No posted count yet'}
+            </div>
+          </div>
           <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-200">
             <div className="text-sm text-indigo-600 font-medium">Revenue / waiter-shift</div>
             <div className="text-xl font-bold text-indigo-800">
@@ -468,6 +522,39 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
               {periodType === 'yearly' || periodType === 'yoy' ? ' · last 30 days' : ''}
             </div>
           </div>
+        </div>
+      )}
+
+      {health && (health.openStockRequests?.length ?? 0) > 0 && (
+        <div className="mb-6 border rounded-lg p-4">
+          <div className="flex justify-between items-center mb-2">
+            <h4 className="font-medium text-sm">Open stock requests</h4>
+            <a href="/admin/bar-management/stock-requests" className="text-sm text-blue-700 underline">
+              Approve & issue
+            </a>
+          </div>
+          <table className="min-w-full text-sm">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="p-2 text-left">Waiter</th>
+                <th className="p-2 text-left">Bar</th>
+                <th className="p-2 text-right">Age</th>
+              </tr>
+            </thead>
+            <tbody>
+              {health.openStockRequests!.map((row) => (
+                <tr key={row.requestId} className="border-t">
+                  <td className="p-2">{row.waiterName}</td>
+                  <td className="p-2">{row.barName}</td>
+                  <td className="p-2 text-right">
+                    {row.ageMinutes < 60
+                      ? `${row.ageMinutes}m`
+                      : `${Math.floor(row.ageMinutes / 60)}h ${row.ageMinutes % 60}m`}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 

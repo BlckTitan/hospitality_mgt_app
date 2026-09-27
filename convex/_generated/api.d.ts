@@ -66,6 +66,8 @@ import type * as shiftTemplates from "../shiftTemplates.js";
 import type * as shifts from "../shifts.js";
 import type * as staff from "../staff.js";
 import type * as staffMigrations from "../staffMigrations.js";
+import type * as stockRequests from "../stockRequests.js";
+import type * as storeCounts from "../storeCounts.js";
 import type * as storeInventories from "../storeInventories.js";
 import type * as storeTransactions from "../storeTransactions.js";
 import type * as suppliers from "../suppliers.js";
@@ -141,6 +143,8 @@ declare const fullApi: ApiFromModules<{
   shifts: typeof shifts;
   staff: typeof staff;
   staffMigrations: typeof staffMigrations;
+  stockRequests: typeof stockRequests;
+  storeCounts: typeof storeCounts;
   storeInventories: typeof storeInventories;
   storeTransactions: typeof storeTransactions;
   suppliers: typeof suppliers;

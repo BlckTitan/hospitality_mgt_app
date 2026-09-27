@@ -9,6 +9,7 @@ import { FormComponent } from './components/createStoreInventoryForm';
 import { useQuery } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 import BootstrapModal from '../../../../shared/modal';
+import { BarManagementPageGuide } from '../components/barManagementPageGuide';
 
 export default function StoreInventoryPage() {
   const [modalShow, setModalShow] = useState(false);
@@ -54,6 +55,7 @@ export default function StoreInventoryPage() {
         </div>
       </header>
 
+      <BarManagementPageGuide page="store-inventory" />
       <StoreInventories currentPropertyId={currentPropertyId}/>
 
       <ModalComponent

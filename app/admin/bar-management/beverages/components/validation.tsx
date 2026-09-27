@@ -27,6 +27,13 @@ export const formSchema = yup.object().shape({
     .max(30, "Unit of measure must not exceed 30 characters")
     .required("Unit of measure is required"),
 
+  size: yup
+    .string()
+    .trim()
+    .min(1, "Size is required")
+    .max(30, "Size must not exceed 30 characters")
+    .required("Size is required"),
+
   unitPrice: yup
     .number()
     .min(0, "Unit price cannot be negative")

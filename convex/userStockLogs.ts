@@ -1,7 +1,11 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
 import { requirePermission } from './lib/rbac';
-import { findOrCreateFnBShift } from './lib/shiftHelpers';
+import {
+  findOrCreateFnBShift,
+  listActiveUsersTiedToBar,
+  userIsActiveAndTiedToBar,
+} from './lib/shiftHelpers';
 import {
   computeCogsSnapshot,
   derivedSales,
@@ -11,6 +15,27 @@ import {
   refreshSalesSummariesForLogs,
   resolveBeverageUnitCost,
 } from './lib/barStock';
+
+export const listActiveUsersForBar = query({
+  args: {
+    propertyId: v.id('properties'),
+    barId: v.optional(v.id('bars')),
+  },
+  handler: async (ctx, args) => {
+    await requirePermission(ctx, 'fnb.read', args.propertyId);
+    if (args.barId) {
+      const bar = await ctx.db.get(args.barId);
+      if (!bar || bar.propertyId !== args.propertyId) {
+        return { success: false, data: [], message: 'Bar not found for this property' };
+      }
+    }
+    const data = await listActiveUsersTiedToBar(ctx, {
+      propertyId: args.propertyId,
+      barId: args.barId,
+    });
+    return { success: true, data };
+  },
+});
 
 export const getAllUserStockLogs = query({
   args: { propertyId: v.id('properties') },
@@ -374,6 +399,18 @@ export const createUserStockLog = mutation({
     const beverage = await ctx.db.get(args.beverageId);
     if (!beverage || beverage.propertyId !== args.propertyId || !beverage.isActive) {
       return { success: false, message: 'Beverage does not exist or is inactive' };
+    }
+
+    const tiedToBar = await userIsActiveAndTiedToBar(ctx, {
+      propertyId: args.propertyId,
+      barId: args.barId,
+      userId: args.userId,
+    });
+    if (!tiedToBar) {
+      return {
+        success: false,
+        message: 'User must be actively employed and assigned to this bar via an F&B shift',
+      };
     }
 
     const existingLog = await ctx.db

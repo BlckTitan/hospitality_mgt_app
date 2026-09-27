@@ -852,6 +852,8 @@ export default defineSchema({
     name: v.string(),
     category: v.union(v.literal("spirits"), v.literal("wine"), v.literal("Lager beer"), v.literal("cocktails"), v.literal("non-alcoholic"), v.literal("liqueurs"), v.literal("whiskey"), v.literal("vodka"), v.literal("rum"), v.literal("gin"), v.literal("tequila"), v.literal("brandy"), v.literal("cognac"), v.literal("champagne"), v.literal("other")),
     unitOfMeasure: v.string(),
+    // e.g. "330ml", "750ml", "1L" — optional for older catalog rows
+    size: v.optional(v.string()),
     unitPrice: v.number(),
     unitCost: v.optional(v.number()),
     inventoryItemId: v.optional(v.id("inventoryItems")),
@@ -1013,16 +1015,23 @@ export default defineSchema({
 
   // Store Transactions table for logging stock movements
   // v2.1: txnDateKey (ISO string) added for day-scoped userStockLogs lookups
+  // v2.3: count_adjust for store physical counts; optional stockRequestLineId when issue comes from a request
   storeTransactions: defineTable({
     propertyId: v.id("properties"),
     beverageId: v.id("beverages"),
     barId: v.optional(v.id("bars")),
     userId: v.optional(v.id("users")),
-    txnType: v.union(v.literal("receive"), v.literal("issue")),
+    txnType: v.union(
+      v.literal("receive"),
+      v.literal("issue"),
+      v.literal("count_adjust"),
+    ),
     qty: v.number(),
     txnDate: v.number(),       // epoch ms — for ordering
     txnDateKey: v.string(),       // ISO 8601 e.g. "2026-03-26" — for day-scoped lookups
     notes: v.optional(v.string()),
+    stockRequestLineId: v.optional(v.id("stockRequestLines")),
+    storeCountLineId: v.optional(v.id("storeCountLines")),
   })
     .index("by_propertyId", ["propertyId"])
     .index("by_beverageId", ["beverageId"])
@@ -1032,7 +1041,78 @@ export default defineSchema({
     .index("by_beverageId_date", ["beverageId", "txnDateKey"])
     .index("by_userId_beverage_date", ["userId", "beverageId", "txnDateKey"])
     .index("by_barId_beverage_date", ["barId", "beverageId", "txnDateKey"])
-    .index("by_propertyId_txnDate", ["propertyId", "txnDate"]),
+    .index("by_propertyId_txnDate", ["propertyId", "txnDate"])
+    .index("by_stockRequestLineId", ["stockRequestLineId"])
+    .index("by_storeCountLineId", ["storeCountLineId"]),
+
+  // Waiter → store replenishment requests (approve = issue)
+  stockRequests: defineTable({
+    propertyId: v.id("properties"),
+    barId: v.id("bars"),
+    requestedByUserId: v.id("users"),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("approved"),
+      v.literal("partial"),
+      v.literal("rejected"),
+      v.literal("cancelled"),
+    ),
+    note: v.optional(v.string()),
+    requestedAt: v.number(),
+    reviewedAt: v.optional(v.number()),
+    reviewedByUserId: v.optional(v.id("users")),
+    rejectionReason: v.optional(v.string()),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_propertyId_status", ["propertyId", "status"])
+    .index("by_propertyId_requestedAt", ["propertyId", "requestedAt"])
+    .index("by_requestedByUserId", ["requestedByUserId"])
+    .index("by_barId_status", ["barId", "status"]),
+
+  stockRequestLines: defineTable({
+    propertyId: v.id("properties"),
+    requestId: v.id("stockRequests"),
+    beverageId: v.id("beverages"),
+    qtyRequested: v.number(),
+    qtyApproved: v.optional(v.number()),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("approved"),
+      v.literal("rejected"),
+    ),
+  })
+    .index("by_requestId", ["requestId"])
+    .index("by_propertyId", ["propertyId"])
+    .index("by_beverageId", ["beverageId"]),
+
+  // Central store physical counts (book vs counted)
+  storeCounts: defineTable({
+    propertyId: v.id("properties"),
+    countDateKey: v.string(),
+    status: v.union(v.literal("draft"), v.literal("posted")),
+    countedByUserId: v.id("users"),
+    notes: v.optional(v.string()),
+    netVarianceQty: v.optional(v.number()),
+    createdAt: v.number(),
+    postedAt: v.optional(v.number()),
+    postedByUserId: v.optional(v.id("users")),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_propertyId_status", ["propertyId", "status"])
+    .index("by_propertyId_countDateKey", ["propertyId", "countDateKey"]),
+
+  storeCountLines: defineTable({
+    propertyId: v.id("properties"),
+    countId: v.id("storeCounts"),
+    beverageId: v.id("beverages"),
+    bookQty: v.number(),
+    countedQty: v.optional(v.number()),
+    varianceQty: v.optional(v.number()),
+    notes: v.optional(v.string()),
+  })
+    .index("by_countId", ["countId"])
+    .index("by_propertyId", ["propertyId"])
+    .index("by_beverageId", ["beverageId"]),
 
   // Reorder Alerts table for low stock notifications
   reorderAlerts: defineTable({

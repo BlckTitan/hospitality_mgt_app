@@ -18,6 +18,7 @@ type FormData = {
   name: string;
   category: BeverageCategory;
   unitOfMeasure: string;
+  size: string;
   unitPrice: number;
   unitCost?: number;
   reorderLevel: number;
@@ -52,6 +53,7 @@ export function EditBeverageForm({ beverageData, beverageId, onSuccess, onClose 
       name: beverageData.name || '',
       category: (beverageData.category as BeverageCategory) || 'other',
       unitOfMeasure: beverageData.unitOfMeasure || '',
+      size: beverageData.size || '',
       unitPrice: beverageData.unitPrice || 0,
       unitCost: beverageData.unitCost,
       reorderLevel: beverageData.reorderLevel || 0,
@@ -66,6 +68,7 @@ export function EditBeverageForm({ beverageData, beverageId, onSuccess, onClose 
         name: data.name,
         category: data.category,
         unitOfMeasure: data.unitOfMeasure,
+        size: data.size.trim() ? data.size.trim() : null,
         unitPrice: data.unitPrice,
         unitCost: Number.isFinite(data.unitCost) ? data.unitCost : undefined,
         inventoryItemId: inventoryItemId ? inventoryItemId as Id<'inventoryItems'> : null,
@@ -116,8 +119,13 @@ export function EditBeverageForm({ beverageData, beverageId, onSuccess, onClose 
         </label>
       </div>
 
-      <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-1 mb-4">
-        <InputComponent id="unitOfMeasure" label="Unit of Measure *" type="text" inputWidth="w-full" register={register('unitOfMeasure', { required: true })} error={errors.unitOfMeasure} />
+      <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-start gap-2 mb-4">
+        <div className="flex-1">
+          <InputComponent id="unitOfMeasure" label="Unit of Measure *" type="text" inputWidth="w-full" register={register('unitOfMeasure', { required: true })} error={errors.unitOfMeasure} />
+        </div>
+        <div className="flex-1">
+          <InputComponent id="size" label="Size *" type="text" inputWidth="w-full" register={register('size', { required: true })} error={errors.size} placeholder="e.g. 330ml, 750ml, 1L" />
+        </div>
       </div>
 
       <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-1 mb-4">

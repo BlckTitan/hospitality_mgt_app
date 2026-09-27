@@ -378,33 +378,62 @@ This document outlines which entities should have dedicated pages and the data f
 **Permission:** `fnb.read`. Commercial charts need `reports.read`. Reorder KPIs/table need `inventory.read`.
 
 **Layout (top → bottom):**
-- Commercial KPIs: Total Revenue, Total Quantity Sold, Active Bars, Active Staff
-- Health KPIs: stock days finalized, open reorders (+ oldest age), stale reorders (24h+), revenue / waiter-shift
+- Commercial KPIs: Total Revenue, Gross Profit, Pour cost %, Waste & comps, Total Quantity Sold, Active Bars, Active Staff
+- Health KPIs: stock days finalized, open reorders (+ oldest age), stale reorders (24h+), open stock requests, latest store count variance, revenue / waiter-shift
 - Period: Daily / Weekly / Monthly / Yearly / YoY (YoY is YTD through the current property month vs last year)
 - Tabs (only the active chart mounts): Bar Performance, Top Performers (plus per-shift table), Revenue Trend, Sales by Category, SKU Performance
-- Reorder alerts table
+- Open stock requests summary + Reorder alerts table
 
 **Data Fetching:**
 - `getSalesByBarPeriod`, `getSalesByUserPeriod`, `getRevenueTrend`, `getSalesSummaries` (`convex/salesSummaries.ts`)
 - YoY: `getYearOnYearOverview`
 - Health / SKUs: `getBarHealthMetrics` (`convex/barHealth.ts`) from `userStockLogs` (capped per day); yearly/YoY commercial ranks may use `salesSummaries`
 - `getOpenReorderAlerts`
-- Sales qty/value = `totalStock − closingStock` × `unitPrice` (stock disappearance, not POS tickets)
+- Sales qty/value = `totalStock − closingStock − waste − comps` × `unitPrice` (stock disappearance after waste/comps)
 
-**Child routes:** `/admin/bar-management/bar`, `/beverages`, `/user-stock-logs`, `/store-inventory`, `/store-transactions` (and edit pages). Store inventory/transactions use `inventory.read` / `inventory.update`.
+**Child routes:** `/admin/bar-management/bar`, `/beverages`, `/my-stock`, `/stock-requests`, `/user-stock-logs`, `/store-inventory`, `/store-transactions`, `/store-count` (and edit pages). Store inventory/transactions/count use `inventory.read` / `inventory.update`. Stock request approve uses `inventory.update`.
 
 **Rendering Strategy: SSR** — live Convex subscriptions for the selected property.
 
 ---
 
 ### 17d. My Stock Today (`/admin/bar-management/my-stock`)
-**Purpose**: Waiter closing counts for property-local today
+**Purpose**: Waiter float ledger for property-local today — Opening / Received / Total / Closing / Waste / Comps / Sales
 
 **Permission:** `fnb.read`
 
 **Data Fetching:**
 - `getMyTodayStock` — authenticated user, `propertyDateKey` today
 - Mutations: `addMyTodayBeverage`, `saveMyClosingStock`, `finalizeMyToday`
+- Link to **Request stock** (`/admin/bar-management/stock-requests`)
+
+**Sales formula:** `salesQuantity = totalStock − closingStock − waste − comps`
+
+**Rendering Strategy: SSR**
+
+---
+
+### 17d-ii. Stock requests (`/admin/bar-management/stock-requests`)
+**Purpose**: Waiter submits replenishment lines; store approves (creates issue → bumps Received) or rejects
+
+**Permission:** `fnb.read` to view/create own; `inventory.update` to approve/reject
+
+**Data Fetching:**
+- `listStockRequests`, `getStockRequest`
+- Mutations: `createStockRequest`, `cancelStockRequest`, `approveStockRequestLine`, `rejectStockRequest`
+
+**Rendering Strategy: SSR**
+
+---
+
+### 17d-iii. Store count (`/admin/bar-management/store-count`)
+**Purpose**: Book qty from `storeInventories` vs counted; post writes `count_adjust` store transactions and updates on-hand
+
+**Permission:** `inventory.read` / `inventory.update`
+
+**Data Fetching:**
+- `getActiveStoreCount`, `listStoreCounts`
+- Mutations: `startStoreCount`, `saveStoreCountLines`, `postStoreCount`
 
 **Rendering Strategy: SSR**
 

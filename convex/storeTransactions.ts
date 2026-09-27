@@ -6,6 +6,7 @@ import {
   applyStoreQtyChange,
   ensureStoreInventoryForReceive,
   findStoreInventory,
+  issueStockToUser,
   maybeOpenReorderAlert,
   previewIssueToStockLog,
   propertyDateKey,
@@ -86,53 +87,22 @@ export const createStoreTransaction = mutation({
       if (!user) {
         return { success: false, message: 'User does not exist' };
       }
-      const inventory = await findStoreInventory(ctx, args.propertyId, args.beverageId);
-      if (!inventory) {
-        return { success: false, message: 'No store inventory exists for this beverage. Receive stock first.' };
-      }
-      if (inventory.qtyInStore < args.qty) {
-        return { success: false, message: 'Insufficient stock in store' };
-      }
-      const preview = await previewIssueToStockLog(ctx, {
-        userId: args.userId,
-        barId: args.barId,
-        beverageId: args.beverageId,
-        logDate: txnDateKey,
-        qty: args.qty,
-      });
-      if (preview.error) {
-        return { success: false, message: preview.error };
-      }
 
-      const transactionId = await ctx.db.insert('storeTransactions', {
+      const issued = await issueStockToUser(ctx, {
         propertyId: args.propertyId,
         beverageId: args.beverageId,
         barId: args.barId,
         userId: args.userId,
-        txnType: 'issue',
         qty: args.qty,
-        txnDate: now,
-        txnDateKey,
         notes: args.notes,
-      });
-      const newQty = await applyStoreQtyChange(ctx, inventory, -args.qty);
-      await applyIssuedQtyToStockLog(ctx, {
-        propertyId: args.propertyId,
-        userId: args.userId,
-        barId: args.barId,
-        beverageId: args.beverageId,
-        logDate: txnDateKey,
-        qty: args.qty,
         unitPrice: beverage.unitPrice,
         unitCost: await resolveBeverageUnitCost(ctx, beverage),
+        now,
       });
-      await maybeOpenReorderAlert(ctx, {
-        propertyId: args.propertyId,
-        beverageId: args.beverageId,
-        qtyInStore: newQty,
-        reorderThreshold: inventory.reorderThreshold,
-      });
-      return { success: true, message: 'Store transaction created successfully', id: transactionId };
+      if (!issued.success) {
+        return { success: false, message: issued.message };
+      }
+      return { success: true, message: 'Store transaction created successfully', id: issued.transactionId };
     }
 
     const inventory = await ensureStoreInventoryForReceive(ctx, {
@@ -173,6 +143,9 @@ export const updateStoreTransaction = mutation({
       return { success: false, message: 'Store transaction does not exist' };
     }
     await requirePermission(ctx, 'inventory.update', existing.propertyId);
+    if (existing.txnType === 'count_adjust') {
+      return { success: false, message: 'Count adjustments cannot be edited. Run a new store count instead.' };
+    }
 
     if (args.qty <= 0) {
       return { success: false, message: 'Quantity must be greater than 0' };
@@ -331,6 +304,9 @@ export const deleteStoreTransaction = mutation({
       return { success: false, message: 'Store transaction does not exist' };
     }
     await requirePermission(ctx, 'inventory.delete', existing.propertyId);
+    if (existing.txnType === 'count_adjust') {
+      return { success: false, message: 'Count adjustments cannot be deleted. Run a new store count instead.' };
+    }
 
     const inventory = await findStoreInventory(
       ctx,

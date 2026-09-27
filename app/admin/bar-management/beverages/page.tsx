@@ -9,6 +9,7 @@ import { FormComponent } from './components/createBeverageForm';
 import { useQuery } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 import BootstrapModal from '../../../../shared/modal';
+import { BarManagementPageGuide } from '../components/barManagementPageGuide';
 
 export default function BeveragePage() {
   const [modalShow, setModalShow] = useState(false);
@@ -52,6 +53,7 @@ export default function BeveragePage() {
         </div>
       </header>
 
+      <BarManagementPageGuide page="beverages" />
       <Beverages currentPropertyId={currentPropertyId}/>
 
       <ModalComponent

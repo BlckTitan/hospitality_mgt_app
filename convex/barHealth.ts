@@ -199,6 +199,16 @@ export const getBarHealthMetrics = query({
     let unresolvedReorderCount: number | null = null;
     let staleReorderCount: number | null = null;
     let oldestReorderAgeHours: number | null = null;
+    let openStockRequestCount: number | null = null;
+    let openStockRequests: Array<{
+      requestId: Id<"stockRequests">;
+      waiterName: string;
+      barName: string;
+      requestedAt: number;
+      ageMinutes: number;
+    }> | null = null;
+    let latestStoreVarianceQty: number | null = null;
+    let latestStoreCountDateKey: string | null = null;
 
     if (canInventory) {
       const open = await ctx.db
@@ -228,6 +238,50 @@ export const getBarHealthMetrics = query({
       staleReorderCount = staleCount;
       oldestReorderAgeHours =
         oldestAlertedAt === null ? null : Math.floor((now - oldestAlertedAt) / 3_600_000);
+
+      const pendingRequests = await ctx.db
+        .query("stockRequests")
+        .withIndex("by_propertyId_status", (q) =>
+          q.eq("propertyId", args.propertyId).eq("status", "pending"),
+        )
+        .collect();
+      const partialRequests = await ctx.db
+        .query("stockRequests")
+        .withIndex("by_propertyId_status", (q) =>
+          q.eq("propertyId", args.propertyId).eq("status", "partial"),
+        )
+        .collect();
+      const openRequests = [...pendingRequests, ...partialRequests]
+        .sort((a, b) => a.requestedAt - b.requestedAt)
+        .slice(0, 10);
+      openStockRequestCount = pendingRequests.length + partialRequests.length;
+      openStockRequests = await Promise.all(
+        openRequests.map(async (request) => {
+          const [user, bar] = await Promise.all([
+            ctx.db.get(request.requestedByUserId),
+            ctx.db.get(request.barId),
+          ]);
+          return {
+            requestId: request._id,
+            waiterName: user?.name ?? "Unknown",
+            barName: bar?.name ?? "Unknown",
+            requestedAt: request.requestedAt,
+            ageMinutes: Math.max(0, Math.floor((now - request.requestedAt) / 60_000)),
+          };
+        }),
+      );
+
+      const latestPosted = await ctx.db
+        .query("storeCounts")
+        .withIndex("by_propertyId_status", (q) =>
+          q.eq("propertyId", args.propertyId).eq("status", "posted"),
+        )
+        .order("desc")
+        .first();
+      if (latestPosted) {
+        latestStoreVarianceQty = latestPosted.netVarianceQty ?? 0;
+        latestStoreCountDateKey = latestPosted.countDateKey;
+      }
     }
 
     return {
@@ -248,6 +302,10 @@ export const getBarHealthMetrics = query({
       unresolvedReorderCount,
       staleReorderCount,
       oldestReorderAgeHours,
+      openStockRequestCount,
+      openStockRequests,
+      latestStoreVarianceQty,
+      latestStoreCountDateKey,
       waiters,
       topSkus: await withBeverage(topSlice),
       bottomSkus: await withBeverage(bottomSlice),

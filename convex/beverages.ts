@@ -175,6 +175,7 @@ export const createBeverage = mutation({
     name: v.string(),
     category: v.union(v.literal("spirits"), v.literal("wine"), v.literal("Lager beer"), v.literal("cocktails"), v.literal("non-alcoholic"), v.literal("liqueurs"), v.literal("whiskey"), v.literal("vodka"), v.literal("rum"), v.literal("gin"), v.literal("tequila"), v.literal("brandy"), v.literal("cognac"), v.literal("champagne"), v.literal("other")),
     unitOfMeasure: v.string(),
+    size: v.optional(v.string()),
     unitPrice: v.number(),
     unitCost: v.optional(v.number()),
     inventoryItemId: v.optional(v.id('inventoryItems')),
@@ -200,9 +201,11 @@ export const createBeverage = mutation({
         if (!checked.success) return checked;
       }
 
-      const { unitCost, inventoryItemId, recipeLines, ...rest } = args;
+      const { unitCost, inventoryItemId, recipeLines, size, ...rest } = args;
+      const trimmedSize = size?.trim();
       const beverageId = await ctx.db.insert('beverages', {
         ...rest,
+        ...(trimmedSize ? { size: trimmedSize } : {}),
         ...(unitCost !== undefined ? { unitCost } : {}),
         ...(inventoryItemId ? { inventoryItemId } : {}),
       });
@@ -225,6 +228,7 @@ export const updateBeverage = mutation({
     name: v.optional(v.string()),
     category: v.optional(v.union(v.literal("spirits"), v.literal("wine"), v.literal("Lager beer"), v.literal("cocktails"), v.literal("non-alcoholic"), v.literal("liqueurs"), v.literal("whiskey"), v.literal("vodka"), v.literal("rum"), v.literal("gin"), v.literal("tequila"), v.literal("brandy"), v.literal("cognac"), v.literal("champagne"), v.literal("other"))),
     unitOfMeasure: v.optional(v.string()),
+    size: v.optional(v.union(v.string(), v.null())),
     unitPrice: v.optional(v.number()),
     unitCost: v.optional(v.number()),
     inventoryItemId: v.optional(v.union(v.id('inventoryItems'), v.null())),
@@ -243,9 +247,16 @@ export const updateBeverage = mutation({
         const checked = await validateInventoryItem(ctx, args.inventoryItemId, beverage.propertyId);
         if (!checked.success) return checked;
       }
-      const { beverageId, recipeLines, inventoryItemId, ...updates } = args;
+      const { beverageId, recipeLines, inventoryItemId, size, ...updates } = args;
+      const sizePatch =
+        size === null || size === ''
+          ? { size: undefined }
+          : size !== undefined
+            ? { size: size.trim() }
+            : {};
       await ctx.db.patch(beverageId, {
         ...updates,
+        ...sizePatch,
         ...(inventoryItemId ? { inventoryItemId } : {}),
       });
       if (recipeLines) {

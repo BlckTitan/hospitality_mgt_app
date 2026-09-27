@@ -9,6 +9,7 @@ import { FormComponent } from './components/createStoreTransactionForm';
 import { useQuery } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 import BootstrapModal from '../../../../shared/modal';
+import { BarManagementPageGuide } from '../components/barManagementPageGuide';
 
 export default function StoreTransactionsPage() {
   const [modalShow, setModalShow] = useState(false);
@@ -54,6 +55,7 @@ export default function StoreTransactionsPage() {
         </div>
       </header>
 
+      <BarManagementPageGuide page="store-transactions" />
       <StoreTransactions currentPropertyId={currentPropertyId}/>
 
       <ModalComponent

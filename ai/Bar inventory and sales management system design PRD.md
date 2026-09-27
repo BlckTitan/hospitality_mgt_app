@@ -3,10 +3,10 @@
 
 | Field         | Detail                          |
 |---------------|---------------------------------|
-| Version       | 2.2                             |
-| Status        | Implemented (hub + stock loop)  |
+| Version       | 2.3                             |
+| Status        | Implemented (ledger + requests + counts)  |
 | Database      | Convex                          |
-| Date          | 2026-09-22                      |
+| Date          | 2026-09-27                      |
 | Prepared by   | Product Team                    |
 
 ---
@@ -173,8 +173,12 @@ shall contain:
 | `newStockReceived` | Cumulative qty issued via `storeTransactions` on this day                  |
 | `totalStock`       | Computed in mutation: `openingStock + newStockReceived`                     |
 | `closingStock`     | Manual entry at end of day                                                  |
-| `salesQuantity`    | Computed in mutation: `totalStock − closingStock`                           |
+| `salesQuantity`    | Computed in mutation: `totalStock − closingStock − waste − comps` |
 | `salesValue`       | Computed in mutation: `salesQuantity × beverage.unitPrice`                  |
+| `wasteQuantity`    | Optional spill / breakage excluded from sales                               |
+| `compQuantity`     | Optional comps / staff drinks excluded from sales                           |
+| `unitCostAtSale`   | Snapshotted COGS unit cost at write/finalize                                |
+| `cogsValue`        | Disappeared qty × `unitCostAtSale`                                          |
 | `isFinalized`      | Set to `false` on creation; `true` after end-of-day reconciliation          |
 | `lastUpdatedAt`    | `Date.now()` at time of mutation                                            |
 
@@ -212,6 +216,15 @@ defaults to `0`.
 `addMyTodayBeverage`, `saveMyClosingStock`, and `finalizeMyToday` are scoped to
 the authenticated `userId` and the property timezone `logDate` from
 `propertyDateKey`. Waiters cannot edit another user's logs from this page.
+Sales = Total − Closing − Waste − Comps. **Received** increments only when the
+store issues stock (including approve of a stock request).
+
+**FR-SHF-008** — Waiters may submit a **stock request**
+(`/admin/bar-management/stock-requests`) with one or more beverage lines and an
+optional note. Status starts `pending`. Store staff with `inventory.update`
+approve a line (creates a store `issue` to the requester for that bar, bumps
+`newStockReceived`) or reject the request. Cancelling is allowed only by the
+requester while still `pending`.
 
 ---
 
@@ -264,6 +277,18 @@ a `reorderAlerts` document through its lifecycle: `"open"` → `"acknowledged"`
 → `"resolved"`. No backward transitions shall be permitted; the mutation shall
 throw if a reverse transition is attempted.
 
+**FR-INV-007** — **Stock requests:** `stockRequests` + `stockRequestLines`.
+Approve line = atomic store issue to `requestedByUserId` at `barId` (same rules
+as FR-INV-003). Optional `stockRequestLineId` on the resulting
+`storeTransactions` row. Reject sets request `rejected` without moving stock.
+
+**FR-INV-008** — **Store physical count** (`/admin/bar-management/store-count`):
+draft `storeCounts` snapshots `bookQty` from `storeInventories`. Staff enter
+`countedQty`; variance = counted − book. **Post count** patches
+`qtyInStore` to counted, inserts `storeTransactions` with
+`txnType: "count_adjust"` (signed qty = variance), and sets status `posted`.
+Does not touch waiter float logs.
+
 ---
 
 ### 4.4 Sales and Performance Analytics — Bar Management hub
@@ -273,9 +298,10 @@ throw if a reverse transition is attempted.
 The property dashboard F&B tab stays a **today snapshot** and links here — it
 does not host these charts. Spec: `ai/dashboard.md`, `ai/pageSetup.md`.
 
-**Sales identity:** `salesQuantity = totalStock − closingStock` (stock that
-disappeared at selling price `beverage.unitPrice`). This mixes true sales with
-spill, comps, and shrinkage until a wastage or POS ticket path exists.
+**Sales identity:** `salesQuantity = totalStock − closingStock − waste − comps`
+(stock that disappeared at selling price `beverage.unitPrice`, after excluding
+recorded waste and comps). Pour cost % = `totalCogs / totalRevenue` from
+snapshotted `cogsValue`.
 
 **FR-ANA-001** — Cron jobs in `convex/crons.ts` paginate finalized
 `userStockLogs` into `salesSummaries`: daily `0 1 * * *`, weekly Monday
@@ -289,17 +315,20 @@ year-to-date through the current property month versus the same months last
 year (`getYearOnYearOverview`).
 
 **FR-ANA-003** — Layout (top to bottom):
-1. Commercial KPIs: Total Revenue, Total Quantity Sold, Active Bars, Active
-   Staff. YoY adds `% vs last year YTD` on revenue and qty.
+1. Commercial KPIs: Total Revenue, Gross Profit, Gross Margin / Pour cost %,
+   Waste & comps, Total Quantity Sold, Active Bars, Active Staff. YoY adds
+   `% vs last year YTD` on revenue and qty.
 2. Health KPIs from `getBarHealthMetrics` (`convex/barHealth.ts`, `fnb.read`):
    stock days finalized (waiter–bar–day sessions), open reorders + oldest age,
-   stale reorders (open or acknowledged ≥ 24h), revenue per waiter-shift.
+   stale reorders (open or acknowledged ≥ 24h), open stock requests, latest
+   posted store count net variance, revenue per waiter-shift.
    Yearly/YoY finalization uses the last 30 `userStockLogs` days; commercial
    yearly/YoY SKU and waiter totals prefer `salesSummaries`.
 3. Tabs (dashboard Button style; only the active chart mounts): Bar Performance,
    Top Performers (chart plus shifts / revenue / per-shift table), Revenue
    Trend, Sales by Category, SKU Performance (top 5 and slowest 5 by revenue).
-4. Open reorder alerts table (`getOpenReorderAlerts`).
+4. Open reorder alerts table (`getOpenReorderAlerts`) and open stock requests
+   summary.
 
 **FR-ANA-004** — Bar comparison: `getSalesByBarPeriod` groups current-period
 `salesSummaries` (`by_propertyId_periodType_periodKey`) by `barId`.
@@ -312,14 +341,15 @@ rows by `userId`. Health ranks waiters by revenue per shift, not raw total.
 monthly series (this year vs last year).
 
 **FR-ANA-007** — Category mix and SKU ranks use current-period summaries or
-live logs (health). Pour cost, average check, and RevPASH are **not** on this
-hub (`beverages` have `unitPrice` only; no covers).
+live logs (health). Pour cost % and gross profit use snapshotted COGS on
+`salesSummaries` / logs. Average check and RevPASH are **not** on this hub
+(no covers).
 
 **FR-ANA-008** — Issue and receive are single mutations that **validate then
 write** (throw on failure). Editing or deleting an issue reverses
 `userStockLogs` and store qty. Issue requires bar, user, existing inventory,
-and quantity. Inventory create starts at qty 0; qty changes only via receive
-or issue.
+and quantity. Inventory create starts at qty 0; qty changes only via receive,
+issue, or posted store count adjust.
 
 ---
 
@@ -554,6 +584,8 @@ without validating it against that server date.
 | Inventory status             | `storeInventories`                                             | Store Manager  | Real-time                             |
 | Stock movement log           | `storeTransactions`                                            | Store Manager  | Date range                            |
 | Open reorder alerts          | `reorderAlerts` `by_propertyId_status`                         | Store Manager  | Real-time                             |
+| Open stock requests          | `stockRequests` pending                                        | Store Manager  | Real-time                             |
+| Store count variance         | Latest posted `storeCounts.netVarianceQty`                     | Store Manager  | Per count                             |
 | Hub commercial KPIs          | `getSalesByBarPeriod` / `getSalesByUserPeriod`                 | F&B + reports  | Daily / Weekly / Monthly / Yearly / YoY |
 | Hub health KPIs + SKUs       | `getBarHealthMetrics` (`userStockLogs` + optional summaries)   | `fnb.read`     | Same period control                   |
 | Sales by bar / user          | `salesSummaries` `by_propertyId_periodType_periodKey`          | `reports.read` | Current period key                    |
@@ -580,11 +612,13 @@ The following Convex functions shall be implemented. All files reside in the
 | `getSalesSummaries`              | `convex/salesSummaries.ts`   | Filtered summary rows (category mix)                              |
 | `getOpenReorderAlerts`           | `convex/reorderAlerts.ts`    | Open alerts with beverage + qty in store                          |
 | `getMyTodayStock`                | `convex/userStockLogs.ts`    | Authenticated waiter's logs for property-local today              |
+| `listStockRequests`              | `convex/stockRequests.ts`    | Pending / filtered stock requests with lines                      |
+| `getActiveStoreCount`            | `convex/storeCounts.ts`      | Draft or latest count with book/counted lines                     |
 
 Legacy names `convex/analytics.ts`, `convex/stockLogs.ts`, and `convex/alerts.ts`
 are not used. CRUD lives in `convex/bars.ts`, `convex/beverages.ts`,
 `convex/userStockLogs.ts`, `convex/storeInventories.ts`,
-`convex/storeTransactions.ts`.
+`convex/storeTransactions.ts`, `convex/stockRequests.ts`, `convex/storeCounts.ts`.
 
 ### Mutations (`mutation`)
 
@@ -600,6 +634,9 @@ are not used. CRUD lives in `convex/bars.ts`, `convex/beverages.ts`,
 | `resolveReorderAlert`            | `convex/reorderAlerts.ts`     | Transitions alert to `"resolved"`                                  |
 | `saveMyClosingStock`             | `convex/userStockLogs.ts`     | Waiter closing count for today                                     |
 | `finalizeMyToday`                | `convex/userStockLogs.ts`     | Finalizes the waiter's today logs                                  |
+| `createStockRequest` / `cancel`  | `convex/stockRequests.ts`     | Waiter replenishment request                                       |
+| `approveStockRequestLine` / `rejectStockRequest` | `convex/stockRequests.ts` | Approve = issue; reject closes request |
+| `startStoreCount` / `saveStoreCountLines` / `postStoreCount` | `convex/storeCounts.ts` | Draft → post count adjusts |
 
 ### Scheduled Mutations (`internalMutation` + `cron`)
 
