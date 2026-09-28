@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { api } from "../../../../../convex/_generated/api";
 import InputComponent from "../../../../../shared/input";
+import ImageUpload from "../../../../../shared/imageUpload";
 
 type FormData = {
   id: Id<'guests'>;
@@ -17,6 +18,7 @@ type FormData = {
   address?: string;
   dateOfBirth?: string;
   loyaltyNumber?: string;
+  imageUrl?: string | null;
 };
 
 export function FormComponent({
@@ -28,6 +30,7 @@ export function FormComponent({
   address,
   dateOfBirth,
   loyaltyNumber,
+  imageUrl: initialImageUrl,
 }: {
   id: Id<'guests'>;
   firstName: string;
@@ -37,6 +40,7 @@ export function FormComponent({
   address?: string;
   dateOfBirth?: number;
   loyaltyNumber?: string;
+  imageUrl?: string;
 }) {
   const updateGuest = useMutation(api.guests.updateGuest);
 
@@ -46,7 +50,7 @@ export function FormComponent({
     return date.toISOString().split('T')[0];
   };
 
-  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, formState: { errors }, setValue, watch } = useForm<FormData>({
     resolver: yupResolver(formSchema) as any,
     defaultValues: {
       firstName: firstName,
@@ -56,8 +60,11 @@ export function FormComponent({
       address: address || '',
       dateOfBirth: formatDateForInput(dateOfBirth),
       loyaltyNumber: loyaltyNumber || '',
+      imageUrl: initialImageUrl || null,
     },
   });
+
+  const imageUrl = watch('imageUrl');
 
   const onSubmit: SubmitHandler<FormData | FieldValues> = async (data) => {
     try {
@@ -72,6 +79,7 @@ export function FormComponent({
         address: data.address || undefined,
         dateOfBirth: dateOfBirthTimestamp,
         loyaltyNumber: data.loyaltyNumber || undefined,
+        imageUrl: data.imageUrl ? data.imageUrl : null,
       });
 
       if (response.success === false) {
@@ -94,6 +102,21 @@ export function FormComponent({
   return (
     <>
       <form onSubmit={handleSubmit(onSubmit)} className='mt-4'>
+        <div
+          className='w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-1 
+          [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4'
+        >
+          <ImageUpload
+            id="imageUrl"
+            label="Guest photo"
+            folder="guests"
+            inputWidth="w-full"
+            value={imageUrl || null}
+            onChange={(url) => setValue('imageUrl', url, { shouldValidate: true, shouldDirty: true })}
+            error={errors.imageUrl}
+          />
+        </div>
+
         <div
           className='w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-1 
           [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4'

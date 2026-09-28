@@ -8,6 +8,7 @@ import { api } from "../../../../../convex/_generated/api";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { usePermissions } from "../../../../../hooks/usePermissions";
 import { formatPropertyMoney, usePropertyCurrency } from "../../components/money";
+import ImageThumbnail from "../../../../../shared/imageThumbnail";
 
 export default function InventoryItems({ currentPropertyId }: { currentPropertyId: Id<"properties"> }) {
   const inventoryItemsData = useQuery(api.inventoryItems.getAllInventoryItems, { propertyId: currentPropertyId });
@@ -44,6 +45,7 @@ export default function InventoryItems({ currentPropertyId }: { currentPropertyI
         <table className="w-full text-sm border">
           <thead>
             <tr className="bg-slate-50 text-left">
+              <th className="p-2">Photo</th>
               <th className="p-2">SKU</th>
               <th className="p-2">Name</th>
               <th className="p-2">Category</th>
@@ -58,11 +60,14 @@ export default function InventoryItems({ currentPropertyId }: { currentPropertyI
           <tbody>
             {rows.length === 0 && (
               <tr>
-                <td className="p-3" colSpan={9}>No inventory items found.</td>
+                <td className="p-3" colSpan={10}>No inventory items found.</td>
               </tr>
             )}
             {rows.map((row) => (
               <tr key={row._id} className="border-t">
+                <td className="p-2">
+                  <ImageThumbnail src={row.imageUrl} alt={row.name} size={36} />
+                </td>
                 <td className="p-2">{row.sku}</td>
                 <td className="p-2">{row.name}</td>
                 <td className="p-2">{row.category}</td>

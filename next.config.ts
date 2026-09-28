@@ -9,6 +9,13 @@ const nextConfig: NextConfig = {
   turbopack: {},
   images: {
     formats: ['image/webp', 'image/avif'],
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'res.cloudinary.com',
+        pathname: '/**',
+      },
+    ],
   },
   compress: true,
   poweredByHeader: false,

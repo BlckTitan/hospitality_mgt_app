@@ -6,6 +6,7 @@ import { yupResolver } from "@hookform/resolvers/yup";
 import { formSchema, CLOCK_METHOD_OPTIONS } from "./validation";
 import { toast } from "sonner";
 import InputComponent from "../../../../shared/input";
+import ImageUpload from "../../../../shared/imageUpload";
 import DatepickerComponent from "../../../../shared/datepicker";
 import SelectComponent from "../../../../shared/select";
 import UserAutocomplete, { applyLinkedUserToStaff } from "../../../../shared/userAutocomplete";
@@ -33,6 +34,7 @@ type FormData = {
   salary?: number;
   userId?: string;
   clockMethod?: string;
+  imageUrl: string;
 };
 
 const DEPARTMENTS = [
@@ -73,10 +75,12 @@ export function FormComponent() {
       managerId: "",
       position: "",
       clockMethod: "",
+      imageUrl: "",
     },
   });
 
   const linkedUserId = watch("userId");
+  const imageUrl = watch("imageUrl");
 
   const onSubmit: SubmitHandler<FormData> = async (data) => {
     try {
@@ -103,6 +107,7 @@ export function FormComponent() {
         ...(data.clockMethod
           ? { clockMethod: data.clockMethod as "self" | "supervisor" | "kiosk" }
           : {}),
+        imageUrl: data.imageUrl,
       });
 
       if (response.success === false) {
@@ -121,6 +126,19 @@ export function FormComponent() {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="createStaffForm">
+      <div className={fieldRowClassName}>
+        <ImageUpload
+          id="imageUrl"
+          label="Staff photo"
+          required
+          folder="staff"
+          inputWidth="w-full"
+          value={imageUrl || null}
+          onChange={(url) => setValue("imageUrl", url ?? "", { shouldValidate: true, shouldDirty: true })}
+          error={errors.imageUrl}
+        />
+      </div>
+
       <div className={fieldRowClassName}>
         <InputComponent
           id="firstName"

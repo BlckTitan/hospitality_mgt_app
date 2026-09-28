@@ -8,6 +8,7 @@ import { api } from "../../../../../convex/_generated/api";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { TableColumn } from "../../../../../shared/table";
 import PaginationComponent from "../../../../../shared/pagination";
+import ImageThumbnail from "../../../../../shared/imageThumbnail";
 
 interface RoomTypeProps {
   _id: string;
@@ -17,6 +18,7 @@ interface RoomTypeProps {
   baseRate: number;
   amenities: string[];
   isActive: boolean;
+  imageUrl?: string;
   createdAt: number;
   updatedAt: number;
   propertyId?: string;
@@ -54,6 +56,13 @@ const RoomTypes = ({ propertyId }: { propertyId: string }) => {
   };
 
   const tableColumns: TableColumn<RoomTypeProps>[] = [
+    {
+      label: '',
+      key: 'imageUrl',
+      render: (_value, row) => (
+        <ImageThumbnail src={row.imageUrl} alt={row.name} size={40} />
+      ),
+    },
     { label: 'Room Type', key: 'name' },
     { label: 'Description', key: 'description' },
     {

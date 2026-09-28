@@ -8,6 +8,7 @@ import { api } from "../../../../../convex/_generated/api";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { TableColumn } from "../../../../../shared/table";
 import PaginationComponent from "../../../../../shared/pagination";
+import ImageThumbnail from "../../../../../shared/imageThumbnail";
 
 interface GuestProps {
   _id: string;
@@ -20,6 +21,7 @@ interface GuestProps {
   dateOfBirth?: number;
   loyaltyNumber?: string;
   preferences?: any;
+  imageUrl?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -57,6 +59,18 @@ const Guests = ({ propertyId }: { propertyId: string }) => {
   };
 
   const tableColumns: TableColumn<GuestProps>[] = [
+    {
+      label: '',
+      key: 'imageUrl',
+      render: (_value, row) => (
+        <ImageThumbnail
+          src={row.imageUrl}
+          alt={`${row.firstName} ${row.lastName}`}
+          size={40}
+          rounded="full"
+        />
+      ),
+    },
     {
       label: 'Name',
       key: 'firstName',

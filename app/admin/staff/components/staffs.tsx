@@ -7,6 +7,7 @@ import { Id } from "../../../../convex/_generated/dataModel";
 import { toast } from "sonner";
 import { useEffect, useState } from "react";
 import { usePermissions } from "../../../../hooks/usePermissions";
+import ImageThumbnail from "../../../../shared/imageThumbnail";
 
 export default function Staff() {
   const [includeTerminated, setIncludeTerminated] = useState(false);
@@ -108,6 +109,7 @@ export default function Staff() {
         <table className="w-full text-sm border">
           <thead>
             <tr className="bg-slate-50 text-left">
+              <th className="p-2">Photo</th>
               <th className="p-2">Name</th>
               <th className="p-2">No.</th>
               <th className="p-2">Job title</th>
@@ -121,13 +123,21 @@ export default function Staff() {
           <tbody>
             {rows.length === 0 && (
               <tr>
-                <td className="p-3" colSpan={8}>
+                <td className="p-3" colSpan={9}>
                   No staff found.
                 </td>
               </tr>
             )}
             {rows.map((row) => (
               <tr key={row._id} className="border-t">
+                <td className="p-2">
+                  <ImageThumbnail
+                    src={row.imageUrl}
+                    alt={`${row.firstName} ${row.lastName}`}
+                    size={36}
+                    rounded="full"
+                  />
+                </td>
                 <td className="p-2">
                   {row.lastName} {row.firstName}
                   {row.onLeave ? (

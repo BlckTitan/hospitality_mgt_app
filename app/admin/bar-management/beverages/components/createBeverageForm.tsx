@@ -8,6 +8,7 @@ import { yupResolver } from "@hookform/resolvers/yup";
 import { toast } from "sonner";
 import { Button } from "react-bootstrap";
 import InputComponent from "../../../../../shared/input";
+import ImageUpload from "../../../../../shared/imageUpload";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { api } from "../../../../../convex/_generated/api";
 import { BeverageCostFields, recipeLinesPayload, type RecipeLineDraft } from "./beverageCostFields";
@@ -23,6 +24,7 @@ type FormData = {
   unitCost?: number;
   reorderLevel: number;
   isActive: boolean;
+  imageUrl: string;
 };
 
 export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: () => void; onClose: () => void; propertyId: string }) {
@@ -31,7 +33,7 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
   const [inventoryItemId, setInventoryItemId] = useState('');
   const [recipeLines, setRecipeLines] = useState<RecipeLineDraft[]>([]);
 
-  const { register, handleSubmit, formState: { errors }, reset } = useForm<FormData>({
+  const { register, handleSubmit, formState: { errors }, reset, setValue, watch } = useForm<FormData>({
     resolver: yupResolver(formSchema) as any,
     defaultValues: {
       name: '',
@@ -42,8 +44,11 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
       unitCost: undefined,
       reorderLevel: 0,
       isActive: true,
+      imageUrl: '',
     },
   });
+
+  const imageUrl = watch('imageUrl');
 
   const onSubmit: SubmitHandler<FormData> = async (data) => {
     try {
@@ -59,6 +64,7 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
         recipeLines: recipeLinesPayload(recipeLines),
         reorderLevel: data.reorderLevel,
         isActive: data.isActive,
+        imageUrl: data.imageUrl,
       });
 
       if (response.success === false) {
@@ -79,6 +85,18 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="createBeverageForm">
+      <div className="w-full h-fit mb-4">
+        <ImageUpload
+          id="imageUrl"
+          label="Beverage image"
+          required
+          folder="beverages"
+          value={imageUrl || null}
+          onChange={(url) => setValue('imageUrl', url ?? '', { shouldValidate: true, shouldDirty: true })}
+          error={errors.imageUrl}
+        />
+      </div>
+
       <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-1 mb-4">
         <InputComponent id="name" label="Beverage Name *" type="text" inputWidth="w-full" register={register('name', { required: true })} error={errors.name} />
       </div>

@@ -252,6 +252,76 @@ export const getSalesByUserPeriod = query({
   },
 });
 
+export const getSalesByBeveragePeriod = query({
+  args: {
+    propertyId: v.id('properties'),
+    periodType: v.union(v.literal('daily'), v.literal('weekly'), v.literal('monthly'), v.literal('yearly')),
+    periodKey: v.optional(v.string()),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    await requirePermission(ctx, 'reports.read', args.propertyId);
+    const dateKey = await propertyDateKey(ctx, args.propertyId);
+    const periodKey = args.periodKey ?? currentPeriodKey(dateKey, args.periodType);
+    const summaries = await summariesForPeriod(ctx, args.propertyId, args.periodType, periodKey);
+
+    const beverageAggregates = new Map<
+      string,
+      {
+        beverageId: Id<'beverages'>;
+        totalQtySold: number;
+        totalRevenue: number;
+        totalCogs: number;
+        totalWasteQty: number;
+        totalCompQty: number;
+        periodType: typeof args.periodType;
+        periodKey: string;
+      }
+    >();
+
+    for (const summary of summaries) {
+      const beverageId = summary.beverageId;
+      let aggregate = beverageAggregates.get(beverageId);
+      if (!aggregate) {
+        aggregate = {
+          beverageId,
+          totalQtySold: 0,
+          totalRevenue: 0,
+          totalCogs: 0,
+          totalWasteQty: 0,
+          totalCompQty: 0,
+          periodType: summary.periodType,
+          periodKey: summary.periodKey,
+        };
+        beverageAggregates.set(beverageId, aggregate);
+      }
+      aggregate.totalQtySold += summary.totalQtySold;
+      aggregate.totalRevenue += summary.totalRevenue;
+      aggregate.totalCogs += summary.totalCogs ?? 0;
+      aggregate.totalWasteQty += summary.totalWasteQty ?? 0;
+      aggregate.totalCompQty += summary.totalCompQty ?? 0;
+    }
+
+    const result = await Promise.all(
+      Array.from(beverageAggregates.values()).map(async (aggregate) => {
+        const beverage = await ctx.db.get(aggregate.beverageId);
+        return {
+          ...aggregate,
+          beverage,
+        };
+      }),
+    );
+
+    result.sort((a, b) => b.totalRevenue - a.totalRevenue || b.totalQtySold - a.totalQtySold);
+
+    if (args.limit && args.limit > 0) {
+      result.splice(args.limit);
+    }
+
+    return { success: true, data: result };
+  },
+});
+
 export const getBeverageTrend = query({
   args: {
     propertyId: v.id('properties'),

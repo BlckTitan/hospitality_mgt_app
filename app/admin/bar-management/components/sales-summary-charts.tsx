@@ -38,6 +38,7 @@ const CHART_TABS = [
   'Top Performers',
   'Revenue Trend',
   'Sales by Category',
+  'Beverage Sales',
   'SKU Performance',
 ] as const;
 
@@ -96,6 +97,17 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
       ? {
           propertyId: currentPropertyId,
           periodType: summaryPeriod,
+        }
+      : 'skip',
+  );
+
+  const salesByBeverageData = useQuery(
+    api.salesSummaries.getSalesByBeveragePeriod,
+    tab === 'Beverage Sales'
+      ? {
+          propertyId: currentPropertyId,
+          periodType: summaryPeriod,
+          limit: 12,
         }
       : 'skip',
   );
@@ -229,6 +241,33 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
     ],
   } : null;
 
+  const beverageSalesChartData = salesByBeverageData?.success && salesByBeverageData.data?.length
+    ? {
+        labels: salesByBeverageData.data.map((item) => {
+          const name = item.beverage?.name || 'Unknown';
+          const size = item.beverage?.size ? ` (${item.beverage.size})` : '';
+          return `${name}${size}`;
+        }),
+        datasets: [
+          {
+            label: 'Revenue',
+            data: salesByBeverageData.data.map((item) => item.totalRevenue),
+            backgroundColor: 'rgba(59, 130, 246, 0.6)',
+            borderColor: 'rgba(59, 130, 246, 1)',
+            borderWidth: 1,
+          },
+          {
+            label: 'Quantity Sold',
+            data: salesByBeverageData.data.map((item) => item.totalQtySold),
+            backgroundColor: 'rgba(16, 185, 129, 0.6)',
+            borderColor: 'rgba(16, 185, 129, 1)',
+            borderWidth: 1,
+            yAxisID: 'y1',
+          },
+        ],
+      }
+    : null;
+
   const chartOptions = {
     responsive: true,
     maintainAspectRatio: false,
@@ -266,6 +305,55 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
         },
       },
     } : undefined,
+  };
+
+  const beverageSalesChartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'top' as const,
+      },
+      title: {
+        display: false,
+      },
+      tooltip: {
+        callbacks: {
+          label: (context: { dataset: { label?: string }; parsed: { y: number | null } }) => {
+            const label = context.dataset.label || '';
+            const value = context.parsed.y ?? 0;
+            if (label === 'Revenue') return `${label}: ${formatCurrency(value)}`;
+            return `${label}: ${value.toLocaleString()}`;
+          },
+        },
+      },
+    },
+    scales: {
+      y: {
+        type: 'linear' as const,
+        display: true,
+        position: 'left' as const,
+        title: {
+          display: true,
+          text: 'Revenue',
+        },
+        ticks: {
+          callback: (value: number | string) => formatCurrency(Number(value)),
+        },
+      },
+      y1: {
+        type: 'linear' as const,
+        display: true,
+        position: 'right' as const,
+        title: {
+          display: true,
+          text: 'Quantity',
+        },
+        grid: {
+          drawOnChartArea: false,
+        },
+      },
+    },
   };
 
   const lineChartOptions = {
@@ -658,6 +746,22 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
             ) : (
               <p className="h-full flex items-center justify-center text-gray-500">No category data</p>
             )}
+          </div>
+        )}
+        {tab === 'Beverage Sales' && (
+          <div>
+            <p className="text-xs text-gray-500 mb-2">
+              Top beverages by revenue for the selected period. Compare item revenue (left axis) and quantity sold (right axis).
+            </p>
+            <div className="h-80">
+              {salesByBeverageData === undefined ? (
+                <p className="h-full flex items-center justify-center text-gray-500">Loading beverage sales...</p>
+              ) : beverageSalesChartData ? (
+                <Bar data={beverageSalesChartData} options={beverageSalesChartOptions} />
+              ) : (
+                <p className="h-full flex items-center justify-center text-gray-500">No beverage sales data</p>
+              )}
+            </div>
           </div>
         )}
         {tab === 'SKU Performance' && (

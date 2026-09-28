@@ -7,6 +7,7 @@ import { useState } from "react";
 import { api } from "../../../../../convex/_generated/api";
 import { formSchema } from "./validation";
 import InputComponent from "../../../../../shared/input";
+import ImageUpload from "../../../../../shared/imageUpload";
 
 type FormData = {
   name: string;
@@ -15,6 +16,7 @@ type FormData = {
   baseRate: number;
   amenities: string[];
   isActive: boolean;
+  imageUrl?: string | null;
 };
 
 export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: () => void; onClose: () => void; propertyId: string }) {
@@ -22,7 +24,7 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
   const [amenities, setAmenities] = useState<string[]>([]);
   const [amenityInput, setAmenityInput] = useState('');
 
-  const { register, handleSubmit, formState: { errors }, reset } = useForm<FormData>({
+  const { register, handleSubmit, formState: { errors }, reset, setValue, watch } = useForm<FormData>({
     resolver: yupResolver(formSchema) as any,
     defaultValues: {
       name: '',
@@ -31,8 +33,11 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
       baseRate: 0,
       amenities: [],
       isActive: true,
+      imageUrl: null,
     },
   });
+
+  const imageUrl = watch('imageUrl');
 
   const handleAddAmenity = () => {
     if (amenityInput.trim()) {
@@ -55,6 +60,7 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
         baseRate: data.baseRate,
         amenities: amenities,
         isActive: data.isActive,
+        imageUrl: data.imageUrl || undefined,
       });
 
       if (response.success === false) {
@@ -76,6 +82,17 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="createRoomTypeForm">
+      <div className="w-full h-fit mb-4">
+        <ImageUpload
+          id="imageUrl"
+          label="Room type photo"
+          folder="room-types"
+          value={imageUrl || null}
+          onChange={(url) => setValue('imageUrl', url, { shouldValidate: true, shouldDirty: true })}
+          error={errors.imageUrl}
+        />
+      </div>
+
       <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-1 [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4">
         <InputComponent
           id="name"

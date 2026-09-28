@@ -7,6 +7,7 @@ import { propertyFormSchema } from "./validation";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { toast } from "sonner";
 import InputComponent from "../../../../shared/input";
+import ImageUpload from "../../../../shared/imageUpload";
 import { currencies, timezones } from "../../../../lib/data";
 import { Button } from "react-bootstrap";
 import { Id } from "../../../../convex/_generated/dataModel";
@@ -23,17 +24,34 @@ type FormData = {
     taxId?: string;
     country?: string;
     isActive: boolean;
+    logoUrl?: string | null;
+    coverImageUrl?: string | null;
   };
 
   
-export function FormComponent(/*{ onSuccess, onClose }: { onSuccess: () => void; onClose: () => void },*/
+export function FormComponent(
   {
     id, name, address, phone, email, 
-    timezone, currency, taxId, country, isActive
+    timezone, currency, taxId, country, isActive,
+    logoUrl: initialLogoUrl,
+    coverImageUrl: initialCoverImageUrl,
+  }: {
+    id: Id<'properties'>;
+    name: string;
+    address?: string;
+    phone?: string;
+    email?: string;
+    timezone?: string;
+    currency?: string;
+    taxId?: string;
+    country?: string;
+    isActive: boolean;
+    logoUrl?: string;
+    coverImageUrl?: string;
   }) {
     const updateProperty = useMutation(api.property.updateProperty);
   
-    const { register, handleSubmit, formState: { errors }, reset } = useForm<FormData>({
+    const { register, handleSubmit, formState: { errors }, reset, setValue, watch } = useForm<FormData>({
       resolver: yupResolver(propertyFormSchema) as any,
       defaultValues: {
         name: name,
@@ -45,8 +63,13 @@ export function FormComponent(/*{ onSuccess, onClose }: { onSuccess: () => void;
         taxId: taxId,
         country: country || 'NG',
         isActive: isActive,
+        logoUrl: initialLogoUrl || null,
+        coverImageUrl: initialCoverImageUrl || null,
       },
     });
+
+    const logoUrl = watch('logoUrl');
+    const coverImageUrl = watch('coverImageUrl');
   
     const onSubmit: SubmitHandler<FormData> = async (data) => {
       try {
@@ -61,6 +84,8 @@ export function FormComponent(/*{ onSuccess, onClose }: { onSuccess: () => void;
           taxId: data.taxId,
           country: data.country,
           isActive: data.isActive,
+          logoUrl: data.logoUrl ? data.logoUrl : null,
+          coverImageUrl: data.coverImageUrl ? data.coverImageUrl : null,
         });
   
         if (response.success === false) {
@@ -80,6 +105,27 @@ export function FormComponent(/*{ onSuccess, onClose }: { onSuccess: () => void;
   
     return (
       <form onSubmit={handleSubmit(onSubmit)} className="createPropertyForm">
+        <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-start lg:items-start gap-4 mb-4">
+          <ImageUpload
+            id="logoUrl"
+            label="Property logo"
+            folder="properties/logos"
+            inputWidth="w-1/2"
+            value={logoUrl || null}
+            onChange={(url) => setValue('logoUrl', url, { shouldValidate: true, shouldDirty: true })}
+            error={errors.logoUrl}
+          />
+          <ImageUpload
+            id="coverImageUrl"
+            label="Cover image"
+            folder="properties/covers"
+            inputWidth="w-1/2"
+            value={coverImageUrl || null}
+            onChange={(url) => setValue('coverImageUrl', url, { shouldValidate: true, shouldDirty: true })}
+            error={errors.coverImageUrl}
+          />
+        </div>
+
         <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-1 [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4">
           <InputComponent
             id="name"
@@ -190,7 +236,7 @@ export function FormComponent(/*{ onSuccess, onClose }: { onSuccess: () => void;
         </div>
   
         <div className="flex gap-2 justify-end">
-          <Button variant="secondary" /*onClick={onClose}*/>
+          <Button variant="secondary">
             Cancel
           </Button>
           <Button variant="dark" type="submit">
@@ -200,4 +246,3 @@ export function FormComponent(/*{ onSuccess, onClose }: { onSuccess: () => void;
       </form>
     );
   }
-  

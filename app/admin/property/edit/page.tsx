@@ -40,6 +40,8 @@ export default function Page() {
         taxId={response && '_id' in response ? response.taxId : undefined}
         country={response && '_id' in response ? response.country : undefined}
         isActive={response && '_id' in response ? response.isActive : undefined}
+        logoUrl={response && '_id' in response ? response.logoUrl : undefined}
+        coverImageUrl={response && '_id' in response ? response.coverImageUrl : undefined}
       />
 
     </div>

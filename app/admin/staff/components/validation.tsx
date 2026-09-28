@@ -61,6 +61,12 @@ export const formSchema = yup.object().shape({
     .oneOf(["self", "supervisor", "kiosk"])
     .optional(),
   dateRecruited: yup.date().optional().nullable(),
+
+  imageUrl: yup
+    .string()
+    .trim()
+    .url("Upload a valid image")
+    .required("Staff photo is required"),
 });
 
 export const CLOCK_METHOD_OPTIONS = [

@@ -8,6 +8,7 @@ import { yupResolver } from "@hookform/resolvers/yup";
 import { toast } from "sonner";
 import { Button } from "react-bootstrap";
 import InputComponent from "../../../../../shared/input";
+import ImageUpload from "../../../../../shared/imageUpload";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { api } from "../../../../../convex/_generated/api";
 import { BeverageCostFields, recipeLinesPayload, type RecipeLineDraft } from "./beverageCostFields";
@@ -23,6 +24,7 @@ type FormData = {
   unitCost?: number;
   reorderLevel: number;
   isActive: boolean;
+  imageUrl: string;
 };
 
 interface EditBeverageFormProps {
@@ -47,7 +49,7 @@ export function EditBeverageForm({ beverageData, beverageId, onSuccess, onClose 
       wastePercent: line.wastePercent != null ? String(line.wastePercent) : '',
     })),
   );
-  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, formState: { errors }, setValue, watch } = useForm<FormData>({
     resolver: yupResolver(formSchema) as any,
     defaultValues: {
       name: beverageData.name || '',
@@ -58,8 +60,11 @@ export function EditBeverageForm({ beverageData, beverageId, onSuccess, onClose 
       unitCost: beverageData.unitCost,
       reorderLevel: beverageData.reorderLevel || 0,
       isActive: beverageData.isActive ?? true,
+      imageUrl: beverageData.imageUrl || '',
     },
   });
+
+  const imageUrl = watch('imageUrl');
 
   const onSubmit: SubmitHandler<FormData> = async (data) => {
     try {
@@ -75,6 +80,7 @@ export function EditBeverageForm({ beverageData, beverageId, onSuccess, onClose 
         recipeLines: recipeLinesPayload(recipeLines),
         reorderLevel: data.reorderLevel,
         isActive: data.isActive,
+        imageUrl: data.imageUrl,
       });
 
       if (response.success === false) {
@@ -94,6 +100,18 @@ export function EditBeverageForm({ beverageData, beverageId, onSuccess, onClose 
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="editBeverageForm">
+      <div className="w-full h-fit mb-4">
+        <ImageUpload
+          id="imageUrl"
+          label="Beverage image"
+          required
+          folder="beverages"
+          value={imageUrl || null}
+          onChange={(url) => setValue('imageUrl', url ?? '', { shouldValidate: true, shouldDirty: true })}
+          error={errors.imageUrl}
+        />
+      </div>
+
       <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-1 mb-4">
         <InputComponent id="name" label="Beverage Name *" type="text" inputWidth="w-full" register={register('name', { required: true })} error={errors.name} />
       </div>

@@ -97,6 +97,8 @@ export const createProperty = mutation({
     taxId: v.optional(v.string()),
     country: v.optional(v.string()),
     isActive: v.boolean(),
+    logoUrl: v.optional(v.union(v.string(), v.null())),
+    coverImageUrl: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
     const authContext = await requirePermissionOrInitialSetup(ctx, 'properties.create');
@@ -123,6 +125,8 @@ export const createProperty = mutation({
         }
       }
 
+      const logo = args.logoUrl?.trim();
+      const cover = args.coverImageUrl?.trim();
       const property_id = await ctx.db.insert('properties', {
         name: args.name,
         address: args.address,
@@ -133,6 +137,8 @@ export const createProperty = mutation({
         taxId: args.taxId,
         country: args.country?.trim().toUpperCase() || undefined,
         isActive: args.isActive,
+        ...(logo ? { logoUrl: logo } : {}),
+        ...(cover ? { coverImageUrl: cover } : {}),
       });
 
       await assignAdministratorRoleForProperty(ctx, authContext.user._id, property_id);
@@ -160,6 +166,8 @@ export const updateProperty = mutation({
     taxId: v.optional(v.string()),
     country: v.optional(v.string()),
     isActive: v.boolean(),
+    logoUrl: v.optional(v.union(v.string(), v.null())),
+    coverImageUrl: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
     await requirePermission(ctx, 'properties.update', args.property_id);
@@ -207,6 +215,19 @@ export const updateProperty = mutation({
         }
       }
 
+      const logoPatch =
+        args.logoUrl === null || args.logoUrl === ''
+          ? { logoUrl: undefined }
+          : args.logoUrl !== undefined
+            ? { logoUrl: args.logoUrl.trim() }
+            : {};
+      const coverPatch =
+        args.coverImageUrl === null || args.coverImageUrl === ''
+          ? { coverImageUrl: undefined }
+          : args.coverImageUrl !== undefined
+            ? { coverImageUrl: args.coverImageUrl.trim() }
+            : {};
+
       await ctx.db.patch(args.property_id, {
         name: args.name,
         address: args.address,
@@ -217,6 +238,8 @@ export const updateProperty = mutation({
         taxId: args.taxId,
         country: nextCountry ?? existingProperty.country,
         isActive: args.isActive,
+        ...logoPatch,
+        ...coverPatch,
       });
 
       if (nextCountry && !existingProperty.country) {

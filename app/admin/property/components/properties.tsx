@@ -10,6 +10,7 @@ import { Id } from '../../../../convex/_generated/dataModel';
 import { toast } from 'sonner';
 import { Suspense } from 'react';
 import { TableColumn } from '../../../../shared/table';
+import ImageThumbnail from '../../../../shared/imageThumbnail';
 
 interface PropertyProps {
   _id: string;
@@ -21,6 +22,8 @@ interface PropertyProps {
   currency?: string;
   taxId?: string;
   isActive: boolean;
+  logoUrl?: string;
+  coverImageUrl?: string;
   actions: React.ReactNode;
 }
 
@@ -57,6 +60,13 @@ const Property = () => {
   };
 
   const tableColumns: TableColumn<PropertyProps>[] = [
+    {
+      label: '',
+      key: 'logoUrl',
+      render: (_value, row) => (
+        <ImageThumbnail src={row.logoUrl} alt={row.name} size={40} />
+      ),
+    },
     { label: 'Property Name', key: 'name' },
     { label: 'Address', key: 'address' },
     { label: 'Phone', key: 'phone' },

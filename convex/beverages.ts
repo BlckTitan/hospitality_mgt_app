@@ -182,6 +182,7 @@ export const createBeverage = mutation({
     recipeLines: v.optional(v.array(recipeLineValidator)),
     reorderLevel: v.number(),
     isActive: v.boolean(),
+    imageUrl: v.string(),
   },
   handler: async (ctx, args) => {
     await requirePermission(ctx, 'fnb.create', args.propertyId);
@@ -201,10 +202,15 @@ export const createBeverage = mutation({
         if (!checked.success) return checked;
       }
 
-      const { unitCost, inventoryItemId, recipeLines, size, ...rest } = args;
+      const { unitCost, inventoryItemId, recipeLines, size, imageUrl, ...rest } = args;
       const trimmedSize = size?.trim();
+      const trimmedImage = imageUrl.trim();
+      if (!trimmedImage) {
+        return { success: false, message: 'Beverage image is required' };
+      }
       const beverageId = await ctx.db.insert('beverages', {
         ...rest,
+        imageUrl: trimmedImage,
         ...(trimmedSize ? { size: trimmedSize } : {}),
         ...(unitCost !== undefined ? { unitCost } : {}),
         ...(inventoryItemId ? { inventoryItemId } : {}),
@@ -235,6 +241,7 @@ export const updateBeverage = mutation({
     recipeLines: v.optional(v.array(recipeLineValidator)),
     reorderLevel: v.optional(v.number()),
     isActive: v.optional(v.boolean()),
+    imageUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const beverage = await ctx.db.get(args.beverageId);
@@ -247,7 +254,10 @@ export const updateBeverage = mutation({
         const checked = await validateInventoryItem(ctx, args.inventoryItemId, beverage.propertyId);
         if (!checked.success) return checked;
       }
-      const { beverageId, recipeLines, inventoryItemId, size, ...updates } = args;
+      if (args.imageUrl !== undefined && !args.imageUrl.trim()) {
+        return { success: false, message: 'Beverage image is required' };
+      }
+      const { beverageId, recipeLines, inventoryItemId, size, imageUrl, ...updates } = args;
       const sizePatch =
         size === null || size === ''
           ? { size: undefined }
@@ -257,6 +267,7 @@ export const updateBeverage = mutation({
       await ctx.db.patch(beverageId, {
         ...updates,
         ...sizePatch,
+        ...(imageUrl !== undefined ? { imageUrl: imageUrl.trim() } : {}),
         ...(inventoryItemId ? { inventoryItemId } : {}),
       });
       if (recipeLines) {

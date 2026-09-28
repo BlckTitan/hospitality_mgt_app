@@ -49,11 +49,13 @@ export const createGuest = mutation({
     dateOfBirth: v.optional(v.number()),
     loyaltyNumber: v.optional(v.string()),
     preferences: v.optional(v.any()),
+    imageUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     await requirePermission(ctx, 'reservations.create', args.propertyId);
     try {
       const now = Date.now();
+      const trimmedImage = args.imageUrl?.trim();
       const guestId = await ctx.db.insert('guests', {
         propertyId: args.propertyId,
         firstName: args.firstName,
@@ -64,6 +66,7 @@ export const createGuest = mutation({
         dateOfBirth: args.dateOfBirth,
         loyaltyNumber: args.loyaltyNumber,
         preferences: args.preferences,
+        ...(trimmedImage ? { imageUrl: trimmedImage } : {}),
         searchName: peopleSearchName(args.firstName, args.lastName),
         createdAt: now,
         updatedAt: now,
@@ -88,6 +91,7 @@ export const updateGuest = mutation({
     dateOfBirth: v.optional(v.number()),
     loyaltyNumber: v.optional(v.string()),
     preferences: v.optional(v.any()),
+    imageUrl: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
     const existingGuest = await ctx.db.get(args.guestId);
@@ -98,6 +102,12 @@ export const updateGuest = mutation({
 
     try {
       const now = Date.now();
+      const imagePatch =
+        args.imageUrl === null || args.imageUrl === ''
+          ? { imageUrl: undefined }
+          : args.imageUrl !== undefined
+            ? { imageUrl: args.imageUrl.trim() }
+            : {};
       await ctx.db.patch(args.guestId, {
         firstName: args.firstName,
         lastName: args.lastName,
@@ -107,6 +117,7 @@ export const updateGuest = mutation({
         dateOfBirth: args.dateOfBirth,
         loyaltyNumber: args.loyaltyNumber,
         preferences: args.preferences,
+        ...imagePatch,
         searchName: peopleSearchName(args.firstName, args.lastName),
         updatedAt: now,
       });

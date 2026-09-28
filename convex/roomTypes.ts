@@ -45,6 +45,7 @@ export const createRoomType = mutation({
     baseRate: v.number(),
     amenities: v.array(v.string()),
     isActive: v.boolean(),
+    imageUrl: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
     await requirePermission(ctx, 'rooms.update', args.propertyId);
@@ -61,6 +62,7 @@ export const createRoomType = mutation({
       }
 
       const now = Date.now();
+      const trimmedImage = args.imageUrl?.trim();
       const roomTypeId = await ctx.db.insert('roomTypes', {
         propertyId: args.propertyId,
         name: args.name,
@@ -69,6 +71,7 @@ export const createRoomType = mutation({
         baseRate: args.baseRate,
         amenities: args.amenities || [],
         isActive: args.isActive,
+        ...(trimmedImage ? { imageUrl: trimmedImage } : {}),
         createdAt: now,
         updatedAt: now,
       });
@@ -90,6 +93,7 @@ export const updateRoomType = mutation({
     baseRate: v.number(),
     amenities: v.array(v.string()),
     isActive: v.boolean(),
+    imageUrl: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
     const existingRoomType = await ctx.db.get(args.roomTypeId);
@@ -115,6 +119,12 @@ export const updateRoomType = mutation({
       }
 
       const now = Date.now();
+      const imagePatch =
+        args.imageUrl === null || args.imageUrl === ''
+          ? { imageUrl: undefined }
+          : args.imageUrl !== undefined
+            ? { imageUrl: args.imageUrl.trim() }
+            : {};
       await ctx.db.patch(args.roomTypeId, {
         name: args.name,
         description: args.description,
@@ -122,6 +132,7 @@ export const updateRoomType = mutation({
         baseRate: args.baseRate,
         amenities: args.amenities || [],
         isActive: args.isActive,
+        ...imagePatch,
         updatedAt: now,
       });
 

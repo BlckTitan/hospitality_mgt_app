@@ -7,6 +7,7 @@ import { yupResolver } from "@hookform/resolvers/yup";
 import { toast } from "sonner";
 import { Button } from "react-bootstrap";
 import InputComponent from "../../../../../shared/input";
+import ImageUpload from "../../../../../shared/imageUpload";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { api } from "../../../../../convex/_generated/api";
 import { usePropertyCurrency } from "../../components/money";
@@ -23,6 +24,7 @@ type FormData = {
   location?: string;
   supplierId?: string;
   isActive: boolean;
+  imageUrl?: string | null;
 };
 
 export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: () => void; onClose: () => void; propertyId: string }) {
@@ -31,7 +33,7 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
   const suppliersResponse = useQuery(api.suppliers.getAllSuppliers, { propertyId: propertyId as Id<'properties'>, activeOnly: true });
   const suppliers = suppliersResponse?.data || [];
 
-  const { register, handleSubmit, formState: { errors }, reset } = useForm<FormData>({
+  const { register, handleSubmit, formState: { errors }, reset, setValue, watch } = useForm<FormData>({
     resolver: yupResolver(formSchema) as any,
     defaultValues: {
       sku: '',
@@ -45,8 +47,11 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
       location: '',
       supplierId: '',
       isActive: true,
+      imageUrl: null,
     },
   });
+
+  const imageUrl = watch('imageUrl');
 
   const onSubmit: SubmitHandler<FormData> = async (data) => {
     try {
@@ -63,6 +68,7 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
         unitCost: data.unitCost,
         location: data.location,
         isActive: data.isActive,
+        imageUrl: data.imageUrl || undefined,
       });
 
       if (response.success === false) {
@@ -110,6 +116,17 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="createInventoryItemForm">
+      <div className="w-full h-fit mb-4">
+        <ImageUpload
+          id="imageUrl"
+          label="Item photo"
+          folder="inventory"
+          value={imageUrl || null}
+          onChange={(url) => setValue('imageUrl', url, { shouldValidate: true, shouldDirty: true })}
+          error={errors.imageUrl}
+        />
+      </div>
+
       <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-2 mb-2 lg:mb-4">
         <div className="flex-1">
           <InputComponent

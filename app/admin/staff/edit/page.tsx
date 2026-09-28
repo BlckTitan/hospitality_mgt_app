@@ -66,6 +66,7 @@ export default function Page() {
         accountName={response.accountName}
         accountNumber={response.accountNumber}
         routingCode={response.routingCode}
+        imageUrl={response.imageUrl}
       />
     </div>
   )

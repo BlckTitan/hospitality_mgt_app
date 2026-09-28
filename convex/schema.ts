@@ -139,6 +139,8 @@ export default defineSchema({
     ),
     // firstName + lastName for people search. Optional until existing staff are backfilled.
     searchName: v.optional(v.string()),
+    // Cloudinary secure_url — required in UI; optional in schema for existing rows.
+    imageUrl: v.optional(v.string()),
   })
     .index("email", ["email"])
     .index("by_propertyId", ["propertyId"])
@@ -216,6 +218,8 @@ export default defineSchema({
     country: v.optional(v.string()),
     taxId: v.optional(v.string()),
     isActive: v.boolean(),
+    logoUrl: v.optional(v.string()),
+    coverImageUrl: v.optional(v.string()),
   })
     .index("by_name", ["name"])
     .index("by_email", ["email"])
@@ -410,6 +414,7 @@ export default defineSchema({
     lastCostUpdate: v.optional(v.number()),
     location: v.optional(v.string()),
     isActive: v.boolean(),
+    imageUrl: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -534,6 +539,7 @@ export default defineSchema({
     baseRate: v.number(),
     amenities: v.array(v.string()),
     isActive: v.boolean(),
+    imageUrl: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -570,6 +576,7 @@ export default defineSchema({
     dateOfBirth: v.optional(v.number()),
     loyaltyNumber: v.optional(v.string()),
     preferences: v.optional(v.any()), // JSON object
+    imageUrl: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
     // firstName + lastName for people search. Optional until existing guests are backfilled.
@@ -859,6 +866,8 @@ export default defineSchema({
     inventoryItemId: v.optional(v.id("inventoryItems")),
     reorderLevel: v.number(),
     isActive: v.boolean(),
+    // Cloudinary secure_url — required in UI; optional in schema for existing rows.
+    imageUrl: v.optional(v.string()),
   })
     .index("by_propertyId", ["propertyId"])
     .index("by_category", ["category"])

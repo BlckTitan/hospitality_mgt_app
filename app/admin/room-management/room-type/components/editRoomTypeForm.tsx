@@ -7,6 +7,7 @@ import { useState, useEffect } from "react";
 import { api } from "../../../../../convex/_generated/api";
 import { formSchema } from "./validation";
 import InputComponent from "../../../../../shared/input";
+import ImageUpload from "../../../../../shared/imageUpload";
 
 type FormData = {
   name: string;
@@ -15,6 +16,7 @@ type FormData = {
   baseRate: number;
   amenities: string[];
   isActive: boolean;
+  imageUrl?: string | null;
 };
 
 interface EditRoomTypeFormProps {
@@ -29,7 +31,7 @@ export function EditFormComponent({ roomTypeData, onSuccess, onClose, roomTypeId
   const [amenities, setAmenities] = useState<string[]>(roomTypeData?.amenities || []);
   const [amenityInput, setAmenityInput] = useState('');
 
-  const { register, handleSubmit, formState: { errors }, reset } = useForm<FormData>({
+  const { register, handleSubmit, formState: { errors }, reset, setValue, watch } = useForm<FormData>({
     resolver: yupResolver(formSchema) as any,
     defaultValues: {
       name: roomTypeData?.name || '',
@@ -38,8 +40,11 @@ export function EditFormComponent({ roomTypeData, onSuccess, onClose, roomTypeId
       baseRate: roomTypeData?.baseRate || 0,
       amenities: roomTypeData?.amenities || [],
       isActive: roomTypeData?.isActive ?? true,
+      imageUrl: roomTypeData?.imageUrl || null,
     },
   });
+
+  const imageUrl = watch('imageUrl');
 
   useEffect(() => {
     setAmenities(roomTypeData?.amenities || []);
@@ -66,6 +71,7 @@ export function EditFormComponent({ roomTypeData, onSuccess, onClose, roomTypeId
         baseRate: data.baseRate,
         amenities: amenities,
         isActive: data.isActive,
+        imageUrl: data.imageUrl ? data.imageUrl : null,
       });
 
       if (response.success === false) {
@@ -86,6 +92,17 @@ export function EditFormComponent({ roomTypeData, onSuccess, onClose, roomTypeId
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="editRoomTypeForm">
+      <div className="w-full h-fit mb-4">
+        <ImageUpload
+          id="imageUrl"
+          label="Room type photo"
+          folder="room-types"
+          value={imageUrl || null}
+          onChange={(url) => setValue('imageUrl', url, { shouldValidate: true, shouldDirty: true })}
+          error={errors.imageUrl}
+        />
+      </div>
+
       <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-1 [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4">
         <InputComponent
           id="name"

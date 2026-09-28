@@ -10,6 +10,7 @@ import { api } from "../../../../../convex/_generated/api";
 import { TableColumn } from "../../../../../shared/table";
 import PaginationComponent from "../../../../../shared/pagination";
 import { Id } from "../../../../../convex/_generated/dataModel";
+import ImageThumbnail from "../../../../../shared/imageThumbnail";
 
 interface BeverageProps {
   _id: string;
@@ -26,6 +27,7 @@ interface BeverageProps {
   recipeLines?: unknown[];
   reorderLevel: number;
   isActive: boolean;
+  imageUrl?: string;
   _creationTime: number;
 }
 
@@ -67,6 +69,13 @@ const Beverages = ({ currentPropertyId }: { currentPropertyId: Id<"properties"> 
   const formatDate = (timestamp: number) => new Date(timestamp).toLocaleString();
 
   const tableColumns: TableColumn<BeverageProps>[] = [
+    {
+      label: '',
+      key: 'imageUrl',
+      render: (_value, row) => (
+        <ImageThumbnail src={row.imageUrl} alt={row.name} size={40} />
+      ),
+    },
     { label: 'Name', key: 'name' },
     { label: 'Category', key: 'category' },
     { label: 'Unit', key: 'unitOfMeasure' },

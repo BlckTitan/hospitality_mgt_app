@@ -15,4 +15,16 @@ export const propertyFormSchema = yup.object().shape({
   currency: yup.string().optional(),
   taxId: yup.string().optional(),
   isActive: yup.boolean().required('Active status is required'),
+  logoUrl: yup
+    .string()
+    .trim()
+    .transform((value, original) => (original === '' || original == null ? undefined : value))
+    .url('Upload a valid logo image')
+    .notRequired(),
+  coverImageUrl: yup
+    .string()
+    .trim()
+    .transform((value, original) => (original === '' || original == null ? undefined : value))
+    .url('Upload a valid cover image')
+    .notRequired(),
 });

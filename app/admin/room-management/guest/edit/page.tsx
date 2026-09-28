@@ -36,6 +36,7 @@ export default function Page() {
         address={guest.address}
         dateOfBirth={guest.dateOfBirth}
         loyaltyNumber={guest.loyaltyNumber}
+        imageUrl={guest.imageUrl}
       />
     </div>
   );

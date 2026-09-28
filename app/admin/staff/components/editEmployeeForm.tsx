@@ -8,6 +8,7 @@ import { FieldValues, SubmitHandler, useForm } from "react-hook-form";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { toast } from "sonner";
 import InputComponent from "../../../../shared/input";
+import ImageUpload from "../../../../shared/imageUpload";
 import DatepickerComponent from "../../../../shared/datepicker";
 import SelectComponent from "../../../../shared/select";
 import UserAutocomplete, { applyLinkedUserToStaff } from "../../../../shared/userAutocomplete";
@@ -44,6 +45,7 @@ type FormData = {
   contractStartDate?: string;
   contractEndDate?: string;
   probationEndDate?: string;
+  imageUrl: string;
 };
 
 const DEPARTMENTS = [
@@ -86,6 +88,7 @@ export function FormComponent(props: {
   contractStartDate?: string;
   contractEndDate?: string;
   probationEndDate?: string;
+  imageUrl?: string;
   payType?: string;
   paymentMethod?: string;
   hourlyRate?: number;
@@ -137,6 +140,7 @@ export function FormComponent(props: {
       contractStartDate: props.contractStartDate || "",
       contractEndDate: props.contractEndDate || "",
       probationEndDate: props.probationEndDate || "",
+      imageUrl: props.imageUrl || "",
     },
   });
 
@@ -151,6 +155,7 @@ export function FormComponent(props: {
   const [routingCode, setRoutingCode] = useState(props.routingCode || "");
 
   const linkedUserId = watch("userId");
+  const imageUrl = watch("imageUrl");
 
   const onSubmit: SubmitHandler<FormData | FieldValues> = async (data) => {
     try {
@@ -190,6 +195,7 @@ export function FormComponent(props: {
         clockMethod: data.clockMethod
           ? (data.clockMethod as "self" | "supervisor" | "kiosk")
           : undefined,
+        imageUrl: data.imageUrl,
       });
 
       if (response.success === false) {
@@ -229,6 +235,18 @@ export function FormComponent(props: {
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="mt-4">
       <h5 className="mb-3">Identity</h5>
+      <div className={fieldRowClassName}>
+        <ImageUpload
+          id="imageUrl"
+          label="Staff photo"
+          required
+          folder="staff"
+          inputWidth="w-full"
+          value={imageUrl || null}
+          onChange={(url) => setValue("imageUrl", url ?? "", { shouldValidate: true, shouldDirty: true })}
+          error={errors.imageUrl}
+        />
+      </div>
       <div className={fieldRowClassName}>
         <InputComponent
           id="firstName"

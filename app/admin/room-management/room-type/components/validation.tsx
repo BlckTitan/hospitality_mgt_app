@@ -34,4 +34,11 @@ export const formSchema = yup.object().shape({
   isActive: yup
     .boolean()
     .required("Active status is required"),
+
+  imageUrl: yup
+    .string()
+    .trim()
+    .transform((value, original) => (original === "" || original == null ? undefined : value))
+    .url("Upload a valid image")
+    .notRequired(),
 });

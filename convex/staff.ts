@@ -472,6 +472,7 @@ export const createStaff = mutation({
     contractStartDate: v.optional(v.string()),
     contractEndDate: v.optional(v.string()),
     probationEndDate: v.optional(v.string()),
+    imageUrl: v.string(),
   },
   handler: async (ctx, args) => {
     const auth = await requirePermission(ctx, 'staff.create');
@@ -479,6 +480,11 @@ export const createStaff = mutation({
     const canPay = canUpdateCompensation(auth);
 
     try {
+      const trimmedImage = args.imageUrl.trim();
+      if (!trimmedImage) {
+        return { success: false, message: 'Staff photo is required' };
+      }
+
       if (args.email && (await emailTaken(ctx, args.email, propertyId))) {
         return { success: false, message: 'Staff already exists with that email at this property' };
       }
@@ -564,6 +570,7 @@ export const createStaff = mutation({
         contractEndDate: args.contractEndDate,
         probationEndDate: args.probationEndDate,
         searchName: peopleSearchName(args.firstName, args.lastName),
+        imageUrl: trimmedImage,
         ...(args.userId ? { userId: args.userId } : {}),
       });
 
@@ -633,6 +640,7 @@ export const updateStaff = mutation({
     contractStartDate: v.optional(v.string()),
     contractEndDate: v.optional(v.string()),
     probationEndDate: v.optional(v.string()),
+    imageUrl: v.string(),
   },
   handler: async (ctx, args) => {
     const existingStaff = await ctx.db.get(args.id);
@@ -643,6 +651,11 @@ export const updateStaff = mutation({
     const propertyId = existingStaff.propertyId;
 
     try {
+      const trimmedImage = args.imageUrl.trim();
+      if (!trimmedImage) {
+        return { success: false, message: 'Staff photo is required' };
+      }
+
       if (args.email && (await emailTaken(ctx, args.email, propertyId, existingStaff._id))) {
         return { success: false, message: 'Another staff member already uses that email at this property' };
       }
@@ -707,6 +720,7 @@ export const updateStaff = mutation({
         probationEndDate: args.probationEndDate,
         searchName: peopleSearchName(args.firstName, args.lastName),
         clockMethod: nextClockMethod,
+        imageUrl: trimmedImage,
         ...(args.userId ? { userId: args.userId } : {}),
         ...(args.managerId ? { managerId: args.managerId } : {}),
       });

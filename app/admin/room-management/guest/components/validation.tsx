@@ -53,4 +53,11 @@ export const formSchema = yup.object().shape({
   loyaltyNumber: yup
     .string()
     .max(50, "Loyalty number is too long"),
+
+  imageUrl: yup
+    .string()
+    .trim()
+    .transform((value, original) => (original === "" || original == null ? undefined : value))
+    .url("Upload a valid image")
+    .notRequired(),
 });

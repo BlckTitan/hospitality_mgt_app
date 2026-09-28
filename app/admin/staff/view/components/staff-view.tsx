@@ -95,11 +95,12 @@ export default function StaffViewComponent() {
     <div className='w-full h-full'>
       <div className='flex items-center gap-4 mb-4'>
         <Image
-          src={Avatar}
+          src={staffData.imageUrl || Avatar}
           alt='profile avatar'
           width={100}
           height={100}
           className='w-24 h-24 rounded-full object-cover'
+          unoptimized={Boolean(staffData.imageUrl)}
         />
         <div>
           <h4>{staffData.lastName} {staffData.firstName}</h4>

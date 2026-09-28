@@ -68,6 +68,7 @@ export const createInventoryItem = mutation({
     unitCost: v.optional(v.number()),
     location: v.optional(v.string()),
     isActive: v.boolean(),
+    imageUrl: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
     const auth = await requirePermission(ctx, 'inventory.create', args.propertyId);
@@ -97,6 +98,7 @@ export const createInventoryItem = mutation({
       }
 
       const now = Date.now();
+      const trimmedImage = args.imageUrl?.trim();
       const inventoryItemId = await ctx.db.insert('inventoryItems', {
         propertyId: args.propertyId,
         supplierId: args.supplierId,
@@ -111,6 +113,7 @@ export const createInventoryItem = mutation({
         lastCostUpdate: args.unitCost ? now : undefined,
         location: args.location,
         isActive: args.isActive,
+        ...(trimmedImage ? { imageUrl: trimmedImage } : {}),
         createdAt: now,
         updatedAt: now,
       });
@@ -157,6 +160,7 @@ export const updateInventoryItem = mutation({
     unitCost: v.optional(v.number()),
     location: v.optional(v.string()),
     isActive: v.boolean(),
+    imageUrl: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
     const existingItem = await ctx.db.get(args.inventoryItemId);
@@ -207,6 +211,12 @@ export const updateInventoryItem = mutation({
       if (args.unitCost !== undefined) {
         updateData.unitCost = args.unitCost;
         updateData.lastCostUpdate = now;
+      }
+
+      if (args.imageUrl === null || args.imageUrl === '') {
+        updateData.imageUrl = undefined;
+      } else if (args.imageUrl !== undefined) {
+        updateData.imageUrl = args.imageUrl.trim();
       }
 
       await ctx.db.patch(args.inventoryItemId, updateData);
