@@ -115,10 +115,7 @@ export default function PosOrders() {
         </label>
         <div className="flex flex-wrap gap-3 text-sm ms-auto">
           <Link href="/admin/pos" className="underline">
-            Bar POS
-          </Link>
-          <Link href="/admin/room-management/room-service-pos" className="underline">
-            Room service POS
+            Open POS
           </Link>
         </div>
       </div>
@@ -169,14 +166,7 @@ export default function PosOrders() {
                     </Button>
                   )}
                   {row.status === 'open' && (
-                    <Link
-                      href={
-                        row.orderType === 'room_service'
-                          ? '/admin/room-management/room-service-pos'
-                          : '/admin/pos'
-                      }
-                      className="text-xs underline"
-                    >
+                    <Link href="/admin/pos" className="text-xs underline">
                       Continue on terminal
                     </Link>
                   )}

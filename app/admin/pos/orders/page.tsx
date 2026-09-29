@@ -12,8 +12,8 @@ export default function Page() {
         <BackLink />
       </header>
       <p className="mb-4 text-sm text-gray-600">
-        Open checks, open tabs, settled, and voided orders for Bar POS and Room service POS. Filter
-        by type or status; pay down tabs from here.
+        Open checks, open tabs, settled, and voided orders from the POS terminal. Filter by type or
+        status; pay down tabs from here.
       </p>
       <PosOrders />
     </div>

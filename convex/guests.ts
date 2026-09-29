@@ -21,6 +21,64 @@ export const getAllGuests = query({
   },
 });
 
+/** Typeahead for reservation find-or-create: name search + phone/email match. */
+export const searchGuests = query({
+  args: {
+    propertyId: v.id('properties'),
+    searchTerm: v.string(),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    await requirePermission(ctx, 'reservations.read', args.propertyId);
+    const term = args.searchTerm.trim();
+    const limit = Math.min(Math.max(args.limit ?? 12, 1), 25);
+    if (term.length < 1) {
+      return { success: true, data: [] };
+    }
+
+    try {
+      const byName = await ctx.db
+        .query('guests')
+        .withSearchIndex('search_guests', (idx) =>
+          idx.search('searchName', term).eq('propertyId', args.propertyId),
+        )
+        .take(limit);
+
+      const digits = term.replace(/\D/g, '');
+      const looksLikeEmail = term.includes('@');
+      const needsContactMatch = looksLikeEmail || digits.length >= 4;
+
+      if (!needsContactMatch) {
+        return { success: true, data: byName };
+      }
+
+      const propertyGuests = await ctx.db
+        .query('guests')
+        .withIndex('by_propertyId', (q) => q.eq('propertyId', args.propertyId))
+        .collect();
+      const lower = term.toLowerCase();
+      const byContact = propertyGuests.filter((guest) => {
+        if (looksLikeEmail && guest.email?.toLowerCase().includes(lower)) return true;
+        if (digits.length >= 4 && guest.phone?.replace(/\D/g, '').includes(digits)) return true;
+        return false;
+      });
+
+      const seen = new Set(byName.map((g) => g._id));
+      const merged = [...byName];
+      for (const guest of byContact) {
+        if (seen.has(guest._id)) continue;
+        merged.push(guest);
+        seen.add(guest._id);
+        if (merged.length >= limit) break;
+      }
+      return { success: true, data: merged.slice(0, limit) };
+    } catch (error) {
+      console.log(`Failed to search guests: ${error}`);
+      return { success: false, data: [], message: 'Failed to search guests' };
+    }
+  },
+});
+
 export const getGuest = query({
   args: { guestId: v.id('guests') },
   handler: async (ctx, args) => {

@@ -1,5 +1,5 @@
 import { FcEmptyTrash } from "react-icons/fc";
-import { MdEditDocument } from "react-icons/md";
+import { MdEditDocument, MdHotel } from "react-icons/md";
 import { Button } from "react-bootstrap";
 import { Suspense } from "react";
 import { useMutation } from "convex/react";
@@ -101,8 +101,17 @@ const Guests = ({ propertyId }: { propertyId: string }) => {
       render: (value, row) => (
         <div className='flex justify-evenly lg:justify-start items-center gap-1'>
           <a
+            href={`/admin/room-management/reservation?guest_id=${row._id}`}
+            className='!mr-2 !no-underline !text-sky-600'
+            title="Book stay"
+          >
+            <i className='icon'><MdHotel /></i>
+          </a>
+
+          <a
             href={`/admin/room-management/guest/edit?guest_id=${row._id}`}
             className='!mr-2 !no-underline !text-amber-400'
+            title="Edit guest"
           >
             <i className='icon'><MdEditDocument /></i>
           </a>

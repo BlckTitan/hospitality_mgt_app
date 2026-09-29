@@ -9,43 +9,36 @@ import { api } from '../../../../convex/_generated/api'
 import { Id } from '../../../../convex/_generated/dataModel'
 import { formatPropertyMoney, usePropertyCurrency } from '../../inventory-management/components/money'
 
-export type PosVariant = 'bar' | 'room_service'
+type OrderMode = 'bar' | 'room_service'
 type TenderMethod = 'cash' | 'card' | 'room_charge' | 'other'
 
 const selectClassName = 'w-full px-3 py-2 border border-gray-300 rounded-md text-sm'
 const tenderInputClassName = 'w-full px-2 py-1 border border-gray-300 rounded-md text-sm text-right'
 
-const BAR_TENDERS: Array<[TenderMethod, string]> = [
+const TENDERS: Array<[TenderMethod, string]> = [
   ['cash', 'Cash'],
   ['card', 'Card (record)'],
   ['room_charge', 'Room charge'],
   ['other', 'Other'],
 ]
 
-const ROOM_TENDERS: Array<[TenderMethod, string]> = [
-  ['room_charge', 'Room charge'],
-  ['cash', 'Cash'],
-  ['card', 'Card (record)'],
-  ['other', 'Other'],
-]
-
-export default function PosTerminal({ variant }: { variant: PosVariant }) {
-  const isRoom = variant === 'room_service'
+export default function PosTerminal() {
   const propertiesResponse = useQuery(api.property.listAccessibleProperties, {})
   const properties = propertiesResponse?.data ?? []
   const [propertyId, setPropertyId] = useState('')
   const currentPropertyId = (propertyId || properties[0]?._id || '') as Id<'properties'> | ''
   const currency = usePropertyCurrency(currentPropertyId || undefined)
 
+  const [mode, setMode] = useState<OrderMode>('bar')
   const [barId, setBarId] = useState('')
   const [reservationId, setReservationId] = useState('')
   const [orderId, setOrderId] = useState<Id<'orders'> | null>(null)
   const [category, setCategory] = useState<string>('All')
-  const [tenderMethod, setTenderMethod] = useState<TenderMethod>(
-    isRoom ? 'room_charge' : 'cash',
-  )
+  const [tenderMethod, setTenderMethod] = useState<TenderMethod>('cash')
   const [tenderAmount, setTenderAmount] = useState('')
   const [busy, setBusy] = useState(false)
+
+  const isRoom = mode === 'room_service'
 
   const bars = useQuery(
     api.posOrders.listBarsForPos,
@@ -61,9 +54,7 @@ export default function PosTerminal({ variant }: { variant: PosVariant }) {
   )
   const openOrders = useQuery(
     api.posOrders.listOpenOrders,
-    currentPropertyId
-      ? { propertyId: currentPropertyId, orderType: variant }
-      : 'skip',
+    currentPropertyId ? { propertyId: currentPropertyId } : 'skip',
   )
   const orderResponse = useQuery(
     api.posOrders.getOrder,
@@ -79,12 +70,9 @@ export default function PosTerminal({ variant }: { variant: PosVariant }) {
   const markOpenTab = useMutation(api.posOrders.markOpenTab)
 
   const barList = bars?.data ?? []
-  const selectedBarId = (
-    isRoom ? barId : barId || barList[0]?._id || ''
-  ) as string
+  const selectedBarId = (barId || barList[0]?._id || '') as string
   const order = orderResponse?.success ? orderResponse.data : null
   const activeLines = (order?.lines ?? []).filter((line) => line.status === 'active')
-  const tenders = isRoom ? ROOM_TENDERS : BAR_TENDERS
 
   const categories = useMemo(() => {
     const set = new Set((beverages?.data ?? []).map((b) => b.category))
@@ -106,6 +94,14 @@ export default function PosTerminal({ variant }: { variant: PosVariant }) {
 
   const money = (n: number) => formatPropertyMoney(n, currency)
 
+  const switchMode = (next: OrderMode) => {
+    setMode(next)
+    setOrderId(null)
+    setTenderAmount('')
+    setTenderMethod(next === 'room_service' ? 'room_charge' : 'cash')
+    if (next === 'bar') setReservationId('')
+  }
+
   const ensureOrder = async (): Promise<Id<'orders'> | null> => {
     if (orderId) return orderId
     if (!currentPropertyId) return null
@@ -117,7 +113,7 @@ export default function PosTerminal({ variant }: { variant: PosVariant }) {
     try {
       const response = await createOrder({
         propertyId: currentPropertyId,
-        orderType: variant,
+        orderType: mode,
         barId: selectedBarId ? (selectedBarId as Id<'bars'>) : undefined,
         reservationId: reservationId
           ? (reservationId as Id<'reservations'>)
@@ -254,7 +250,9 @@ export default function PosTerminal({ variant }: { variant: PosVariant }) {
     setTenderAmount('')
   }
 
-  const resumeOrder = (id: Id<'orders'>) => {
+  const resumeOrder = (id: Id<'orders'>, orderType: OrderMode) => {
+    setMode(orderType)
+    setTenderMethod(orderType === 'room_service' ? 'room_charge' : 'cash')
     setOrderId(id)
     setTenderAmount('')
   }
@@ -281,51 +279,40 @@ export default function PosTerminal({ variant }: { variant: PosVariant }) {
             ))}
           </select>
         </label>
-        {!isRoom && (
-          <label className="text-sm">
-            Bar
-            <select
-              className={selectClassName + ' mt-1 min-w-[10rem]'}
-              value={selectedBarId}
-              onChange={(e) => setBarId(e.target.value)}
-            >
-              {barList.length === 0 && <option value="">No bars</option>}
-              {barList.map((b) => (
-                <option key={b._id} value={b._id}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-        {isRoom && (
-          <label className="text-sm">
-            Outlet (optional)
-            <select
-              className={selectClassName + ' mt-1 min-w-[10rem]'}
-              value={selectedBarId}
-              onChange={(e) => setBarId(e.target.value)}
-            >
-              <option value="">None</option>
-              {barList.map((b) => (
-                <option key={b._id} value={b._id}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-        <div className="flex flex-wrap gap-3 text-sm ms-auto">
-          <Link
-            href={isRoom ? '/admin/pos' : '/admin/room-management/room-service-pos'}
-            className="underline"
+        <label className="text-sm">
+          Bar
+          <select
+            className={selectClassName + ' mt-1 min-w-[10rem]'}
+            value={selectedBarId}
+            onChange={(e) => setBarId(e.target.value)}
           >
-            {isRoom ? 'Bar POS' : 'Room service POS'}
-          </Link>
-          <Link href="/admin/pos/orders" className="underline">
-            Orders list
-          </Link>
+            {barList.length === 0 && <option value="">No bars</option>}
+            {barList.map((b) => (
+              <option key={b._id} value={b._id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant={mode === 'bar' ? 'dark' : 'outline-secondary'}
+            onClick={() => switchMode('bar')}
+          >
+            Bar
+          </Button>
+          <Button
+            size="sm"
+            variant={mode === 'room_service' ? 'dark' : 'outline-secondary'}
+            onClick={() => switchMode('room_service')}
+          >
+            Room service
+          </Button>
         </div>
+        <Link href="/admin/pos/orders" className="text-sm underline ms-auto">
+          Orders list
+        </Link>
       </div>
 
       {isRoom && (
@@ -347,7 +334,7 @@ export default function PosTerminal({ variant }: { variant: PosVariant }) {
           </label>
           {orderId && reservationId && (
             <Button size="sm" variant="outline-dark" disabled={busy} onClick={() => void handleLinkRoom()}>
-              Update room on check
+              Link to check
             </Button>
           )}
         </div>
@@ -361,9 +348,15 @@ export default function PosTerminal({ variant }: { variant: PosVariant }) {
               key={row._id}
               size="sm"
               variant={orderId === row._id ? 'dark' : 'outline-secondary'}
-              onClick={() => resumeOrder(row._id)}
+              onClick={() =>
+                resumeOrder(
+                  row._id,
+                  row.orderType === 'room_service' ? 'room_service' : 'bar',
+                )
+              }
             >
               #{String(row._id).slice(-6)}
+              {row.orderType === 'room_service' ? ' · room' : ' · bar'}
               {row.roomLabel ? ` · R${row.roomLabel}` : ''}
               {row.status === 'open_tab' ? ' · tab' : ''}
               {' · '}
@@ -424,7 +417,7 @@ export default function PosTerminal({ variant }: { variant: PosVariant }) {
             </div>
           </div>
           <p className="text-xs text-gray-500 m-0">
-            {isRoom ? 'Room service' : 'Bar'}
+            {isRoom ? 'Room service' : 'Quick bar'}
             {order?.roomLabel ? ` · Room ${order.roomLabel}` : ''}
             {order?.guestName ? ` · ${order.guestName}` : ''}
             {order?.status ? ` · ${order.status}` : ''}
@@ -480,7 +473,7 @@ export default function PosTerminal({ variant }: { variant: PosVariant }) {
           </div>
 
           <div className="grid grid-cols-2 gap-2">
-            {tenders.map(([id, label]) => (
+            {TENDERS.map(([id, label]) => (
               <Button
                 key={id}
                 size="sm"

@@ -2,6 +2,7 @@ import { mutation, query, MutationCtx } from './_generated/server';
 import { v } from 'convex/values';
 import { Id } from './_generated/dataModel';
 import { requirePermission } from './lib/rbac';
+import { peopleSearchName } from './lib/searchNames';
 import { maybeCreateCheckoutOnCheckOut, maybeCreateStayoverOnCheckIn } from './lib/taskAssignment';
 
 function generateConfirmationNumber(timestamp: number): string {
@@ -153,11 +154,21 @@ export const getReservation = query({
   },
 });
 
+const newGuestValidator = v.object({
+  firstName: v.string(),
+  lastName: v.string(),
+  email: v.optional(v.string()),
+  phone: v.optional(v.string()),
+});
+
 export const createReservation = mutation({
   args: {
     propertyId: v.id('properties'),
     roomId: v.id('rooms'),
-    guestId: v.id('guests'),
+    /** Existing guest, or omit when creating with `newGuest`. */
+    guestId: v.optional(v.id('guests')),
+    /** Inline guest profile for find-or-create booking. */
+    newGuest: v.optional(newGuestValidator),
     checkInDate: v.number(),
     checkOutDate: v.number(),
     numberOfGuests: v.number(),
@@ -171,6 +182,15 @@ export const createReservation = mutation({
   handler: async (ctx, args) => {
     await requirePermission(ctx, 'reservations.create', args.propertyId);
     try {
+      const hasExisting = Boolean(args.guestId);
+      const hasNew = Boolean(args.newGuest);
+      if (hasExisting === hasNew) {
+        return {
+          success: false,
+          message: 'Provide either an existing guest or new guest details',
+        };
+      }
+
       if (args.checkOutDate <= args.checkInDate) {
         return { success: false, message: 'Check-out date must be after check-in date' };
       }
@@ -194,12 +214,36 @@ export const createReservation = mutation({
         return { success: false, message: `Guest count exceeds max occupancy (${roomType.maxOccupancy})` };
       }
 
-      const guest = await ctx.db.get(args.guestId);
-      if (!guest) {
-        return { success: false, message: 'Guest does not exist' };
-      }
-      if (guest.propertyId !== args.propertyId) {
-        return { success: false, message: 'Guest does not belong to this property' };
+      const now = Date.now();
+      let guestId: Id<'guests'>;
+
+      if (args.newGuest) {
+        const firstName = args.newGuest.firstName.trim();
+        const lastName = args.newGuest.lastName.trim();
+        if (firstName.length < 2 || lastName.length < 2) {
+          return { success: false, message: 'Guest first and last name are required' };
+        }
+        const email = args.newGuest.email?.trim() || undefined;
+        const phone = args.newGuest.phone?.trim() || undefined;
+        guestId = await ctx.db.insert('guests', {
+          propertyId: args.propertyId,
+          firstName,
+          lastName,
+          email,
+          phone,
+          searchName: peopleSearchName(firstName, lastName),
+          createdAt: now,
+          updatedAt: now,
+        });
+      } else {
+        const guest = await ctx.db.get(args.guestId!);
+        if (!guest) {
+          return { success: false, message: 'Guest does not exist' };
+        }
+        if (guest.propertyId !== args.propertyId) {
+          return { success: false, message: 'Guest does not belong to this property' };
+        }
+        guestId = args.guestId!;
       }
 
       if (isBlockingStatus(args.status)) {
@@ -213,13 +257,12 @@ export const createReservation = mutation({
         }
       }
 
-      const now = Date.now();
       const confirmationNumber = await allocateConfirmationNumber(ctx, now);
 
       const reservationId = await ctx.db.insert('reservations', {
         propertyId: args.propertyId,
         roomId: args.roomId,
-        guestId: args.guestId,
+        guestId,
         confirmationNumber,
         checkInDate: args.checkInDate,
         checkOutDate: args.checkOutDate,
@@ -236,7 +279,7 @@ export const createReservation = mutation({
 
       await syncRoomOccupancy(ctx, args.roomId);
 
-      return { success: true, message: 'Reservation created successfully', id: reservationId, confirmationNumber };
+      return { success: true, message: 'Reservation created successfully', id: reservationId, confirmationNumber, guestId };
     } catch (error) {
       console.log(`Failed to create reservation: ${error}`);
       return { success: false, message: 'Failed to create reservation' };

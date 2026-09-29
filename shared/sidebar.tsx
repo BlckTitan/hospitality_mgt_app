@@ -22,7 +22,7 @@ const navLinks = [
     subLink: [
       {id: 401, href: '/admin/bar-management/bar', label: 'Bars'},
       { id: 402, href: '/admin/bar-management/beverages', label: 'Beverages'},
-      { id: 409, href: '/admin/pos', label: 'Bar POS'},
+      { id: 409, href: '/admin/pos', label: 'POS'},
       { id: 410, href: '/admin/pos/orders', label: 'POS orders'},
       { id: 406, href: '/admin/bar-management/my-stock', label: 'My Stock Today'},
       { id: 407, href: '/admin/bar-management/stock-requests', label: 'Stock Requests'},
@@ -49,7 +49,6 @@ const navLinks = [
     {id: 901, href: '/admin/room-management/room-type', label: 'Room Types'},
     {id: 902, href: '/admin/room-management/room', label: 'Room'},
     {id: 903, href: '/admin/room-management/reservation', label: 'Reservation'},
-    {id: 908, href: '/admin/room-management/room-service-pos', label: 'Room service POS'},
     {id: 904, href: '/admin/room-management/guest', label: 'Guest'},
       {id: 905, href: '/admin/room-management/housekeeping-task', label: 'Housekeeping Task'},
       {id: 906, href: '/admin/tasks/mine', label: 'My tasks'},

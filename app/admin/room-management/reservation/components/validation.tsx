@@ -57,10 +57,65 @@ const sharedReservationFields = {
     .max(1000, "Special requests are too long"),
 };
 
+const nameRules = {
+  firstName: yup
+    .string()
+    .trim()
+    .min(2, "First name must be at least 2 characters")
+    .matches(/^[A-Za-z\s'-]+$/, "First name must contain only letters, spaces, hyphens, and apostrophes"),
+  lastName: yup
+    .string()
+    .trim()
+    .min(2, "Last name must be at least 2 characters")
+    .matches(/^[A-Za-z\s'-]+$/, "Last name must contain only letters, spaces, hyphens, and apostrophes"),
+  email: yup
+    .string()
+    .trim()
+    .transform((value, original) => (original === "" || original == null ? undefined : value))
+    .email("Please enter a valid email address")
+    .max(254, "Email is too long"),
+  phone: yup
+    .string()
+    .trim()
+    .transform((value, original) => (original === "" || original == null ? undefined : value))
+    .matches(/^\+?\d{10,15}$/, {
+      message: "Enter a valid phone number (10-15 digits)",
+      excludeEmptyString: true,
+    }),
+};
+
 export const formSchema = yup.object().shape({
+  guestMode: yup
+    .string()
+    .oneOf(["existing", "new"], "Choose an existing or new guest")
+    .required(),
+
   guestId: yup
     .string()
-    .required("Guest is required"),
+    .when("guestMode", {
+      is: "existing",
+      then: (schema) => schema.required("Select a guest"),
+      otherwise: (schema) => schema.notRequired(),
+    }),
+
+  newGuestFirstName: yup
+    .string()
+    .when("guestMode", {
+      is: "new",
+      then: (schema) => nameRules.firstName.required("First name is required"),
+      otherwise: (schema) => schema.notRequired(),
+    }),
+
+  newGuestLastName: yup
+    .string()
+    .when("guestMode", {
+      is: "new",
+      then: (schema) => nameRules.lastName.required("Last name is required"),
+      otherwise: (schema) => schema.notRequired(),
+    }),
+
+  newGuestEmail: nameRules.email.notRequired(),
+  newGuestPhone: nameRules.phone.notRequired(),
 
   checkInDate: yup
     .date()
