@@ -42,6 +42,7 @@ export default function Page() {
         propertyId={reservation.propertyId}
         paidTotal={reservation.paidTotal ?? 0}
         payments={reservation.payments ?? []}
+        bookedBy={reservation.bookedBy ?? null}
       />
     </div>
   );

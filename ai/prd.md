@@ -136,7 +136,7 @@ Hospitality operators juggle siloed systems for reservations, POS, payroll, proc
   - Menu synchronization and price updates.
 - Recipe builder linking ingredients to inventory SKUs, auto-cost updates.
 - **Live bar stock & sales hub** (`/admin/bar-management`, `fnb.read`): float ledger (My Stock Today), waiter stock requests → store approve/issue, store physical counts, reorder alerts, and period analytics (Daily / Weekly / Monthly / Yearly / YoY). Stock-implied sales qty is `totalStock − closingStock − waste − comps` (control / pour cost). Spec: `ai/Bar inventory and sales management system design PRD.md`.
-- **POS v1** (`/admin/pos`, `/admin/pos/orders`, `fnb.read` / `fnb.create` / `fnb.update`): bar + room-service checks from the beverages catalog; tenders cash / card (record) / room charge / open tab — no payment gateway. Guest F&B revenue on the dashboard and P&L uses settled POS totals (plus amount paid on open tabs), not stock-implied sales.
+- **POS v1** (`/admin/pos`, `/admin/pos/orders`, `/admin/pos/cash-up`, `fnb.read` / `fnb.create` / `fnb.update`): bar + room-service checks from the beverages catalog; tenders cash / card (record) / room charge / open tab — no payment gateway. Guest F&B revenue on the dashboard and P&L uses settled POS totals (plus amount paid on open tabs), not stock-implied sales. **Cash-up** compares counted drawer cash to expected cash tenders per server/day; shortages create pending staff liabilities (`/admin/bar-management/liabilities`) for approve → payroll deduction (`CASH_SHORT` / `STOCK_SHORT`) or cash collect / waive. Overage does not create a staff credit. Stock float shortages are recorded manually as liabilities (not auto from store count in v1).
 - Inventory cycle counts, variance detection, reorder automation, supplier price history. Restock (below reorder point) and putaway (PO received) are assignable inventory tasks; the purchase order itself is not assigned — see Task Assignment. Bar beverage reorders stay on `reorderAlerts` (not Task Assignment).
 - **Inventory Purchase Documentation**: All inventory purchases require:
   - Supplier invoices (original or digital copies)
@@ -171,6 +171,7 @@ Hospitality operators juggle siloed systems for reservations, POS, payroll, proc
 - Optional **manual** gratuity amount on a Pay item. Tip pooling is out of scope.
 - Payroll lifecycle: Draft → Ready to review → Approved → Payment files ready → Paid. **Maker ≠ checker**: approver must not be the creator or last calculator.
 - Immutable rate snapshots (`payHistoryIdUsed`) on each Staff pay; Pay items instead of a deductions JSON blob.
+- **Staff shortage recovery**: approved `staffLiabilities` (cash or stock shortage) are injected as deduction Pay items on Prepare pay; Approve payroll marks them deducted. Collect/waive under Bar Management closes without payroll.
 - On Approve payroll: generate Payslips and post one balanced journal entry (`referenceType = Payroll`).
 - On Download payment files: export bank/CSV for bank payees and a cash/mobile worksheet. On Mark as paid: record a `Payment` and optional bank confirmation document.
 - Labor cost % uses approved / payment-files-ready / paid payrolls only (see ERD reporting notes).

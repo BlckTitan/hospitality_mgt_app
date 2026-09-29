@@ -39,6 +39,7 @@ export function FormComponent({
   propertyId,
   paidTotal = 0,
   payments = [],
+  bookedBy,
 }: {
   id: Id<'reservations'>;
   roomId: string;
@@ -53,6 +54,7 @@ export function FormComponent({
   specialRequests?: string;
   propertyId: string;
   paidTotal?: number;
+  bookedBy?: { name: string; email?: string } | null;
   payments?: Array<{
     _id: string;
     amount: number;
@@ -184,6 +186,14 @@ export function FormComponent({
         currency={currency}
       />
       <ReservationPaymentHistory payments={payments} currency={currency} />
+
+      <p className="mb-4 text-sm text-gray-600">
+        Booked by:{' '}
+        <span className="font-medium text-gray-900">
+          {bookedBy?.name || 'Unknown (legacy booking)'}
+        </span>
+        {bookedBy?.email ? ` · ${bookedBy.email}` : ''}
+      </p>
 
       {isClosed && (
         <p className="mb-4 text-sm text-gray-600">

@@ -23,6 +23,7 @@ Related: [prd.md](./prd.md), [ERD.md](./ERD.md), [schema.ts](./schema.ts), [base
 | Pay history | Pay history with `effectiveFrom` / `effectiveTo`. Prepare pay reads the row effective on each day / period end. Employee rate fields are the current denormalized copy. |
 | Maker ≠ checker | Payroll `createdBy` and last calculator must not equal `approvedBy`. |
 | Hours lock | Prepare pay locks included Hours (`lockedAt`, `lockedByPayrollId`). Edits rejected until the payroll returns to Draft / Recalculate (unlock then relock). |
+| Staff shortage recovery | Approved `staffLiabilities` (`cash_shortage` / `stock_shortage`) with remaining amount inject deduction Pay items (`CASH_SHORT` / `STOCK_SHORT`) on Prepare pay and are tagged `includedInPayrollId`. Approve payroll sets status `deducted`. Cash collect / waive under Bar Management closes without payroll and is blocked once included in a run. Re-prepare clears prior inclusions for that payroll. Overage on cash-up never creates a staff credit. |
 | User-facing names | Screens, docs, and Convex tables use the names in [User-facing names](#user-facing-names). |
 
 ---

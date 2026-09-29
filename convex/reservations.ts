@@ -1,4 +1,4 @@
-import { mutation, query, MutationCtx } from './_generated/server';
+import { mutation, query, MutationCtx, QueryCtx } from './_generated/server';
 import { v } from 'convex/values';
 import { Id } from './_generated/dataModel';
 import { requirePermission } from './lib/rbac';
@@ -16,6 +16,13 @@ function generateConfirmationNumber(timestamp: number): string {
 
 function isBlockingStatus(status: string): boolean {
   return status === 'pending' || status === 'confirmed' || status === 'checked-in';
+}
+
+async function resolveBookedBy(ctx: MutationCtx | QueryCtx, bookedByUserId?: Id<'users'>) {
+  if (!bookedByUserId) return null;
+  const user = await ctx.db.get(bookedByUserId);
+  if (!user) return null;
+  return { _id: user._id, name: user.name, email: user.email };
 }
 
 function rangesOverlap(aStart: number, aEnd: number, bStart: number, bEnd: number): boolean {
@@ -86,11 +93,13 @@ export const getAllReservations = query({
           const guest = await ctx.db.get(reservation.guestId);
           const room = await ctx.db.get(reservation.roomId);
           const roomType = room ? await ctx.db.get(room.roomTypeId) : null;
+          const bookedBy = await resolveBookedBy(ctx, reservation.bookedByUserId);
 
           return {
             ...reservation,
             guest,
             room: room ? { ...room, roomType } : null,
+            bookedBy,
           };
         })
       );
@@ -116,6 +125,7 @@ export const getReservation = query({
       const room = await ctx.db.get(reservation.roomId);
       const roomType = room ? await ctx.db.get(room.roomTypeId) : null;
       const property = await ctx.db.get(reservation.propertyId);
+      const bookedBy = await resolveBookedBy(ctx, reservation.bookedByUserId);
       const payments = await ctx.db
         .query('payments')
         .withIndex('by_reference', (q) =>
@@ -143,6 +153,7 @@ export const getReservation = query({
           guest,
           room: room ? { ...room, roomType } : null,
           property,
+          bookedBy,
           payments: paymentsWithEvidence,
           paidTotal,
         },
@@ -180,7 +191,7 @@ export const createReservation = mutation({
     specialRequests: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    await requirePermission(ctx, 'reservations.create', args.propertyId);
+    const auth = await requirePermission(ctx, 'reservations.create', args.propertyId);
     try {
       const hasExisting = Boolean(args.guestId);
       const hasNew = Boolean(args.newGuest);
@@ -273,6 +284,7 @@ export const createReservation = mutation({
         status: args.status,
         source: args.source,
         specialRequests: args.specialRequests,
+        bookedByUserId: auth.user._id,
         createdAt: now,
         updatedAt: now,
       });

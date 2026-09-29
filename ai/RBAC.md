@@ -204,6 +204,9 @@ Operational tabs still check their own module keys (`rooms.read`, `inventory.rea
 | Stock requests | `/admin/bar-management/stock-requests` | `fnb.read` (create); `inventory.update` (approve/reject = issue) |
 | Store count | `/admin/bar-management/store-count` | `inventory.read` / `inventory.update` |
 | Bars / Beverages / User stock logs | `/admin/bar-management/bar` etc. | `fnb.read` (`fnb.create` / `fnb.update` on create/edit) |
+| POS terminal / orders | `/admin/pos`, `/admin/pos/orders` | `fnb.read` (`fnb.create` / `fnb.update` to open/settle) |
+| POS cash-up | `/admin/pos/cash-up` | `fnb.read` (preview); `fnb.update` (post) |
+| Staff liabilities | `/admin/bar-management/liabilities` | `fnb.read` (list); `fnb.update` (create/approve/collect/waive) |
 | Store inventory / transactions | `/admin/bar-management/store-inventory` etc. | `inventory.read` (`inventory.update` on edit) |
 | My profile (default home without dashboard) | `/admin/staff/myProfile` | `staff.self.read` |
 

@@ -154,6 +154,7 @@ export default defineSchema({
     specialRequests: v.optional(v.string()),
     checkedInAt: v.optional(v.number()),
     checkedOutAt: v.optional(v.number()),
+    bookedByUserId: v.optional(v.id("users")),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -163,7 +164,8 @@ export default defineSchema({
     .index("by_confirmationNumber", ["confirmationNumber"])
     .index("by_propertyId_status", ["propertyId", "status"])
     .index("by_propertyId_checkInDate", ["propertyId", "checkInDate"])
-    .index("by_propertyId_checkOutDate", ["propertyId", "checkOutDate"]),
+    .index("by_propertyId_checkOutDate", ["propertyId", "checkOutDate"])
+    .index("by_bookedByUserId", ["bookedByUserId"]),
 
   ratePlans: defineTable({
     propertyId: v.id("properties"),

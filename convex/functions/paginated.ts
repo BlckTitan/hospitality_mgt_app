@@ -178,10 +178,17 @@ export const getPaginatedData = query({
             const guest = await ctx.db.get(reservation.guestId);
             const room = await ctx.db.get(reservation.roomId);
             const roomType = room ? await ctx.db.get(room.roomTypeId) : null;
+            const bookedByUser = reservation.bookedByUserId
+              ? await ctx.db.get(reservation.bookedByUserId)
+              : null;
+            const bookedBy = bookedByUser
+              ? { _id: bookedByUser._id, name: bookedByUser.name, email: bookedByUser.email }
+              : null;
             return {
               ...reservation,
               guest,
               room: room ? { ...room, roomType } : null,
+              bookedBy,
             };
           }),
         );

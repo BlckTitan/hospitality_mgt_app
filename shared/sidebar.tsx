@@ -24,6 +24,8 @@ const navLinks = [
       { id: 402, href: '/admin/bar-management/beverages', label: 'Beverages'},
       { id: 409, href: '/admin/pos', label: 'POS'},
       { id: 410, href: '/admin/pos/orders', label: 'POS orders'},
+      { id: 411, href: '/admin/pos/cash-up', label: 'POS cash-up'},
+      { id: 412, href: '/admin/bar-management/liabilities', label: 'Staff liabilities'},
       { id: 406, href: '/admin/bar-management/my-stock', label: 'My Stock Today'},
       { id: 407, href: '/admin/bar-management/stock-requests', label: 'Stock Requests'},
       { id: 403, href: '/admin/bar-management/user-stock-logs', label: 'User Stock Logs'},

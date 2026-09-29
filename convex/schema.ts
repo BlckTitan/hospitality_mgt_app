@@ -607,6 +607,8 @@ export default defineSchema({
     specialRequests: v.optional(v.string()),
     checkedInAt: v.optional(v.number()),
     checkedOutAt: v.optional(v.number()),
+    /** User (receptionist) who created the booking. Optional for pre-existing rows. */
+    bookedByUserId: v.optional(v.id("users")),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -616,7 +618,8 @@ export default defineSchema({
     .index("by_confirmationNumber", ["confirmationNumber"])
     .index("by_propertyId_status", ["propertyId", "status"])
     .index("by_propertyId_checkInDate", ["propertyId", "checkInDate"])
-    .index("by_propertyId_checkOutDate", ["propertyId", "checkOutDate"]),
+    .index("by_propertyId_checkOutDate", ["propertyId", "checkOutDate"])
+    .index("by_bookedByUserId", ["bookedByUserId"]),
 
   ratePlans: defineTable({
     propertyId: v.id("properties"),
@@ -1226,6 +1229,76 @@ export default defineSchema({
     .index("by_orderId", ["orderId"])
     .index("by_propertyId", ["propertyId"])
     .index("by_beverageId", ["beverageId"]),
+
+  // End-of-day cash drawer vs expected cash tenders (POS)
+  cashSettlements: defineTable({
+    propertyId: v.id("properties"),
+    barId: v.optional(v.id("bars")),
+    serverUserId: v.id("users"),
+    employeeId: v.optional(v.id("staffs")),
+    settlementDateKey: v.string(),
+    expectedCash: v.number(),
+    countedCash: v.number(),
+    varianceCash: v.number(), // counted − expected; negative = shortage
+    expectedCard: v.optional(v.number()),
+    expectedRoomCharge: v.optional(v.number()),
+    notes: v.optional(v.string()),
+    status: v.union(
+      v.literal("draft"),
+      v.literal("posted"),
+      v.literal("voided"),
+    ),
+    liabilityId: v.optional(v.id("staffLiabilities")),
+    createdBy: v.id("users"),
+    postedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_propertyId_settlementDateKey", ["propertyId", "settlementDateKey"])
+    .index("by_propertyId_serverUserId_settlementDateKey", [
+      "propertyId",
+      "serverUserId",
+      "settlementDateKey",
+    ])
+    .index("by_employeeId", ["employeeId"]),
+
+  // Staff amounts owed (cash/stock shortage) → collect or payroll deduction
+  staffLiabilities: defineTable({
+    propertyId: v.id("properties"),
+    employeeId: v.id("staffs"),
+    kind: v.union(v.literal("cash_shortage"), v.literal("stock_shortage")),
+    amount: v.number(),
+    remainingAmount: v.number(),
+    reason: v.string(),
+    sourceType: v.optional(
+      v.union(v.literal("cash_settlement"), v.literal("manual"), v.literal("store_count")),
+    ),
+    sourceId: v.optional(v.string()),
+    cashSettlementId: v.optional(v.id("cashSettlements")),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("approved"),
+      v.literal("waived"),
+      v.literal("collected"),
+      v.literal("deducted"),
+    ),
+    includedInPayrollId: v.optional(v.id("payrolls")),
+    includedInStaffPayId: v.optional(v.id("staffPay")),
+    deductedPayrollId: v.optional(v.id("payrolls")),
+    approvedBy: v.optional(v.id("users")),
+    approvedAt: v.optional(v.number()),
+    resolvedAt: v.optional(v.number()),
+    resolvedBy: v.optional(v.id("users")),
+    createdBy: v.id("users"),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_propertyId_status", ["propertyId", "status"])
+    .index("by_employeeId", ["employeeId"])
+    .index("by_employeeId_status", ["employeeId", "status"])
+    .index("by_includedInPayrollId", ["includedInPayrollId"]),
 
   // ============================================
   // Payroll Management

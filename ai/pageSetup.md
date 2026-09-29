@@ -423,6 +423,44 @@ This document outlines which entities should have dedicated pages and the data f
 **Rendering Strategy: SSR**
 
 ---
+
+### 17g. POS cash-up (`/admin/pos/cash-up`)
+**Purpose**: End-of-day cash drawer reconciliation per server. Expected cash = completed cash tenders on that server’s settled / open-tab POS orders for the property-local date. Counted cash is entered by a supervisor; variance = counted − expected.
+
+**Rules:**
+- Shortage (`variance < 0`) creates a pending `staffLiabilities` row (`cash_shortage`) linked to the settlement when the server has a linked Staff record.
+- Overage creates no liability (house keeps excess; notes optional).
+- One posted cash-up per server + date (re-post blocked).
+- Stock float shortages are **not** inferred here — use Staff liabilities (manual) or later store-count linkage.
+
+**Permission:** `fnb.read` to preview/list; `fnb.update` to post.
+
+**Data Fetching:**
+- `listServersForCashUp`, `previewCashSettlement`, `listCashSettlements`
+- Mutation: `postCashSettlement`
+
+**Rendering Strategy: SSR** — live Convex subscriptions.
+
+---
+
+### 17h. Staff liabilities (`/admin/bar-management/liabilities`)
+**Purpose**: Track amounts owed by staff from cash shortages (cash-up) or manual stock shortages. Lifecycle: pending → approved → deducted (via payroll) | collected | waived.
+
+**Rules:**
+- Approve requires `fnb.update`. Approved rows with remaining amount inject `CASH_SHORT` / `STOCK_SHORT` deduction Pay items on **Prepare pay**.
+- **Approve payroll** marks included liabilities `deducted` and clears remaining.
+- Collect (cash recovery) or Waive closes without payroll; blocked once the liability is already included in a payroll run.
+- Recalculate / re-prepare pay clears `includedInPayrollId` on that run’s prior inclusions so liabilities can re-attach.
+
+**Permission:** `fnb.read` to list; `fnb.update` to create / approve / collect / waive.
+
+**Data Fetching:**
+- `listStaffLiabilities`, `listServersForCashUp` (staff picker)
+- Mutations: `createStaffLiability`, `approveStaffLiability`, `collectStaffLiability`, `waiveStaffLiability`
+
+**Rendering Strategy: SSR**
+
+---
 ### 17d. My Stock Today (`/admin/bar-management/my-stock`)
 **Purpose**: Waiter float ledger for property-local today — Opening / Received / Total / Closing / Waste / Comps / Sales
 

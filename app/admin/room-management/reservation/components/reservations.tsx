@@ -38,6 +38,11 @@ interface ReservationProps {
     lastName: string;
     email?: string;
   };
+  bookedBy?: {
+    _id: string;
+    name: string;
+    email: string;
+  } | null;
   room?: {
     _id: string;
     roomNumber: string;
@@ -123,6 +128,13 @@ const Reservations = ({ propertyId }: { propertyId: string }) => {
       label: 'Status',
       key: 'status',
       render: (value, row) => <ReservationStatusBadge status={row.status} />
+    },
+    {
+      label: 'Booked by',
+      key: 'bookedBy',
+      render: (_value, row) => (
+        <span>{row.bookedBy?.name || '—'}</span>
+      )
     },
     {
       label: 'Created At',

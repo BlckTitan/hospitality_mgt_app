@@ -669,15 +669,16 @@ are not used. CRUD lives in `convex/bars.ts`, `convex/beverages.ts`,
 
 ## 11. Out of Scope
 
-The following are explicitly excluded from v1:
+The following are explicitly excluded from v1 of the **stock-control** module:
 
-- Customer-facing ordering or point-of-sale tickets (sales ≠ POS covers)
+- Customer-facing ordering or point-of-sale tickets (sales ≠ POS covers). Guest tickets and cash-up live under POS (`/admin/pos`, `/admin/pos/cash-up`); shortage follow-up under Staff liabilities (`/admin/bar-management/liabilities`) — see `ai/prd.md` / `ai/pageSetup.md`.
 - Beverage unit cost, pour cost %, comps/wastage reasons
 - Average check and RevPASH (no guest/seat counts)
 - Integration with external accounting software (QuickBooks, Sage, etc.)
 - Bar restock as Task Assignment (`reorderAlerts` stay on this module)
 - Native mobile apps (iOS/Android); mobile-responsive web is sufficient
 - Full-text search on beverage names
+- Auto-creating staff liabilities from store-count variance (manual liability entry only in v1)
 
 ---
 

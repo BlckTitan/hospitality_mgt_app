@@ -406,6 +406,39 @@ Represents POS orders (dine-in, takeout, room service, bar).
 
 ---
 
+#### CashSettlement
+End-of-day cash drawer vs expected POS cash tenders for a server.
+
+**Attributes (schema `cashSettlements`):**
+- `propertyId`, optional `barId`
+- `serverUserId` (User who ran POS), optional `employeeId` (linked Staff)
+- `settlementDateKey` (property-local date)
+- `expectedCash`, `countedCash`, `varianceCash` (counted − expected; negative = shortage)
+- optional `expectedCard`, `expectedRoomCharge`, `notes`
+- `status`: `draft` | `posted` | `voided`
+- optional `liabilityId` → StaffLiability when shortage posted
+- `createdBy`, `postedAt`, `createdAt`, `updatedAt`
+
+**Purpose**: Cash-up control. One posted row per server + date. Shortage optionally creates a pending StaffLiability.
+
+---
+
+#### StaffLiability
+Amount a staff member owes (cash or stock shortage) until collected, waived, or payroll-deducted.
+
+**Attributes (schema `staffLiabilities`):**
+- `propertyId`, `employeeId`
+- `kind`: `cash_shortage` | `stock_shortage`
+- `amount`, `remainingAmount`, `reason`
+- optional `sourceType` (`cash_settlement` | `manual` | `store_count`), `sourceId`, `cashSettlementId`
+- `status`: `pending` | `approved` | `waived` | `collected` | `deducted`
+- optional payroll links: `includedInPayrollId`, `includedInStaffPayId`, `deductedPayrollId`
+- approval / resolution audit fields
+
+**Purpose**: Follow-up for shortages. Approved liabilities become `CASH_SHORT` / `STOCK_SHORT` deduction Pay items on Prepare pay; Approve payroll marks deducted.
+
+---
+
 #### OrderLine
 Represents individual items within an order.
 

@@ -28,6 +28,8 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermission> = {
   '/admin/bar-management/stock-requests': { granular: 'fnb.read' },
   '/admin/pos': { granular: 'fnb.read' },
   '/admin/pos/orders': { granular: 'fnb.read' },
+  '/admin/pos/cash-up': { granular: 'fnb.read' },
+  '/admin/bar-management/liabilities': { granular: 'fnb.read' },
   '/admin/bar-management/store-inventory': { granular: 'inventory.read' },
   '/admin/bar-management/store-transactions': { granular: 'inventory.read' },
   '/admin/bar-management/store-count': { granular: 'inventory.read' },

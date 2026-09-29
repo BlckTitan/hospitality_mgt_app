@@ -169,6 +169,17 @@ export const preparePay = mutation({
     }
 
     await unlockHoursForPayroll(ctx, run._id);
+    const priorIncluded = await ctx.db
+      .query("staffLiabilities")
+      .withIndex("by_includedInPayrollId", (q) => q.eq("includedInPayrollId", run._id))
+      .collect();
+    for (const liability of priorIncluded) {
+      await ctx.db.patch(liability._id, {
+        includedInPayrollId: undefined,
+        includedInStaffPayId: undefined,
+        updatedAt: Date.now(),
+      });
+    }
     const existingLines = await ctx.db
       .query("staffPay")
       .withIndex("by_payrollId", (q) => q.eq("payrollId", run._id))
@@ -331,6 +342,33 @@ export const preparePay = mutation({
         });
       }
 
+      const approvedLiabilities = (
+        await ctx.db
+          .query("staffLiabilities")
+          .withIndex("by_employeeId_status", (q) =>
+            q.eq("employeeId", staff._id).eq("status", "approved"),
+          )
+          .collect()
+      ).filter(
+        (l) =>
+          l.propertyId === run.propertyId &&
+          l.remainingAmount > 0 &&
+          !l.includedInPayrollId &&
+          !l.deductedPayrollId,
+      );
+
+      for (const liability of approvedLiabilities) {
+        const code = liability.kind === "cash_shortage" ? "CASH_SHORT" : "STOCK_SHORT";
+        const label =
+          liability.kind === "cash_shortage" ? "Cash shortage recovery" : "Stock shortage recovery";
+        items.push({
+          kind: "deduction",
+          code,
+          label,
+          amount: roundMoney(liability.remainingAmount),
+        });
+      }
+
       let deductions = 0;
       let finalGross = 0;
       for (const item of items) {
@@ -352,6 +390,14 @@ export const preparePay = mutation({
         netPay: net,
         updatedAt: now,
       });
+
+      for (const liability of approvedLiabilities) {
+        await ctx.db.patch(liability._id, {
+          includedInPayrollId: run._id,
+          includedInStaffPayId: lineId,
+          updatedAt: now,
+        });
+      }
 
       for (const sheet of approvedHours) {
         await ctx.db.patch(sheet._id, {
@@ -397,6 +443,10 @@ export const approvePayroll = mutation({
       .withIndex("by_payrollId", (q) => q.eq("payrollId", run._id))
       .collect();
     const now = Date.now();
+    const includedLiabilities = await ctx.db
+      .query("staffLiabilities")
+      .withIndex("by_includedInPayrollId", (q) => q.eq("includedInPayrollId", run._id))
+      .collect();
 
     for (const line of lines) {
       const staff = await ctx.db.get(line.employeeId);
@@ -425,6 +475,17 @@ export const approvePayroll = mutation({
           },
           generatedAt: now,
           createdAt: now,
+        });
+      }
+
+      for (const liability of includedLiabilities.filter((l) => l.employeeId === line.employeeId)) {
+        await ctx.db.patch(liability._id, {
+          status: "deducted",
+          remainingAmount: 0,
+          deductedPayrollId: run._id,
+          resolvedAt: now,
+          resolvedBy: auth.user._id,
+          updatedAt: now,
         });
       }
     }

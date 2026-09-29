@@ -114,6 +114,8 @@ Who: HR / finance. Approver must not be the person who started it or last prepar
 | Payment files ready | **Download payment files**, **Mark as paid** |
 | Paid | none |
 
+**Prepare pay** also injects approved staff shortage liabilities (`CASH_SHORT` / `STOCK_SHORT` from POS cash-up / Staff liabilities). **Approve payroll** marks those liabilities deducted. Collect or waive under Staff liabilities if recovery should not hit payroll.
+
 **Staff pay** is one row per person: hours, gross, deductions, net, and Pay items. After approve, open **Payslip** on the row.
 
 ### Payslip — `/admin/payroll-management/payroll/payslip?payslip_id=`
