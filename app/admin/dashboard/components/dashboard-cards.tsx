@@ -331,13 +331,13 @@ export function FnBCard({
   }
 
   return (
-    <CardShell href="/admin/bar-management" linkLabel="Bar management">
+    <CardShell href="/admin/pos" linkLabel="POS">
       <KpiGrid className="md:grid-cols-2 lg:grid-cols-6">
-        <Kpi label="Qty sold" value={data.totalQtySold} />
-        <Kpi label="Revenue" value={formatPropertyMoney(data.totalRevenue, currency)} />
+        <Kpi label="POS qty sold" value={data.totalQtySold} />
+        <Kpi label="POS revenue" value={formatPropertyMoney(data.totalRevenue, currency)} />
         <Kpi label="Gross profit" value={formatPropertyMoney(data.grossProfit ?? (data.totalRevenue - (data.totalCogs ?? 0)), currency)} />
         <Kpi label="Waste & comps" value={(data.totalWasteQty ?? 0) + (data.totalCompQty ?? 0)} />
-        <Kpi label="Open logs" value={data.openLogCount} />
+        <Kpi label="Open stock logs" value={data.openLogCount} />
         <Kpi
           label="Reorder alerts"
           value={canReadInventory ? (alerts?.data?.length ?? 0) : '—'}

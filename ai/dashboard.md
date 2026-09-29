@@ -69,7 +69,7 @@ Summaries are tabs (inventory-hub button style). Default tab is **P&L / RevPAR**
 | Rooms | `rooms.read` or `reservations.read` | Occupancy counts; today’s arrivals / departures / in-house | Rooms / Reservations |
 | Housekeeping | `housekeeping.task.read` | Open / overdue / unassigned counts; up to 5 overdue titles | Housekeeping board |
 | Inventory | `inventory.read` | Active items, stock value, low stock, open POs | Inventory hub |
-| F&B today | `fnb.read` | Today’s qty + revenue (property timezone); open reorder count if `inventory.read` | Bar Management hub (`/admin/bar-management`) |
+| F&B today | `fnb.read` | Today’s POS qty + guest revenue (settled checks + paid open-tab amounts); waste/comps and open stock logs from float; open reorder count if `inventory.read` | POS (`/admin/pos`); stock hub (`/admin/bar-management`) |
 | Billing | `billing.period.read` | Account count, overdue, due this week | Billing hub |
 
 Do **not** put My shift or My tasks on this page.
@@ -87,8 +87,8 @@ Money: format with the selected property’s `currency` (same pattern as invento
 **Revenue**
 
 - Rooms: overlapping nights of `confirmed` / `checked-in` / `checked-out` reservations in the period. Nightly amount is `rate` when `rate > 0`, otherwise `totalAmount / stay nights`.
-- F&B: `userStockLogs.salesValue` whose `logDate` is in `[start, end)`.
-- Total revenue = rooms + F&B.
+- F&B: settled POS `orders.totalAmount` (plus `amountPaid` on `open_tab`) whose `openedAtDateKey` is in `[start, end)` property-local keys. Stock-implied `userStockLogs.salesValue` is **not** included (avoids double count); it remains on the bar hub as control.
+- Total revenue = rooms + F&B (POS).
 
 **Expenses**
 

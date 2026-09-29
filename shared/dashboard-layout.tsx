@@ -16,9 +16,12 @@ export default function DashboardLayout({children}: {children: React.ReactNode})
     return (
         <>
             <Navigation />
-            <section className="w-full min-h-dvh pt-14 relative flex">
+            <section className="w-full min-w-0 min-h-dvh pt-14 relative">
                 <Sidebar />
-                <main className="w-full min-h-[calc(100dvh-3.5rem)] xl:w-[calc(100%-300px)] xl:ml-auto p-3 lg:p-6">{children}</main>
+                {/* Fixed sidebar is out of flow; ml offsets main and width:auto fills the rest */}
+                <main className="min-w-0 min-h-[calc(100dvh-3.5rem)] p-3 lg:p-6 xl:ml-[300px] ">
+                    {children}
+                </main>
             </section>
         </>
     );

@@ -1174,6 +1174,59 @@ export default defineSchema({
     .index("by_propertyId_barId_period", ["propertyId", "barId", "periodType", "periodKey"])
     .index("by_propertyId_periodType_periodKey", ["propertyId", "periodType", "periodKey"]),
 
+  // POS orders (v1: bar + room service; dine_in/takeout reserved for later UI)
+  orders: defineTable({
+    propertyId: v.id("properties"),
+    barId: v.optional(v.id("bars")),
+    reservationId: v.optional(v.id("reservations")),
+    orderType: v.union(
+      v.literal("bar"),
+      v.literal("room_service"),
+      v.literal("dine_in"),
+      v.literal("takeout"),
+    ),
+    status: v.union(
+      v.literal("open"),
+      v.literal("settled"),
+      v.literal("voided"),
+      v.literal("open_tab"),
+    ),
+    serverUserId: v.id("users"),
+    guestLabel: v.optional(v.string()),
+    subtotal: v.number(),
+    totalAmount: v.number(),
+    amountPaid: v.number(),
+    balanceDue: v.number(),
+    openedAt: v.number(),
+    openedAtDateKey: v.string(),
+    settledAt: v.optional(v.number()),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_propertyId_status", ["propertyId", "status"])
+    .index("by_propertyId_openedAtDateKey", ["propertyId", "openedAtDateKey"])
+    .index("by_propertyId_status_openedAtDateKey", [
+      "propertyId",
+      "status",
+      "openedAtDateKey",
+    ])
+    .index("by_reservationId", ["reservationId"])
+    .index("by_serverUserId", ["serverUserId"]),
+
+  orderLines: defineTable({
+    propertyId: v.id("properties"),
+    orderId: v.id("orders"),
+    beverageId: v.id("beverages"),
+    nameSnapshot: v.string(),
+    unitPriceSnapshot: v.number(),
+    quantity: v.number(),
+    lineTotal: v.number(),
+    status: v.union(v.literal("active"), v.literal("voided")),
+    createdAt: v.number(),
+  })
+    .index("by_orderId", ["orderId"])
+    .index("by_propertyId", ["propertyId"])
+    .index("by_beverageId", ["beverageId"]),
+
   // ============================================
   // Payroll Management
   // People table is `staffs` only. FKs named employeeId are Id<"staffs">.

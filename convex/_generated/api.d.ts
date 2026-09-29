@@ -49,6 +49,7 @@ import type * as maintenanceOrders from "../maintenanceOrders.js";
 import type * as occupancy from "../occupancy.js";
 import type * as payrollConfig from "../payrollConfig.js";
 import type * as payrolls from "../payrolls.js";
+import type * as posOrders from "../posOrders.js";
 import type * as property from "../property.js";
 import type * as punctuality from "../punctuality.js";
 import type * as purchaseOrderLines from "../purchaseOrderLines.js";
@@ -126,6 +127,7 @@ declare const fullApi: ApiFromModules<{
   occupancy: typeof occupancy;
   payrollConfig: typeof payrollConfig;
   payrolls: typeof payrolls;
+  posOrders: typeof posOrders;
   property: typeof property;
   punctuality: typeof punctuality;
   purchaseOrderLines: typeof purchaseOrderLines;

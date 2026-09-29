@@ -4,6 +4,7 @@ import { requirePermission, tryRequirePermission } from './lib/rbac';
 import { localDayBounds, propertyTimeZone } from './lib/billingPeriods';
 import { isOpenStatus, MODULE_PERMS } from './lib/taskAssignment';
 import { EXPENSE_CATEGORIES } from './lib/postCashOutflow';
+import { sumPosGuestRevenue } from './posOrders';
 
 const DAY_MS = 86_400_000;
 const COUNTED_RESERVATION_STATUSES = new Set(['confirmed', 'checked-in', 'checked-out']);
@@ -237,6 +238,18 @@ export const getFnBTodaySnapshot = query({
 
     const property = await ctx.db.get(args.propertyId);
     const { dateKey } = localDayBounds(Date.now(), propertyTimeZone(property));
+    const nextKey = (() => {
+      const d = new Date(`${dateKey}T12:00:00.000Z`);
+      d.setUTCDate(d.getUTCDate() + 1);
+      return d.toISOString().slice(0, 10);
+    })();
+
+    // Guest F&B revenue: settled POS (+ paid portion of open tabs). Stock logs stay control-only.
+    const pos = await sumPosGuestRevenue(ctx, {
+      propertyId: args.propertyId,
+      startDateKey: dateKey,
+      endDateKeyExclusive: nextKey,
+    });
 
     const logs = await ctx.db
       .query('userStockLogs')
@@ -245,17 +258,17 @@ export const getFnBTodaySnapshot = query({
       )
       .collect();
 
-    let totalQtySold = 0;
-    let totalRevenue = 0;
     let totalCogs = 0;
     let totalWasteQty = 0;
     let totalCompQty = 0;
     let openLogCount = 0;
     let finalizedLogCount = 0;
+    let stockImpliedRevenue = 0;
+    let stockImpliedQty = 0;
 
     for (const log of logs) {
-      totalQtySold += log.salesQuantity;
-      totalRevenue += log.salesValue;
+      stockImpliedQty += log.salesQuantity;
+      stockImpliedRevenue += log.salesValue;
       totalCogs += log.cogsValue ?? 0;
       totalWasteQty += log.wasteQuantity ?? 0;
       totalCompQty += log.compQuantity ?? 0;
@@ -267,14 +280,18 @@ export const getFnBTodaySnapshot = query({
       success: true,
       data: {
         dateKey,
-        totalQtySold,
-        totalRevenue,
+        totalQtySold: pos.totalQtySold,
+        totalRevenue: pos.totalRevenue,
         totalCogs,
         totalWasteQty,
         totalCompQty,
-        grossProfit: totalRevenue - totalCogs,
+        grossProfit: pos.totalRevenue - totalCogs,
         openLogCount,
         finalizedLogCount,
+        orderCount: pos.orderCount,
+        stockImpliedQty,
+        stockImpliedRevenue,
+        revenueSource: 'pos' as const,
       },
     };
   },
@@ -361,13 +378,21 @@ export const getFinancialReport = query({
           .lt('logDate', endKey),
       )
       .collect();
-    let fnbRevenue = 0;
-    let fnbQtySold = 0;
+    let stockImpliedRevenue = 0;
+    let stockImpliedQty = 0;
     for (const log of stockLogs) {
       if (log.logDate < startKey || log.logDate >= endKey) continue;
-      fnbRevenue += log.salesValue;
-      fnbQtySold += log.salesQuantity;
+      stockImpliedRevenue += log.salesValue;
+      stockImpliedQty += log.salesQuantity;
     }
+
+    const pos = await sumPosGuestRevenue(ctx, {
+      propertyId: args.propertyId,
+      startDateKey: startKey,
+      endDateKeyExclusive: endKey,
+    });
+    const fnbRevenue = pos.totalRevenue;
+    const fnbQtySold = pos.totalQtySold;
 
     const expenses = await ctx.db
       .query('expenses')
@@ -437,6 +462,9 @@ export const getFinancialReport = query({
         roomRevenue,
         fnbRevenue,
         fnbQtySold,
+        fnbRevenueSource: 'pos' as const,
+        stockImpliedRevenue,
+        stockImpliedQty,
         totalRevenue,
         expenses: expenseByCategory,
         totalExpenses,

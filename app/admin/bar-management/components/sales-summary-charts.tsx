@@ -388,6 +388,8 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
       <div className="mb-6 grid grid-cols-1 md:grid-cols-3 xl:grid-cols-7 gap-4">
         <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
           <div className="text-sm text-blue-600 font-medium">Total Revenue</div>
+          <p className="text-xs text-gray-500 mt-1">Stock-implied (control), not POS guest sales</p>
+          <p className="text-xs text-gray-500 mt-1">Stock-implied (control), not POS guest sales</p>
           <div className="text-xl font-bold text-blue-800">
             {formatCurrency(
               periodType === 'yoy'

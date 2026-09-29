@@ -6,9 +6,11 @@ export const fieldRowClassName =
 const FIELD_WIDTHS: Record<string, string> = {
   'w-2/12': 'field-w-2',
   'w-3/12': 'field-w-3',
+  'w-1/4': 'field-w-3',
   'w-4/12': 'field-w-4',
   'w-1/3': 'field-w-third',
   'w-1/2': 'field-w-half',
+  'w-2/3': 'field-w-two-thirds',
   'w-2/5': 'field-w-2-5',
   'w-3/5': 'field-w-3-5',
   'w-full': 'w-full max-w-full min-w-0',

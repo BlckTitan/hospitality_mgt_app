@@ -135,7 +135,8 @@ Hospitality operators juggle siloed systems for reservations, POS, payroll, proc
   - Sales ingestion via API/webhooks with mapping to GL accounts.
   - Menu synchronization and price updates.
 - Recipe builder linking ingredients to inventory SKUs, auto-cost updates.
-- **Live bar stock & sales hub** (`/admin/bar-management`, `fnb.read`): float ledger (My Stock Today), waiter stock requests → store approve/issue, store physical counts, reorder alerts, and period analytics (Daily / Weekly / Monthly / Yearly / YoY). Sales qty is `totalStock − closingStock − waste − comps`. Spec: `ai/Bar inventory and sales management system design PRD.md`.
+- **Live bar stock & sales hub** (`/admin/bar-management`, `fnb.read`): float ledger (My Stock Today), waiter stock requests → store approve/issue, store physical counts, reorder alerts, and period analytics (Daily / Weekly / Monthly / Yearly / YoY). Stock-implied sales qty is `totalStock − closingStock − waste − comps` (control / pour cost). Spec: `ai/Bar inventory and sales management system design PRD.md`.
+- **POS v1** (`/admin/pos`, `/admin/pos/orders`, `fnb.read` / `fnb.create` / `fnb.update`): bar + room-service checks from the beverages catalog; tenders cash / card (record) / room charge / open tab — no payment gateway. Guest F&B revenue on the dashboard and P&L uses settled POS totals (plus amount paid on open tabs), not stock-implied sales.
 - Inventory cycle counts, variance detection, reorder automation, supplier price history. Restock (below reorder point) and putaway (PO received) are assignable inventory tasks; the purchase order itself is not assigned — see Task Assignment. Bar beverage reorders stay on `reorderAlerts` (not Task Assignment).
 - **Inventory Purchase Documentation**: All inventory purchases require:
   - Supplier invoices (original or digital copies)

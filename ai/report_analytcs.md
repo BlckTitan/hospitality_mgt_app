@@ -4,8 +4,9 @@ This document is the **financial metrics** catalog (RevPAR, GOPPAR, cost %, liqu
 
 - Property dashboard after login: `/admin/dashboard` (`reports.read`) — P&L / RevPAR for the selected property, plus rooms, housekeeping, inventory, today’s F&B, billing. Spec: `ai/dashboard.md`.
 - Users without `reports.read` land on `/admin/staff/myProfile`, not the dashboard.
-- **Bar hub (implemented):** `/admin/bar-management` (`fnb.read`). Periods Daily / Weekly / Monthly / Yearly / YoY. Commercial KPIs (revenue, gross profit, pour cost %, waste/comps, store variance) and tabbed charts from `salesSummaries`; health KPIs (finalization, reorder aging, open stock requests, revenue per waiter-shift, top/slowest SKUs) from `getBarHealthMetrics`. Spec: `ai/Bar inventory and sales management system design PRD.md`.
-- Bar **sales** in this product are stock disappearance after waste/comps (`totalStock − closingStock − waste − comps` × `unitPrice`), not POS tickets. Pour cost % uses snapshotted COGS (`cogsValue` / revenue). Average check and RevPASH stay catalog-only until covers exist.
+- **Bar hub (implemented):** `/admin/bar-management` (`fnb.read`). Periods Daily / Weekly / Monthly / Yearly / YoY. Commercial KPIs (revenue, gross profit, pour cost %, waste/comps, store variance) and tabbed charts from `salesSummaries` are **stock-implied control** metrics. Health KPIs from `getBarHealthMetrics`. Spec: `ai/Bar inventory and sales management system design PRD.md`.
+- **POS v1 (implemented):** `/admin/pos` terminal + `/admin/pos/orders`. Guest F&B on the property dashboard / P&L is settled POS order totals (`orders` / `orderLines` + `payments`), not stock disappearance. Bar hub stock-implied revenue must not be dual-counted into TRevPAR.
+- Bar **stock sales** remain stock disappearance after waste/comps (`totalStock − closingStock − waste − comps` × `unitPrice`) for float control and pour cost. Average check and RevPASH stay catalog-only until covers exist.
 
 To truly measure the financial health of a hospitality enterprise (hotels, resorts, restaurants, etc.), you must track a comprehensive set of metrics that address four core areas: Operational Performance, Profitability, Liquidity & Solvency, and Efficiency.
 

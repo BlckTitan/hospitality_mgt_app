@@ -174,8 +174,8 @@ export function EditUserStockLogForm({ stockLogData, stockLogId, onSuccess, onCl
             <p className="text-sm">Disappeared: <span className="font-bold">{disappeared}</span></p>
             <p className="text-sm">Sales Quantity: <span className="font-bold">{salesQuantity}</span></p>
             <p className="text-sm">Sales Value: <span className="font-bold">${salesQuantity * (stockLogData.beverage?.unitPrice || 0)}</span></p>
-            <p className="text-sm">COGS: <span className="font-bold">${disappeared * (stockLogData.beverage?.resolvedUnitCost ?? stockLogData.beverage?.unitCost || 0)}</span></p>
-            <p className="text-sm">Gross Profit: <span className="font-bold">${salesQuantity * (stockLogData.beverage?.unitPrice || 0) - disappeared * (stockLogData.beverage?.resolvedUnitCost ?? stockLogData.beverage?.unitCost || 0)}</span></p>
+            <p className="text-sm">COGS: <span className="font-bold">${disappeared * (stockLogData.beverage?.resolvedUnitCost ?? stockLogData.beverage?.unitCost ?? 0)}</span></p>
+            <p className="text-sm">Gross Profit: <span className="font-bold">${salesQuantity * (stockLogData.beverage?.unitPrice || 0) - disappeared * (stockLogData.beverage?.resolvedUnitCost ?? stockLogData.beverage?.unitCost ?? 0)}</span></p>
             {disappeared < 0 && <p className="text-red-500 text-sm">Warning: Closing stock exceeds total stock!</p>}
             {disappeared >= 0 && salesQuantity < 0 && <p className="text-red-500 text-sm">Warning: Waste and comps exceed stock that disappeared!</p>}
           </div>

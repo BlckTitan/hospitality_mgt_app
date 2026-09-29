@@ -373,12 +373,12 @@ This document outlines which entities should have dedicated pages and the data f
 ## Food & Beverage Management Pages
 
 ### 17c. Bar Management hub (`/admin/bar-management`)
-**Purpose**: Live stock-control and sales hub for bars (not the unimplemented menu/POS pages below). Spec: `ai/Bar inventory and sales management system design PRD.md` §4.4.
+**Purpose**: Live **stock-control** hub for bars (float, requests, store counts, stock-implied analytics). Guest ticket sales live on POS (`/admin/pos`). Spec: `ai/Bar inventory and sales management system design PRD.md` §4.4.
 
 **Permission:** `fnb.read`. Commercial charts need `reports.read`. Reorder KPIs/table need `inventory.read`.
 
 **Layout (top → bottom):**
-- Commercial KPIs: Total Revenue, Gross Profit, Pour cost %, Waste & comps, Total Quantity Sold, Active Bars, Active Staff
+- Commercial KPIs: Total Revenue, Gross Profit, Pour cost %, Waste & comps, Total Quantity Sold, Active Bars, Active Staff — labeled as **stock-implied (control)**, not POS guest sales
 - Health KPIs: stock days finalized, open reorders (+ oldest age), stale reorders (24h+), open stock requests, latest store count variance, revenue / waiter-shift
 - Period: Daily / Weekly / Monthly / Yearly / YoY (YoY is YTD through the current property month vs last year)
 - Tabs (only the active chart mounts): Bar Performance, Top Performers (plus per-shift table), Revenue Trend, Sales by Category, SKU Performance
@@ -391,12 +391,38 @@ This document outlines which entities should have dedicated pages and the data f
 - `getOpenReorderAlerts`
 - Sales qty/value = `totalStock − closingStock − waste − comps` × `unitPrice` (stock disappearance after waste/comps)
 
-**Child routes:** `/admin/bar-management/bar`, `/beverages`, `/my-stock`, `/stock-requests`, `/user-stock-logs`, `/store-inventory`, `/store-transactions`, `/store-count` (and edit pages). Store inventory/transactions/count use `inventory.read` / `inventory.update`. Stock request approve uses `inventory.update`.
+**Child routes:** `/admin/bar-management/bar`, `/beverages`, `/my-stock`, `/stock-requests`, `/user-stock-logs`, `/store-inventory`, `/store-transactions`, `/store-count` (and edit pages). Also nav links to `/admin/pos` and `/admin/pos/orders`. Store inventory/transactions/count use `inventory.read` / `inventory.update`. Stock request approve uses `inventory.update`.
 
 **Rendering Strategy: SSR** — live Convex subscriptions for the selected property.
 
 ---
 
+### 17e. POS terminal (`/admin/pos`)
+**Purpose**: Bar-first POS — open checks, add beverage lines, settle with cash / card (record) / room charge / open tab. No payment gateway.
+
+**Permission:** `fnb.read` to view; `fnb.create` to open checks; `fnb.update` to add/void lines and settle.
+
+**Layout:** Property + bar selectors; mode Bar | Room service; menu grid from active `beverages`; check panel with lines, tenders, Settle / Open tab / Void.
+
+**Data Fetching:**
+- `listSellableBeverages`, `listBarsForPos`, `listStayReservationsForPos`, `getOrder`
+- Mutations: `createOrder`, `addLine`, `voidLine`, `voidOrder`, `setRoomContext`, `settleOrder`, `markOpenTab`
+- Room charge writes `payments` on the Order and a Reservation `fnb_room_charge` payment (+ bumps `depositAmount`)
+
+**Rendering Strategy: SSR** — live Convex subscriptions.
+
+---
+
+### 17f. POS orders (`/admin/pos/orders`)
+**Purpose**: List open / open_tab / settled / voided orders; pay down open tabs.
+
+**Permission:** `fnb.read`; pay down needs `fnb.update`.
+
+**Data Fetching:** `listOrders`, `payDownTab`
+
+**Rendering Strategy: SSR**
+
+---
 ### 17d. My Stock Today (`/admin/bar-management/my-stock`)
 **Purpose**: Waiter float ledger for property-local today — Opening / Received / Total / Closing / Waste / Comps / Sales
 

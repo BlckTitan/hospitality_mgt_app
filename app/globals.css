@@ -133,7 +133,7 @@
   /* "Open Sans" */
 }
 body {
-  @apply m-0 p-0 text-base !bg-[var(--secondary)] text-[var(--primary)];
+  @apply m-0 p-0 text-base lg:overflow-hidden !bg-[var(--secondary)] text-[var(--primary)];
 }
 main{
   @apply bg-[var(--secondary)];
@@ -145,11 +145,16 @@ input:not([type="checkbox"]):not([type="radio"]), select{
   @apply w-full max-w-full min-w-0 h-10 p-2 border rounded-sm;
   field-sizing: fixed;
 }
+select {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .field-w-2,
 .field-w-3,
 .field-w-4,
 .field-w-third,
 .field-w-half,
+.field-w-two-thirds,
 .field-w-2-5,
 .field-w-3-5 {
   width: 100%;
@@ -157,13 +162,15 @@ input:not([type="checkbox"]):not([type="radio"]), select{
   min-width: 0;
 }
 @media (min-width: 1024px) {
-  .field-w-2 { width: 16.666%; max-width: 16.666%; flex: 0 0 16.666%; }
-  .field-w-3 { width: 25%; max-width: 25%; flex: 0 0 25%; }
-  .field-w-4 { width: 33.333%; max-width: 33.333%; flex: 0 0 33.333%; }
-  .field-w-third { width: 33.333%; max-width: 33.333%; flex: 0 0 33.333%; }
-  .field-w-half { width: 50%; max-width: 50%; flex: 0 0 50%; }
-  .field-w-2-5 { width: 40%; max-width: 40%; flex: 0 0 40%; }
-  .field-w-3-5 { width: 60%; max-width: 60%; flex: 0 0 60%; }
+  /* flex-shrink allows row gaps without horizontal overflow */
+  .field-w-2 { width: 16.666%; max-width: 16.666%; flex: 1 1 16.666%; }
+  .field-w-3 { width: 25%; max-width: 25%; flex: 1 1 25%; }
+  .field-w-4 { width: 33.333%; max-width: 33.333%; flex: 1 1 33.333%; }
+  .field-w-third { width: 33.333%; max-width: 33.333%; flex: 1 1 33.333%; }
+  .field-w-half { width: 50%; max-width: 50%; flex: 1 1 50%; }
+  .field-w-two-thirds { width: 66.666%; max-width: 66.666%; flex: 1 1 66.666%; }
+  .field-w-2-5 { width: 40%; max-width: 40%; flex: 1 1 40%; }
+  .field-w-3-5 { width: 60%; max-width: 60%; flex: 1 1 60%; }
 }
 input[type="checkbox"],
 input[type="radio"] {

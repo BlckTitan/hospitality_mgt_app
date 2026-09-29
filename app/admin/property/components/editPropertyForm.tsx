@@ -104,13 +104,13 @@ export function FormComponent(
     };
   
     return (
-      <form onSubmit={handleSubmit(onSubmit)} className="createPropertyForm">
-        <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-start lg:items-start gap-4 mb-4">
+      <form onSubmit={handleSubmit(onSubmit)} className="createPropertyForm w-full max-w-full min-w-0 mt-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4 w-full min-w-0">
           <ImageUpload
             id="logoUrl"
             label="Property logo"
             folder="properties/logos"
-            inputWidth="w-1/2"
+            inputWidth="w-full"
             value={logoUrl || null}
             onChange={(url) => setValue('logoUrl', url, { shouldValidate: true, shouldDirty: true })}
             error={errors.logoUrl}
@@ -119,61 +119,62 @@ export function FormComponent(
             id="coverImageUrl"
             label="Cover image"
             folder="properties/covers"
-            inputWidth="w-1/2"
+            inputWidth="w-full"
             value={coverImageUrl || null}
             onChange={(url) => setValue('coverImageUrl', url, { shouldValidate: true, shouldDirty: true })}
             error={errors.coverImageUrl}
           />
         </div>
 
-        <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-1 [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 mb-4 w-full min-w-0">
           <InputComponent
             id="name"
             label="Property Name *"
             type="string"
-            inputWidth="w-1/2"
+            inputWidth="w-full"
             register={register('name', { required: true })}
             error={errors.name}
           />
-  
+
           <InputComponent
             id="email"
             label="Email"
             type="email"
-            inputWidth="w-1/2"
+            inputWidth="w-full"
             register={register('email')}
             error={errors.email}
           />
         </div>
-  
-        <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-start lg:items-center gap-1 [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4">
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 mb-4 w-full min-w-0">
           <InputComponent
             id="phone"
             label="Phone"
             type="tel"
-            inputWidth="w-1/3"
+            inputWidth="w-full"
             register={register('phone')}
             error={errors.phone}
           />
-  
-          <InputComponent
-            id="address"
-            label="Address"
-            type="string"
-            inputWidth="w-2/3"
-            register={register('address')}
-            error={errors.address}
-          />
+
+          <div className="min-w-0 lg:col-span-2">
+            <InputComponent
+              id="address"
+              label="Address"
+              type="string"
+              inputWidth="w-full"
+              register={register('address')}
+              error={errors.address}
+            />
+          </div>
         </div>
-  
-        <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-1 [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4">
-          <div className="w-full lg:w-1/3">
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 mb-4 w-full min-w-0">
+          <div className="min-w-0 w-full">
             <label htmlFor="timezone">Timezone</label>
             <select
               id="timezone"
               {...register('timezone')}
               defaultValue="UTC"
-              className="w-full"
             >
               {timezones.map((tz) => (
                 <option key={tz.value} value={tz.value}>
@@ -183,14 +184,13 @@ export function FormComponent(
             </select>
             {errors.timezone && <span className="text-red-500 text-sm">{errors.timezone.message}</span>}
           </div>
-  
-          <div className="w-full lg:w-1/3">
+
+          <div className="min-w-0 w-full">
             <label htmlFor="currency">Currency</label>
             <select
               id="currency"
               {...register('currency')}
               defaultValue="USD"
-              className="w-full"
             >
               {currencies.map((curr) => (
                 <option key={curr.value} value={curr.value}>
@@ -200,18 +200,18 @@ export function FormComponent(
             </select>
             {errors.currency && <span className="text-red-500 text-sm">{errors.currency.message}</span>}
           </div>
-  
+
           <InputComponent
             id="taxId"
             label="Tax ID"
             type="string"
-            inputWidth="w-1/4"
+            inputWidth="w-full"
             register={register('taxId')}
             error={errors.taxId}
           />
-          <div className="w-full lg:w-1/4">
+          <div className="min-w-0 w-full">
             <label htmlFor="country">Country</label>
-            <select id="country" {...register('country')} className="w-full">
+            <select id="country" {...register('country')}>
               <option value="NG">Nigeria (NG)</option>
               <option value="GH">Ghana (GH)</option>
               <option value="KE">Kenya (KE)</option>
@@ -222,8 +222,8 @@ export function FormComponent(
             </select>
           </div>
         </div>
-  
-        <div className="w-full h-fit flex flex-col lg:flex-row lg:items-center gap-4 mb-4">
+
+        <div className="w-full min-w-0 flex flex-col lg:flex-row lg:items-center gap-4 mb-4">
           <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
@@ -234,7 +234,7 @@ export function FormComponent(
             <span className='p-1 ml-2'>Active Property</span>
           </label>
         </div>
-  
+
         <div className="flex gap-2 justify-end">
           <Button variant="secondary">
             Cancel
