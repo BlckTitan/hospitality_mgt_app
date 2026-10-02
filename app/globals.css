@@ -1,6 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400..900&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100..900;1,100..900&display=swap');
 @import "tailwindcss";
 @import "tw-animate-css";
 /*---break---*/
@@ -128,12 +125,11 @@
 
 *{
   box-sizing: border-box;
-  font-family:  "Open Sans", "Roboto", Arial, Helvetica, sans-serif;
+  font-family: var(--font-open-sans), Arial, Helvetica, sans-serif;
   font-optical-sizing: auto;
-  /* "Open Sans" */
 }
 body {
-  @apply m-0 p-0 text-base lg:overflow-hidden !bg-[var(--secondary)] text-[var(--primary)];
+  @apply m-0 p-0 text-base lg:overflow-x-hidden !bg-[var(--secondary)] text-[var(--primary)];
 }
 main{
   @apply bg-[var(--secondary)];
@@ -188,12 +184,12 @@ a.main_nav_link{
 }
 .site_main_title{
   @apply text-3xl lg:text-5xl font-extrabold text-center text-wrap text-[var(--foreground)];
-  font-family: "Orbitron", sans-serif;
+  font-family: var(--font-orbitron), sans-serif;
   line-height: 1.5;
 }
 .site_sub_title{
   @apply text-xl lg:text-2xl font-semibold text-center text-wrap text-[var(--foreground)];
-  font-family: "Orbitron", sans-serif;
+  font-family: var(--font-orbitron), sans-serif;
 }
 .main_title{
   font-size: 32px;

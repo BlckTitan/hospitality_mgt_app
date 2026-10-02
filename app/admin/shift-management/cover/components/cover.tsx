@@ -1,7 +1,7 @@
 'use client'
 
 import { Suspense } from 'react';
-import { Button } from 'react-bootstrap';
+import { Button } from '../../../../../shared/button';
 import { useMutation, useQuery } from 'convex/react';
 import { toast } from 'sonner';
 import { api } from '../../../../../convex/_generated/api';

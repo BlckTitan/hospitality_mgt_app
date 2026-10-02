@@ -2,7 +2,7 @@
 
 import { BackLink } from '../../../../../shared/pageHeader';
 import React, { useState, useEffect } from 'react';
-import { Button } from 'react-bootstrap';
+import { Button } from '../../../../../shared/button';
 import { useQuery } from 'convex/react';
 import { api } from '../../../../../convex/_generated/api';
 import BootstrapModal from '../../../../../shared/modal';
@@ -60,19 +60,23 @@ export default function EditTemplatePage() {
 
   return (
     <div className="w-full p-4 bg-white">
-      <header className="w-full border-b flex justify-between items-center mb-4">
-        <h3>Edit department shift</h3>
-        <BackLink />
-        <Button
-          variant="light"
-          className="cursor-pointer"
-          style={{ width: 'fit', height: 'fit', padding: '0', borderRadius: '100%' }}
-          onClick={() => { window.location.href = '/admin/shift-management/templates'; }}
-        >
-          ×
-        </Button>
+      <header className="w-full border-b mb-4 pb-3 flex justify-between items-start gap-3">
+      <div className="min-w-0">
+        <h1 className="text-2xl font-bold text-gray-800">Edit department shift</h1>
+        <ShiftPageGuide page="templates-edit" />
+      </div>
+        <div className="flex items-center gap-3 shrink-0">
+          <BackLink />
+          <Button
+            variant="light"
+            className="cursor-pointer"
+            circle
+            onClick={() => { window.location.href = '/admin/shift-management/templates'; }}
+          >
+            ×
+          </Button>
+        </div>
       </header>
-      <ShiftPageGuide page="templates-edit" />
       <ModalComponent
         modalShow={modalShow}
         setModalShow={setModalShow}

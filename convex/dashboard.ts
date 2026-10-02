@@ -473,3 +473,217 @@ export const getFinancialReport = query({
     };
   },
 });
+
+const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
+
+function dateKeyFromUtcMs(ms: number): string {
+  return new Date(ms).toISOString().slice(0, 10);
+}
+
+function mondayIndexFromDateKey(dateKey: string): number {
+  // ISO date at noon UTC → Sun=0…Sat=6, then shift so Mon=0…Sun=6
+  return (new Date(`${dateKey}T12:00:00.000Z`).getUTCDay() + 6) % 7;
+}
+
+function emptyWeekBuckets() {
+  return WEEKDAY_LABELS.map((day) => ({
+    day,
+    rooms: 0,
+    bar: 0,
+    food: 0,
+    total: 0,
+    roomsSoldNights: 0,
+    weekdayOccurrences: 0,
+    occupancyRate: 0,
+    barQty: 0,
+    foodSales: 0,
+  }));
+}
+
+function peakBy(
+  buckets: ReturnType<typeof emptyWeekBuckets>,
+  valueOf: (b: (typeof buckets)[number]) => number,
+): { day: (typeof WEEKDAY_LABELS)[number] | null; value: number } {
+  let day: (typeof WEEKDAY_LABELS)[number] | null = null;
+  let value = 0;
+  for (const bucket of buckets) {
+    const next = valueOf(bucket);
+    if (next > value) {
+      value = next;
+      day = bucket.day;
+    }
+  }
+  return { day: value > 0 ? day : null, value };
+}
+
+/** Day-of-week performance: room occupancy %, bar qty sold, food sales. */
+export const getSalesByDayOfWeek = query({
+  args: {
+    propertyId: v.id('properties'),
+    start: v.number(),
+    end: v.number(),
+  },
+  handler: async (ctx, args) => {
+    await requirePermission(ctx, 'reports.read', args.propertyId);
+
+    const startKey = dateKeyFromUtcMs(args.start);
+    const endKey = dateKeyFromUtcMs(args.end);
+    const buckets = emptyWeekBuckets();
+
+    const rooms = await ctx.db
+      .query('rooms')
+      .withIndex('by_propertyId', (q) => q.eq('propertyId', args.propertyId))
+      .collect();
+    const sellableRooms = rooms.filter(
+      (room) =>
+        room.isActive && room.status !== 'out-of-order' && room.status !== 'maintenance',
+    ).length;
+
+    // Count how many times each weekday falls in the selected period.
+    let cursor = Date.UTC(
+      new Date(args.start).getUTCFullYear(),
+      new Date(args.start).getUTCMonth(),
+      new Date(args.start).getUTCDate(),
+    );
+    const periodEnd = Date.UTC(
+      new Date(args.end).getUTCFullYear(),
+      new Date(args.end).getUTCMonth(),
+      new Date(args.end).getUTCDate(),
+    );
+    while (cursor < periodEnd) {
+      const key = dateKeyFromUtcMs(cursor);
+      if (key >= startKey && key < endKey) {
+        buckets[mondayIndexFromDateKey(key)].weekdayOccurrences += 1;
+      }
+      cursor += DAY_MS;
+    }
+
+    const lookbackStart = args.start - 90 * DAY_MS;
+    const arrivingInWindow = await ctx.db
+      .query('reservations')
+      .withIndex('by_propertyId_checkInDate', (q) =>
+        q
+          .eq('propertyId', args.propertyId)
+          .gte('checkInDate', lookbackStart)
+          .lt('checkInDate', args.end),
+      )
+      .collect();
+    const departingInWindow = await ctx.db
+      .query('reservations')
+      .withIndex('by_propertyId_checkOutDate', (q) =>
+        q
+          .eq('propertyId', args.propertyId)
+          .gte('checkOutDate', args.start)
+          .lt('checkOutDate', args.end),
+      )
+      .collect();
+    const currentlyInHouse = await ctx.db
+      .query('reservations')
+      .withIndex('by_propertyId_status', (q) =>
+        q.eq('propertyId', args.propertyId).eq('status', 'checked-in'),
+      )
+      .collect();
+    const reservationById = new Map(
+      [...arrivingInWindow, ...departingInWindow, ...currentlyInHouse].map((row) => [
+        row._id,
+        row,
+      ]),
+    );
+
+    for (const reservation of reservationById.values()) {
+      if (!COUNTED_RESERVATION_STATUSES.has(reservation.status)) continue;
+      const stayNights = Math.max(
+        1,
+        periodNights(reservation.checkInDate, reservation.checkOutDate),
+      );
+      const nightly =
+        reservation.rate > 0 ? reservation.rate : reservation.totalAmount / stayNights;
+
+      // Attribute each sold night to the weekday of that night (check-in morning through night before checkout).
+      let nightStart = Math.max(reservation.checkInDate, args.start);
+      // Align to UTC midnight of the night's calendar date for stable day keys.
+      nightStart = Date.UTC(
+        new Date(nightStart).getUTCFullYear(),
+        new Date(nightStart).getUTCMonth(),
+        new Date(nightStart).getUTCDate(),
+      );
+      const stayEnd = Math.min(reservation.checkOutDate, args.end);
+      while (nightStart < stayEnd) {
+        const key = dateKeyFromUtcMs(nightStart);
+        if (key >= startKey && key < endKey) {
+          const bucket = buckets[mondayIndexFromDateKey(key)];
+          bucket.rooms += nightly;
+          bucket.roomsSoldNights += 1;
+        }
+        nightStart += DAY_MS;
+      }
+    }
+
+    for (const bucket of buckets) {
+      const available = sellableRooms * bucket.weekdayOccurrences;
+      bucket.occupancyRate = available === 0 ? 0 : (bucket.roomsSoldNights / available) * 100;
+    }
+
+    const orders = await ctx.db
+      .query('orders')
+      .withIndex('by_propertyId_openedAtDateKey', (q) =>
+        q
+          .eq('propertyId', args.propertyId)
+          .gte('openedAtDateKey', startKey)
+          .lt('openedAtDateKey', endKey),
+      )
+      .collect();
+
+    for (const order of orders) {
+      let amount = 0;
+      if (order.status === 'settled') amount = order.totalAmount;
+      else if (order.status === 'open_tab') amount = order.amountPaid;
+      else continue;
+
+      const idx = mondayIndexFromDateKey(order.openedAtDateKey);
+      const bucket = buckets[idx];
+
+      if (order.orderType === 'bar') {
+        if (amount > 0) bucket.bar += amount;
+        const lines = await ctx.db
+          .query('orderLines')
+          .withIndex('by_orderId', (q) => q.eq('orderId', order._id))
+          .collect();
+        for (const line of lines) {
+          if (line.status === 'active') bucket.barQty += line.quantity;
+        }
+      } else if (amount > 0) {
+        // room_service, dine_in, takeout — guest food / F&B outside the bar terminal
+        bucket.food += amount;
+        bucket.foodSales += amount;
+      }
+    }
+
+    for (const bucket of buckets) {
+      bucket.total = bucket.rooms + bucket.bar + bucket.food;
+    }
+
+    const revenuePeak = peakBy(buckets, (b) => b.total);
+    const occupancyPeak = peakBy(buckets, (b) => b.occupancyRate);
+    const barQtyPeak = peakBy(buckets, (b) => b.barQty);
+    const foodSalesPeak = peakBy(buckets, (b) => b.foodSales);
+
+    return {
+      success: true,
+      data: {
+        startKey,
+        endKey,
+        sellableRooms,
+        days: buckets,
+        peakDay: revenuePeak.day,
+        peakTotal: revenuePeak.value,
+        peakOccupancyDay: occupancyPeak.day,
+        peakOccupancyRate: occupancyPeak.value,
+        peakBarQtyDay: barQtyPeak.day,
+        peakBarQty: barQtyPeak.value,
+        peakFoodSalesDay: foodSalesPeak.day,
+        peakFoodSales: foodSalesPeak.value,
+      },
+    };
+  },
+});

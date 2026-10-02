@@ -4,7 +4,7 @@ import { BackLink } from '../../../../../shared/pageHeader';
 import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useQuery } from 'convex/react';
-import { Spinner } from 'react-bootstrap';
+import Spinner from '../../../../../shared/spinner';
 import { api } from '../../../../../convex/_generated/api';
 import { Id } from '../../../../../convex/_generated/dataModel';
 import { PayrollPageGuide } from '../../components/payrollPageGuide';
@@ -28,16 +28,18 @@ function ExportInner() {
   );
 
   if (!payrollId) return <p className="p-4">Missing payroll id.</p>;
-  if (payroll === undefined) return <div className="p-4"><Spinner animation="border" size="sm" /></div>;
+  if (payroll === undefined) return <div className="p-4"><Spinner  size="sm" /></div>;
   if (!payroll.success || !payroll.data) return <p className="p-4">{payroll.message}</p>;
 
   return (
     <div className="w-full p-4 bg-white">
-      <header className="w-full border-b flex justify-between items-center mb-4">
-        <h3>Payment files</h3>
+      <header className="w-full border-b mb-4 pb-3 flex justify-between items-start gap-3">
+      <div className="min-w-0">
+        <h1 className="text-2xl font-bold text-gray-800">Payment files</h1>
+        <PayrollPageGuide page="export" />
+      </div>
         <BackLink />
       </header>
-      <PayrollPageGuide page="export" />
       {payroll.data.exports.length === 0 && <p>No payment files yet. Use Download payment files on the Payroll.</p>}
       {payroll.data.exports.map((file) => (
         <div key={file._id} className="mb-3">

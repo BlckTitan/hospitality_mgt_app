@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import React from 'react'
 import { api } from '../../../../convex/_generated/api';
 import { Id } from '../../../../convex/_generated/dataModel';
-import { Spinner } from 'react-bootstrap';
+import Spinner from '../../../../shared/spinner';
 import { FormComponent } from '../components/editPropertyForm';
 
 
@@ -16,16 +16,19 @@ export default function Page() {
   const id = searchParams.get("property_id") ?? null
   const response = useQuery(api.property.getProperty, {property_id: id as Id<'properties'>})
 
-  if(response === undefined) return <div className='w-full h-screen flex items-center justify-center'><Spinner animation="border" size='sm' variant="dark" /></div>
+  if(response === undefined) return <div className='w-full h-screen flex items-center justify-center'><Spinner  size='sm'  /></div>
   if(!response) return <div>No data available!</div>
   
   return (
     <div className='w-full min-w-0 max-w-full overflow-x-hidden p-4 bg-white'>
       
-      <header className='w-full min-w-0 border-b flex justify-between items-center gap-3'>
-        <h3 className='min-w-0 truncate m-0'>
+      <header className="w-full border-b mb-4 pb-3 flex justify-between items-start gap-3 min-w-0">
+      <div className="min-w-0">
+        <h1 className="text-2xl font-bold text-gray-800 min-w-0 truncate m-0">
           Update {`${response && 'name' in response ? response.name : undefined}`}
-        </h3>
+        </h1>
+        <p className="text-gray-600">Update this property’s name, address, contact details, timezone, currency, and images.</p>
+      </div>
         <BackLink />
       </header>
 

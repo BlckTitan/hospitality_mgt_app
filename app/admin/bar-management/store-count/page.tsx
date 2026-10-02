@@ -32,13 +32,13 @@ export default function Page() {
 
   return (
     <div className="w-full p-4 bg-white">
-      <header className="w-full border-b flex justify-between items-center mb-4">
-        <h3>Store count</h3>
+      <header className="w-full border-b mb-4 pb-3 flex justify-between items-start gap-3">
+      <div className="min-w-0">
+        <h1 className="text-2xl font-bold text-gray-800">Store count</h1>
+        <BarManagementPageGuide page="store-count" />
+      </div>
         <BackLink />
       </header>
-
-      <BarManagementPageGuide page="store-count" />
-
       {properties.length > 1 && (
         <div className="mb-4 w-full lg:w-3/12">
           <label className="block text-sm mb-1">Property</label>

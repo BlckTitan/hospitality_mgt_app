@@ -6,7 +6,7 @@ import { SubmitHandler, useForm } from "react-hook-form";
 import { formSchema, beverageCategories } from "./validation";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { toast } from "sonner";
-import { Button } from "react-bootstrap";
+import { Button } from '../../../../../shared/button';
 import InputComponent from "../../../../../shared/input";
 import ImageUpload from "../../../../../shared/imageUpload";
 import { Id } from "../../../../../convex/_generated/dataModel";

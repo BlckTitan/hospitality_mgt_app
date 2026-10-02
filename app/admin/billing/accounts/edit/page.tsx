@@ -28,23 +28,26 @@ export default function EditBillAccountPage() {
   if (!accountResponse?.data) {
     return (
       <div className='w-full p-4 bg-white'>
-        <header className='w-full border-b flex justify-between items-center mb-4'>
-          <h3>Edit bill account</h3>
-          <BackLink />
-        </header>
+        <header className="w-full border-b mb-4 pb-3 flex justify-between items-start gap-3">
+      <div className="min-w-0">
+        <h1 className="text-2xl font-bold text-gray-800">Edit bill account</h1>
         <BillingPageGuide page='accounts-edit' />
-        Loading...
+      </div>
+          <BackLink />
+        </header>Loading...
       </div>
     );
   }
 
   return (
     <div className='w-full p-4 bg-white'>
-      <header className='w-full border-b flex justify-between items-center mb-4'>
-        <h3>Edit bill account</h3>
+      <header className="w-full border-b mb-4 pb-3 flex justify-between items-start gap-3">
+      <div className="min-w-0">
+        <h1 className="text-2xl font-bold text-gray-800">Edit bill account</h1>
+        <BillingPageGuide page='accounts-edit' />
+      </div>
         <BackLink />
       </header>
-      <BillingPageGuide page='accounts-edit' />
       <EditAccountForm
         account={accountResponse.data}
         onClose={() => {

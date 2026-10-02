@@ -21,8 +21,11 @@ export default function RoomManagementPage() {
   if (propertiesResponse.data.length === 0 || !currentPropertyId) {
     return (
       <div className="w-full p-4 bg-white">
-        <header className="w-full border-b flex justify-between items-center mb-4">
-          <h3>Room Management</h3>
+        <header className="w-full border-b mb-4 pb-3 flex justify-between items-start gap-3">
+      <div className="min-w-0">
+        <h1 className="text-2xl font-bold text-gray-800">Room Management</h1>
+        <p className="text-gray-600">Create a property before you can manage rooms and occupancy.</p>
+      </div>
           <BackLink />
         </header>
         <p className="text-xl">No properties yet!</p>
@@ -32,11 +35,13 @@ export default function RoomManagementPage() {
 
   return (
     <div className="w-full p-4 bg-white">
-      <header className="w-full border-b flex justify-between items-center mb-4">
-        <h3>Occupancy</h3>
+      <header className="w-full border-b mb-4 pb-3 flex justify-between items-start gap-3">
+      <div className="min-w-0">
+        <h1 className="text-2xl font-bold text-gray-800">Occupancy</h1>
+        <RoomPageGuide page="hub" />
+      </div>
         <BackLink />
       </header>
-      <RoomPageGuide page="hub" />
       <OccupancyCalendar propertyId={currentPropertyId} />
     </div>
   );

@@ -1,7 +1,7 @@
 import { FcDocument, FcEmptyTrash } from "react-icons/fc";
 import { TableColumn } from "../../../../../shared/table";
 import { MdEditDocument } from "react-icons/md";
-import { Button } from "react-bootstrap";
+import { Button } from '../../../../../shared/button';
 import PaginationComponent from "../../../../../shared/pagination";
 import { Suspense } from "react";
 import { useMutation } from "convex/react";
@@ -73,7 +73,7 @@ const Roles = () => {
       render: (value, row) => (
         <div className='flex justify-evenly lg:justify-start items-center gap-1'>
           <a
-            href={`/admin/role/edit?role_id=${row._id}`}
+            href={`/admin/user/role/edit?role_id=${row._id}`}
             className='!mr-2 !no-underline !text-amber-400'
           >
             <i className='icon'><MdEditDocument /></i>

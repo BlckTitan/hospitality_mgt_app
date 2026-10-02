@@ -1,4 +1,5 @@
-// Permission types and constants based on RBAC model
+// Permission types and constants based on RBAC model (ai/RBAC.md).
+// Keep in sync with convex/lib/permissionsData.ts
 
 export type PermissionLevel = 'FULL' | 'LIMITED' | 'VIEW' | 'NONE';
 
@@ -38,298 +39,364 @@ export interface RolePermissions {
 export type UserPermissions = Partial<Record<Module, PermissionLevel>>;
 export type UserPermissionSet = UserPermissions | Record<string, boolean>;
 
-// Granular permissions
 export interface GranularPermission {
   module: Module;
   action: Action;
-  resource?: string; // For specific resources like 'reservations.checkin'
+  resource?: string;
 }
 
-// Permission mapping from level to actions
 export const levelToActions: Record<PermissionLevel, Action[]> = {
-  'FULL': ['create', 'read', 'update', 'delete', 'approve', 'export', 'admin', 'settings', 'audit'],
-  'LIMITED': ['create', 'read', 'update'], // No delete, approve, export, or system-level actions for limited
-  'VIEW': ['read'],
-  'NONE': []
+  FULL: ['create', 'read', 'update', 'delete', 'approve', 'export', 'admin', 'settings', 'audit'],
+  LIMITED: ['create', 'read', 'update'],
+  VIEW: ['read'],
+  NONE: [],
 };
 
-// Role-based permission matrix
 export const ROLE_PERMISSION_MATRIX: Record<string, UserPermissions> = {
-  'Administrator': {
+  Administrator: {
     users: 'FULL',
+    roles: 'FULL',
     properties: 'FULL',
     staff: 'FULL',
     reservations: 'FULL',
+    rooms: 'FULL',
     fnb: 'FULL',
     inventory: 'FULL',
     finance: 'FULL',
+    financial: 'FULL',
     reports: 'FULL',
     system: 'FULL',
     maintenance: 'FULL',
     security: 'FULL',
     payroll: 'FULL',
-    expenses: 'FULL'
+    expenses: 'FULL',
   },
-  'Director': {
+  Director: {
     users: 'NONE',
+    roles: 'NONE',
     properties: 'FULL',
     staff: 'FULL',
     reservations: 'FULL',
+    rooms: 'FULL',
     fnb: 'FULL',
     inventory: 'FULL',
     finance: 'FULL',
+    financial: 'FULL',
     reports: 'FULL',
     system: 'LIMITED',
     maintenance: 'VIEW',
     security: 'VIEW',
     payroll: 'FULL',
-    expenses: 'FULL'
+    expenses: 'FULL',
   },
   'General Manager': {
     users: 'NONE',
+    roles: 'NONE',
     properties: 'LIMITED',
     staff: 'FULL',
     reservations: 'FULL',
+    rooms: 'FULL',
     fnb: 'FULL',
     inventory: 'FULL',
     finance: 'FULL',
+    financial: 'FULL',
     reports: 'FULL',
     system: 'NONE',
     maintenance: 'LIMITED',
     security: 'VIEW',
     payroll: 'FULL',
-    expenses: 'FULL'
+    expenses: 'FULL',
   },
   'Operations Manager': {
     users: 'NONE',
+    roles: 'NONE',
     properties: 'LIMITED',
     staff: 'LIMITED',
     reservations: 'FULL',
+    rooms: 'FULL',
     fnb: 'FULL',
     inventory: 'FULL',
     finance: 'LIMITED',
+    financial: 'LIMITED',
     reports: 'FULL',
     system: 'NONE',
     maintenance: 'FULL',
     security: 'VIEW',
     payroll: 'LIMITED',
-    expenses: 'VIEW'
+    expenses: 'VIEW',
   },
   'Finance Manager': {
     users: 'NONE',
+    roles: 'NONE',
     properties: 'NONE',
     staff: 'LIMITED',
     reservations: 'VIEW',
+    rooms: 'VIEW',
     fnb: 'VIEW',
     inventory: 'VIEW',
     finance: 'FULL',
+    financial: 'FULL',
     reports: 'FULL',
     system: 'NONE',
     maintenance: 'NONE',
     security: 'VIEW',
     payroll: 'FULL',
-    expenses: 'FULL'
+    expenses: 'FULL',
   },
   'HR Manager': {
     users: 'LIMITED',
+    roles: 'NONE',
     properties: 'NONE',
     staff: 'FULL',
     reservations: 'NONE',
+    rooms: 'NONE',
     fnb: 'NONE',
     inventory: 'NONE',
     finance: 'LIMITED',
+    financial: 'LIMITED',
     reports: 'LIMITED',
     system: 'NONE',
     maintenance: 'NONE',
     security: 'NONE',
-    payroll: 'FULL'
+    payroll: 'FULL',
+    expenses: 'NONE',
   },
   'IT Manager': {
     users: 'FULL',
+    roles: 'FULL',
     properties: 'LIMITED',
     staff: 'LIMITED',
     reservations: 'LIMITED',
+    rooms: 'LIMITED',
     fnb: 'LIMITED',
     inventory: 'LIMITED',
     finance: 'LIMITED',
+    financial: 'LIMITED',
     reports: 'FULL',
     system: 'FULL',
     maintenance: 'FULL',
     security: 'FULL',
-    payroll: 'LIMITED'
+    payroll: 'LIMITED',
+    expenses: 'VIEW',
   },
-  'Manager': {
+  Manager: {
     users: 'NONE',
+    roles: 'NONE',
     properties: 'LIMITED',
     staff: 'FULL',
     reservations: 'FULL',
+    rooms: 'FULL',
     fnb: 'FULL',
     inventory: 'FULL',
     finance: 'LIMITED',
+    financial: 'LIMITED',
     reports: 'FULL',
     system: 'NONE',
     maintenance: 'LIMITED',
     security: 'NONE',
     payroll: 'LIMITED',
-    expenses: 'VIEW'
+    expenses: 'VIEW',
   },
   'Assistant Manager': {
     users: 'NONE',
+    roles: 'NONE',
     properties: 'NONE',
     staff: 'LIMITED',
     reservations: 'FULL',
+    rooms: 'FULL',
     fnb: 'FULL',
     inventory: 'LIMITED',
     finance: 'NONE',
+    financial: 'NONE',
     reports: 'LIMITED',
     system: 'NONE',
     maintenance: 'NONE',
     security: 'NONE',
-    payroll: 'LIMITED'
+    payroll: 'LIMITED',
+    expenses: 'NONE',
   },
-  'Supervisor': {
+  Supervisor: {
     users: 'NONE',
+    roles: 'NONE',
     properties: 'NONE',
     staff: 'LIMITED',
     reservations: 'LIMITED',
+    rooms: 'LIMITED',
     fnb: 'FULL',
     inventory: 'LIMITED',
     finance: 'NONE',
+    financial: 'NONE',
     reports: 'LIMITED',
     system: 'NONE',
     maintenance: 'LIMITED',
     security: 'NONE',
-    payroll: 'LIMITED'
+    payroll: 'LIMITED',
+    expenses: 'NONE',
   },
-  'Receptionist': {
+  Receptionist: {
     users: 'NONE',
+    roles: 'NONE',
     properties: 'NONE',
     staff: 'NONE',
     reservations: 'FULL',
+    rooms: 'FULL',
     fnb: 'LIMITED',
     inventory: 'NONE',
     finance: 'LIMITED',
+    financial: 'LIMITED',
     reports: 'LIMITED',
     system: 'NONE',
     maintenance: 'NONE',
     security: 'NONE',
-    payroll: 'NONE'
+    payroll: 'NONE',
+    expenses: 'NONE',
   },
-  'Concierge': {
+  Concierge: {
     users: 'NONE',
+    roles: 'NONE',
     properties: 'NONE',
     staff: 'NONE',
     reservations: 'LIMITED',
+    rooms: 'LIMITED',
     fnb: 'NONE',
     inventory: 'NONE',
     finance: 'NONE',
+    financial: 'NONE',
     reports: 'VIEW',
     system: 'NONE',
     maintenance: 'NONE',
     security: 'NONE',
-    payroll: 'NONE'
+    payroll: 'NONE',
+    expenses: 'NONE',
   },
-  'Housekeeping': {
+  Housekeeping: {
     users: 'NONE',
+    roles: 'NONE',
     properties: 'NONE',
     staff: 'NONE',
     reservations: 'LIMITED',
+    rooms: 'LIMITED',
     fnb: 'NONE',
     inventory: 'NONE',
     finance: 'NONE',
+    financial: 'NONE',
     reports: 'NONE',
     system: 'NONE',
     maintenance: 'LIMITED',
     security: 'NONE',
-    payroll: 'NONE'
+    payroll: 'NONE',
+    expenses: 'NONE',
   },
-  'Waiter': {
+  Waiter: {
     users: 'NONE',
+    roles: 'NONE',
     properties: 'NONE',
     staff: 'NONE',
     reservations: 'NONE',
+    rooms: 'NONE',
     fnb: 'LIMITED',
     inventory: 'NONE',
     finance: 'NONE',
+    financial: 'NONE',
     reports: 'NONE',
     system: 'NONE',
     maintenance: 'NONE',
     security: 'NONE',
-    payroll: 'NONE'
+    payroll: 'NONE',
+    expenses: 'NONE',
   },
-  'Bartender': {
+  Bartender: {
     users: 'NONE',
+    roles: 'NONE',
     properties: 'NONE',
     staff: 'NONE',
     reservations: 'NONE',
+    rooms: 'NONE',
     fnb: 'FULL',
     inventory: 'LIMITED',
     finance: 'NONE',
+    financial: 'NONE',
     reports: 'NONE',
     system: 'NONE',
     maintenance: 'NONE',
     security: 'NONE',
-    payroll: 'NONE'
+    payroll: 'NONE',
+    expenses: 'NONE',
   },
   'Cook / Chef': {
     users: 'NONE',
+    roles: 'NONE',
     properties: 'NONE',
     staff: 'NONE',
     reservations: 'NONE',
+    rooms: 'NONE',
     fnb: 'FULL',
     inventory: 'LIMITED',
     finance: 'NONE',
+    financial: 'NONE',
     reports: 'NONE',
     system: 'NONE',
     maintenance: 'NONE',
     security: 'NONE',
-    payroll: 'NONE'
+    payroll: 'NONE',
+    expenses: 'NONE',
   },
   'Kitchen Assistant': {
     users: 'NONE',
+    roles: 'NONE',
     properties: 'NONE',
     staff: 'NONE',
     reservations: 'NONE',
+    rooms: 'NONE',
     fnb: 'LIMITED',
     inventory: 'LIMITED',
     finance: 'NONE',
+    financial: 'NONE',
     reports: 'NONE',
     system: 'NONE',
     maintenance: 'NONE',
     security: 'NONE',
-    payroll: 'NONE'
+    payroll: 'NONE',
+    expenses: 'NONE',
   },
   'Maintenance Staff': {
     users: 'NONE',
+    roles: 'NONE',
     properties: 'NONE',
     staff: 'NONE',
     reservations: 'NONE',
+    rooms: 'NONE',
     fnb: 'NONE',
     inventory: 'NONE',
     finance: 'NONE',
+    financial: 'NONE',
     reports: 'NONE',
     system: 'NONE',
     maintenance: 'FULL',
     security: 'NONE',
-    payroll: 'NONE'
+    payroll: 'NONE',
+    expenses: 'NONE',
   },
   'Security Officer': {
     users: 'NONE',
+    roles: 'NONE',
     properties: 'NONE',
     staff: 'NONE',
     reservations: 'NONE',
+    rooms: 'NONE',
     fnb: 'NONE',
     inventory: 'NONE',
     finance: 'NONE',
+    financial: 'NONE',
     reports: 'NONE',
     system: 'NONE',
     maintenance: 'NONE',
     security: 'FULL',
-    payroll: 'NONE'
-  }
+    payroll: 'NONE',
+    expenses: 'NONE',
+  },
 };
 
-// Granular permission mappings
 export const GRANULAR_PERMISSIONS = {
   reservations: {
     'reservations.view': 'reservations.read',
@@ -337,27 +404,25 @@ export const GRANULAR_PERMISSIONS = {
     'reservations.update': 'reservations.update',
     'reservations.checkin': 'reservations.update',
     'reservations.checkout': 'reservations.update',
-    'reservations.cancel': 'reservations.delete'
+    'reservations.cancel': 'reservations.delete',
   },
   finance: {
     'finance.view': 'finance.read',
     'finance.charge': 'finance.create',
     'finance.refund': 'finance.update',
-    'finance.reports': 'finance.read'
+    'finance.reports': 'finance.read',
   },
   financial: {
     'financial.view': 'financial.read',
     'financial.charge': 'financial.create',
     'financial.refund': 'financial.update',
-    'financial.reports': 'financial.read'
+    'financial.reports': 'financial.read',
   },
   fnb: {
     'fnb.order.create': 'fnb.create',
     'fnb.order.manage': 'fnb.update',
-    'fnb.menu.update': 'fnb.update'
+    'fnb.menu.update': 'fnb.update',
   },
-  // Hours/Time off approve map to update so Supervisor LIMITED can approve
-  // those records without Approve payroll (payroll.approve).
   payroll: {
     'payroll.employee.read': 'payroll.read',
     'payroll.employee.create': 'payroll.create',
@@ -376,7 +441,7 @@ export const GRANULAR_PERMISSIONS = {
     'payroll.run.export': 'payroll.export',
     'payroll.run.mark_paid': 'payroll.approve',
     'payroll.payslip.read': 'payroll.read',
-    'payroll.settings.update': 'payroll.settings'
+    'payroll.settings.update': 'payroll.settings',
   },
   staff: {
     'staff.self.read': 'staff.read',
@@ -404,12 +469,5 @@ export const GRANULAR_PERMISSIONS = {
     'inventory.task.update': 'inventory.update',
     'inventory.task.complete': 'inventory.update',
   },
-  billing: {
-    'billing.account.read': 'finance.read',
-    'billing.account.create': 'finance.create',
-    'billing.account.update': 'finance.update',
-    'billing.period.read': 'finance.read',
-    'billing.period.update': 'finance.update',
-    'billing.pay': 'finance.approve',
-  },
+  // Billing keys are explicit-only — see convex/lib/rolePermissionCatalog.ts
 } as const;

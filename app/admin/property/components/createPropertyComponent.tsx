@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import InputComponent from "../../../../shared/input";
 import ImageUpload from "../../../../shared/imageUpload";
 import { currencies, timezones } from "../../../../lib/data";
-import { Button } from "react-bootstrap";
+import { Button } from '../../../../shared/button';
 
 
 type FormData = {

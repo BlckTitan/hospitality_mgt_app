@@ -30,12 +30,13 @@ export default function PayrollSettingsPage() {
 
   return (
     <div className="w-full p-4 bg-white">
-      <header className="w-full border-b flex justify-between items-center mb-4">
-        <h3>Payroll settings</h3>
+      <header className="w-full border-b mb-4 pb-3 flex justify-between items-start gap-3">
+      <div className="min-w-0">
+        <h1 className="text-2xl font-bold text-gray-800">Payroll settings</h1>
+        <PayrollPageGuide page="settings" />
+      </div>
         <BackLink />
       </header>
-      <PayrollPageGuide page="settings" />
-
       <Country propertyId={propertyId} settings={data?.settings} />
       {data?.settings && (
         <PunctualityGrace

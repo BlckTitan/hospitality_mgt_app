@@ -5,7 +5,7 @@ import { useAuth } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
 import { useMutation, useQuery } from 'convex/react';
 import { toast } from 'sonner';
-import { Spinner } from 'react-bootstrap';
+import Spinner from '../../../shared/spinner';
 import { api } from '../../../convex/_generated/api';
 import { currencies, timezones } from '../../../lib/data';
 import { SubmitHandler, useForm } from 'react-hook-form';
@@ -90,7 +90,7 @@ export default function PropertySetupPage() {
 
     return (
       <div className="w-full h-screen flex items-center justify-center">
-        <Spinner size="sm" variant="dark" />
+        <Spinner size="sm"  />
       </div>
     );
   }
@@ -98,7 +98,7 @@ export default function PropertySetupPage() {
   if (!loginTracked) {
     return (
       <div className="w-full h-screen flex items-center justify-center">
-        <Spinner size="sm" variant="dark" />
+        <Spinner size="sm"  />
       </div>
     );
   }
@@ -106,7 +106,7 @@ export default function PropertySetupPage() {
   if (userContext === undefined) {
     return (
       <div className="w-full h-screen flex items-center justify-center">
-        <Spinner size="sm" variant="dark" />
+        <Spinner size="sm"  />
       </div>
     );
   }
@@ -275,7 +275,7 @@ export default function PropertySetupPage() {
           >
             {loading ? (
               <>
-                <Spinner size="sm" variant="light" />
+                <Spinner size="sm"  />
                 Creating Property...
               </>
             ) : (

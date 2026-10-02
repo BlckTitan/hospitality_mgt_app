@@ -2,7 +2,7 @@
 
 import { Suspense } from 'react';
 import { useMutation, useQuery } from 'convex/react';
-import { Button } from 'react-bootstrap';
+import { Button } from '../../../../../shared/button';
 import { toast } from 'sonner';
 import PaginationComponent from '../../../../../shared/pagination';
 import { TableColumn } from '../../../../../shared/table';

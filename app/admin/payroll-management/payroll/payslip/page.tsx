@@ -4,7 +4,7 @@ import { BackLink } from '../../../../../shared/pageHeader';
 import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useQuery } from 'convex/react';
-import { Spinner } from 'react-bootstrap';
+import Spinner from '../../../../../shared/spinner';
 import { api } from '../../../../../convex/_generated/api';
 import { Id } from '../../../../../convex/_generated/dataModel';
 import { PayrollPageGuide } from '../../components/payrollPageGuide';
@@ -18,7 +18,7 @@ function PayslipInner() {
   );
 
   if (!payslipId) return <p className="p-4">Missing payslip id.</p>;
-  if (response === undefined) return <div className="p-4"><Spinner animation="border" size="sm" /></div>;
+  if (response === undefined) return <div className="p-4"><Spinner  size="sm" /></div>;
   if (!response.success || !response.data) return <p className="p-4">{response.message}</p>;
 
   const { payslip, run, staff } = response.data;
@@ -34,11 +34,12 @@ function PayslipInner() {
 
   return (
     <div className="w-full p-4 bg-white">
-      <header className="w-full border-b flex justify-between items-start mb-4">
+      <header className="w-full border-b mb-4 pb-3 flex justify-between items-start gap-3">
         <div>
-          <h3>Payslip</h3>
-          <p>{snapshot.staffName ?? `${staff?.firstName ?? ''} ${staff?.lastName ?? ''}`}</p>
-          <p>
+          <h1 className="text-2xl font-bold text-gray-800">Payslip</h1>
+        <PayrollPageGuide page="payslip" />
+          <p className="text-gray-600">{snapshot.staffName ?? `${staff?.firstName ?? ''} ${staff?.lastName ?? ''}`}</p>
+          <p className="text-gray-600">
             Period {snapshot.periodStart ? new Date(snapshot.periodStart).toISOString().slice(0, 10) : ''}
             {' – '}
             {snapshot.periodEnd ? new Date(snapshot.periodEnd).toISOString().slice(0, 10) : ''}
@@ -46,7 +47,6 @@ function PayslipInner() {
         </div>
         <BackLink />
       </header>
-      <PayrollPageGuide page="payslip" />
       <p>Gross {snapshot.grossPay} · Deductions {snapshot.totalDeductions} · Net {snapshot.netPay}</p>
       <ul>
         {(snapshot.items ?? []).map((item) => (

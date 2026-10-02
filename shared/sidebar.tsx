@@ -91,15 +91,29 @@ export default function Sidebar() {
     }
   }, [path]);
 
-  if (!isLoaded || isLoading) return null;
+  if (!isLoaded || isLoading) {
+    return (
+      <aside className="w-[300px] max-w-[300px] h-dvh max-h-dvh fixed left-0 hidden pt-14 xl:flex xl:flex-col z-20 overflow-hidden">
+        <div className="w-full px-3 h-16 shrink-0 flex items-center gap-3">
+          <div className="h-10 w-10 animate-pulse rounded-full bg-white/20" />
+          <div className="flex flex-1 flex-col gap-2">
+            <div className="h-3 w-28 animate-pulse rounded bg-white/20" />
+            <div className="h-3 w-36 animate-pulse rounded bg-white/10" />
+          </div>
+        </div>
+        <div className="w-full flex-1 min-h-0 overflow-hidden pt-4 px-3 space-y-3">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="h-10 w-full animate-pulse rounded bg-white/10" />
+          ))}
+        </div>
+      </aside>
+    );
+  }
 
   const filteredNavLinks = filterNavByAccess(navLinks, canAccessRoute);
 
   return (
     <aside className='w-[300px] max-w-[300px] h-dvh max-h-dvh fixed left-0 hidden pt-14 xl:flex xl:flex-col z-20 overflow-hidden'>
-      <div  className='w-full px-3 h-16 shrink-0 flex items-center gap-3'>
-        <h3 className="hidden xl:inline-block text-lg font-bold text-white site_sub_title">Hospitality Manager</h3>
-      </div>
       <header className='w-full px-3 h-16 shrink-0 flex items-center gap-3'>
         <Show when="signed-in">
           <div className='w-full h-fit flex items-start justify-between gap-3'>

@@ -73,37 +73,38 @@ If Mike later also works at Seaside Resort, the admin **cannot invite the same e
 
 ### Scenario: John Smith Books a Room
 
-**Step 1: Guest Profile Creation**
+**Step 1: Front desk opens New Reservation (find-or-create)**
 
-John Smith calls to book a room. The front desk agent searches for him in the **Guest** table. Not found, so they create a new record:
-- `guestId: 5001`
+John Smith calls to book a room. The agent opens **Reservations → Add New Reservation** (not Guests first). They search guests by name, email, or phone (`searchGuests`). Not found, so they switch to **New guest** and enter essentials only:
 - `firstName: "John"`
 - `lastName: "Smith"`
 - `email: "john.smith@email.com"`
 - `phone: "+1-555-0123"`
-- `propertyId: 1` (Grand Hotel Downtown)
 
-The system stores this guest profile. If John returns in six months, his history is preserved.
+Optional CRM fields (photo, address, DOB, loyalty) can be filled later on **Guests**. Returning guests are selected from search; Guests list also has **Book stay** (`?guest_id=`) to open the reservation form with that guest preselected.
 
 **Step 2: Reservation Creation**
 
 The agent checks available rooms. The system queries:
-- **Room** table: `status = 'available'` AND `propertyId = 1`
+- **Room** table: active rooms that are not out-of-order / maintenance for `propertyId = 1`
 - **RoomType** table: Finds "Deluxe Room" with `baseRate: $150/night`
 - **RatePlan** table: Checks for active promotions (finds "Summer Special" with 10% discount)
 
-A **Reservation** is created:
-- `reservationId: 10001`
-- `propertyId: 1`
-- `guestId: 5001` (John Smith)
-- `roomId: 205` (assigned room)
-- `roomTypeId: 2` (Deluxe Room)
-- `checkInDate: 2024-07-15`
-- `checkOutDate: 2024-07-18` (3 nights)
-- `rate: $135/night` (after discount)
-- `totalAmount: $405`
-- `status: "confirmed"`
-- `confirmationNumber: "GH-2024-10001"`
+`createReservation` runs as one mutation: if new-guest details were supplied, it inserts a **Guest** then the **Reservation**; if an existing `guestId` was chosen, it only inserts the reservation. Auth records the receptionist:
+
+- Guest (when new): `guestId: 5001`, `propertyId: 1`, name + contact, `searchName: "John Smith"`
+- Reservation:
+  - `reservationId: 10001`
+  - `propertyId: 1`
+  - `guestId: 5001` (John Smith)
+  - `roomId: 205` (assigned room)
+  - `checkInDate: 2024-07-15`
+  - `checkOutDate: 2024-07-18` (3 nights)
+  - `rate: $135/night` (after discount)
+  - `totalAmount: $405`
+  - `status: "confirmed"`
+  - `confirmationNumber: "GH-2024-10001"`
+  - `bookedByUserId: <signed-in User id>` (receptionist on duty)
 
 **Step 3: Payment Processing**
 

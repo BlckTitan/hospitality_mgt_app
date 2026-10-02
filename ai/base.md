@@ -119,7 +119,7 @@ interface Room {
 ```typescript
 interface Guest {
   guestId: string;
-  propertyId?: string;
+  propertyId: string;
   firstName: string;
   lastName: string;
   email?: string;
@@ -128,6 +128,9 @@ interface Guest {
   dateOfBirth?: Date;
   loyaltyNumber?: string;
   preferences?: Record<string, any>;
+  imageUrl?: string;
+  /** Denormalized firstName + lastName for search_guests */
+  searchName?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -150,6 +153,8 @@ interface Reservation {
   status: 'pending' | 'confirmed' | 'checked-in' | 'checked-out' | 'cancelled';
   source: 'direct' | 'ota' | 'walk-in' | 'phone' | 'other';
   specialRequests?: string;
+  /** Signed-in receptionist (User) who created the booking; set on create */
+  bookedByUserId?: string;
   createdAt: Date;
   updatedAt: Date;
   checkedInAt?: Date;

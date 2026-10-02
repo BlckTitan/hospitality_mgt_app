@@ -1,7 +1,7 @@
 'use client';
 
 import { BackLink } from '../../../../../shared/pageHeader';
-import { Spinner } from 'react-bootstrap';
+import Spinner from '../../../../../shared/spinner';
 import { useSearchParams } from 'next/navigation';
 import { useQuery } from 'convex/react';
 import { EditPurchaseOrderForm } from '../components/editPurchaseOrderForm';
@@ -27,8 +27,11 @@ export default function Page() {
   if (!purchaseOrderId) {
     return (
       <div className="w-full p-4 bg-white">
-        <header className="w-full border-b flex justify-between items-center mb-4">
-          <h3>Edit Purchase Order</h3>
+        <header className="w-full border-b mb-4 pb-3 flex justify-between items-start gap-3">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold text-gray-800">Edit Purchase Order</h1>
+            <InventoryPageGuide page="orders-edit" />
+          </div>
           <BackLink />
         </header>
         <p>Purchase order not found.</p>
@@ -39,7 +42,7 @@ export default function Page() {
   if (purchaseOrderResponse === undefined) {
     return (
       <div className="w-full h-screen flex justify-center items-center">
-        <Spinner animation="border" size="sm" variant="dark" />
+        <Spinner  size="sm"  />
       </div>
     );
   }
@@ -50,11 +53,13 @@ export default function Page() {
 
   return (
     <div className="w-full p-4 bg-white">
-      <header className="w-full border-b flex justify-between items-center mb-4">
-        <h3>Update {purchaseOrderResponse.data.orderNumber}</h3>
+      <header className="w-full border-b mb-4 pb-3 flex justify-between items-start gap-3">
+      <div className="min-w-0">
+        <h1 className="text-2xl font-bold text-gray-800">Update {purchaseOrderResponse.data.orderNumber}</h1>
+        <InventoryPageGuide page="orders-edit" />
+      </div>
         <BackLink />
       </header>
-      <InventoryPageGuide page="orders-edit" />
       <EditPurchaseOrderForm
         purchaseOrderData={purchaseOrderResponse.data}
         purchaseOrderId={purchaseOrderId}

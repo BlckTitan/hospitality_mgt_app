@@ -2,7 +2,7 @@
 
 import { BackLink } from '../../../shared/pageHeader';
 import React, { useState } from 'react';
-import { Button } from 'react-bootstrap';
+import { Button } from '../../../shared/button';
 import Users from './components/users';
 import PendingInvites from './components/pendingInvites';
 import BootstrapModal from '../../../shared/modal';
@@ -17,25 +17,25 @@ export default function UserPage() {
 
   return (
     <div className="w-full p-4 bg-white">
-      <header className="w-full border-b mb-4">
-        <div className="flex justify-between items-center">
-          <h3>User Management</h3>
-          <div className="flex items-center gap-3">
-            <BackLink />
-            {activeTab === 'users' && canInvite && (
-              <Button
-                variant="primary"
-                onClick={() => setShowInviteModal(true)}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                Invite User
-              </Button>
-            )}
-          </div>
+      <header className="w-full border-b mb-4 pb-3 flex justify-between items-start gap-3">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold text-gray-800">User Management</h1>
+          <p className="text-gray-600">
+            Manage users and invitations. New users are created via invitation.
+          </p>
         </div>
-        <p className="text-sm text-gray-600 mt-2 mb-0">
-          Manage users and invitations. New users are created via invitation.
-        </p>
+        <div className="flex items-center gap-3 shrink-0">
+          <BackLink />
+          {activeTab === 'users' && canInvite && (
+            <Button
+              variant="primary"
+              onClick={() => setShowInviteModal(true)}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              Invite User
+            </Button>
+          )}
+        </div>
       </header>
 
       <div className="mb-4">
@@ -65,13 +65,11 @@ export default function UserPage() {
 
       {activeTab === 'users' && (
         <div>
-          <header className="w-full flex flex-col gap-2 mb-4">
-            <p className="text-sm text-gray-600 mb-0">
-              Invite new people with a defined role and property. After they accept,
-              manage extra properties or role changes from the user&apos;s edit page —
-              the same email cannot be invited again.
-            </p>
-          </header>
+          <p className="text-sm text-gray-600 mb-4">
+            Invite new people with a defined role and property. After they accept,
+            manage extra properties or role changes from the user&apos;s edit page —
+            the same email cannot be invited again.
+          </p>
           <Users />
         </div>
       )}

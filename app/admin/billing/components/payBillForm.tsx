@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useMutation } from 'convex/react';
-import { Button } from 'react-bootstrap';
+import { Button } from '../../../../shared/button';
 import { toast } from 'sonner';
 import { api } from '../../../../convex/_generated/api';
 import { Id } from '../../../../convex/_generated/dataModel';

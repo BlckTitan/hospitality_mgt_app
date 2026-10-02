@@ -4,7 +4,8 @@ import { BackLink } from '../../../../../shared/pageHeader';
 import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 import { useMutation, useQuery } from 'convex/react';
-import { Button, Spinner } from 'react-bootstrap';
+import { Button } from '../../../../../shared/button';
+import Spinner from '../../../../../shared/spinner';
 import { toast } from 'sonner';
 import { api } from '../../../../../convex/_generated/api';
 import { Id } from '../../../../../convex/_generated/dataModel';
@@ -29,7 +30,7 @@ function PayrollViewInner() {
 
   if (!payrollId) return <p className="p-4">Missing payroll id.</p>;
   if (payroll === undefined) {
-    return <div className="p-4"><Spinner animation="border" size="sm" /></div>;
+    return <div className="p-4"><Spinner  size="sm" /></div>;
   }
   if (!payroll.success || !payroll.data) {
     return <p className="p-4">{payroll.message ?? 'Payroll not found'}</p>;
@@ -52,18 +53,17 @@ function PayrollViewInner() {
 
   return (
     <div className="w-full p-4 bg-white">
-      <header className="w-full border-b flex justify-between items-start mb-4">
+      <header className="w-full border-b mb-4 pb-3 flex justify-between items-start gap-3">
         <div>
-          <h3>
+          <h1 className="text-2xl font-bold text-gray-800">
             Payroll {formatDate(run.payPeriodStart)} – {formatDate(run.payPeriodEnd)}
-          </h3>
-          <p>Status: {run.statusLabel}</p>
-          <p>Gross {run.totalGrossPay} · Deductions {run.totalDeductions} · Net {run.totalNetPay}</p>
+          </h1>
+        <PayrollPageGuide page="payroll-view" />
+          <p className="text-gray-600">Status: {run.statusLabel}</p>
+          <p className="text-gray-600">Gross {run.totalGrossPay} · Deductions {run.totalDeductions} · Net {run.totalNetPay}</p>
         </div>
         <BackLink />
       </header>
-      <PayrollPageGuide page="payroll-view" />
-
       <div className="flex flex-wrap gap-2 mb-4">
         {(run.status === 'draft' || run.status === 'calculated') && (
           <Button variant="dark" onClick={() => runAction(() => preparePay({ payrollId: run._id }))}>

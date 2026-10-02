@@ -7,14 +7,16 @@ import PosOrders from '../components/posOrders'
 export default function Page() {
   return (
     <div className="w-full p-4 bg-white">
-      <header className="w-full border-b flex justify-between items-center mb-4">
-        <h3>POS orders</h3>
+      <header className="w-full border-b mb-4 pb-3 flex justify-between items-start gap-3">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold text-gray-800">POS orders</h1>
+          <p className="text-gray-600">
+            Open checks, open tabs, settled, and voided orders from the POS terminal. Filter by type or
+            status; pay down tabs from here.
+          </p>
+        </div>
         <BackLink />
       </header>
-      <p className="mb-4 text-sm text-gray-600">
-        Open checks, open tabs, settled, and voided orders from the POS terminal. Filter by type or
-        status; pay down tabs from here.
-      </p>
       <PosOrders />
     </div>
   )

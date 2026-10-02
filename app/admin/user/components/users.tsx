@@ -1,7 +1,7 @@
 import { FcEmptyTrash } from "react-icons/fc";
 import { TableColumn } from "../../../../shared/table";
 import { MdEditDocument } from "react-icons/md";
-import { Button } from "react-bootstrap";
+import { Button } from '../../../../shared/button';
 import PaginationComponent from "../../../../shared/pagination";
 import { Suspense } from "react";
 import { useMutation } from "convex/react";

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { ShieldX } from 'lucide-react';
-import { Button } from 'react-bootstrap';
+import { Button } from '../../shared/button';
 import { usePermissions } from '../../hooks/usePermissions';
 import { DASHBOARD_PATH, getPostLoginPath } from '../../lib/route-access';
 

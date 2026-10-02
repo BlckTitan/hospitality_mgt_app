@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useConvexAuth } from "convex/react";
-import { Button } from "react-bootstrap";
+import { Button } from '../../../../shared/button';
 import { api } from "../../../../convex/_generated/api";
 import { useState } from "react";
 import { yupResolver } from "@hookform/resolvers/yup";

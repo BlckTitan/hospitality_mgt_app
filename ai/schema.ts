@@ -127,14 +127,17 @@ export default defineSchema({
     dateOfBirth: v.optional(v.number()),
     loyaltyNumber: v.optional(v.string()),
     preferences: v.optional(v.any()), // JSON object
+    imageUrl: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
+    // firstName + lastName for people search. Optional until existing guests are backfilled.
+    searchName: v.optional(v.string()),
   })
     .index("by_propertyId", ["propertyId"])
     .index("by_email", ["email"])
     .index("by_loyaltyNumber", ["loyaltyNumber"])
     .searchIndex("search_guests", {
-      searchField: "firstName",
+      searchField: "searchName",
       filterFields: ["propertyId"],
     }),
 

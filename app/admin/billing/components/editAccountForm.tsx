@@ -4,7 +4,7 @@ import { useMutation, useQuery } from 'convex/react';
 import { SubmitHandler, useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import { toast } from 'sonner';
-import { Button } from 'react-bootstrap';
+import { Button } from '../../../../shared/button';
 import InputComponent from '../../../../shared/input';
 import SelectComponent from '../../../../shared/select';
 import { Id } from '../../../../convex/_generated/dataModel';

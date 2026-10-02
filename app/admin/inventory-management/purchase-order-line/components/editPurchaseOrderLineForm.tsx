@@ -3,7 +3,7 @@ import { SubmitHandler, useForm } from "react-hook-form";
 import { formSchema } from "./validation";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { toast } from "sonner";
-import { Button } from "react-bootstrap";
+import { Button } from '../../../../../shared/button';
 import { api } from "../../../../../convex/_generated/api";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import InputComponent from "../../../../../shared/input";

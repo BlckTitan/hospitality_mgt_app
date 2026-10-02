@@ -1,6 +1,6 @@
 import { TableColumn } from "../../../../shared/table";
 import { MdCancel, MdRefresh } from "react-icons/md";
-import { Button } from "react-bootstrap";
+import { Button } from '../../../../shared/button';
 import { toast } from "sonner";
 import PaginationComponent from "../../../../shared/pagination";
 import { Suspense } from "react";

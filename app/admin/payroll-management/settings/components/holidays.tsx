@@ -3,7 +3,7 @@
 import { useMutation } from 'convex/react';
 import { SubmitHandler, useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
-import { Button } from 'react-bootstrap';
+import { Button } from '../../../../../shared/button';
 import { toast } from 'sonner';
 import { api } from '../../../../../convex/_generated/api';
 import { Id } from '../../../../../convex/_generated/dataModel';

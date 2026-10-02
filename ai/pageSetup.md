@@ -217,82 +217,93 @@ This document outlines which entities should have dedicated pages and the data f
 
 ---
 
-### 11. Guests Page (`/guests`)
-**Purpose**: Manage guest profiles
+### 11. Guests Page (`/admin/room-management/guest`)
+**Purpose**: Guest CRM — enrich profiles; not a required gate before booking
 
 **Data Fetching:**
-- Fetch all `Guest` records for current property (with pagination)
-- Include count of `Reservation` records per guest
-- Include total revenue per guest (sum of `Reservation.totalAmount`)
+- Fetch all `Guest` records for current property (with pagination / name search)
+- Include count of `Reservation` records per guest (optional aggregate)
+- Include total revenue per guest (sum of `Reservation.totalAmount`) (optional)
 - Filter by: name, email, phone, `loyaltyNumber`
 - Sort by: lastName, firstName, createdAt
+
+**Actions:**
+- Add / edit guest (full profile: photo, address, DOB, loyalty, contact)
+- **Book stay** → `/admin/room-management/reservation?guest_id={id}` opens New Reservation with that guest preselected
+- Delete guest only when they have no reservations
 
 **Related Entities to Include:**
 - Count of `Reservation` records per `guestId` (aggregated)
 - Sum of `Reservation.totalAmount` per `guestId` (aggregated)
 
-**Rendering Strategy: SSR**
-- **Reason**: Contains sensitive guest data (PII), guest list updates frequently, includes real-time aggregated revenue data, requires authentication and data privacy compliance
+**Rendering Strategy: SSR / client Convex**
+- **Reason**: Contains sensitive guest data (PII), guest list updates frequently, requires authentication and data privacy compliance
 
 ---
 
-### 12. Guest Detail Page (`/guests/[guestId]`)
-**Purpose**: View guest profile and booking history
+### 12. Guest Detail / Edit Page (`/admin/room-management/guest/edit`)
+**Purpose**: View/edit guest profile after a quick booking
 
 **Data Fetching:**
-- Fetch single `Guest` by `guestId`
-- Fetch all `Reservation` records for this guest (with pagination)
-- Include joined `Room` and `RoomType` data for each reservation
-- Calculate guest lifetime value (sum of all reservation totals)
-- Show guest preferences and loyalty information
+- Fetch single `Guest` by `guest_id`
+- Optionally fetch recent `Reservation` history for this guest
+- Show and allow update of photo, contact, address, DOB, loyalty
 
 **Related Entities to Include:**
 - `Reservation` (where `guestId` matches, with joined `Room` and `RoomType`)
 
-**Rendering Strategy: SSR**
+**Rendering Strategy: SSR / client Convex**
 - **Reason**: Contains sensitive PII, reservation history updates in real-time, guest preferences change, requires authentication and GDPR compliance, data privacy critical
 
 ---
 
-### 13. Reservations Page (`/reservations`)
-**Purpose**: Manage room bookings
+### 13. Reservations Page (`/admin/room-management/reservation`)
+**Purpose**: Primary front-desk booking surface — find-or-create guest + stay
 
 **Data Fetching:**
 - Fetch all `Reservation` records for current property (with pagination)
-- Include joined `Guest`, `Room`, and `RoomType` data
-- Include `Payment` records for each reservation
+- Include joined `Guest`, `Room`, `RoomType`, and `bookedBy` (User name/email from `bookedByUserId`)
+- Include `Payment` records for each reservation (optional on list)
 - Filter by: `status`, `checkInDate`, `checkOutDate`, `guestId`, `roomId`, `source`
 - Sort by: `checkInDate`, `createdAt`, `confirmationNumber`
+
+**Create booking UX:**
+- Search existing guests (`searchGuests`: name search index + phone/email match) or **New guest** (first/last + optional email/phone)
+- One submit → `createReservation` with either `guestId` or `newGuest`; server sets `bookedByUserId` from auth
+- Optional deep link `?guest_id=` from Guests **Book stay**
 
 **Related Entities to Include:**
 - `Guest` (joined)
 - `Room` with `RoomType` (joined)
+- `User` as `bookedBy` (joined via `bookedByUserId`)
 - `Payment` (where `referenceType = 'Reservation'` and `referenceId` matches, optional)
 
-**Rendering Strategy: SSR**
+**Rendering Strategy: SSR / client Convex**
 - **Reason**: Reservation status changes frequently (check-in/check-out), payment status is real-time, critical operational data, requires current accuracy for front desk operations
 
 ---
 
-### 14. Reservation Detail Page (`/reservations/[reservationId]`)
-**Purpose**: View/edit reservation details
+### 14. Reservation Detail Page (`/admin/room-management/reservation/edit`)
+**Purpose**: View/edit reservation details; show who booked the stay
 
 **Data Fetching:**
-- Fetch single `Reservation` by `reservationId`
-- Fetch joined `Guest`, `Room`, `RoomType`, and `Property` data
-- Fetch all `Payment` records for this reservation
+- Fetch single `Reservation` by `reservation_id`
+- Fetch joined `Guest`, `Room`, `RoomType`, `Property`, and `bookedBy` User
+- Fetch all `Payment` records for this reservation (with payment evidence)
 - Fetch `Order` records (room service orders linked to this reservation)
-- Fetch related `Document` records (if any)
+- Fetch related `Document` / evidence records (if any)
+- Display read-only **Booked by** (receptionist); lifecycle actions Confirm / Check in / Check out / Cancel
 
 **Related Entities to Include:**
 - `Guest` (joined)
 - `Room` with `RoomType` (joined)
 - `Property` (joined)
+- `User` (`bookedBy`)
 - `Payment` (where `referenceType = 'Reservation'` and `referenceId` matches)
 - `Order` (where `reservationId` matches, optional)
-- `Document` (where `referenceType = 'Reservation'` and `referenceId` matches, optional)
+- `Document` / `reservationPaymentDocuments` (optional)
 
-**Rendering Strategy: SSR**
+**Rendering Strategy: SSR / client Convex**
 - **Reason**: Reservation status and payments update in real-time, room service orders link dynamically, critical for guest service operations, requires fresh data
 
 ---

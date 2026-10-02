@@ -101,6 +101,8 @@ package "Room Management" {
         + dateOfBirth : Date
         + loyaltyNumber : String
         + preferences : JSON
+        + imageUrl : String
+        + searchName : String
         + createdAt : Timestamp
         + updatedAt : Timestamp
     }
@@ -120,6 +122,7 @@ package "Room Management" {
         + status : String
         + source : String
         + specialRequests : String
+        + bookedByUserId : FK
         + createdAt : Timestamp
         + updatedAt : Timestamp
         + checkedInAt : Timestamp
@@ -672,6 +675,7 @@ RoomType ||--o{ RatePlan : "has"
 Room ||--o{ Reservation : "assigned to"
 Room ||--o{ HousekeepingTask : "requires"
 Guest ||--o{ Reservation : "makes"
+User ||--o{ Reservation : "books"
 Employee ||--o{ HousekeepingTask : "assigned to"
 
 ' Food & Beverage Relationships

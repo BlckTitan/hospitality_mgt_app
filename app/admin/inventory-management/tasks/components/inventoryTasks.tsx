@@ -1,7 +1,7 @@
 'use client'
 
 import { MdEditDocument } from "react-icons/md";
-import { Button } from "react-bootstrap";
+import { Button } from '../../../../../shared/button';
 import { useMutation, useQuery, useConvexAuth } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import { Id } from "../../../../../convex/_generated/dataModel";

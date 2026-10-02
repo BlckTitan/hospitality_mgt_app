@@ -2,20 +2,14 @@
 import { Show, SignOutButton, UserButton, useUser } from '@clerk/nextjs'
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import React from 'react'
-import { Accordion, Card, Nav, Navbar, NavbarBrand, NavbarCollapse, NavbarToggle, NavLink, useAccordionButton } from 'react-bootstrap'
+import React, { useEffect, useState } from 'react'
+import ClerkUiMount from '../components/ClerkUiMount'
 import { FcPhone, FcSalesPerformance , FcConferenceCall, FcMoneyTransfer , FcList, FcDepartment, FcManager } from "react-icons/fc";
 import { IoFastFoodOutline } from "react-icons/io5";
-import { MdLogout, MdOutlineBedroomChild } from 'react-icons/md';
+import { MdLogout, MdOutlineBedroomChild, MdMenu, MdClose } from 'react-icons/md';
 import { RxDashboard, RxCaretDown } from "react-icons/rx";
 import { usePermissions } from '../hooks/usePermissions';
 import { filterNavByAccess, isPathInSection } from '../lib/route-access';
-
-interface CustomToggleProps {
-  eventKey: string
-  children: React.ReactNode
-  className?: string
-}
 
 const navItems = [
   { id: 1, href: "/admin/dashboard", label: "Dashboard", icon: <RxDashboard className='text-blue-500'/> },
@@ -72,149 +66,162 @@ const navItems = [
   ]},
 ];
 
-export default function Navigation() {
+function NavSkeleton() {
+  return (
+    <nav className="w-full h-14 flex items-center fixed top-0 main_nav z-30 bg-white shadow-blue-100 shadow-sm">
+      <div className="w-full h-full flex items-center justify-between px-4 lg:px-16">
+        <div className="h-5 w-40 animate-pulse rounded bg-neutral-200" />
+        <div className="h-8 w-8 animate-pulse rounded-full bg-neutral-200 lg:hidden" />
+        <div className="hidden lg:block h-8 w-8 animate-pulse rounded-full bg-neutral-200" />
+      </div>
+    </nav>
+  );
+}
 
+export default function Navigation() {
   const path = usePathname()
   const { user, isLoaded } = useUser();
   const { canAccessRoute, isLoading } = usePermissions();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [openSection, setOpenSection] = useState<string | null>(null);
 
-  if (!isLoaded || isLoading) return null;
-  
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [path]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [menuOpen]);
+
+  if (!isLoaded || isLoading) return <NavSkeleton />;
+
   const filteredNavItems = filterNavByAccess(navItems, canAccessRoute);
-  const activeSectionKey = filteredNavItems.find((item) => isPathInSection(path, item.href))?.label;
-  
+  const activeSection = filteredNavItems.find((item) => isPathInSection(path, item.href))?.label ?? null;
+  const expanded = openSection ?? activeSection;
+
   return (
     <nav className="w-full h-14 flex items-center fixed top-0 main_nav z-30 bg-white shadow-blue-100 shadow-sm overflow-visible">
-      <Navbar expand="lg" className='w-full h-full flex items-center px-4 lg:px-16 bg-white rounded-none overflow-visible'>
-        <div className='w-full h-full flex justify-between items-center overflow-visible'>
-          
-          <div className='w-full flex justify-between '>
-            <NavbarBrand className='site_sub_title' href='/'>Hospitality Manager</NavbarBrand>
-            <NavbarToggle aria-controls="basic-navbar-nav relative" />
+      <div className="w-full h-full flex items-center px-4 lg:px-16 bg-white overflow-visible">
+        <div className="w-full h-full flex justify-between items-center gap-4 overflow-visible">
+          <div className="w-auto shrink-0 flex items-center justify-between gap-2">
+            <Link href="/" className="site_sub_title !text-lg lg:!text-xl font-semibold text-neutral-900 no-underline text-left">
+              Hospitality Manager
+            </Link>
+            <button
+              type="button"
+              className="lg:hidden inline-flex h-10 w-10 items-center justify-center rounded-md text-neutral-800"
+              aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen((v) => !v)}
+            >
+              {menuOpen ? <MdClose className="text-2xl" /> : <MdMenu className="text-2xl" />}
+            </button>
           </div>
-          
-          <NavbarCollapse id="basic-navbar-nav" className='left-0 right-0 top-14 w-full lg:w-auto max-h-[calc(100dvh-3.5rem)] h-auto absolute lg:static lg:max-h-none border-b border-t lg:border-0 bg-white overflow-y-auto overscroll-contain lg:!overflow-visible'>
-            <Nav className="w-full lg:w-fit h-auto flex flex-col items-start lg:flex-row lg:items-center lg:justify-evenly me-auto">
 
-              <header className='w-full px-3  h-16 flex items-center gap-3 lg:hidden mt-8 pb-4'>
+          <div
+            id="basic-navbar-nav"
+            className={`left-0 right-0 top-14 w-full lg:w-auto max-h-[calc(100dvh-3.5rem)] h-auto absolute lg:static lg:max-h-none border-b border-t lg:border-0 bg-white overflow-y-auto overscroll-contain lg:!overflow-visible ${
+              menuOpen ? 'flex' : 'hidden'
+            } lg:flex flex-col lg:flex-row`}
+          >
+            <div className="w-full lg:w-fit h-auto flex flex-col items-start lg:flex-row lg:items-center lg:justify-evenly me-auto">
+              <header className="w-full px-3 h-16 flex items-center gap-3 lg:hidden mt-8 pb-4">
                 <Show when="signed-in">
-                  <div className='w-full h-fit flex items-start gap-3'>
-                    <img  
-                      src={user?.imageUrl} 
-                      alt="Profile Image" 
-                      width={40} 
-                      height={40} 
-                      className='rounded-full object-cover' 
+                  <div className="w-full h-fit flex items-start gap-3">
+                    <img
+                      src={user?.imageUrl}
+                      alt="Profile Image"
+                      width={40}
+                      height={40}
+                      className="rounded-full object-cover"
                     />
-
-                    <div className='w-full h-fit flex flex-col items-start gap-1'>
-                      <span className='text-black text-sm lg:!text-white'>{user?.fullName?.toLocaleUpperCase()}</span>
-                      <span className='text-black text-sm lg:!text-white'>{user?.primaryEmailAddress?.emailAddress}</span>
-                      <Link href="/account" className='hover:!text-blue-500 text-sm !text-gray-500 p-0'>Manage Account</Link>
+                    <div className="w-full h-fit flex flex-col items-start gap-1">
+                      <span className="text-black text-sm lg:!text-white">{user?.fullName?.toLocaleUpperCase()}</span>
+                      <span className="text-black text-sm lg:!text-white">{user?.primaryEmailAddress?.emailAddress}</span>
+                      <Link href="/account" className="hover:!text-blue-500 text-sm !text-gray-500 p-0">Manage Account</Link>
                     </div>
                   </div>
                 </Show>
               </header>
 
-              <NavLink href="/#" className='py-2 px-4 !hidden lg:!inline-flex'>
+              <Link href="/#" className="py-2 px-4 !hidden lg:!inline-flex">
                 <Show when="signed-in">
-                  <UserButton />
+                  <ClerkUiMount fallback={<div className="h-8 w-8 animate-pulse rounded-full bg-neutral-200" />}>
+                    <UserButton />
+                  </ClerkUiMount>
                 </Show>
-              </NavLink>
-              
-              <Accordion
-                key={activeSectionKey ?? 'none'}
-                defaultActiveKey={activeSectionKey}
-                className='w-full h-auto block lg:hidden'
-              >
-                {filteredNavItems.map(({ id, href, label, icon, subLink }) => (
+              </Link>
 
-                  <Card className='border-0' key={id}>
-                    
-                    <Card.Header 
-                      className={`
-                        flex items-center !py-0 !px-4 !border-0
-                        ${isPathInSection(path, href) ? "!bg-[#333] text-white" : "bg-transparent"}
-                      `}
-                    >
-                      <NavLink
-                        href={href}
-                        className={`main_nav_link !w-auto flex-1 !px-0 min-w-0 ${isPathInSection(path, href) ? "!bg-[#333] text-white" : "bg-transparent"}`}
+              <div className="w-full h-auto block lg:hidden">
+                {filteredNavItems.map(({ id, href, label, icon, subLink }) => {
+                  const sectionActive = isPathInSection(path, href);
+                  const isOpen = expanded === label;
+                  return (
+                    <div key={id} className="border-0">
+                      <div
+                        className={`flex items-center py-0 px-4 border-0 ${
+                          sectionActive ? 'bg-[#333] text-white' : 'bg-transparent'
+                        }`}
                       >
-                        <span>{label}</span>
-                      </NavLink>
-
-                      <div className="flex items-center shrink-0 gap-1">
-                        {subLink?.length ? (
-                            <CustomToggle
-                              eventKey={label}
-                              className="!bg-transparent shrink-0 h-12 px-1"
-                            >
-                              <RxCaretDown className="text-xl" />
-                            </CustomToggle>
-                        ) : null}
-                        <i className="icon">{icon}</i>
-                      </div>
-
-                    </Card.Header>
-
-                    {
-                      subLink?.map((link) => (
-                        <Accordion.Collapse
-                          eventKey={label} 
-                          key={link.id}
+                        <Link
+                          href={href}
+                          className={`main_nav_link !w-auto flex-1 !px-0 min-w-0 ${
+                            sectionActive ? '!bg-[#333] text-white' : 'bg-transparent'
+                          }`}
                         >
-                          <Card.Body>
-
-                            <NavLink
+                          <span>{label}</span>
+                        </Link>
+                        <div className="flex items-center shrink-0 gap-1">
+                          {subLink?.length ? (
+                            <button
+                              type="button"
+                              className="!bg-transparent shrink-0 h-12 px-1"
+                              aria-expanded={isOpen}
+                              onClick={() => setOpenSection((cur) => (cur === label ? null : label))}
+                            >
+                              <RxCaretDown className={`text-xl transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                            </button>
+                          ) : null}
+                          <i className="icon">{icon}</i>
+                        </div>
+                      </div>
+                      {subLink?.length ? (
+                        <div className={`overflow-hidden ${isOpen ? 'block' : 'hidden'}`}>
+                          {subLink.map((link) => (
+                            <Link
+                              key={link.id}
                               href={link.href}
-                              className={`px-3 py-0 h-5 flex items-center ${isPathInSection(path, link.href) ? '!bg-[#333] text-white' : ''}`}
+                              className={`px-3 py-2 ml-4 h-auto flex items-center ${
+                                isPathInSection(path, link.href) ? '!bg-[#333] text-white' : ''
+                              }`}
                             >
                               <span>{link.label}</span>
-                            </NavLink>
+                            </Link>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
 
-                          </Card.Body>
-                        </Accordion.Collapse>
-                      ))
-                    }
-
-                  </Card>
-                ))}
-                
-                <div className='w-full h-fit py-2 px-3 mt-8 mb-6 lg:hidden'>
+                <div className="w-full h-fit py-2 px-3 mt-8 mb-6 lg:hidden">
                   <SignOutButton redirectUrl="/">
-                    <button className='w-full flex !text-[#333]'>
-                      <i className='icon mr-2'><MdLogout /></i>
+                    <button className="w-full flex !text-[#333]">
+                      <i className="icon mr-2"><MdLogout /></i>
                       <span>Log Out</span>
                     </button>
                   </SignOutButton>
                 </div>
-
-              </Accordion>
-
-            </Nav>
-          </NavbarCollapse>
-                  
+              </div>
+            </div>
+          </div>
         </div>
-        
-      </Navbar >
+      </div>
     </nav>
-  );
-}
-
-const CustomToggle: React.FC<CustomToggleProps> = ({ children, eventKey, className }: CustomToggleProps) => {
-  const decoratedOnClick = useAccordionButton(eventKey, () =>
-    console.log('custom toggle active'),
-  );
-
-  return (
-    <button
-      type="button"
-      style={{ backgroundColor: 'transparent' }}
-      onClick={decoratedOnClick}
-      className={className || ''}
-    >
-      {children}
-    </button>
   );
 }

@@ -24,10 +24,12 @@ This document defines a comprehensive Role-Based Access Control (RBAC) model for
 - Supervisor
 
 ### Operational Staff
-- Receptionist (Front Desk)
+Canonical **role names** stored on `roles.name` (must match `ROLE_PERMISSION_MATRIX` keys exactly):
+
+- Receptionist
 - Concierge
-- Housekeeping Staff
-- Waiter / Server
+- Housekeeping *(display may say Housekeeping Staff)*
+- Waiter *(display may say Waiter / Server)*
 - Bartender
 - Cook / Chef
 - Kitchen Assistant
@@ -107,6 +109,8 @@ Legend:
 
 ### Billing (organizational utilities / subscriptions)
 Permission keys stay technical. Screens: Billing hub, Bill accounts, Bills, Expenses (read-only list).
+
+**Implementation:** `billing.*` keys are stored and checked explicitly; they are **not** mapped through `finance.*` in `GRANULAR_PERMISSIONS` (so finance LIMITED does not imply bill-account create/pay).
 
 - billing.account.read
 - billing.account.create
@@ -252,28 +256,67 @@ Staff (Housekeeping Staff / Maintenance Staff / storekeepers with `fnb` or inven
 | Housekeeping edit | `/admin/room-management/housekeeping-task/edit` | `housekeeping.task.update` |
 | My tasks | `/admin/tasks/mine` | `housekeeping.task.read` or `maintenance.order.read` or `inventory.task.read` |
 | Maintenance orders | `/admin/maintenance` | `maintenance.order.read` (parts catalog picker included; `inventory.read` not required) |
-| Inventory tasks | `/admin/inventory/tasks` | `inventory.task.read` |
+| Inventory tasks | `/admin/inventory/tasks` or `/admin/inventory-management/tasks` | `inventory.task.read` |
 | Task templates | `/admin/tasks/templates` | `housekeeping.task.assign` or `maintenance.order.assign` or `inventory.task.assign` |
 | SLA defaults | `/admin/tasks/sla` | `housekeeping.task.assign` or `maintenance.order.assign` or `inventory.task.assign` |
 
 **Role mapping:**
 - Administrator, Director, General Manager, Operations Manager: full `*.read|assign|update|complete` for all three modules
-- Supervisor: assign + complete in their module (housekeeping / maintenance / inventory via F&B)
-- Housekeeping Staff: `housekeeping.task.read` + `update`; complete only as lead
+- Supervisor: assign + complete across housekeeping / maintenance / inventory task modules (seeded explicitly even when the coarse Maintenance matrix cell is NONE)
+- Housekeeping (`Housekeeping` role name): `housekeeping.task.read` + `update`; complete only as lead
 - Maintenance Staff: `maintenance.order.read` + `update`; complete only as lead
-- Bartender / Cook / Kitchen Assistant / F&B Manager (storekeeper): `inventory.task.read` + `update`; complete only as lead
+- Bartender / Cook / Chef / Kitchen Assistant: `inventory.task.read` + `update`; complete only as lead
 - Receptionist: `housekeeping.task.read` (room readiness from open tasks); no assign/complete
 
 ---
 
 ## Implementation Notes
 
-- Use role + permission hybrid model
-- Support multi-role users (same person may hold different roles at the same or different properties)
-- Permissions are evaluated **per property**. Holding Administrator at Hotel A does not grant `users.*` at Hotel B.
-- Implement audit logs for sensitive actions
-- Scope access by property/location
-- Use middleware for permission enforcement
+### Hybrid model (implemented)
+
+- **Coarse matrix** — role name → module levels (`FULL` / `LIMITED` / `VIEW` / `NONE`) in:
+  - `lib/permissions.ts` (frontend)
+  - `convex/lib/permissionsData.ts` (backend)
+  Keep these two matrices in sync. Levels expand via `levelToActions` / `MODULE_ACTION_KEYS`.
+- **Stored role permissions** — each `roles` document has a boolean map (`module.action` and granular keys). Auth context unions keys from the user’s `UserRole` rows **per property**.
+- **Granular aliases** — `GRANULAR_PERMISSIONS` maps keys like `payroll.timesheet.approve` → `payroll.update`. Used by `hasGranularPermission` when the key is not present as a direct boolean.
+- **Billing is explicit-only** — `billing.*` is **not** aliased to `finance.*`, so Ops/Manager can hold finance `LIMITED` without gaining bill-account setup or pay. Grants:
+  - Full `billing.*`: Administrator, Director, General Manager, Finance Manager
+  - `billing.period.read` only: Operations Manager, Manager
+- **Compensation is explicit-only** — `staff.compensation.*` is not implied by `staff` FULL. Roles: Administrator, Director, General Manager, HR Manager, Finance Manager.
+- **Task keys** — seeded explicitly; task role mapping may grant `housekeeping.task.*` / `maintenance.order.*` / `inventory.task.*` beyond the coarse Maintenance column (e.g. Supervisor).
+- **Route gates** — `lib/proxy-permissions.ts` (`ROUTE_PERMISSIONS`). Arrays mean any listed key is enough.
+- **UI checklist** — `lib/data.ts` → `PERMISSION_GROUPS` (Role create/edit forms).
+- **Runtime** — `convex/lib/rbac.ts`, `lib/permission-utils.ts`, `hooks/usePermissions.tsx`.
+
+Multi-role users are supported. Permissions are evaluated **per property**: Administrator at Hotel A does not grant `users.*` at Hotel B. Scope access by property; enforce in Convex mutations (`requirePermission`) and route middleware / proxy, not only in the sidebar.
+
+### System role seeding
+
+Permission maps are built by `buildRolePermissions` in `convex/lib/rolePermissionCatalog.ts` and upserted by `ensureAllSystemRoles` in `convex/lib/systemRoles.ts`.
+
+| Trigger | Function |
+|---|---|
+| First property setup (assign Administrator) | `assignAdministratorRoleForProperty` → seeds all system roles |
+| CLI / dashboard (no auth) | `npx convex run roles:ensureSystemRoles` (internal) |
+| Admin refresh from app | `roles.syncSystemRoles` (requires `roles.update`) |
+| Production | `npx convex run roles:ensureSystemRoles --prod` |
+
+Re-running seed **overwrites** `permissions` on existing system roles (`isSystemRole: true`) to match this document / catalog. Custom (non-system) roles are untouched.
+
+### File map
+
+| Concern | Path |
+|---|---|
+| Spec (this file) | `ai/RBAC.md` |
+| Frontend matrix + granular | `lib/permissions.ts` |
+| Backend matrix + granular | `convex/lib/permissionsData.ts` |
+| Role → boolean map builder | `convex/lib/rolePermissionCatalog.ts` |
+| Upsert / Administrator assign | `convex/lib/systemRoles.ts` |
+| Seed / sync mutations | `convex/roles.ts` |
+| Route → permission | `lib/proxy-permissions.ts` |
+| Post-login path | `lib/route-access.ts` (`getPostLoginPath`) |
+| Permission labels (Role UI) | `lib/data.ts` (`PERMISSION_GROUPS`) |
 
 ### Clerk invitations (first access)
 

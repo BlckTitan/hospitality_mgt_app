@@ -1,18 +1,61 @@
 'use client';
 
-import React from 'react';
+import React, { createContext, useContext, useMemo, type ReactNode } from 'react';
 import { useAuth } from '@clerk/nextjs';
-import { useEffect, useState } from 'react';
+import { useQuery } from 'convex/react';
+import { api } from '../convex/_generated/api';
 import { Action, Module } from '../lib/permissions';
 import { createPermissionChecker, PermissionChecker, UserContext } from '../lib/permission-utils';
 import { canAccessPath } from '../lib/route-access';
-import {
-  getClerkConvexAuthToken,
-  isMissingClerkConvexJwtTemplate,
-  logMissingClerkConvexJwtTemplate,
-  MISSING_CLERK_CONVEX_JWT_TEMPLATE_ERROR,
-} from '../lib/clerk-convex-auth';
-import { convex, api } from '../lib/convex-client';
+
+interface PermissionsContextValue {
+  authContext: UserContext | null;
+  isLoading: boolean;
+  error: string | null;
+}
+
+const PermissionsContext = createContext<PermissionsContextValue | null>(null);
+
+export function PermissionsProvider({ children }: { children: ReactNode }) {
+  const { isLoaded, isSignedIn } = useAuth();
+  const raw = useQuery(
+    api.authContext.getCurrentUserContext,
+    isLoaded && isSignedIn ? {} : 'skip',
+  );
+
+  const value = useMemo<PermissionsContextValue>(() => {
+    if (!isLoaded) {
+      return { authContext: null, isLoading: true, error: null };
+    }
+    if (!isSignedIn) {
+      return { authContext: null, isLoading: false, error: null };
+    }
+    if (raw === undefined) {
+      return { authContext: null, isLoading: true, error: null };
+    }
+    if (!raw) {
+      return {
+        authContext: null,
+        isLoading: false,
+        error: 'Failed to fetch user permissions',
+      };
+    }
+    return {
+      authContext: {
+        userId: raw.userId,
+        roles: raw.roles,
+        propertyId: raw.propertyId ? String(raw.propertyId) : undefined,
+        customPermissions: raw.customPermissions,
+      },
+      isLoading: false,
+      error: null,
+    };
+  }, [isLoaded, isSignedIn, raw]);
+
+  return (
+    <PermissionsContext.Provider value={value}>{children}</PermissionsContext.Provider>
+  );
+}
 
 interface UsePermissionsOptions {
   propertyId?: string;
@@ -29,56 +72,25 @@ interface UsePermissionsReturn {
   canAccessRoute: (pathname: string) => boolean;
 }
 
+function usePermissionsContext(): PermissionsContextValue {
+  const ctx = useContext(PermissionsContext);
+  if (!ctx) {
+    throw new Error('usePermissions must be used within PermissionsProvider');
+  }
+  return ctx;
+}
+
 export function usePermissions(options: UsePermissionsOptions = {}): UsePermissionsReturn {
-  const { userId, isLoaded, isSignedIn, getToken } = useAuth();
-  const [permissionChecker, setPermissionChecker] = useState<PermissionChecker | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { authContext, isLoading, error } = usePermissionsContext();
 
-  useEffect(() => {
-    async function loadUserPermissions() {
-      if (!isLoaded || !isSignedIn || !userId) {
-        setPermissionChecker(null);
-        setIsLoading(false);
-        return;
-      }
-
-      try {
-        setIsLoading(true);
-        setError(null);
-
-        const token = await getClerkConvexAuthToken(getToken);
-        if (isMissingClerkConvexJwtTemplate(userId, token)) {
-          logMissingClerkConvexJwtTemplate('usePermissions');
-          throw new Error(MISSING_CLERK_CONVEX_JWT_TEMPLATE_ERROR);
-        }
-
-        convex.setAuth(token);
-        const context = await convex.query(api.authContext.getCurrentUserContext, {});
-
-        if (!context) {
-          throw new Error('Failed to fetch user permissions');
-        }
-
-        const userContext: UserContext = {
-          userId: context.userId,
-          roles: context.roles,
-          propertyId: options.propertyId || context.propertyId,
-          customPermissions: context.customPermissions,
-        };
-
-        setPermissionChecker(createPermissionChecker(userContext));
-      } catch (err) {
-        console.error('Error loading user permissions:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load permissions');
-        setPermissionChecker(null);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
-    loadUserPermissions();
-  }, [userId, isLoaded, isSignedIn, options.propertyId, getToken]);
+  const permissionChecker = useMemo(() => {
+    if (!authContext) return null;
+    const userContext: UserContext = {
+      ...authContext,
+      propertyId: options.propertyId || authContext.propertyId,
+    };
+    return createPermissionChecker(userContext);
+  }, [authContext, options.propertyId]);
 
   const hasPermission = (module: Module, action: Action): boolean => {
     if (!permissionChecker) return false;
@@ -102,7 +114,9 @@ export function usePermissions(options: UsePermissionsOptions = {}): UsePermissi
 
   const canAccessRoute = (pathname: string): boolean => {
     if (!permissionChecker) return false;
-    return canAccessPath(pathname, (granular) => permissionChecker.hasGranularPermission(granular));
+    return canAccessPath(pathname, (granular) =>
+      permissionChecker.hasGranularPermission(granular),
+    );
   };
 
   return {
@@ -138,19 +152,15 @@ export const PermissionGuard: React.FC<PermissionGuardProps> = ({
     return React.createElement('div', null, 'Loading...');
   }
 
-  let hasRequiredPermission = false;
-
-  if (granular) {
-    hasRequiredPermission = hasGranularPermission(granular);
-  } else {
-    hasRequiredPermission = hasPermission(module, action);
-  }
+  const hasRequiredPermission = granular
+    ? hasGranularPermission(granular)
+    : hasPermission(module, action);
 
   if (!hasRequiredPermission) {
-    return fallback || React.createElement('div', null, 'Access Denied');
+    return fallback ? <>{fallback}</> : <>Access Denied</>;
   }
 
-  return React.createElement('div', { children });
+  return <>{children}</>;
 };
 
 export function useMultiplePermissions() {
@@ -170,8 +180,5 @@ export function useMultiplePermissions() {
     );
   };
 
-  return {
-    requireAll,
-    requireAny,
-  };
+  return { requireAll, requireAny };
 }

@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery } from 'convex/react'
 import { FormEvent, useMemo, useState } from 'react'
-import { Button } from 'react-bootstrap'
+import { Button } from '../../../../../shared/button'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { api } from '../../../../../convex/_generated/api'

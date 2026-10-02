@@ -1,6 +1,6 @@
 'use client';
 
-import { Button } from 'react-bootstrap';
+import { Button } from '../../../../shared/button';
 import { Id } from '../../../../convex/_generated/dataModel';
 import { Field, fieldRowClassName, fieldWidthClass } from '../../../../shared/field';
 

@@ -2,7 +2,7 @@
 
 import { BackLink } from '../../../shared/pageHeader';
 import React, { useState } from 'react';
-import { Button } from 'react-bootstrap';
+import { Button } from '../../../shared/button';
 import { FcPlus } from 'react-icons/fc';
 import BootstrapModal from '../../../shared/modal';
 import Properties from './components/properties';
@@ -15,14 +15,17 @@ export default function PropertyPage() {
 
   return (
     <div className="w-full p-4 bg-white">
-      <header className="w-full border-b flex justify-between items-center mb-4">
-        <h3>Properties</h3>
+      <header className="w-full border-b mb-4 pb-3 flex justify-between items-start gap-3">
+      <div className="min-w-0">
+        <h1 className="text-2xl font-bold text-gray-800">Properties</h1>
+        <p className="text-gray-600">Add a property with +. Each property keeps its own rooms, staff, stock, and settings.</p>
+      </div>
         <div className="flex items-center gap-3">
           <BackLink />
         <Button
           variant="light"
           className="cursor-pointer"
-          style={{ width: 'fit', height: 'fit', padding: '0', borderRadius: '100%' }}
+          circle
           onClick={() => setModalShow(true)}
         >
           <FcPlus className="w-8 h-8" />

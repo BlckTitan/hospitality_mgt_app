@@ -5,6 +5,14 @@ const nextConfig: NextConfig = {
   experimental: {
     globalNotFound: true,
     optimizeCss: true,
+    // Pin packs used by nav/sidebar; react-icons/* is also optimized by default
+    optimizePackageImports: [
+      'react-icons/fc',
+      'react-icons/md',
+      'react-icons/io5',
+      'react-icons/rx',
+      'lucide-react',
+    ],
   },
   turbopack: {},
   images: {

@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation } from 'convex/react';
-import { Button } from 'react-bootstrap';
+import { Button } from '../../../../shared/button';
 import { toast } from 'sonner';
 import { useForm } from 'react-hook-form';
 import { api } from '../../../../convex/_generated/api';

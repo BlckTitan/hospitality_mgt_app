@@ -7,7 +7,7 @@ import { formSchema } from "./validation";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { toast } from "sonner";
 import InputComponent from "../../../../../shared/input";
-import { Button } from "react-bootstrap";
+import { Button } from '../../../../../shared/button';
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { useState, useEffect } from "react";
 import { PERMISSION_GROUPS } from "../../../../../lib/data";

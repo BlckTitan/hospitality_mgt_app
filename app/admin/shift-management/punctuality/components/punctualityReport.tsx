@@ -1,7 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react';
-import { Button } from 'react-bootstrap';
+import { Button } from '../../../../../shared/button';
 
 export type PunctualityPeriod = 'week' | 'month';
 

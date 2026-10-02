@@ -2,7 +2,7 @@
 
 import { FcDocument, FcEmptyTrash } from "react-icons/fc";
 import { MdEditDocument } from "react-icons/md";
-import { Button } from "react-bootstrap";
+import { Button } from '../../../../../shared/button';
 import { Suspense } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";

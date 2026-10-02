@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react';
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Button } from 'react-bootstrap';
+import { Button } from '../../../../shared/button';
 import { useQuery } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 import { Id } from '../../../../convex/_generated/dataModel';
@@ -16,6 +16,7 @@ import {
   type CashPeriodKind,
 } from '../../../../lib/cashPeriod';
 import { EXPENSE_CATEGORY_OPTIONS } from '../../expenses/components/categoryLabels';
+import { SalesByDayChart } from './sales-by-day-chart';
 
 function formatWhen(value?: number) {
   if (!value) return '—';
@@ -186,6 +187,13 @@ export function FinancialReportCard({
           </table>
         </div>
       </div>
+
+      <SalesByDayChart
+        propertyId={propertyId}
+        start={range.start}
+        end={range.end}
+        currency={currency}
+      />
     </section>
   );
 }

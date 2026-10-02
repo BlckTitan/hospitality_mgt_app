@@ -3,7 +3,7 @@
 import { BackLink } from '../../../shared/pageHeader';
 import { useMemo, useState } from 'react';
 import { useQuery } from 'convex/react';
-import { Button } from 'react-bootstrap';
+import { Button } from '../../../shared/button';
 import { FcPlus } from 'react-icons/fc';
 import { api } from '../../../convex/_generated/api';
 import { usePermissions } from '../../../hooks/usePermissions';
@@ -85,15 +85,18 @@ export default function ExpensesPage() {
 
   return (
     <div className='w-full p-4 bg-white'>
-      <header className='w-full border-b flex justify-between items-center mb-4'>
-        <h3>Expense Tracker</h3>
+      <header className="w-full border-b mb-4 pb-3 flex justify-between items-start gap-3">
+      <div className="min-w-0">
+        <h1 className="text-2xl font-bold text-gray-800">Expense Tracker</h1>
+        <BillingPageGuide page='expenses' />
+      </div>
         <div className='flex items-center gap-3'>
           <BackLink />
           {canCreate && (
             <Button
               variant='light'
               className='cursor-pointer'
-              style={{ width: 'fit', height: 'fit', padding: '0', borderRadius: '100%' }}
+              circle
               onClick={() => setRecordOpen(true)}
             >
               <FcPlus className='w-8 h-8' />
@@ -101,8 +104,6 @@ export default function ExpensesPage() {
           )}
         </div>
       </header>
-      <BillingPageGuide page='expenses' />
-
       <div className='flex flex-wrap items-center gap-2 mb-3'>
         {CASH_PERIOD_KINDS.map((periodKind) => (
           <Button

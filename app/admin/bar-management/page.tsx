@@ -45,13 +45,13 @@ export default function BarManagement() {
 
   return (
     <div className="w-full p-6 bg-white">
-      <div className="mb-6 flex justify-between items-start">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800 mb-2">Bar Management</h1>
+      <header className="w-full border-b mb-4 pb-3 flex justify-between items-start gap-3">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold text-gray-800">Bar Management</h1>
           <p className="text-gray-600">Manage your bar operations, inventory, and reorder alerts</p>
         </div>
         <BackLink />
-      </div>
+      </header>
 
       <div className="mb-6">
         <label htmlFor="property-select" className="block text-sm font-medium text-gray-700 mb-2">

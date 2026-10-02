@@ -1,7 +1,7 @@
 'use client';
 
 import { BackLink } from '../../../../../shared/pageHeader';
-import { Spinner } from 'react-bootstrap';
+import Spinner from '../../../../../shared/spinner';
 import { useSearchParams } from 'next/navigation';
 import { useQuery } from 'convex/react';
 import { EditInventoryTransactionForm } from '../components/editInventoryTransactionForm';
@@ -20,8 +20,11 @@ export default function Page() {
   if (!transactionId) {
     return (
       <div className="w-full p-4 bg-white">
-        <header className="w-full border-b flex justify-between items-center mb-4">
-          <h3>Edit stock movement</h3>
+        <header className="w-full border-b mb-4 pb-3 flex justify-between items-start gap-3">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold text-gray-800">Edit stock movement</h1>
+            <InventoryPageGuide page="transactions-edit" />
+          </div>
           <BackLink />
         </header>
         <p>Transaction not found.</p>
@@ -32,7 +35,7 @@ export default function Page() {
   if (transactionResponse === undefined) {
     return (
       <div className="w-full h-screen flex justify-center items-center">
-        <Spinner animation="border" size="sm" variant="dark" />
+        <Spinner  size="sm"  />
       </div>
     );
   }
@@ -43,11 +46,13 @@ export default function Page() {
 
   return (
     <div className="w-full p-4 bg-white">
-      <header className="w-full border-b flex justify-between items-center mb-4">
-        <h3>Update stock movement</h3>
+      <header className="w-full border-b mb-4 pb-3 flex justify-between items-start gap-3">
+      <div className="min-w-0">
+        <h1 className="text-2xl font-bold text-gray-800">Update stock movement</h1>
+        <InventoryPageGuide page="transactions-edit" />
+      </div>
         <BackLink />
       </header>
-      <InventoryPageGuide page="transactions-edit" />
       <EditInventoryTransactionForm
         transactionData={transactionResponse.data}
         transactionId={transactionId}

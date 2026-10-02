@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { Settings2 } from 'lucide-react';
-import { Button } from 'react-bootstrap';
+import { Button } from '../../../shared/button';
 import {
   CLERK_CONVEX_JWT_TEMPLATE,
   CLERK_CONVEX_SETUP_URL,

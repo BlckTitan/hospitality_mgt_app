@@ -1,52 +1,37 @@
+import type { Metadata } from 'next'
+import { Open_Sans, Orbitron } from 'next/font/google'
+import './globals.css'
+import AppProviders from '../components/AppProviders'
 
-import type { Metadata } from "next";
-import './globals.css';
-import 'bootstrap/dist/css/bootstrap.min.css';
+const openSans = Open_Sans({
+  subsets: ['latin'],
+  variable: '--font-open-sans',
+  display: 'swap',
+})
 
-import ClerkProvider from '../components/ClerkProviderWrapper'
-import DashboardLayout from "../shared/dashboard-layout";
-import ConvexClientProvider from '../components/ConvexClientProvider'
-import { Suspense } from "react";
-import { Spinner } from "react-bootstrap";
-import { Toaster } from 'sonner'
+const orbitron = Orbitron({
+  subsets: ['latin'],
+  variable: '--font-orbitron',
+  display: 'swap',
+})
 
 export const metadata: Metadata = {
-  title: "Hospitality Manager",
-  description: "A Hospitality Management App",
-};
+  title: 'Hospitality Manager',
+  description: 'A Hospitality Management App',
+}
 
 export default function RootLayout({
   children,
 }: Readonly<{
-  children: React.ReactNode;
+  children: React.ReactNode
 }>) {
-
-  const publishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
-  
-  // const CheckUserRole = require('../utils/checkUserRole').default;
-  // const UserRoleComponent = <CheckUserRole/>;
+  const publishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
 
   return (
-    <html lang="en">
-      <body>
-        <ClerkProvider publishableKey={publishableKey}>
-          <Suspense 
-            fallback={
-              <div className="w-full h-screen flex justify-center items-center">
-                <Spinner variant="dark" size="sm"/>
-              </div>
-            }
-          >
-            <DashboardLayout>
-              <ConvexClientProvider>
-                {/* {UserRoleComponent} */}
-                {children}
-              </ConvexClientProvider>
-            </DashboardLayout>
-            <Toaster position="bottom-right"/>
-          </Suspense>
-        </ClerkProvider>
+    <html lang="en" className={`${openSans.variable} ${orbitron.variable}`}>
+      <body className={openSans.className}>
+        <AppProviders publishableKey={publishableKey ?? ''}>{children}</AppProviders>
       </body>
     </html>
-  );
+  )
 }

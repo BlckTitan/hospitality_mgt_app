@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useQuery } from 'convex/react';
-import { Button } from 'react-bootstrap';
+import { Button } from '../../../../shared/button';
 import { api } from '../../../../convex/_generated/api';
 import { Id } from '../../../../convex/_generated/dataModel';
 import {

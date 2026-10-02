@@ -100,6 +100,39 @@ export function hasGranularPermission(authContext: AuthContext, granularPerm: st
     }
   }
 
+  const compensationRoles = [
+    "Administrator",
+    "Director",
+    "General Manager",
+    "HR Manager",
+    "Finance Manager",
+  ];
+  if (
+    (granularPerm === "staff.compensation.read" || granularPerm === "staff.compensation.update") &&
+    authContext.roles.some((role) => compensationRoles.includes(role))
+  ) {
+    return true;
+  }
+
+  const billingFullRoles = [
+    "Administrator",
+    "Director",
+    "General Manager",
+    "Finance Manager",
+  ];
+  if (
+    granularPerm.startsWith("billing.") &&
+    authContext.roles.some((role) => billingFullRoles.includes(role))
+  ) {
+    return true;
+  }
+  if (
+    granularPerm === "billing.period.read" &&
+    authContext.roles.some((role) => role === "Operations Manager" || role === "Manager")
+  ) {
+    return true;
+  }
+
   return false;
 }
 

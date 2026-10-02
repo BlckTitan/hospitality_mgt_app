@@ -149,6 +149,27 @@ export class PermissionChecker {
       }
     }
 
+    // Billing keys are explicit (not mapped from finance.*) — mirror RBAC role grants
+    const billingFullRoles = [
+      'Administrator',
+      'Director',
+      'General Manager',
+      'Finance Manager',
+    ];
+    const billingViewRoles = ['Operations Manager', 'Manager'];
+    if (
+      granularPerm.startsWith('billing.') &&
+      this.userContext.roles.some((role) => billingFullRoles.includes(role))
+    ) {
+      return true;
+    }
+    if (
+      granularPerm === 'billing.period.read' &&
+      this.userContext.roles.some((role) => billingViewRoles.includes(role))
+    ) {
+      return true;
+    }
+
     for (const permissions of Object.values(GRANULAR_PERMISSIONS)) {
       const mapped = permissions[granularPerm as keyof typeof permissions];
       if (mapped) {

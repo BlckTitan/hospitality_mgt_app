@@ -2,7 +2,7 @@
 
 import { BackLink } from '../../../../shared/pageHeader';
 import React, { useState } from 'react';
-import { Button } from 'react-bootstrap';
+import { Button } from '../../../../shared/button';
 import { FcPlus } from 'react-icons/fc';
 import Rooms from './components/rooms';
 import { FormComponent } from './components/createRoomForm';
@@ -39,14 +39,17 @@ export default function RoomPage() {
 
   return (
     <div className="w-full p-4 bg-white">
-      <header className="w-full border-b flex justify-between items-center mb-4">
-        <h3>Rooms</h3>
+      <header className="w-full border-b mb-4 pb-3 flex justify-between items-start gap-3">
+      <div className="min-w-0">
+        <h1 className="text-2xl font-bold text-gray-800">Rooms</h1>
+        <RoomPageGuide page="rooms" />
+      </div>
         <div className="flex items-center gap-3">
           <BackLink />
         <Button
           variant="light"
           className="cursor-pointer"
-          style={{ width: 'fit', height: 'fit', padding: '0', borderRadius: '100%' }}
+          circle
           onClick={() => setModalShow(true)}
         >
           <FcPlus className="w-8 h-8" />
@@ -54,8 +57,6 @@ export default function RoomPage() {
       
         </div>
       </header>
-
-      <RoomPageGuide page="rooms" />
       <Rooms currentPropertyId={currentPropertyId}/>
 
       <ModalComponent

@@ -4,7 +4,8 @@ import { useMutation, useQuery, useConvexAuth } from 'convex/react'
 import { useSearchParams } from 'next/navigation'
 import React, { useMemo, useState } from 'react'
 import { api } from '../../../../../convex/_generated/api'
-import { Button, Spinner } from 'react-bootstrap'
+import { Button } from '../../../../../shared/button';
+import Spinner from '../../../../../shared/spinner'
 import Image from 'next/image'
 import { Id } from '../../../../../convex/_generated/dataModel';
 import Avatar from '../../../../../public/profileAvatar.webp'
@@ -72,7 +73,7 @@ export default function StaffViewComponent() {
   if (staffData === undefined) {
     return (
       <div className='w-full h-full flex items-center justify-center'>
-        <Spinner animation="border" variant="primary" />
+        <Spinner   />
       </div>
     )
   }

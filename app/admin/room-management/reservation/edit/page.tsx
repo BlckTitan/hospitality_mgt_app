@@ -2,7 +2,7 @@
 
 import { BackLink } from '../../../../../shared/pageHeader';
 import React from 'react';
-import { Spinner } from 'react-bootstrap';
+import Spinner from '../../../../../shared/spinner';
 import { useQuery } from 'convex/react';
 import { api } from '../../../../../convex/_generated/api';
 import { Id } from '../../../../../convex/_generated/dataModel';
@@ -15,15 +15,18 @@ export default function Page() {
   const response = useQuery(api.reservations.getReservation, { reservationId: id as Id<'reservations'> });
 
   // Check response for data
-  if (response === undefined) return <div className='w-full h-screen flex items-center justify-center'><Spinner animation="border" size='sm' variant="dark" /></div>;
+  if (response === undefined) return <div className='w-full h-screen flex items-center justify-center'><Spinner  size='sm'  /></div>;
   if (!response.success || !response.data) return <div>No data available!</div>;
 
   const reservation = response.data;
 
   return (
     <div className='w-full p-4 bg-white'>
-      <header className='w-full border-b flex justify-between items-center'>
-        <h3>Update Reservation - {reservation.confirmationNumber}</h3>
+      <header className="w-full border-b mb-4 pb-3 flex justify-between items-start gap-3">
+      <div className="min-w-0">
+        <h1 className="text-2xl font-bold text-gray-800">Update Reservation - {reservation.confirmationNumber}</h1>
+        <p className="text-gray-600">Update dates, room, or guest count. Confirm, check in, check out, or cancel from the reservation actions.</p>
+      </div>
         <BackLink />
       </header>
 

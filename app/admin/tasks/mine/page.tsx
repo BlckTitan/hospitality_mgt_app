@@ -8,13 +8,13 @@ import { TaskAssignmentPageGuide } from '../../../../shared/taskAssignmentPageGu
 export default function Page() {
   return (
     <div className='w-full p-4 bg-white'>
-      <header className='w-full mb-4 border-b flex justify-between items-center'>
-        <h3>My tasks</h3>
+      <header className="w-full border-b mb-4 pb-3 flex justify-between items-start gap-3">
+      <div className="min-w-0">
+        <h1 className="text-2xl font-bold text-gray-800">My tasks</h1>
+        <TaskAssignmentPageGuide page="mine" />
+      </div>
         <BackLink />
       </header>
-
-      <TaskAssignmentPageGuide page="mine" />
-
       <Suspense fallback={<p>Please wait...</p>}>
         <MyTasksComponent />
       </Suspense>

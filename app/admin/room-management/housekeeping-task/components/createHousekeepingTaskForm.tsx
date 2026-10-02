@@ -7,7 +7,8 @@ import { yupResolver } from "@hookform/resolvers/yup";
 import { formSchema } from "./validation";
 import { toast } from "sonner";
 import InputComponent from "../../../../../shared/input";
-import { Button, Modal } from "react-bootstrap";
+import { Button } from '../../../../../shared/button';
+import { Modal } from '../../../../../shared/modal';
 import { Id } from "../../../../../convex/_generated/dataModel";
 
 type FormData = {

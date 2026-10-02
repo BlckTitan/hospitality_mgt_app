@@ -2,7 +2,7 @@
 
 import { BackLink } from '../../../../shared/pageHeader';
 import React, { Suspense, useEffect, useState } from 'react';
-import { Button } from 'react-bootstrap';
+import { Button } from '../../../../shared/button';
 import { FcPlus } from 'react-icons/fc';
 import Reservations from './components/reservations';
 import { FormComponent } from './components/createReservationForm';
@@ -66,14 +66,17 @@ function ReservationPageInner() {
 
   return (
     <div className="w-full bg-white p-4">
-      <header className="mb-4 flex w-full items-center justify-between border-b">
-        <h3>Reservations</h3>
+      <header className="w-full border-b mb-4 pb-3 flex justify-between items-start gap-3">
+      <div className="min-w-0">
+        <h1 className="text-2xl font-bold text-gray-800">Reservations</h1>
+        <RoomPageGuide page="reservations" />
+      </div>
         <div className="flex items-center gap-3">
           <BackLink />
           <Button
             variant="light"
             className="cursor-pointer"
-            style={{ width: 'fit', height: 'fit', padding: '0', borderRadius: '100%' }}
+            circle
             onClick={() => {
               setInitialGuestId(null);
               setModalShow(true);
@@ -83,8 +86,6 @@ function ReservationPageInner() {
           </Button>
         </div>
       </header>
-
-      <RoomPageGuide page="reservations" />
       <Reservations propertyId={currentPropertyId} />
 
       <BootstrapModal

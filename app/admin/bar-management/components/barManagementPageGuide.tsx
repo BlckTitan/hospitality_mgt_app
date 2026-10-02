@@ -29,5 +29,5 @@ const DESCRIPTIONS: Record<GuidePage, string> = {
 };
 
 export function BarManagementPageGuide({ page }: { page: GuidePage }) {
-  return <p className="mb-4 text-sm text-gray-600">{DESCRIPTIONS[page]}</p>;
+  return <p className="text-gray-600">{DESCRIPTIONS[page]}</p>;
 }

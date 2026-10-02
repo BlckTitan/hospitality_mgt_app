@@ -146,20 +146,22 @@ Represents individual physical rooms within a property.
 Represents customers/guests who make reservations.
 
 **Attributes:**
-- `guestId` (PK): Unique identifier
-- `propertyId` (FK): Reference to Property (optional, for property-specific guests)
+- `guestId` (PK): Unique identifier (`_id` in Convex)
+- `propertyId` (FK): Reference to Property (property-scoped guest CRM)
 - `firstName`: First name
 - `lastName`: Last name
-- `email`: Email address
-- `phone`: Phone number
-- `address`: Physical address
-- `dateOfBirth`: Date of birth
-- `loyaltyNumber`: Loyalty program number
-- `preferences`: JSON object for guest preferences
+- `email`: Email address (optional)
+- `phone`: Phone number (optional)
+- `address`: Physical address (optional)
+- `dateOfBirth`: Date of birth (optional)
+- `loyaltyNumber`: Loyalty program number (optional)
+- `preferences`: JSON object for guest preferences (optional)
+- `imageUrl`: Guest photo URL (optional)
+- `searchName`: Denormalized `firstName + lastName` for full-text search
 - `createdAt`: Timestamp of creation
 - `updatedAt`: Timestamp of last update
 
-**Purpose**: Maintains guest profiles and history for personalized service and repeat bookings.
+**Purpose**: Maintains guest profiles and history for personalized service and repeat bookings. Profiles can be created inline during booking (name + contact) and enriched later on the Guests CRM pages (photo, loyalty, address, DOB).
 
 ---
 
@@ -167,7 +169,7 @@ Represents customers/guests who make reservations.
 Represents room bookings/reservations.
 
 **Attributes:**
-- `reservationId` (PK): Unique identifier
+- `reservationId` (PK): Unique identifier (`_id` in Convex)
 - `propertyId` (FK): Reference to Property
 - `roomId` (FK): Reference to Room
 - `guestId` (FK): Reference to Guest
@@ -179,14 +181,15 @@ Represents room bookings/reservations.
 - `totalAmount`: Total reservation amount
 - `depositAmount`: Deposit paid
 - `status`: Status (pending, confirmed, checked-in, checked-out, cancelled)
-- `source`: Booking source (direct, OTA, walk-in, etc.)
+- `source`: Booking source (direct, OTA, walk-in, phone, other)
 - `specialRequests`: Special requests/notes
+- `bookedByUserId` (FK, optional): User (receptionist on duty) who created the booking; set from auth on create; may be absent on legacy rows
 - `createdAt`: Timestamp of creation
 - `updatedAt`: Timestamp of last update
 - `checkedInAt`: Check-in timestamp
 - `checkedOutAt`: Check-out timestamp
 
-**Purpose**: Core entity for room revenue tracking, occupancy management, and guest service coordination.
+**Purpose**: Core entity for room revenue tracking, occupancy management, and guest service coordination. Front desk creates stays via find-or-create: search an existing guest or supply new guest fields in the same booking mutation; the signed-in receptionist is recorded on `bookedByUserId`.
 
 ---
 
@@ -1797,7 +1800,11 @@ Tracks all system actions for compliance and security auditing.
 
 #### Guest → Reservation (One-to-Many)
 - **Relationship**: A Guest can have many Reservations.
-- **Explanation**: Tracks guest booking history for repeat customers, preferences, and loyalty programs. A guest can make multiple reservations over time.
+- **Explanation**: Tracks guest booking history for repeat customers, preferences, and loyalty programs. A guest can make multiple reservations over time. Booking UX is find-or-create: the reservation form searches guests (name / email / phone) or creates a minimal guest profile in the same `createReservation` mutation.
+
+#### User → Reservation (One-to-Many, Optional)
+- **Relationship**: A User can book many Reservations (`bookedByUserId`).
+- **Explanation**: Attribution for the receptionist (or other signed-in staff) who created the booking. Set server-side from auth on create; not editable in the booking form. Legacy reservations may omit the field.
 
 #### Room → Reservation (One-to-Many)
 - **Relationship**: A Room can have many Reservations over time.

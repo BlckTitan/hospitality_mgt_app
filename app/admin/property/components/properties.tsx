@@ -2,7 +2,7 @@
 
 import { FcEmptyTrash } from 'react-icons/fc';
 import { MdEditDocument } from 'react-icons/md';
-import { Button } from 'react-bootstrap';
+import { Button } from '../../../../shared/button';
 import PaginationComponent from '../../../../shared/pagination';
 import { useMutation, useQuery } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';

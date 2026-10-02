@@ -23,7 +23,7 @@ const DESCRIPTIONS: Record<GuidePage, string> = {
 
 export function PayrollPageGuide({ page }: { page: GuidePage }) {
   return (
-    <p className="mb-4 text-sm text-gray-600">
+    <p className="text-gray-600">
       {DESCRIPTIONS[page]}
     </p>
   );

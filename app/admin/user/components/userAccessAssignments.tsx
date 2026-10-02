@@ -4,7 +4,8 @@ import { useMutation, useQuery } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 import { Id } from '../../../../convex/_generated/dataModel';
 import { useState } from 'react';
-import { Button, Spinner } from 'react-bootstrap';
+import { Button } from '../../../../shared/button';
+import Spinner from '../../../../shared/spinner';
 import { toast } from 'sonner';
 import { usePermissions } from '../../../../hooks/usePermissions';
 
@@ -105,7 +106,7 @@ export function UserAccessAssignments({ userId }: { userId: Id<'users'> }) {
   if (assignments === undefined) {
     return (
       <div className="py-6 flex justify-center">
-        <Spinner animation="border" size="sm" variant="dark" />
+        <Spinner  size="sm"  />
       </div>
     );
   }

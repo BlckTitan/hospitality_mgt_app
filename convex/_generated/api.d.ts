@@ -39,6 +39,7 @@ import type * as lib_permissionsData from "../lib/permissionsData.js";
 import type * as lib_postCashOutflow from "../lib/postCashOutflow.js";
 import type * as lib_punctuality from "../lib/punctuality.js";
 import type * as lib_rbac from "../lib/rbac.js";
+import type * as lib_rolePermissionCatalog from "../lib/rolePermissionCatalog.js";
 import type * as lib_searchNames from "../lib/searchNames.js";
 import type * as lib_shiftHelpers from "../lib/shiftHelpers.js";
 import type * as lib_staffAccess from "../lib/staffAccess.js";
@@ -119,6 +120,7 @@ declare const fullApi: ApiFromModules<{
   "lib/postCashOutflow": typeof lib_postCashOutflow;
   "lib/punctuality": typeof lib_punctuality;
   "lib/rbac": typeof lib_rbac;
+  "lib/rolePermissionCatalog": typeof lib_rolePermissionCatalog;
   "lib/searchNames": typeof lib_searchNames;
   "lib/shiftHelpers": typeof lib_shiftHelpers;
   "lib/staffAccess": typeof lib_staffAccess;

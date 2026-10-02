@@ -9,7 +9,8 @@ import { toast } from "sonner";
 import InputComponent from "../../../../shared/input";
 import SelectComponent from "../../../../shared/select";
 import { Field, fieldRowClassName, fieldWidthClass } from "../../../../shared/field";
-import { Button, Modal } from "react-bootstrap";
+import { Button } from '../../../../shared/button';
+import { Modal } from '../../../../shared/modal';
 import { Id } from "../../../../convex/_generated/dataModel";
 import { useState } from "react";
 import {

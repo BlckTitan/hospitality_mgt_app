@@ -1,10 +1,10 @@
 import { useMutation, useQuery } from 'convex/react';
 import { Dispatch, SetStateAction, useEffect, useState } from 'react';
-import Pagination from 'react-bootstrap/Pagination';
 import { api } from '../convex/_generated/api';
 import { Id } from '../convex/_generated/dataModel';
 import TableComponent, { TableColumn } from './table';
-import { Spinner } from 'react-bootstrap';
+import Spinner from './spinner';
+import Pagination from './ui-pagination';
 import { FcSearch } from 'react-icons/fc';
 import { useDebounce } from 'use-debounce';
 
@@ -132,7 +132,7 @@ export default function PaginationComponent({
   if (!usesClientData && (skipPaginated || response === undefined)) {
     return (
       <div className="w-full h-screen flex justify-center items-center">
-        <Spinner animation="border" size="sm" variant="dark" />
+        <Spinner size="sm" />
       </div>
     );
   }

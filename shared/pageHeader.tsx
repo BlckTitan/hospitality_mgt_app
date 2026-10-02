@@ -42,17 +42,20 @@ export function BackLink({ href }: { href?: string }) {
 
 export function PageHeader({
   title,
+  description,
   actions,
-  className = 'w-full border-b flex justify-between items-center mb-4',
 }: {
   title: ReactNode;
+  description?: ReactNode;
   actions?: ReactNode;
-  className?: string;
 }) {
   return (
-    <header className={className}>
-      <h3>{title}</h3>
-      <div className="flex items-center gap-3">
+    <header className="w-full border-b mb-4 pb-3 flex justify-between items-start gap-3">
+      <div className="min-w-0">
+        <h1 className="text-2xl font-bold text-gray-800">{title}</h1>
+        {description ? <p className="text-gray-600">{description}</p> : null}
+      </div>
+      <div className="flex items-center gap-3 shrink-0">
         <BackLink />
         {actions}
       </div>

@@ -4,6 +4,7 @@ import { SignIn, useAuth } from '@clerk/nextjs'
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery } from 'convex/react';
 import React, { useEffect, useState } from 'react';
+import ClerkUiMount from '../../../components/ClerkUiMount';
 import Spinner from '../../../shared/spinner';
 import { api } from '../../../convex/_generated/api';
 import { DASHBOARD_PATH, resolvePostAuthPath } from '../../../lib/route-access';
@@ -62,7 +63,9 @@ export default function Page() {
 
   return (
     <div className='w-full h-screen flex justify-center items-center'>
-      <SignIn fallbackRedirectUrl={redirectUrl} />
+      <ClerkUiMount fallback={<Spinner size='md' />}>
+        <SignIn fallbackRedirectUrl={redirectUrl} />
+      </ClerkUiMount>
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { mutation, query, internalMutation } from './_generated/server';
 import { v } from 'convex/values';
 import { requirePermission } from './lib/rbac';
-import { ensureAdministratorRole } from './lib/systemRoles';
+import { ensureAllSystemRoles } from './lib/systemRoles';
 export const getAllRoles = query({
   handler: async (ctx) => {
     await requirePermission(ctx, 'roles.read');
@@ -175,11 +175,28 @@ export const getRoleByName = query({
 export const ensureSystemRoles = internalMutation({
   args: {},
   handler: async (ctx) => {
-    const administratorRoleId = await ensureAdministratorRole(ctx);
+    const roles = await ensureAllSystemRoles(ctx);
+    const administrator = roles.find((role) => role.name === 'Administrator');
     return {
       success: true,
-      administratorRoleId,
-      message: 'System roles ensured',
+      administratorRoleId: administrator?.roleId,
+      roles,
+      message: `Ensured ${roles.length} system roles`,
+    };
+  },
+});
+
+/** Public entry for admins to refresh RBAC system role permission maps. */
+export const syncSystemRoles = mutation({
+  args: {},
+  handler: async (ctx) => {
+    await requirePermission(ctx, 'roles.update');
+    const roles = await ensureAllSystemRoles(ctx);
+    return {
+      success: true,
+      count: roles.length,
+      roles: roles.map((role) => role.name),
+      message: `Synced ${roles.length} system roles from RBAC config`,
     };
   },
 });

@@ -4,7 +4,7 @@ import { Id } from "../../../../convex/_generated/dataModel";
 import { SubmitHandler, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import InputComponent from "../../../../shared/input";
-import { Button } from "react-bootstrap";
+import { Button } from '../../../../shared/button';
 import { useState } from "react";
 
 type FormData = {

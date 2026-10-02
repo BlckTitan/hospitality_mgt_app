@@ -2,21 +2,23 @@
 
 import { BackLink } from '../../../../../shared/pageHeader';
 import React, { useState } from 'react';
-import { Button } from 'react-bootstrap';
+import { Button } from '../../../../../shared/button';
 import { useSearchParams } from 'next/navigation';
-import { useQuery } from 'convex/react';
+import { useQuery, useConvexAuth } from 'convex/react';
 import { EditBarForm } from '../components/editBarForm';
 import { api } from '../../../../../convex/_generated/api';
 import { Id } from '../../../../../convex/_generated/dataModel';
 import BootstrapModal from '../../../../../shared/modal';
 
 export default function EditBarPage() {
+  const { isAuthenticated } = useConvexAuth();
   const searchParams = useSearchParams();
   const barId = searchParams.get('bar_id');
   const [modalShow, setModalShow] = useState(true);
 
   const barResponse = useQuery(
-    api.bars.getBar, barId ? { barId: barId as Id<'bars'> } : null
+    api.bars.getBar,
+    isAuthenticated && barId ? { barId: barId as Id<'bars'> } : 'skip'
   );
 
   if (!barId) {
@@ -46,8 +48,11 @@ export default function EditBarPage() {
 
   return (
     <div className="w-full p-4 bg-white">
-      <header className="w-full border-b flex justify-between items-center mb-4">
-        <h3>Edit Bar</h3>
+      <header className="w-full border-b mb-4 pb-3 flex justify-between items-start gap-3">
+      <div className="min-w-0">
+        <h1 className="text-2xl font-bold text-gray-800">Edit Bar</h1>
+        <p className="text-gray-600">Update this bar’s name and whether it is active. Inactive bars drop off issue and stock-log lists.</p>
+      </div>
         <BackLink />
       </header>
 

@@ -3,7 +3,8 @@
 import { useQuery, useConvexAuth } from 'convex/react'
 import React, { useMemo, useState } from 'react'
 import { api } from '../../../../../convex/_generated/api'
-import { Button, Spinner } from 'react-bootstrap'
+import { Button } from '../../../../../shared/button';
+import Spinner from '../../../../../shared/spinner'
 import BootstrapModal from '../../../../../shared/modal'
 import { OnboardingStepper } from '../../components/onboardingStepper'
 import {
@@ -39,7 +40,7 @@ export default function MyProfileComponent() {
   if (detail === undefined) {
     return (
       <div className='w-full h-full flex items-center justify-center'>
-        <Spinner animation='border' variant='primary' />
+        <Spinner   />
       </div>
     )
   }

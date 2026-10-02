@@ -2,7 +2,7 @@
 
 import { BackLink } from '../../../../../shared/pageHeader';
 import React, { useState } from 'react';
-import { Button } from 'react-bootstrap';
+import { Button } from '../../../../../shared/button';
 import { useSearchParams } from 'next/navigation';
 import { useQuery } from 'convex/react';
 import { EditRoomForm } from '../components/editRoomForm';
@@ -46,8 +46,11 @@ export default function EditRoomPage() {
 
   return (
     <div className="w-full p-4 bg-white">
-      <header className="w-full border-b flex justify-between items-center mb-4">
-        <h3>Edit Room</h3>
+      <header className="w-full border-b mb-4 pb-3 flex justify-between items-start gap-3">
+      <div className="min-w-0">
+        <h1 className="text-2xl font-bold text-gray-800">Edit Room</h1>
+        <p className="text-gray-600">Update room number, floor, type, and status. Occupied is set by check-in, not by this form.</p>
+      </div>
         <BackLink />
       </header>
 

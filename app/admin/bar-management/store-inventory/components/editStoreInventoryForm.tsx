@@ -1,11 +1,11 @@
 'use client'
 
-import { useMutation, useQuery } from "convex/react";
+import { useMutation, useQuery, useConvexAuth } from "convex/react";
 import { SubmitHandler, useForm } from "react-hook-form";
 import { formSchema } from "./validation";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { toast } from "sonner";
-import { Button } from "react-bootstrap";
+import { Button } from '../../../../../shared/button';
 import { useEffect } from "react";
 import InputComponent from "../../../../../shared/input";
 import { Id } from "../../../../../convex/_generated/dataModel";
@@ -18,8 +18,12 @@ type FormData = {
 };
 
 export function EditFormComponent({ onSuccess, onClose, inventoryId }: { onSuccess: () => void; onClose: () => void; inventoryId: string }) {
+  const { isAuthenticated } = useConvexAuth();
   const updateStoreInventory = useMutation(api.storeInventories.updateStoreInventory);
-  const storeInventoryResponse = useQuery(api.storeInventories.getStoreInventoryById, { id: inventoryId as Id<'storeInventories'> });
+  const storeInventoryResponse = useQuery(
+    api.storeInventories.getStoreInventoryById,
+    isAuthenticated && inventoryId ? { id: inventoryId as Id<'storeInventories'> } : 'skip',
+  );
   const storeInventory = storeInventoryResponse;
 
   const { register, handleSubmit, formState: { errors }, reset, setValue } = useForm<FormData>({

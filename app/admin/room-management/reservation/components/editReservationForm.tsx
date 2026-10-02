@@ -1,5 +1,6 @@
 import { useMutation, useQuery } from "convex/react";
-import { Button, Modal } from "react-bootstrap";
+import { Button } from '../../../../../shared/button';
+import { Modal } from '../../../../../shared/modal';
 import { api } from "../../../../../convex/_generated/api";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { editFormSchema } from "./validation";

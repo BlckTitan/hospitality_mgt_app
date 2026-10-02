@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react';
-import { Button } from 'react-bootstrap';
+import { Button } from '../../../../shared/button';
 import { useMutation, useQuery } from 'convex/react';
 import { toast } from 'sonner';
 import { Id } from '../../../../convex/_generated/dataModel';

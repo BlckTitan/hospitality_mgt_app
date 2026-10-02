@@ -1,11 +1,34 @@
 import { Id } from "../_generated/dataModel";
 import { MutationCtx } from "../_generated/server";
+import {
+  ADMINISTRATOR_PERMISSIONS,
+  SYSTEM_ROLE_DEFINITIONS,
+  buildRolePermissions,
+} from "./rolePermissionCatalog";
+
+export { ADMINISTRATOR_PERMISSIONS };
+
+export const ADMINISTRATOR_ROLE_NAME = "Administrator";
+
+const LEGACY_ADMIN_ROLE_NAMES = new Set([
+  "admin",
+  "administrator",
+  "admin role",
+  "system admin",
+]);
+
+function isLegacyAdminRoleName(name: string): boolean {
+  return LEGACY_ADMIN_ROLE_NAMES.has(name.trim().toLowerCase());
+}
 
 export async function assignAdministratorRoleForProperty(
   ctx: MutationCtx,
   userId: Id<"users">,
   propertyId: Id<"properties">,
 ): Promise<Id<"userRoles">> {
+  // Always keep RBAC system role templates current when assigning admin
+  const seeded = await ensureAllSystemRoles(ctx);
+
   const existingAssignment = await ctx.db
     .query("userRoles")
     .withIndex("by_userId_propertyId", (q) =>
@@ -17,7 +40,9 @@ export async function assignAdministratorRoleForProperty(
     return existingAssignment._id;
   }
 
-  const adminRoleId = await ensureAdministratorRole(ctx);
+  const adminRoleId =
+    seeded.find((role) => role.name === ADMINISTRATOR_ROLE_NAME)?.roleId ??
+    (await ensureAdministratorRole(ctx));
 
   return await ctx.db.insert("userRoles", {
     userId,
@@ -28,133 +53,77 @@ export async function assignAdministratorRoleForProperty(
   });
 }
 
-export const ADMINISTRATOR_ROLE_NAME = "Administrator";
-
-export const ADMINISTRATOR_PERMISSIONS: Record<string, boolean> = {
-  "users.read": true,
-  "users.create": true,
-  "users.update": true,
-  "users.delete": true,
-  "roles.read": true,
-  "roles.create": true,
-  "roles.update": true,
-  "roles.delete": true,
-  "properties.read": true,
-  "properties.create": true,
-  "properties.update": true,
-  "properties.delete": true,
-  "staff.read": true,
-  "staff.create": true,
-  "staff.update": true,
-  "staff.delete": true,
-  "staff.compensation.read": true,
-  "staff.compensation.update": true,
-  "staff.self.read": true,
-  "reservations.read": true,
-  "reservations.create": true,
-  "reservations.update": true,
-  "reservations.delete": true,
-  "rooms.read": true,
-  "rooms.update": true,
-  "rooms.delete": true,
-  "fnb.read": true,
-  "fnb.create": true,
-  "fnb.update": true,
-  "fnb.delete": true,
-  "inventory.read": true,
-  "inventory.create": true,
-  "inventory.update": true,
-  "inventory.delete": true,
-  "inventory.po.pay": true,
-  "financial.read": true,
-  "financial.create": true,
-  "financial.update": true,
-  "financial.delete": true,
-  "expenses.read": true,
-  "expenses.create": true,
-  "expenses.approve": true,
-  "billing.account.read": true,
-  "billing.account.create": true,
-  "billing.account.update": true,
-  "billing.period.read": true,
-  "billing.period.update": true,
-  "billing.pay": true,
-  "payroll.employee.read": true,
-  "payroll.employee.create": true,
-  "payroll.employee.update": true,
-  "payroll.timesheet.read": true,
-  "payroll.timesheet.create": true,
-  "payroll.timesheet.update": true,
-  "payroll.timesheet.approve": true,
-  "payroll.leave.read": true,
-  "payroll.leave.create": true,
-  "payroll.leave.approve": true,
-  "payroll.run.read": true,
-  "payroll.run.create": true,
-  "payroll.run.calculate": true,
-  "payroll.run.approve": true,
-  "payroll.run.export": true,
-  "payroll.run.mark_paid": true,
-  "payroll.payslip.read": true,
-  "payroll.settings.update": true,
-  "payroll.read": true,
-  "payroll.create": true,
-  "payroll.update": true,
-  "payroll.approve": true,
-  "payroll.export": true,
-  "payroll.settings": true,
-  "reports.read": true,
-  "reports.create": true,
-  "reports.export": true,
-  "system.admin": true,
-  "system.settings": true,
-  "system.audit": true,
-};
-
-const LEGACY_ADMIN_ROLE_NAMES = new Set(["admin", "administrator", "admin role", "system admin"]);
-
-function isLegacyAdminRoleName(name: string): boolean {
-  return LEGACY_ADMIN_ROLE_NAMES.has(name.trim().toLowerCase());
-}
-
-export async function ensureAdministratorRole(ctx: MutationCtx): Promise<Id<"roles">> {
+async function upsertSystemRole(
+  ctx: MutationCtx,
+  name: string,
+  description: string,
+  permissions: Record<string, boolean>,
+): Promise<Id<"roles">> {
   const now = Date.now();
 
-  const existingAdministrator = await ctx.db
+  const existing = await ctx.db
     .query("roles")
-    .withIndex("by_name", (q) => q.eq("name", ADMINISTRATOR_ROLE_NAME))
+    .withIndex("by_name", (q) => q.eq("name", name))
     .first();
 
-  if (existingAdministrator) {
-    await ctx.db.patch(existingAdministrator._id, {
-      description: existingAdministrator.description ?? "Full system access for property owners and IT administrators",
-      permissions: ADMINISTRATOR_PERMISSIONS,
+  if (existing) {
+    await ctx.db.patch(existing._id, {
+      description: existing.description ?? description,
+      permissions,
       isSystemRole: true,
       updatedAt: now,
     });
-    return existingAdministrator._id;
+    return existing._id;
   }
 
-  const allRoles = await ctx.db.query("roles").collect();
-  const legacyAdminRole = allRoles.find((role) => isLegacyAdminRoleName(role.name));
-
-  if (legacyAdminRole) {
-    await ctx.db.patch(legacyAdminRole._id, {
-      name: ADMINISTRATOR_ROLE_NAME,
-      description: legacyAdminRole.description ?? "Full system access for property owners and IT administrators",
-      permissions: ADMINISTRATOR_PERMISSIONS,
-      isSystemRole: true,
-      updatedAt: now,
-    });
-    return legacyAdminRole._id;
+  if (name === ADMINISTRATOR_ROLE_NAME) {
+    const allRoles = await ctx.db.query("roles").collect();
+    const legacyAdminRole = allRoles.find((role) => isLegacyAdminRoleName(role.name));
+    if (legacyAdminRole) {
+      await ctx.db.patch(legacyAdminRole._id, {
+        name: ADMINISTRATOR_ROLE_NAME,
+        description: legacyAdminRole.description ?? description,
+        permissions,
+        isSystemRole: true,
+        updatedAt: now,
+      });
+      return legacyAdminRole._id;
+    }
   }
 
   return await ctx.db.insert("roles", {
-    name: ADMINISTRATOR_ROLE_NAME,
-    description: "Full system access for property owners and IT administrators",
-    permissions: ADMINISTRATOR_PERMISSIONS,
+    name,
+    description,
+    permissions,
     isSystemRole: true,
     createdAt: now,
     updatedAt: now,
   });
+}
+
+export async function ensureAdministratorRole(ctx: MutationCtx): Promise<Id<"roles">> {
+  return await upsertSystemRole(
+    ctx,
+    ADMINISTRATOR_ROLE_NAME,
+    "Full system access for property owners and IT administrators",
+    ADMINISTRATOR_PERMISSIONS,
+  );
+}
+
+/**
+ * Upserts every RBAC system role with the permission map from ai/RBAC.md.
+ * Safe to re-run; refreshes permissions on existing system roles.
+ */
+export async function ensureAllSystemRoles(
+  ctx: MutationCtx,
+): Promise<{ name: string; roleId: Id<"roles"> }[]> {
+  const results: { name: string; roleId: Id<"roles"> }[] = [];
+
+  for (const def of SYSTEM_ROLE_DEFINITIONS) {
+    const permissions = buildRolePermissions(def.name);
+    const roleId = await upsertSystemRole(ctx, def.name, def.description, permissions);
+    results.push({ name: def.name, roleId });
+  }
+
+  return results;
 }
