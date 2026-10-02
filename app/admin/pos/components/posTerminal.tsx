@@ -4,6 +4,7 @@ import { useMutation, useQuery } from 'convex/react'
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
 import { Button } from '../../../../shared/button'
+import ImageThumbnail from '../../../../shared/imageThumbnail'
 import { toast } from 'sonner'
 import { api } from '../../../../convex/_generated/api'
 import { Id } from '../../../../convex/_generated/dataModel'
@@ -387,11 +388,19 @@ export default function PosTerminal() {
                 type="button"
                 disabled={busy || !currentPropertyId || (isRoom && !reservationId && !orderId)}
                 onClick={() => void handleAddBeverage(item._id)}
-                className="text-left border rounded-md p-3 hover:bg-gray-50 disabled:opacity-50"
+                className="text-left border rounded-md p-2 hover:bg-gray-50 disabled:opacity-50 flex items-center gap-2"
               >
-                <div className="font-medium text-sm">{item.name}</div>
-                <div className="text-xs text-gray-500">{item.category}</div>
-                <div className="text-sm mt-1">{money(item.unitPrice)}</div>
+                <ImageThumbnail
+                  src={item.imageUrl}
+                  alt={item.name}
+                  size={48}
+                  className="shrink-0"
+                />
+                <div className="min-w-0">
+                  <div className="font-medium text-sm">{item.name}</div>
+                  <div className="text-xs text-gray-500">{item.category}</div>
+                  <div className="text-sm mt-1">{money(item.unitPrice)}</div>
+                </div>
               </button>
             ))}
             {menu.length === 0 && (
