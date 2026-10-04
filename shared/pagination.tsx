@@ -1,3 +1,4 @@
+import type { FunctionArgs } from 'convex/server';
 import { useMutation, useQuery } from 'convex/react';
 import { Dispatch, SetStateAction, useEffect, useState } from 'react';
 import { api } from '../convex/_generated/api';
@@ -7,6 +8,8 @@ import Spinner from './spinner';
 import Pagination from './ui-pagination';
 import { FcSearch } from 'react-icons/fc';
 import { useDebounce } from 'use-debounce';
+
+type PaginatedArgs = FunctionArgs<typeof api.functions.paginated.getPaginatedData>;
 
 const PEOPLE_SEARCH_TABLES = new Set(['staffs', 'guests']);
 const LOGIN_SEARCH_TABLES = new Set(['users']);
@@ -72,7 +75,7 @@ export default function PaginationComponent({
     skipPaginated
       ? 'skip'
       : {
-          table: collectionName,
+          table: collectionName as PaginatedArgs['table'],
           limit,
           cursor: currentCursor,
           ...(searchTerm ? { searchTerm } : {}),

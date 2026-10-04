@@ -351,7 +351,7 @@ export const createPendingInvite = mutation({
       existingRoleName: null,
       newRoleName: role.name,
     });
-    if (!adminGuard.ok) {
+    if (adminGuard.ok === false) {
       return { success: false, message: adminGuard.message };
     }
 

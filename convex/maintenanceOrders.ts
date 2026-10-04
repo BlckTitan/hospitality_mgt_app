@@ -427,7 +427,7 @@ export const updateMaintenanceOrder = mutation({
           reason: `Used on maintenance: ${existing.title}`,
           performedBy: staff?._id,
         });
-        if (!posted.success) {
+        if (posted.success === false) {
           return { success: false, message: posted.message };
         }
       }

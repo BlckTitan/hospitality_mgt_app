@@ -99,7 +99,7 @@ export const createStoreTransaction = mutation({
         unitCost: await resolveBeverageUnitCost(ctx, beverage),
         now,
       });
-      if (!issued.success) {
+      if (issued.success === false) {
         return { success: false, message: issued.message };
       }
       return { success: true, message: 'Store transaction created successfully', id: issued.transactionId };

@@ -41,7 +41,7 @@ async function receiveLinesIntoStock(
         reason: `Received on PO ${order.orderNumber}`,
         performedBy,
       });
-      if (!posted.success) {
+      if (posted.success === false) {
         return posted;
       }
     }
@@ -226,7 +226,7 @@ export const updatePurchaseOrder = mutation({
       if (args.status === 'received' && existingOrder.status !== 'received') {
         const staff = await currentUsersStaff(ctx, auth.user._id);
         const received = await receiveLinesIntoStock(ctx, existingOrder, staff?._id);
-        if (!received.success) {
+        if (received.success === false) {
           return { success: false, message: received.message };
         }
       }
@@ -435,7 +435,7 @@ export const receivePurchaseOrder = mutation({
     }
     const staff = await currentUsersStaff(ctx, auth.user._id);
     const received = await receiveLinesIntoStock(ctx, order, staff?._id, args.lines);
-    if (!received.success) {
+    if (received.success === false) {
       return { success: false, message: received.message };
     }
 

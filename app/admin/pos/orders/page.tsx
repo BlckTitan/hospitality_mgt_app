@@ -11,8 +11,8 @@ export default function Page() {
         <div className="min-w-0">
           <h1 className="text-2xl font-bold text-gray-800">POS orders</h1>
           <p className="text-gray-600">
-            Open checks, open tabs, settled, and voided orders from the POS terminal. Filter by type or
-            status; pay down tabs from here.
+            Open checks, open tabs, settled, and voided orders from the POS terminal. Find a check by
+            its ID to review items, voids, and payments. Filter by type or status; pay down tabs from here.
           </p>
         </div>
         <BackLink />

@@ -1203,15 +1203,21 @@ export default defineSchema({
     openedAt: v.number(),
     openedAtDateKey: v.string(),
     settledAt: v.optional(v.number()),
+    // Last 6 characters of the order id, shown on the terminal as the check ID.
+    // Optional until existing orders are backfilled.
+    checkSuffix: v.optional(v.string()),
   })
     .index("by_propertyId", ["propertyId"])
     .index("by_propertyId_status", ["propertyId", "status"])
+    .index("by_propertyId_and_orderType", ["propertyId", "orderType"])
+    .index("by_propertyId_and_status_and_orderType", ["propertyId", "status", "orderType"])
     .index("by_propertyId_openedAtDateKey", ["propertyId", "openedAtDateKey"])
     .index("by_propertyId_status_openedAtDateKey", [
       "propertyId",
       "status",
       "openedAtDateKey",
     ])
+    .index("by_propertyId_and_checkSuffix", ["propertyId", "checkSuffix"])
     .index("by_reservationId", ["reservationId"])
     .index("by_serverUserId", ["serverUserId"]),
 

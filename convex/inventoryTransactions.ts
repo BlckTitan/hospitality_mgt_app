@@ -149,7 +149,7 @@ export const createInventoryTransaction = mutation({
         performedBy: args.performedBy,
         transactionDate: args.transactionDate,
       });
-      if (!posted.success) {
+      if (posted.success === false) {
         return { success: false, message: posted.message };
       }
       return { success: true, message: 'Inventory transaction created successfully', id: posted.id };

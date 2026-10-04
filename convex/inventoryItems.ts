@@ -131,7 +131,7 @@ export const createInventoryItem = mutation({
           performedBy: staff?._id,
           transactionDate: now,
         });
-        if (!posted.success) {
+        if (posted.success === false) {
           return { success: false, message: posted.message };
         }
       }

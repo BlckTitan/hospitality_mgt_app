@@ -264,7 +264,7 @@ export const approveStockRequestLine = mutation({
       unitPrice: beverage.unitPrice,
       unitCost: await resolveBeverageUnitCost(ctx, beverage),
     });
-    if (!issued.success) {
+    if (issued.success === false) {
       return { success: false, message: issued.message };
     }
 

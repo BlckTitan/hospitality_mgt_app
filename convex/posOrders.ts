@@ -33,6 +33,18 @@ const tenderLineValidator = v.object({
 
 type DbCtx = MutationCtx | QueryCtx;
 
+function checkSuffixFromId(orderId: Id<'orders'>): string {
+  return String(orderId).slice(-6);
+}
+
+function normalizeCheckQuery(raw: string): string {
+  let value = raw.trim();
+  if (value.startsWith('#')) value = value.slice(1).trim();
+  const prefixed = value.match(/^check\s+(.+)$/i);
+  if (prefixed) value = prefixed[1].trim();
+  return value;
+}
+
 async function recomputeOrderTotals(ctx: MutationCtx, orderId: Id<'orders'>) {
   const lines = await ctx.db
     .query('orderLines')
@@ -237,46 +249,72 @@ export const listOrders = query({
     status: v.optional(orderStatusValidator),
     orderType: v.optional(orderTypeValidator),
     dateKey: v.optional(v.string()),
+    cursor: v.optional(v.union(v.string(), v.null())),
+    limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     await requirePermission(ctx, 'fnb.read', args.propertyId);
-    let rows: Doc<'orders'>[];
-    if (args.status && args.dateKey) {
-      rows = await ctx.db
-        .query('orders')
-        .withIndex('by_propertyId_status_openedAtDateKey', (q) =>
-          q
-            .eq('propertyId', args.propertyId)
-            .eq('status', args.status!)
-            .eq('openedAtDateKey', args.dateKey!),
-        )
-        .collect();
-    } else if (args.status) {
-      rows = await ctx.db
-        .query('orders')
-        .withIndex('by_propertyId_status', (q) =>
-          q.eq('propertyId', args.propertyId).eq('status', args.status!),
-        )
-        .collect();
-    } else if (args.dateKey) {
-      rows = await ctx.db
-        .query('orders')
-        .withIndex('by_propertyId_openedAtDateKey', (q) =>
-          q.eq('propertyId', args.propertyId).eq('openedAtDateKey', args.dateKey!),
-        )
-        .collect();
-    } else {
-      rows = await ctx.db
-        .query('orders')
-        .withIndex('by_propertyId', (q) => q.eq('propertyId', args.propertyId))
-        .collect();
-    }
-    if (args.orderType) {
-      rows = rows.filter((row) => row.orderType === args.orderType);
-    }
-    rows.sort((a, b) => b.openedAt - a.openedAt);
-    const data = await Promise.all(rows.slice(0, 200).map((order) => enrichOrder(ctx, order)));
-    return { success: true, data };
+    const limit = Math.min(Math.max(args.limit ?? 10, 1), 50);
+    const paginationOpts = { numItems: limit, cursor: args.cursor ?? null };
+    const propertyId = args.propertyId;
+
+    const pageResult =
+      args.status && args.orderType
+        ? await ctx.db
+            .query('orders')
+            .withIndex('by_propertyId_and_status_and_orderType', (q) =>
+              q.eq('propertyId', propertyId).eq('status', args.status!).eq('orderType', args.orderType!),
+            )
+            .order('desc')
+            .paginate(paginationOpts)
+        : args.status && args.dateKey
+          ? await ctx.db
+              .query('orders')
+              .withIndex('by_propertyId_status_openedAtDateKey', (q) =>
+                q
+                  .eq('propertyId', propertyId)
+                  .eq('status', args.status!)
+                  .eq('openedAtDateKey', args.dateKey!),
+              )
+              .order('desc')
+              .paginate(paginationOpts)
+          : args.status
+            ? await ctx.db
+                .query('orders')
+                .withIndex('by_propertyId_status', (q) =>
+                  q.eq('propertyId', propertyId).eq('status', args.status!),
+                )
+                .order('desc')
+                .paginate(paginationOpts)
+            : args.orderType
+              ? await ctx.db
+                  .query('orders')
+                  .withIndex('by_propertyId_and_orderType', (q) =>
+                    q.eq('propertyId', propertyId).eq('orderType', args.orderType!),
+                  )
+                  .order('desc')
+                  .paginate(paginationOpts)
+              : args.dateKey
+                ? await ctx.db
+                    .query('orders')
+                    .withIndex('by_propertyId_openedAtDateKey', (q) =>
+                      q.eq('propertyId', propertyId).eq('openedAtDateKey', args.dateKey!),
+                    )
+                    .order('desc')
+                    .paginate(paginationOpts)
+                : await ctx.db
+                    .query('orders')
+                    .withIndex('by_propertyId', (q) => q.eq('propertyId', propertyId))
+                    .order('desc')
+                    .paginate(paginationOpts);
+
+    const page = await Promise.all(pageResult.page.map((order) => enrichOrder(ctx, order)));
+    return {
+      success: true,
+      page,
+      isDone: pageResult.isDone,
+      continueCursor: pageResult.continueCursor,
+    };
   },
 });
 
@@ -318,13 +356,110 @@ export const getOrder = query({
     }
     await requirePermission(ctx, 'fnb.read', order.propertyId);
     const data = await enrichOrder(ctx, order);
-    const payments = await ctx.db
-      .query('payments')
-      .withIndex('by_reference', (q) =>
-        q.eq('referenceType', 'Order').eq('referenceId', args.orderId),
+    const [server, payments] = await Promise.all([
+      ctx.db.get(order.serverUserId),
+      ctx.db
+        .query('payments')
+        .withIndex('by_reference', (q) =>
+          q.eq('referenceType', 'Order').eq('referenceId', args.orderId),
+        )
+        .collect(),
+    ]);
+    const paymentsWithNames = await Promise.all(
+      payments.map(async (payment) => {
+        const createdBy = await ctx.db.get(payment.createdBy);
+        return { ...payment, createdByName: createdBy?.name ?? null };
+      }),
+    );
+    paymentsWithNames.sort((a, b) => a.createdAt - b.createdAt);
+    return {
+      success: true,
+      data: { ...data, payments: paymentsWithNames, serverName: server?.name ?? null },
+    };
+  },
+});
+
+export const findOrdersByCheckId = query({
+  args: {
+    propertyId: v.id('properties'),
+    checkId: v.string(),
+    status: v.optional(orderStatusValidator),
+    orderType: v.optional(orderTypeValidator),
+  },
+  handler: async (ctx, args) => {
+    await requirePermission(ctx, 'fnb.read', args.propertyId);
+    const checkId = normalizeCheckQuery(args.checkId);
+    if (checkId.length < 6) {
+      return {
+        success: true,
+        data: [],
+        message: 'Enter the last 6 characters of the check ID, or the full ID',
+      };
+    }
+
+    const exactId = ctx.db.normalizeId('orders', checkId);
+    if (exactId) {
+      const order = await ctx.db.get(exactId);
+      if (!order || order.propertyId !== args.propertyId) {
+        return { success: true, data: [], message: 'No check found for that ID' };
+      }
+      if (args.status && order.status !== args.status) {
+        return { success: true, data: [], message: 'No check found for that ID with the current filters' };
+      }
+      if (args.orderType && order.orderType !== args.orderType) {
+        return { success: true, data: [], message: 'No check found for that ID with the current filters' };
+      }
+      return { success: true, data: [await enrichOrder(ctx, order)], message: null };
+    }
+
+    if (checkId.length !== 6) {
+      return { success: true, data: [], message: 'No check found for that ID' };
+    }
+
+    const indexed = await ctx.db
+      .query('orders')
+      .withIndex('by_propertyId_and_checkSuffix', (q) =>
+        q.eq('propertyId', args.propertyId).eq('checkSuffix', checkId),
       )
-      .collect();
-    return { success: true, data: { ...data, payments } };
+      .take(50);
+    let rows = indexed;
+    if (args.status) rows = rows.filter((row) => row.status === args.status);
+    if (args.orderType) rows = rows.filter((row) => row.orderType === args.orderType);
+    rows.sort((a, b) => b.openedAt - a.openedAt);
+    const data = await Promise.all(rows.map((order) => enrichOrder(ctx, order)));
+    return {
+      success: true,
+      data,
+      message:
+        data.length === 0
+          ? indexed.length > 0
+            ? 'No check found for that ID with the current filters'
+            : 'No check found for that ID'
+          : null,
+    };
+  },
+});
+
+export const backfillOrderCheckSuffix = mutation({
+  args: {
+    propertyId: v.id('properties'),
+    cursor: v.optional(v.union(v.string(), v.null())),
+  },
+  handler: async (ctx, args) => {
+    await requirePermission(ctx, 'fnb.read', args.propertyId);
+    const page = await ctx.db
+      .query('orders')
+      .withIndex('by_propertyId', (q) => q.eq('propertyId', args.propertyId))
+      .paginate({ numItems: 100, cursor: args.cursor ?? null });
+    let patched = 0;
+    for (const row of page.page) {
+      const checkSuffix = checkSuffixFromId(row._id);
+      if (row.checkSuffix !== checkSuffix) {
+        await ctx.db.patch(row._id, { checkSuffix });
+        patched += 1;
+      }
+    }
+    return { done: page.isDone, continueCursor: page.continueCursor, patched };
   },
 });
 
@@ -434,6 +569,7 @@ export const createOrder = mutation({
       openedAt: now,
       openedAtDateKey,
     });
+    await ctx.db.patch(orderId, { checkSuffix: checkSuffixFromId(orderId) });
     return { success: true, data: { orderId }, message: 'Order opened' };
   },
 });

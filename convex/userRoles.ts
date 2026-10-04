@@ -96,7 +96,7 @@ export const createUserRole = mutation({
         existingRoleName: null,
         newRoleName: role.name,
       });
-      if (!adminGuard.ok) {
+      if (adminGuard.ok === false) {
         return { success: false, message: adminGuard.message };
       }
 
@@ -166,7 +166,7 @@ export const updateUserRole = mutation({
           args.propertyId === existingUserRole.propertyId ? role.name : null,
         excludeUserRoleId: args.userRole_id,
       });
-      if (!oldPropertyGuard.ok) {
+      if (oldPropertyGuard.ok === false) {
         return { success: false, message: oldPropertyGuard.message };
       }
 
@@ -177,7 +177,7 @@ export const updateUserRole = mutation({
           existingRoleName: null,
           newRoleName: role.name,
         });
-        if (!newPropertyGuard.ok) {
+        if (newPropertyGuard.ok === false) {
           return { success: false, message: newPropertyGuard.message };
         }
       }
@@ -216,7 +216,7 @@ export const deleteUserRole = mutation({
         newRoleName: null,
         excludeUserRoleId: args.userRole_id,
       });
-      if (!adminGuard.ok) {
+      if (adminGuard.ok === false) {
         return { success: false, message: adminGuard.message };
       }
 
