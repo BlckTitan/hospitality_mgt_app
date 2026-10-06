@@ -1,4 +1,15 @@
+import path from "node:path";
 import type { NextConfig } from "next";
+
+// `proxy.ts` imports ConvexHttpClient from `convex/browser`. On the Node.js
+// runtime that Next.js 16 uses for proxy, that export resolves to the Node
+// build, which calls createRequire(".") to load the `ws` client. Netlify
+// bundles that proxy as an Edge Function and rejects that call. The HTTP
+// client is the same fetch implementation in the browser build.
+const convexBrowserHttpClient = path.join(
+  process.cwd(),
+  "node_modules/convex/dist/esm/browser/http_client.js",
+);
 
 const nextConfig: NextConfig = {
   /* config options here */
@@ -14,7 +25,27 @@ const nextConfig: NextConfig = {
       'lucide-react',
     ],
   },
-  turbopack: {},
+  turbopack: {
+    resolveAlias: {
+      "convex/browser": "./node_modules/convex/dist/esm/browser/http_client.js",
+    },
+  },
+  webpack: (config) => {
+    config.resolve ??= {};
+    const alias = config.resolve.alias;
+    if (Array.isArray(alias)) {
+      alias.push({
+        name: "convex/browser$",
+        alias: convexBrowserHttpClient,
+      });
+    } else {
+      config.resolve.alias = {
+        ...(alias ?? {}),
+        "convex/browser$": convexBrowserHttpClient,
+      };
+    }
+    return config;
+  },
   images: {
     formats: ['image/webp', 'image/avif'],
     remotePatterns: [
