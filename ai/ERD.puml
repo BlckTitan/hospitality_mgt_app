@@ -164,8 +164,8 @@ package "Room Management" {
     }
 }
 
-package "Food & Beverage" {
-    class FnbMenuItem {
+package "Restaurant (live)" {
+    class RestaurantMenuItem {
         + menuItemId : PK
         + propertyId : FK
         + name : String
@@ -205,7 +205,7 @@ package "Food & Beverage" {
         + updatedAt : Timestamp
     }
 
-    class Table {
+    class RestaurantTable {
         + tableId : PK
         + propertyId : FK
         + tableNumber : String
@@ -218,7 +218,7 @@ package "Food & Beverage" {
         + updatedAt : Timestamp
     }
 
-    class Order {
+    class RestaurantOrder {
         + orderId : PK
         + propertyId : FK
         + tableId : FK
@@ -235,7 +235,7 @@ package "Food & Beverage" {
         + completedAt : Timestamp
     }
 
-    class OrderLine {
+    class RestaurantOrderLine {
         + orderLineId : PK
         + orderId : FK
         + menuItemId : FK
@@ -678,18 +678,18 @@ Guest ||--o{ Reservation : "makes"
 User ||--o{ Reservation : "books"
 Employee ||--o{ HousekeepingTask : "assigned to"
 
-' Food & Beverage Relationships
-Property ||--o{ FnbMenuItem : "has"
-Property ||--o{ Table : "has"
-Property ||--o{ Order : "has"
-FnbMenuItem ||--o| Recipe : "has"
-FnbMenuItem ||--o{ OrderLine : "ordered as"
+' Restaurant Relationships (live). Beverages entities: see Bar ERD/PRD.
+Property ||--o{ RestaurantMenuItem : "has"
+Property ||--o{ RestaurantTable : "has"
+Property ||--o{ RestaurantOrder : "has"
+RestaurantMenuItem ||--o| Recipe : "has"
+RestaurantMenuItem ||--o{ RestaurantOrderLine : "ordered as"
 Recipe ||--o{ RecipeLine : "contains"
 InventoryItem ||--o{ RecipeLine : "used in"
-Table ||--o{ Order : "serves"
-Reservation ||--o{ Order : "room service"
-Order ||--o{ OrderLine : "contains"
-Employee ||--o{ Order : "serves"
+RestaurantTable ||--o{ RestaurantOrder : "serves"
+Reservation ||--o{ RestaurantOrder : "room service"
+RestaurantOrder ||--o{ RestaurantOrderLine : "contains"
+Employee ||--o{ RestaurantOrder : "serves"
 
 ' Inventory Management Relationships
 Property ||--o{ InventoryItem : "has"

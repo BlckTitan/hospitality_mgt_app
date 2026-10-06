@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import React, { useEffect, useState } from 'react'
 import ClerkUiMount from '../components/ClerkUiMount'
 import { FcPhone, FcSalesPerformance , FcConferenceCall, FcMoneyTransfer , FcList, FcDepartment, FcManager } from "react-icons/fc";
-import { IoFastFoodOutline } from "react-icons/io5";
+import { IoFastFoodOutline, IoRestaurantOutline } from "react-icons/io5";
 import { MdLogout, MdOutlineBedroomChild, MdMenu, MdClose } from 'react-icons/md';
 import { RxDashboard, RxCaretDown } from "react-icons/rx";
 import { usePermissions } from '../hooks/usePermissions';
@@ -28,6 +28,16 @@ const navItems = [
       { id: 404, href: '/admin/bar-management/store-inventory', label: 'Store Inventory'}, 
       { id: 405, href: '/admin/bar-management/store-transactions', label: 'Store Transactions'},
       { id: 408, href: '/admin/bar-management/store-count', label: 'Store Count'},
+    ]
+  },
+  { id: 14, href: "/admin/restaurant", label: "Restaurant", icon: <IoRestaurantOutline className="!text-orange-700"/>,
+    subLink: [
+      { id: 1401, href: '/admin/restaurant/menu-items', label: 'Menu items' },
+      { id: 1402, href: '/admin/restaurant/recipes', label: 'Recipes' },
+      { id: 1403, href: '/admin/restaurant/tables', label: 'Tables' },
+      { id: 1404, href: '/admin/restaurant/pos', label: 'Restaurant POS' },
+      { id: 1405, href: '/admin/restaurant/orders', label: 'Orders' },
+      { id: 1406, href: '/admin/restaurant/kitchen', label: 'Kitchen board' },
     ]
   },
   { id: 5, href: "/#", label: "Expense Tracker", icon: <FcMoneyTransfer /> },
@@ -108,13 +118,13 @@ export default function Navigation() {
     <nav className="w-full h-14 flex items-center fixed top-0 main_nav z-30 bg-white shadow-blue-100 shadow-sm overflow-visible">
       <div className="w-full h-full flex items-center px-4 lg:px-16 bg-white overflow-visible">
         <div className="w-full h-full flex justify-between items-center gap-4 overflow-visible">
-          <div className="w-auto shrink-0 flex items-center justify-between gap-2">
+          <div className="w-full lg:w-auto shrink-0 flex items-center justify-between gap-2">
             <Link href="/" className="site_sub_title !text-lg lg:!text-xl font-semibold text-neutral-900 no-underline text-left">
               Hospitality Manager
             </Link>
             <button
               type="button"
-              className="lg:hidden inline-flex h-10 w-10 items-center justify-center rounded-md text-neutral-800"
+              className="lg:hidden inline-flex h-10 w-10 items-center justify-center rounded-md text-neutral-800 bg-red-500"
               aria-label={menuOpen ? 'Close menu' : 'Open menu'}
               aria-expanded={menuOpen}
               onClick={() => setMenuOpen((v) => !v)}

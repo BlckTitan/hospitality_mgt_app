@@ -40,7 +40,7 @@ Country cannot change after an approved or paid Payroll.
 
 Who: HR / supervisors who can update staff.
 
-- One default working-hours template per department (F&B also needs a default bar).
+- One default working-hours template per department (Beverages also needs a default bar).
 - New staff inherit the default template for their department. If none exists yet, create the shift first.
 
 ### Attendance Tracker — `/admin/shift-management/attendance`

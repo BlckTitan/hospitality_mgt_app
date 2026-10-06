@@ -19,6 +19,7 @@ const departmentValidator = v.union(
   v.literal('front-office'),
   v.literal('housekeeping'),
   v.literal('fnb'),
+  v.literal('restaurant'),
   v.literal('maintenance'),
   v.literal('finance'),
   v.literal('admin'),

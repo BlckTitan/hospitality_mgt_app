@@ -69,7 +69,8 @@ Summaries are tabs (inventory-hub button style). Default tab is **P&L / RevPAR**
 | Rooms | `rooms.read` or `reservations.read` | Occupancy counts; today’s arrivals / departures / in-house | Rooms / Reservations |
 | Housekeeping | `housekeeping.task.read` | Open / overdue / unassigned counts; up to 5 overdue titles | Housekeeping board |
 | Inventory | `inventory.read` | Active items, stock value, low stock, open POs | Inventory hub |
-| F&B today | `fnb.read` | Today’s POS qty + guest revenue (settled checks + paid open-tab amounts); waste/comps and open stock logs from float; open reorder count if `inventory.read` | POS (`/admin/pos`); stock hub (`/admin/bar-management`) |
+| Beverages today | `fnb.read` (target `beverages.read`) | Today’s POS qty + guest revenue (settled checks + paid open-tab amounts); waste/comps and open stock logs from float; open reorder count if `inventory.read` | POS (`/admin/pos`); stock hub (`/admin/bar-management`) |
+| Restaurant today | `restaurant.read` | Today’s restaurant revenue, food cost %, open checks, occupied tables | `/admin/restaurant` |
 | Billing | `billing.period.read` | Account count, overdue, due this week | Billing hub |
 
 Do **not** put My shift or My tasks on this page.
@@ -87,8 +88,9 @@ Money: format with the selected property’s `currency` (same pattern as invento
 **Revenue**
 
 - Rooms: overlapping nights of `confirmed` / `checked-in` / `checked-out` reservations in the period. Nightly amount is `rate` when `rate > 0`, otherwise `totalAmount / stay nights`.
-- F&B: settled POS `orders.totalAmount` (plus `amountPaid` on `open_tab`) whose `openedAtDateKey` is in `[start, end)` property-local keys. Stock-implied `userStockLogs.salesValue` is **not** included (avoids double count); it remains on the bar hub as control.
-- Total revenue = rooms + F&B (POS).
+- Beverages: settled beverage POS `orders.totalAmount` (plus `amountPaid` on `open_tab`) whose `openedAtDateKey` is in `[start, end)` property-local keys. Stock-implied `userStockLogs.salesValue` is **not** included (avoids double count); it remains on the bar hub as control.
+- Restaurant: settled / open_tab `restaurantOrders` totals (`restaurantRevenue`) — do not merge with beverage `orders`.
+- Total revenue = rooms + Beverages (POS) + Restaurant.
 
 **Expenses**
 
@@ -137,14 +139,18 @@ See **P&L / RevPAR** above.
 - Count open / overdue / unassigned from `housekeepingTasks` `by_propertyId` without enriching every row
 - Up to 5 overdue titles: `taskType`, room number, `dueAt`
 
-### `getFnBTodaySnapshot`
+### `getBeveragesTodaySnapshot` (target name; live may still be `getFnBTodaySnapshot`)
 
-`fnb.read`.
+`beverages.read` (live code may still check `fnb.read` until migration).
 
 - Today’s `userStockLogs` for the property (index `by_propertyId_logDate` on `userStockLogs`)
 - Return `totalQtySold`, `totalRevenue`, `openLogCount`, `finalizedLogCount`
 - Property currency/timezone. Do not use `salesSummaries` for this card.
 - Drill-through: Bar Management hub for Daily/Weekly/Monthly/Yearly/YoY charts and health KPIs (`getBarHealthMetrics`).
+
+### `getRestaurantTodaySnapshot` (live)
+
+`restaurant.read`. Guest restaurant revenue + food cost % for property-local today; open checks; occupied tables. Drill-through: `/admin/restaurant`. Do not merge with Beverages today / `getFnBTodaySnapshot`.
 
 ---
 

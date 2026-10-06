@@ -19,7 +19,7 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermission> = {
   '/admin/staff': { granular: 'staff.read' },
   '/admin/staff/myProfile': { granular: 'staff.self.read' },
 
-  // Bar Management (Food & Beverage)
+  // Bar Management (Beverages)
   '/admin/bar-management': { granular: 'fnb.read' },
   '/admin/bar-management/bar': { granular: 'fnb.read' },
   '/admin/bar-management/beverages': { granular: 'fnb.read' },
@@ -33,6 +33,15 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermission> = {
   '/admin/bar-management/store-inventory': { granular: 'inventory.read' },
   '/admin/bar-management/store-transactions': { granular: 'inventory.read' },
   '/admin/bar-management/store-count': { granular: 'inventory.read' },
+
+  // Restaurant (independent of Beverages)
+  '/admin/restaurant': { granular: 'restaurant.read' },
+  '/admin/restaurant/menu-items': { granular: 'restaurant.read' },
+  '/admin/restaurant/recipes': { granular: 'restaurant.read' },
+  '/admin/restaurant/tables': { granular: 'restaurant.read' },
+  '/admin/restaurant/pos': { granular: 'restaurant.read' },
+  '/admin/restaurant/orders': { granular: 'restaurant.read' },
+  '/admin/restaurant/kitchen': { granular: 'restaurant.read' },
 
   // Inventory Management
   '/admin/inventory-management': { granular: 'inventory.read' },

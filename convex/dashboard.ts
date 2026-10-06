@@ -5,6 +5,7 @@ import { localDayBounds, propertyTimeZone } from './lib/billingPeriods';
 import { isOpenStatus, MODULE_PERMS } from './lib/taskAssignment';
 import { EXPENSE_CATEGORIES } from './lib/postCashOutflow';
 import { sumPosGuestRevenue } from './posOrders';
+import { sumRestaurantGuestRevenue } from './restaurantOrders';
 
 const DAY_MS = 86_400_000;
 const COUNTED_RESERVATION_STATUSES = new Set(['confirmed', 'checked-in', 'checked-out']);
@@ -297,6 +298,98 @@ export const getFnBTodaySnapshot = query({
   },
 });
 
+export const getRestaurantTodaySnapshot = query({
+  args: { propertyId: v.id('properties') },
+  handler: async (ctx, args) => {
+    await requirePermission(ctx, 'restaurant.read', args.propertyId);
+
+    const property = await ctx.db.get(args.propertyId);
+    const { dateKey } = localDayBounds(Date.now(), propertyTimeZone(property));
+    const nextKey = (() => {
+      const d = new Date(`${dateKey}T12:00:00.000Z`);
+      d.setUTCDate(d.getUTCDate() + 1);
+      return d.toISOString().slice(0, 10);
+    })();
+
+    const revenueBundle = await sumRestaurantGuestRevenue(ctx, {
+      propertyId: args.propertyId,
+      startDateKey: dateKey,
+      endDateKeyExclusive: nextKey,
+    });
+
+    // Food cost from completed (settled) orders' recipe/menu costs when available.
+    const settledToday = await ctx.db
+      .query('restaurantOrders')
+      .withIndex('by_propertyId_status_openedAtDateKey', (q) =>
+        q
+          .eq('propertyId', args.propertyId)
+          .eq('status', 'settled')
+          .eq('openedAtDateKey', dateKey),
+      )
+      .collect();
+
+    let foodCost = 0;
+    for (const order of settledToday) {
+      if (!order.completedAt) continue;
+      const lines = await ctx.db
+        .query('restaurantOrderLines')
+        .withIndex('by_orderId', (q) => q.eq('orderId', order._id))
+        .collect();
+      for (const line of lines) {
+        if (line.lineStatus !== 'active') continue;
+        const menuItem = await ctx.db.get(line.menuItemId);
+        if (menuItem?.cost !== undefined) {
+          foodCost += menuItem.cost * line.quantity;
+        } else {
+          const recipe = await ctx.db
+            .query('recipes')
+            .withIndex('by_menuItemId', (q) => q.eq('menuItemId', line.menuItemId))
+            .first();
+          if (recipe?.totalCost !== undefined) {
+            const servings = recipe.servings > 0 ? recipe.servings : 1;
+            foodCost += (recipe.totalCost / servings) * line.quantity;
+          }
+        }
+      }
+    }
+
+    const revenue = revenueBundle.totalRevenue;
+    const foodCostPercent = revenue > 0 ? (foodCost / revenue) * 100 : 0;
+
+    const openOrders = await ctx.db
+      .query('restaurantOrders')
+      .withIndex('by_propertyId_status', (q) =>
+        q.eq('propertyId', args.propertyId).eq('status', 'open'),
+      )
+      .collect();
+    const openTabs = await ctx.db
+      .query('restaurantOrders')
+      .withIndex('by_propertyId_status', (q) =>
+        q.eq('propertyId', args.propertyId).eq('status', 'open_tab'),
+      )
+      .collect();
+
+    const occupiedTables = await ctx.db
+      .query('restaurantTables')
+      .withIndex('by_propertyId_status', (q) =>
+        q.eq('propertyId', args.propertyId).eq('status', 'occupied'),
+      )
+      .collect();
+
+    return {
+      success: true,
+      data: {
+        dateKey,
+        revenue,
+        foodCost,
+        foodCostPercent,
+        openOrders: openOrders.length + openTabs.length,
+        occupiedTables: occupiedTables.filter((t) => t.isActive).length,
+      },
+    };
+  },
+});
+
 export const getFinancialReport = query({
   args: {
     propertyId: v.id('properties'),
@@ -394,6 +487,13 @@ export const getFinancialReport = query({
     const fnbRevenue = pos.totalRevenue;
     const fnbQtySold = pos.totalQtySold;
 
+    const restaurantPos = await sumRestaurantGuestRevenue(ctx, {
+      propertyId: args.propertyId,
+      startDateKey: startKey,
+      endDateKeyExclusive: endKey,
+    });
+    const restaurantRevenue = restaurantPos.totalRevenue;
+
     const expenses = await ctx.db
       .query('expenses')
       .withIndex('by_propertyId_expenseDate', (q) =>
@@ -435,7 +535,7 @@ export const getFinancialReport = query({
       }
     }
 
-    const totalRevenue = roomRevenue + fnbRevenue;
+    const totalRevenue = roomRevenue + fnbRevenue + restaurantRevenue;
     const gop = totalRevenue - totalExpenses;
     const occupancyRate = availableRoomNights === 0 ? 0 : (roomsSoldNights / availableRoomNights) * 100;
     const adr = roomsSoldNights === 0 ? 0 : roomRevenue / roomsSoldNights;
@@ -463,6 +563,7 @@ export const getFinancialReport = query({
         fnbRevenue,
         fnbQtySold,
         fnbRevenueSource: 'pos' as const,
+        restaurantRevenue,
         stockImpliedRevenue,
         stockImpliedQty,
         totalRevenue,

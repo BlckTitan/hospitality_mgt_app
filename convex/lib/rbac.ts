@@ -24,7 +24,7 @@ type Ctx = QueryCtx | MutationCtx;
 function isModule(value: string): value is Module {
   return [
     "users", "roles", "properties", "staff", "reservations", "rooms", "fnb",
-    "inventory", "financial", "finance", "reports", "system", "maintenance",
+    "restaurant", "inventory", "financial", "finance", "reports", "system", "maintenance",
     "security", "expenses", "payroll",
   ].includes(value);
 }

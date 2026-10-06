@@ -249,17 +249,20 @@ interface TaskAssignment {
 
 ---
 
-## Food & Beverage Management Interfaces
+## Restaurant Management Interfaces
 
-### FnbMenuItem
+*(Live — independent of Beverages. Spec: `ai/Restaurant management system design PRD.md`. Aligned with `convex/schema.ts`.)*
+
+### RestaurantMenuItem
 ```typescript
-interface FnbMenuItem {
+interface RestaurantMenuItem {
   menuItemId: string;
   propertyId: string;
   name: string;
   description?: string;
   category: string;
   subcategory?: string;
+  station: 'kitchen' | 'grill' | 'other'; // kitchen + grill share Restaurant
   price: number;
   cost?: number;
   isAvailable: boolean;
@@ -275,7 +278,8 @@ interface FnbMenuItem {
 ```typescript
 interface Recipe {
   recipeId: string;
-  menuItemId: string;
+  propertyId: string;
+  menuItemId: string; // restaurantMenuItems
   name: string;
   servings: number;
   instructions?: string;
@@ -300,9 +304,9 @@ interface RecipeLine {
 }
 ```
 
-### Table
+### RestaurantTable
 ```typescript
-interface Table {
+interface RestaurantTable {
   tableId: string;
   propertyId: string;
   tableNumber: string;
@@ -316,37 +320,47 @@ interface Table {
 }
 ```
 
-### Order
+### RestaurantOrder
 ```typescript
-interface Order {
+interface RestaurantOrder {
   orderId: string;
   propertyId: string;
   tableId?: string;
   reservationId?: string;
-  orderType: 'dine-in' | 'takeout' | 'room-service' | 'bar';
-  status: 'pending' | 'in-progress' | 'ready' | 'completed' | 'cancelled';
+  orderType: 'dine_in' | 'takeout' | 'room_service';
+  status: 'open' | 'open_tab' | 'settled' | 'voided';
+  serverUserId: string;
+  guestLabel?: string;
   subtotal: number;
   taxAmount: number;
-  discountAmount: number;
+  discountAmount?: number;
   totalAmount: number;
-  serverId: string; // Employee ID
-  createdAt: Date;
-  updatedAt: Date;
+  amountPaid: number;
+  balanceDue: number;
+  openedAt: Date;
+  openedAtDateKey: string;
+  settledAt?: Date;
   completedAt?: Date;
+  checkSuffix?: string;
+  inventoryDeductedAt?: Date;
 }
 ```
 
-### OrderLine
+### RestaurantOrderLine
 ```typescript
-interface OrderLine {
+interface RestaurantOrderLine {
   orderLineId: string;
+  propertyId: string;
   orderId: string;
   menuItemId: string;
+  nameSnapshot: string;
+  unitPriceSnapshot: number;
   quantity: number;
-  unitPrice: number;
-  totalPrice: number;
+  lineTotal: number;
   specialInstructions?: string;
-  status: 'pending' | 'preparing' | 'ready' | 'served' | 'cancelled';
+  lineStatus: 'active' | 'voided';
+  prepStatus: 'pending' | 'preparing' | 'ready' | 'served' | 'cancelled';
+  station: 'kitchen' | 'grill' | 'other';
   createdAt: Date;
   updatedAt: Date;
 }
@@ -490,7 +504,8 @@ type PayFrequency = 'weekly' | 'bi-weekly' | 'monthly';
 type Department =
   | 'front-office'
   | 'housekeeping'
-  | 'fnb'
+  | 'beverages'
+  | 'restaurant'
   | 'maintenance'
   | 'finance'
   | 'admin'
@@ -707,7 +722,7 @@ interface ShiftTemplate {
   name: string;
   startTime: string; // expected HH:MM
   endTime: string;
-  barId?: string; // required when department is fnb
+  barId?: string; // required when department is beverages
   isDefault: boolean;
   isActive: boolean;
   createdAt: Date;
@@ -742,7 +757,7 @@ interface Shift {
   propertyId: string;
   employeeId?: string;
   userId?: string;
-  barId?: string; // required only for F&B
+  barId?: string; // required only for Beverages
   department?: Department;
   shiftDate: string;
   startTime: string; // actual clock

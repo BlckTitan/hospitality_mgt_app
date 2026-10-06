@@ -307,18 +307,21 @@ Lead and helpers for one work record. Schema table: `taskAssignments`. Replaces 
 
 ---
 
-### Food & Beverage Management Entities
+### Restaurant Management Entities (live)
 
-#### FnbMenuItem
-Represents menu items (food, beverages) available for sale.
+Aligned with `convex/schema.ts`. Beverage sellables remain in the Beverages module (`ai/Bar inventory and sales management system design ERD.md`). Do not merge beverage orders with restaurant orders.
+
+#### RestaurantMenuItem
+Represents restaurant menu items available for sale. Beverage sellables live in the Beverages module.
 
 **Attributes:**
 - `menuItemId` (PK): Unique identifier
 - `propertyId` (FK): Reference to Property
 - `name`: Item name
 - `description`: Item description
-- `category`: Category (appetizer, main, dessert, beverage, etc.)
-- `subcategory`: Subcategory (alcoholic, non-alcoholic, etc.)
+- `category`: Category (appetizer, main, dessert, etc.)
+- `subcategory`: Subcategory (optional)
+- `station`: Production station (`kitchen` | `grill` | `other`)
 - `price`: Selling price
 - `cost`: Estimated cost (from recipe)
 - `isAvailable`: Availability flag
@@ -328,7 +331,7 @@ Represents menu items (food, beverages) available for sale.
 - `createdAt`: Timestamp of creation
 - `updatedAt`: Timestamp of last update
 
-**Purpose**: Menu catalog for POS operations and revenue tracking.
+**Purpose**: Menu catalog for Restaurant POS and revenue tracking.
 
 ---
 
@@ -337,7 +340,8 @@ Defines recipes for menu items, linking to inventory for cost calculation.
 
 **Attributes:**
 - `recipeId` (PK): Unique identifier
-- `menuItemId` (FK): Reference to FnbMenuItem
+- `propertyId` (FK): Reference to Property
+- `menuItemId` (FK): Reference to RestaurantMenuItem
 - `name`: Recipe name
 - `servings`: Number of servings
 - `instructions`: Cooking instructions
@@ -367,7 +371,7 @@ Junction table linking recipes to inventory items with quantities.
 
 ---
 
-#### Table
+#### RestaurantTable
 Represents restaurant tables for table management.
 
 **Attributes:**
@@ -377,7 +381,7 @@ Represents restaurant tables for table management.
 - `capacity`: Maximum seating capacity
 - `section`: Restaurant section
 - `status`: Status (available, occupied, reserved, out-of-service)
-- `currentOrderId` (FK): Reference to Order (optional)
+- `currentOrderId` (FK): Reference to RestaurantOrder (optional)
 - `isActive`: Active status flag
 - `createdAt`: Timestamp of creation
 - `updatedAt`: Timestamp of last update
@@ -386,30 +390,38 @@ Represents restaurant tables for table management.
 
 ---
 
-#### Order
-Represents POS orders (dine-in, takeout, room service, bar).
+#### RestaurantOrder
+Represents restaurant POS orders (dine-in, takeout, room service). Separate from beverage POS orders.
 
 **Attributes:**
 - `orderId` (PK): Unique identifier
 - `propertyId` (FK): Reference to Property
-- `tableId` (FK): Reference to Table (optional, for dine-in)
+- `tableId` (FK): Reference to RestaurantTable (optional, for dine-in)
 - `reservationId` (FK): Reference to Reservation (optional, for room service)
-- `orderType`: Type (dine-in, takeout, room-service, bar)
-- `status`: Status (pending, in-progress, ready, completed, cancelled)
+- `orderType`: Type (`dine_in`, `takeout`, `room_service`)
+- `status`: Status (`open`, `open_tab`, `settled`, `voided`)
+- `serverUserId` (FK): Reference to User (server)
+- `guestLabel`: Optional guest label
 - `subtotal`: Subtotal amount
 - `taxAmount`: Tax amount
 - `discountAmount`: Discount amount
 - `totalAmount`: Total amount
-- `serverId` (FK): Reference to Employee
-- `createdAt`: Timestamp of creation
-- `updatedAt`: Timestamp of last update
-- `completedAt`: Completion timestamp
+- `amountPaid`: Amount tendered so far
+- `balanceDue`: Remaining balance
+- `openedAt`: Open timestamp
+- `openedAtDateKey`: Property-local date key
+- `settledAt`: Settlement timestamp (optional)
+- `completedAt`: Completion timestamp (optional)
+- `checkSuffix`: Optional check suffix
+- `inventoryDeductedAt`: Set when recipe usage is deducted on settle
 
-**Purpose**: Core entity for F&B sales tracking and revenue generation.
+**Purpose**: Core entity for Restaurant sales tracking and revenue generation.
 
 ---
 
 #### CashSettlement
+*(Live Beverages / bar POS — not Restaurant. Documented here for adjacency to POS cash-up; see Bar PRD/ERD.)*
+
 End-of-day cash drawer vs expected POS cash tenders for a server.
 
 **Attributes (schema `cashSettlements`):**
@@ -427,6 +439,8 @@ End-of-day cash drawer vs expected POS cash tenders for a server.
 ---
 
 #### StaffLiability
+*(Live Beverages / bar + payroll shortage follow-up — not Restaurant.)*
+
 Amount a staff member owes (cash or stock shortage) until collected, waived, or payroll-deducted.
 
 **Attributes (schema `staffLiabilities`):**
@@ -442,22 +456,26 @@ Amount a staff member owes (cash or stock shortage) until collected, waived, or 
 
 ---
 
-#### OrderLine
-Represents individual items within an order.
+#### RestaurantOrderLine
+Represents individual items within a restaurant order.
 
 **Attributes:**
 - `orderLineId` (PK): Unique identifier
-- `orderId` (FK): Reference to Order
-- `menuItemId` (FK): Reference to FnbMenuItem
+- `propertyId` (FK): Reference to Property
+- `orderId` (FK): Reference to RestaurantOrder
+- `menuItemId` (FK): Reference to RestaurantMenuItem
+- `nameSnapshot`: Menu item name at time of order
+- `unitPriceSnapshot`: Price per unit at time of order
 - `quantity`: Quantity ordered
-- `unitPrice`: Price per unit at time of order
-- `totalPrice`: Total line amount (quantity × unitPrice)
+- `lineTotal`: Total line amount
 - `specialInstructions`: Special instructions
-- `status`: Status (pending, preparing, ready, served, cancelled)
+- `lineStatus`: Status (`active` | `voided`)
+- `prepStatus`: Kitchen prep (`pending` | `preparing` | `ready` | `served` | `cancelled`)
+- `station`: Production station (`kitchen` | `grill` | `other`)
 - `createdAt`: Timestamp of creation
 - `updatedAt`: Timestamp of last update
 
-**Purpose**: Tracks individual menu items in orders for detailed sales analysis and inventory deduction.
+**Purpose**: Tracks individual menu items in orders for kitchen routing, sales analysis, and inventory deduction.
 
 ---
 
@@ -472,7 +490,7 @@ Represents stock items (ingredients, supplies, amenities, etc.).
 - `supplierId` (FK): Reference to Supplier (optional)
 - `sku`: Stock Keeping Unit identifier
 - `name`: Item name
-- `category`: Category (F&B ingredient, cleaning supply, amenity, spare part, etc.)
+- `category`: Category (restaurant ingredient, beverage ingredient, cleaning supply, amenity, spare part, etc.)
 - `unit`: Unit of measurement (kg, liter, piece, etc.)
 - `currentQuantity`: Current stock quantity
 - `reorderPoint`: Minimum quantity before reorder
@@ -484,7 +502,7 @@ Represents stock items (ingredients, supplies, amenities, etc.).
 - `createdAt`: Timestamp of creation
 - `updatedAt`: Timestamp of last update
 
-**Purpose**: Central inventory tracking for all stock items across F&B, housekeeping, and maintenance.
+**Purpose**: Central inventory tracking for all stock items across Beverages, Restaurant, housekeeping, and maintenance.
 
 ---
 
@@ -498,7 +516,7 @@ Tracks all inventory movements (additions, removals, adjustments).
 - `quantity`: Quantity change (positive for additions, negative for removals)
 - `unitCost`: Unit cost at time of transaction
 - `totalCost`: Total cost (quantity × unitCost)
-- `referenceType`: Reference entity type (PurchaseOrder, OrderLine, HousekeepingTask, InventoryTask, etc.)
+- `referenceType`: Reference entity type (PurchaseOrder, RestaurantOrderLine, HousekeepingTask, InventoryTask, etc.)
 - `referenceId`: Reference entity ID
 - `reason`: Reason/notes
 - `performedBy` (FK): Reference to Employee
@@ -623,7 +641,7 @@ The people record used for payroll, housekeeping, POs, and inventory. **There is
 - `terminationDate`: Stored as `dateTerminated` (optional)
 - `employmentStatus`: `active` | `terminated` (legacy `employed` / `on-leave` remain in the schema union until backfill; writers use only active/terminated). On-leave is derived from approved Time off.
 - `employmentType`: full-time | part-time | casual | contractor
-- `department`: Closed set (front-office, housekeeping, fnb, maintenance, finance, admin, other)
+- `department`: Closed set (front-office, housekeeping, beverages, restaurant, maintenance, finance, admin, other)
 - `role`: Job-title enum (Housekeeper, Receptionist, …). Not a UserRole.
 - `position`: Optional free-text job title
 - `managerId` (FK, optional): Another `staffs` row at the same property (not self). Direct reports = team.
@@ -671,10 +689,10 @@ Schema table: `shiftTemplates`. Default working hours for a department at a prop
 **Attributes:**
 - `shiftTemplateId` (PK)
 - `propertyId` (FK)
-- `department`: front-office | housekeeping | fnb | maintenance | finance | admin | other
+- `department`: front-office | housekeeping | beverages | restaurant | maintenance | finance | admin | other
 - `name`: Display name
 - `startTime`, `endTime`: Expected hours (HH:MM). Not the actual clock.
-- `barId` (FK, optional): Required when department is F&B
+- `barId` (FK, optional): Required when department is Beverages
 - `isDefault`: One default per department (application-enforced)
 - `isActive`
 - `createdAt`, `updatedAt`
@@ -708,7 +726,7 @@ Schema table: `shifts`. One actual working session (any department). Attendance 
 - `propertyId` (FK)
 - `employeeId` (FK, optional): Staff who worked (required for payroll Hours)
 - `userId` (FK, optional): Denormalized login when the staff member has one
-- `barId` (FK, optional): Required only for F&B
+- `barId` (FK, optional): Required only for Beverages
 - `department`: Same closed set as Department shift
 - `shiftDate`: YYYY-MM-DD
 - `startTime`, `endTime` (optional): Actual clock (UTC HH:MM)
@@ -721,7 +739,7 @@ Schema table: `shifts`. One actual working session (any department). Attendance 
 - `clockMethod` (optional): self | kiosk | proxy. How this session was started. Live Attendance Tracker start (self or proxy) uses server time now. Ad-hoc Shift create with a typed start time is `unscheduled`.
 - `recordedByUserId` (FK User, optional): Who pressed Start (the staff member for self-clock, the supervisor for proxy)
 
-**Purpose**: One session per staff per date (application-enforced). Logging in does not create a Shift. End shift or Finalize drafts Hours (`source = shift`) and, for F&B, finalizes that shift’s `userStockLogs`. Employees see only their own rows; managers with `staff.read` see everyone. Punctuality is scored at live Start shift (property timezone vs snapshot expected start, plus Payroll settings grace minutes). Unscheduled means no expected start, or an ad-hoc typed clock. Punctuality does not change pay.
+**Purpose**: One session per staff per date (application-enforced). Logging in does not create a Shift. End shift or Finalize drafts Hours (`source = shift`) and, for Beverages, finalizes that shift’s `userStockLogs`. Employees see only their own rows; managers with `staff.read` see everyone. Punctuality is scored at live Start shift (property timezone vs snapshot expected start, plus Payroll settings grace minutes). Unscheduled means no expected start, or an ad-hoc typed clock. Punctuality does not change pay.
 
 ---
 
@@ -1140,7 +1158,7 @@ Represents accounting journal entries for GL posting.
 - `entryNumber`: Unique entry number
 - `entryDate`: Entry date
 - `entryType`: Type (manual, automatic, adjustment, reversal)
-- `referenceType`: Source entity type (Reservation, Order, Payroll, Expense, etc.)
+- `referenceType`: Source entity type (Reservation, RestaurantOrder, beverage Order, Payroll, Expense, etc.)
 - `referenceId`: Source entity ID
 - `description`: Entry description
 - `totalDebit`: Total debit amount
@@ -1358,7 +1376,7 @@ These metrics assess how effectively core hospitality assets (rooms, seats, serv
 - **Calculation**: `Total Hotel Revenue / Total Available Rooms`
 - **Data Sources**:
   - `Reservation.totalAmount` (room revenue)
-  - `Order.totalAmount` (F&B revenue)
+  - `RestaurantOrder.totalAmount` (Restaurant revenue) + beverage `orders.totalAmount` (Beverages revenue)
   - `Room` count (where `isActive = true`) for available rooms
   - All revenue from `JournalEntry` where `accountType = 'revenue'`
 - **Available For**: Daily, Monthly, Yearly
@@ -1367,20 +1385,20 @@ These metrics assess how effectively core hospitality assets (rooms, seats, serv
 #### Average Check / Average Spend Per Customer
 - **Calculation**: `Total Sales / Total Customers/Covers`
 - **Data Sources**:
-  - `Order.totalAmount` (summed) for total sales
-  - `Order` count or `Guest` count (unique guests with orders) for customers/covers
-  - `OrderLine.quantity` can be used for cover count
+  - `RestaurantOrder.totalAmount` (summed) for total restaurant sales
+  - `RestaurantOrder` count or `Guest` count (unique guests with orders) for customers/covers
+  - `RestaurantOrderLine.quantity` can be used for cover count
 - **Available For**: Daily, Monthly, Yearly
-- **Persona Access**: Hotel Owners/General Managers, Finance Teams, F&B Managers
+- **Persona Access**: Hotel Owners/General Managers, Finance Teams, Beverages / Restaurant Managers
 
 #### Revenue Per Available Seat Hour (RevPASH)
 - **Calculation**: `Total Outlet Revenue / (Available Seats × Operating Hours)`
 - **Data Sources**:
-  - `Order.totalAmount` (summed) for outlet revenue
-  - `Table.capacity` (summed) for available seats
-  - Operating hours from property configuration or `Table` entity
+  - `RestaurantOrder.totalAmount` (summed) for outlet revenue
+  - `RestaurantTable.capacity` (summed) for available seats
+  - Operating hours from property configuration or `RestaurantTable` entity
 - **Available For**: Daily, Monthly, Yearly
-- **Persona Access**: Hotel Owners/General Managers, Finance Teams, F&B Managers
+- **Persona Access**: Hotel Owners/General Managers, Finance Teams, Beverages / Restaurant Managers
 
 ---
 
@@ -1420,11 +1438,11 @@ These metrics assess the enterprise's ability to turn revenue into profit after 
 #### Gross Profit Margin
 - **Calculation**: `(Revenue - Cost of Goods Sold) / Revenue`
 - **Data Sources**:
-  - `Order.totalAmount` (F&B revenue) or `JournalEntry` with F&B revenue accounts
-  - `InventoryTransaction` with `transactionType = 'usage'` and `referenceType = 'OrderLine'` (COGS)
-  - Recipe costing: `Recipe.totalCost` × `OrderLine.quantity` for menu item COGS
+  - `RestaurantOrder.totalAmount` (Restaurant revenue) + beverage `orders.totalAmount` (Beverages revenue) or `JournalEntry` with Restaurant/Beverages revenue accounts
+  - `InventoryTransaction` with `transactionType = 'usage'` and `referenceType = 'RestaurantOrderLine'` (COGS)
+  - Recipe costing: `Recipe.totalCost` × `RestaurantOrderLine.quantity` for menu item COGS
 - **Available For**: Daily, Monthly, Yearly
-- **Persona Access**: Hotel Owners/General Managers, Finance Teams, F&B Managers
+- **Persona Access**: Hotel Owners/General Managers, Finance Teams, Beverages / Restaurant Managers
 
 #### Return on Assets (ROA)
 - **Calculation**: `Net Income / Total Assets`
@@ -1461,12 +1479,12 @@ These ratios highlight cost control and resource management efficiency.
 #### Food/Beverage Cost Percentage
 - **Calculation**: `(Cost of Food/Beverage Sold / Food/Beverage Revenue) × 100`
 - **Data Sources**:
-  - `InventoryTransaction` with `transactionType = 'usage'` and `referenceType = 'OrderLine'` (F&B COGS)
-  - Recipe-based: `Recipe.totalCost` × `OrderLine.quantity` for each menu item sold
-  - `Order.totalAmount` where `orderType IN ('dine-in', 'room-service', 'bar')` (F&B revenue)
-  - `JournalEntry` with F&B revenue accounts
+  - `InventoryTransaction` with `transactionType = 'usage'` and `referenceType = 'RestaurantOrderLine'` (Restaurant COGS)
+  - Recipe-based: `Recipe.totalCost` × `RestaurantOrderLine.quantity` for each menu item sold
+  - `RestaurantOrder.totalAmount` where `orderType IN ('dine-in', 'room-service')` (Restaurant revenue); beverage `orders` separately for Beverages
+  - `JournalEntry` with Restaurant/Beverages revenue accounts
 - **Available For**: Daily, Monthly, Yearly
-- **Persona Access**: Hotel Owners/General Managers, Finance Teams, F&B Managers, Storekeepers
+- **Persona Access**: Hotel Owners/General Managers, Finance Teams, Beverages / Restaurant Managers, Storekeepers
 
 #### Cost Per Occupied Room (CPOR)
 - **Calculation**: `Total Operational Costs of Rooms / Total Rooms Sold`
@@ -1478,14 +1496,14 @@ These ratios highlight cost control and resource management efficiency.
 - **Available For**: Daily, Monthly, Yearly
 - **Persona Access**: Hotel Owners/General Managers, Finance Teams, Housekeeping Supervisors
 
-#### Prime Cost (F&B)
+#### Prime Cost (Restaurant / Beverages)
 - **Calculation**: `Cost of Goods Sold + Total Labor Costs`
 - **Data Sources**:
-  - `InventoryTransaction` with F&B usage (COGS)
-  - `Payroll.totalGrossPay` filtered by F&B department employees
-  - `Employee.department = 'fnb'` for F&B labor costs
+  - `InventoryTransaction` with Restaurant/Beverages usage (COGS)
+  - `Payroll.totalGrossPay` filtered by `beverages` / `restaurant` department employees
+  - `Employee.department IN ('beverages', 'restaurant')` for Beverages/Restaurant labor costs
 - **Available For**: Daily, Monthly, Yearly
-- **Persona Access**: Hotel Owners/General Managers, Finance Teams, F&B Managers
+- **Persona Access**: Hotel Owners/General Managers, Finance Teams, Beverages / Restaurant Managers
 
 #### Inventory Turnover
 - **Calculation**: `Cost of Goods Sold / Average Inventory Value`
@@ -1494,7 +1512,7 @@ These ratios highlight cost control and resource management efficiency.
   - `InventoryItem.currentQuantity × unitCost` (summed) for average inventory value
   - Average = (Beginning Inventory + Ending Inventory) / 2
 - **Available For**: Monthly, Yearly
-- **Persona Access**: Hotel Owners/General Managers, Finance Teams, F&B Managers, Storekeepers
+- **Persona Access**: Hotel Owners/General Managers, Finance Teams, Beverages / Restaurant Managers, Storekeepers
 
 ---
 
@@ -1555,14 +1573,14 @@ These ratios assess the enterprise's ability to meet short-term and long-term fi
 
 ### Hotel Owners / General Managers
 **Access Level**: Full access to all metrics and reports
-- **Daily Reports**: RevPAR, Occupancy Rate, ADR, TRevPAR, Average Check, Labor Cost %, F&B Cost %, CPOR, Prime Cost
+- **Daily Reports**: RevPAR, Occupancy Rate, ADR, TRevPAR, Average Check, Labor Cost %, Food Cost % / Pour Cost %, CPOR, Prime Cost
 - **Monthly Reports**: All operational performance, profitability, cost efficiency, and liquidity metrics
 - **Yearly Reports**: All metrics including ROA, ROE, Debt-to-Equity, Interest Coverage, Cash Flow from Operations
 - **Custom Reports**: Can create and schedule any report configuration
 
 ### Finance & Accounting Teams
 **Access Level**: Full access to all financial metrics and reports
-- **Daily Reports**: RevPAR, ADR, TRevPAR, Labor Cost %, F&B Cost %, CPOR, Prime Cost, Gross Profit Margin
+- **Daily Reports**: RevPAR, ADR, TRevPAR, Labor Cost %, Food Cost % / Pour Cost %, CPOR, Prime Cost, Gross Profit Margin
 - **Monthly Reports**: All profitability metrics (GOPPAR, EBITDA Margin, Net Profit Margin), cost efficiency ratios, liquidity metrics
 - **Yearly Reports**: All financial metrics including ROA, ROE, Debt-to-Equity, Interest Coverage, Cash Flow from Operations
 - **Custom Reports**: Can create financial reports, P&L statements, balance sheets, cash flow statements
@@ -1581,11 +1599,11 @@ These ratios assess the enterprise's ability to meet short-term and long-term fi
 - **Yearly Reports**: Annual labor costs, Maintenance expense trends
 - **Custom Reports**: Task productivity, Supply usage, Maintenance order costs
 
-### Food & Beverage Managers & Storekeepers
-**Access Level**: F&B and inventory-related metrics
-- **Daily Reports**: Average Check, RevPASH, F&B Cost %, Prime Cost, Inventory levels
-- **Monthly Reports**: Gross Profit Margin, F&B Cost % trends, Inventory Turnover, Menu performance
-- **Yearly Reports**: Annual F&B performance, Inventory efficiency, Cost trends
+### Beverages / Restaurant Managers & Storekeepers
+**Access Level**: Beverages, Restaurant, and inventory-related metrics
+- **Daily Reports**: Average Check, RevPASH, Food Cost % / Pour Cost %, Prime Cost, Inventory levels
+- **Monthly Reports**: Gross Profit Margin, Food Cost % / Pour Cost % trends, Inventory Turnover, Menu performance
+- **Yearly Reports**: Annual Beverages / Restaurant performance, Inventory efficiency, Cost trends
 - **Custom Reports**: Menu item profitability, Recipe costing analysis, Supplier performance
 
 ### Vendors & External Auditors (View-Only)
@@ -1601,13 +1619,13 @@ These ratios assess the enterprise's ability to meet short-term and long-term fi
 ### Daily Reports
 - **Generation Time**: Typically generated at 6:00 AM for previous day's data
 - **Metrics Included**: Real-time operational metrics, daily revenue, occupancy, cost ratios
-- **Data Sources**: `Reservation`, `Order`, `Payment`, `HousekeepingTask`, `InventoryTransaction`, `Payroll` (if daily payroll)
+- **Data Sources**: `Reservation`, `RestaurantOrder`, beverage `orders`, `Payment`, `HousekeepingTask`, `InventoryTransaction`, `Payroll` (if daily payroll)
 - **Storage**: `ReportSnapshot` with `periodType = 'daily'`
 
 ### Monthly Reports
 - **Generation Time**: Generated on 1st of each month for previous month's data
 - **Metrics Included**: All operational, profitability, cost efficiency, and liquidity metrics
-- **Data Sources**: Aggregated `JournalEntry`, `Reservation`, `Order`, `Payroll`, `Expense`, `billPeriods` (paid), `Asset` depreciation
+- **Data Sources**: Aggregated `JournalEntry`, `Reservation`, `RestaurantOrder`, beverage `orders`, `Payroll`, `Expense`, `billPeriods` (paid), `Asset` depreciation
 - **Storage**: `ReportSnapshot` with `periodType = 'monthly'`
 
 ### Yearly Reports
@@ -1665,7 +1683,8 @@ These ratios assess the enterprise's ability to meet short-term and long-term fi
     },
     "cost_efficiency": {
       "labor_cost_percentage": 28.5,
-      "f&b_cost_percentage": 32.0,
+      "food_cost_percentage": 32.0,
+      "pour_cost_percentage": 22.0,
       "cpor": 25.50,
       "prime_cost": 125000,
       "inventory_turnover": 8.5
@@ -1856,14 +1875,16 @@ Tracks all system actions for compliance and security auditing.
 
 ---
 
-### Food & Beverage Management Relationships
+### Restaurant Management Relationships (live)
 
-#### Property → FnbMenuItem (One-to-Many)
-- **Relationship**: A Property has many FnbMenuItems.
+Beverages relationships: see Bar ERD/PRD.
+
+#### Property → RestaurantMenuItem (One-to-Many)
+- **Relationship**: A Property has many RestaurantMenuItems.
 - **Explanation**: Each property maintains its own menu catalog. Menu items are property-specific to allow different properties to have different menus.
 
-#### FnbMenuItem → Recipe (One-to-One)
-- **Relationship**: A FnbMenuItem can have one Recipe.
+#### RestaurantMenuItem → Recipe (One-to-One)
+- **Relationship**: A RestaurantMenuItem can have one Recipe.
 - **Explanation**: Each menu item can have an associated recipe for cost calculation. Not all items require recipes (e.g., bottled beverages), so this is optional.
 
 #### Recipe → RecipeLine (One-to-Many)
@@ -1874,33 +1895,33 @@ Tracks all system actions for compliance and security auditing.
 - **Relationship**: An InventoryItem can be used in many RecipeLines.
 - **Explanation**: The same ingredient (e.g., "Flour") can be used in multiple recipes. This relationship enables automatic cost calculation when ingredient prices change.
 
-#### Property → Table (One-to-Many)
-- **Relationship**: A Property has many Tables.
+#### Property → RestaurantTable (One-to-Many)
+- **Relationship**: A Property has many RestaurantTables.
 - **Explanation**: Restaurant tables are property-specific. Each property manages its own table layout and assignments.
 
-#### Table → Order (One-to-Many, Optional)
-- **Relationship**: A Table can have many Orders over time (one active order at a time).
-- **Explanation**: Tracks which table an order is associated with for dine-in service. The currentOrderId in Table points to the active order.
+#### RestaurantTable → RestaurantOrder (One-to-Many, Optional)
+- **Relationship**: A RestaurantTable can have many RestaurantOrders over time (one active order at a time).
+- **Explanation**: Tracks which table an order is associated with for dine-in service. The `currentOrderId` on RestaurantTable points to the active order.
 
-#### Property → Order (One-to-Many)
-- **Relationship**: A Property has many Orders.
-- **Explanation**: All orders are scoped to a property for revenue tracking and reporting.
+#### Property → RestaurantOrder (One-to-Many)
+- **Relationship**: A Property has many RestaurantOrders.
+- **Explanation**: All restaurant orders are scoped to a property for revenue tracking and reporting. Beverage POS `orders` are a separate live module.
 
-#### Reservation → Order (One-to-Many, Optional)
-- **Relationship**: A Reservation can have many Orders (for room service).
-- **Explanation**: Enables linking room service orders to guest reservations for billing and guest experience tracking.
+#### Reservation → RestaurantOrder (One-to-Many, Optional)
+- **Relationship**: A Reservation can have many RestaurantOrders (for room service).
+- **Explanation**: Enables linking restaurant room service orders to guest reservations for billing and guest experience tracking.
 
-#### Order → OrderLine (One-to-Many)
-- **Relationship**: An Order has many OrderLines.
-- **Explanation**: Each order contains multiple menu items. OrderLines track individual items, quantities, and prices for detailed sales analysis.
+#### RestaurantOrder → RestaurantOrderLine (One-to-Many)
+- **Relationship**: A RestaurantOrder has many RestaurantOrderLines.
+- **Explanation**: Each restaurant order contains multiple menu items. RestaurantOrderLines track individual items, quantities, and prices for detailed sales analysis.
 
-#### FnbMenuItem → OrderLine (One-to-Many)
-- **Relationship**: A FnbMenuItem can appear in many OrderLines.
+#### RestaurantMenuItem → RestaurantOrderLine (One-to-Many)
+- **Relationship**: A RestaurantMenuItem can appear in many RestaurantOrderLines.
 - **Explanation**: The same menu item can be ordered multiple times across different orders. This enables sales analysis by menu item.
 
-#### Employee → Order (One-to-Many)
-- **Relationship**: An Employee (server) can handle many Orders.
-- **Explanation**: Tracks which staff member served each order for tip allocation and performance tracking.
+#### Employee → RestaurantOrder (One-to-Many)
+- **Relationship**: An Employee (server) can handle many RestaurantOrders.
+- **Explanation**: Tracks which staff member served each restaurant order for tip allocation and performance tracking.
 
 ---
 
@@ -1926,9 +1947,9 @@ Tracks all system actions for compliance and security auditing.
 - **Relationship**: An InventoryTransaction can reference a PurchaseOrder (via referenceType and referenceId).
 - **Explanation**: When inventory is added via a purchase order, the transaction links back to the PO for traceability.
 
-#### InventoryTransaction → OrderLine (Many-to-One, Optional)
-- **Relationship**: An InventoryTransaction can reference an OrderLine (via referenceType and referenceId).
-- **Explanation**: When inventory is deducted due to F&B sales, the transaction links to the OrderLine that consumed the inventory, enabling recipe-based inventory deduction.
+#### InventoryTransaction → RestaurantOrderLine (Many-to-One, Optional)
+- **Relationship**: An InventoryTransaction can reference a RestaurantOrderLine (via referenceType and referenceId).
+- **Explanation**: When inventory is deducted due to Restaurant sales, the transaction links to the RestaurantOrderLine that consumed the inventory, enabling recipe-based inventory deduction.
 
 #### InventoryTransaction → HousekeepingTask (Many-to-One, Optional)
 - **Relationship**: An InventoryTransaction can reference a HousekeepingTask (via referenceType and referenceId).
@@ -2145,9 +2166,9 @@ Tracks all system actions for compliance and security auditing.
 - **Relationship**: A JournalEntry can reference a Reservation (via referenceType and referenceId).
 - **Explanation**: When room revenue is posted to the GL, the journal entry links to the source reservation for traceability and reconciliation.
 
-#### JournalEntry → Order (Many-to-One, Optional)
-- **Relationship**: A JournalEntry can reference an Order (via referenceType and referenceId).
-- **Explanation**: When F&B revenue is posted to the GL, the journal entry links to the source order for traceability.
+#### JournalEntry → RestaurantOrder (Many-to-One, Optional)
+- **Relationship**: A JournalEntry can reference a RestaurantOrder (via referenceType and referenceId).
+- **Explanation**: When Restaurant/Beverages revenue is posted to the GL, the journal entry links to the source order for traceability.
 
 #### JournalEntry → Payroll (Many-to-One, Optional)
 - **Relationship**: A JournalEntry can reference a Payroll (via referenceType and referenceId).
@@ -2208,9 +2229,9 @@ Tracks all system actions for compliance and security auditing.
 - **Relationship**: A Payment can reference a Reservation (via referenceType and referenceId).
 - **Explanation**: Tracks payments received for room bookings. Enables payment reconciliation and accounts receivable management.
 
-#### Payment → Order (Many-to-One, Optional)
-- **Relationship**: A Payment can reference an Order (via referenceType and referenceId).
-- **Explanation**: Tracks payments received for F&B orders. Enables payment reconciliation.
+#### Payment → RestaurantOrder (Many-to-One, Optional)
+- **Relationship**: A Payment can reference a RestaurantOrder (via referenceType and referenceId).
+- **Explanation**: Tracks payments received for Restaurant or Beverages orders. Enables payment reconciliation.
 
 #### Payment → Expense (Many-to-One, Optional)
 - **Relationship**: A Payment can share a source with an Expense (`referenceType` + `referenceId` = Expense `sourceType` + `sourceId`). This ship does not set `referenceType = Expense`.
@@ -2277,7 +2298,7 @@ Tracks all system actions for compliance and security auditing.
 
 #### Property → Report (One-to-Many)
 - **Relationship**: A Property has many Reports.
-- **Explanation**: Each property can have multiple saved report configurations. Reports are property-specific for data isolation. All metrics are calculated from property-scoped entities (Reservation, Order, Employee, InventoryItem, etc.).
+- **Explanation**: Each property can have multiple saved report configurations. Reports are property-specific for data isolation. All metrics are calculated from property-scoped entities (Reservation, RestaurantOrder, beverage `orders`, Employee, InventoryItem, etc.).
 
 #### Report → ReportSnapshot (One-to-Many)
 - **Relationship**: A Report can have many ReportSnapshots.
@@ -2291,9 +2312,9 @@ Tracks all system actions for compliance and security auditing.
 - **Relationship**: Reports aggregate data from Reservation entities.
 - **Explanation**: Operational performance metrics (RevPAR, Occupancy Rate, ADR) are calculated by aggregating Reservation records filtered by date range and property. Reports query Reservation.totalAmount, checkInDate, checkOutDate, and status.
 
-#### Report → Order (Many-to-One, via Data Aggregation)
-- **Relationship**: Reports aggregate data from Order entities.
-- **Explanation**: F&B metrics (Average Check, RevPASH, F&B Cost %) are calculated from Order and OrderLine records. Reports aggregate Order.totalAmount, orderType, and link to InventoryTransaction for COGS calculation.
+#### Report → RestaurantOrder (Many-to-One, via Data Aggregation)
+- **Relationship**: Reports aggregate data from RestaurantOrder and beverage `orders` entities.
+- **Explanation**: Restaurant metrics (Average Check, RevPASH, Food Cost %) are calculated from RestaurantOrder and RestaurantOrderLine; Beverages pour cost from bar stock logs / beverage orders. Reports link to InventoryTransaction for COGS.
 
 #### Report → JournalEntry (Many-to-One, via Data Aggregation)
 - **Relationship**: Reports aggregate data from JournalEntry entities.
@@ -2305,7 +2326,7 @@ Tracks all system actions for compliance and security auditing.
 
 #### Report → InventoryTransaction (Many-to-One, via Data Aggregation)
 - **Relationship**: Reports aggregate data from InventoryTransaction entities.
-- **Explanation**: Cost efficiency metrics (F&B Cost %, Inventory Turnover, Prime Cost) are calculated from InventoryTransaction records. Reports aggregate by transactionType ('usage' for COGS) and referenceType to track inventory consumption.
+- **Explanation**: Cost efficiency metrics (Food Cost %, Pour Cost %, Inventory Turnover, Prime Cost) are calculated from InventoryTransaction records. Reports aggregate by transactionType ('usage' for COGS) and referenceType to track inventory consumption.
 
 #### Report → Asset (Many-to-One, via Data Aggregation)
 - **Relationship**: Reports aggregate data from Asset entities.
@@ -2338,22 +2359,22 @@ Tracks all system actions for compliance and security auditing.
 ### Cardinality Overview
 
 **One-to-Many Relationships:**
-- Property → Room, RoomType, Guest, Reservation, HousekeepingTask, TaskTemplate, TaskSlaDefault, TaskAssignment, FnbMenuItem, Table, Order, InventoryItem, InventoryTask, Supplier, PurchaseOrder, Employee, Department shift, Roster day, Shift, Hours, Pay item type, Pay cycle, Time-off type, Extra pay rule, Payroll, Asset, MaintenanceOrder, MaintenanceOrderPart, Expense, BillAccount, BillPeriod, BillDocument, Payment, ChartOfAccounts, JournalEntry, Report, Document, Integration, AuditLog, Payroll settings (1:1), Holidays (1:1)
+- Property → Room, RoomType, Guest, Reservation, HousekeepingTask, TaskTemplate, TaskSlaDefault, TaskAssignment, RestaurantMenuItem, RestaurantTable, RestaurantOrder, InventoryItem, InventoryTask, Supplier, PurchaseOrder, Employee, Department shift, Roster day, Shift, Hours, Pay item type, Pay cycle, Time-off type, Extra pay rule, Payroll, Asset, MaintenanceOrder, MaintenanceOrderPart, Expense, BillAccount, BillPeriod, BillDocument, Payment, ChartOfAccounts, JournalEntry, Report, Document, Integration, AuditLog, Payroll settings (1:1), Holidays (1:1)
 - RoomType → Room, RatePlan, TaskTemplate (optional)
 - Room → Reservation, HousekeepingTask, Asset, MaintenanceOrder
 - Guest → Reservation
-- Employee → TaskAssignment, Order, Hours, PurchaseOrder, MaintenanceOrder (as requester), Expense, Document, This person's pay items, Pay history, Time off, Staff pay, Roster day, Shift
+- Employee → TaskAssignment, RestaurantOrder, Hours, PurchaseOrder, MaintenanceOrder (as requester), Expense, Document, This person's pay items, Pay history, Time off, Staff pay, Roster day, Shift
 - User → Hours (as approver), Time off (as approver), Payroll (as creator/calculator/approver), TaskAssignment (as assigner)
 - Pay cycle → Payroll, Employee, Pay history
 - Time-off type → Time off
 - Holidays → Holiday
-- FnbMenuItem → Recipe, OrderLine
+- RestaurantMenuItem → Recipe, RestaurantOrderLine
 - Recipe → RecipeLine
 - InventoryItem → RecipeLine, InventoryTransaction, PurchaseOrderLine, InventoryTask, MaintenanceOrderPart (optional)
 - Supplier → InventoryItem, PurchaseOrder, MaintenanceOrder (optional vendor)
 - MaintenanceOrder → MaintenanceOrderPart
 - PurchaseOrder → PurchaseOrderLine, InventoryTask (putaway)
-- Order → OrderLine
+- RestaurantOrder → RestaurantOrderLine
 - Payroll → Staff pay, Payment file
 - Staff pay → Pay item, Payslip (1:1)
 - Pay item type → This person's pay items, Pay item
@@ -2376,11 +2397,11 @@ Tracks all system actions for compliance and security auditing.
 - User ↔ Employee (optional; employee can exist without a user)
 - Property ↔ Payroll settings
 - Property ↔ Holidays
-- FnbMenuItem ↔ Recipe (optional)
+- RestaurantMenuItem ↔ Recipe (optional)
 
 **Optional Relationships:**
-- Table → Order (current active order)
-- Reservation → Order (room service)
+- RestaurantTable → RestaurantOrder (current active order)
+- Reservation → RestaurantOrder (room service)
 - Room → Asset (room-specific assets)
 - Room → MaintenanceOrder (room-specific maintenance)
 - InventoryItem → MaintenanceOrderPart (stocked parts; custom purchases omit `inventoryItemId`)
@@ -2410,13 +2431,13 @@ Tracks all system actions for compliance and security auditing.
 
 6. **Cost Tracking**: Recipe costing, inventory costing, and asset depreciation are supported through relationships between InventoryItem, Recipe, RecipeLine, and Asset.
 
-7. **Revenue Recognition**: Reservation and Order entities link to JournalEntry for automatic revenue posting to GL.
+7. **Revenue Recognition**: Reservation, RestaurantOrder, and beverage Order entities link to JournalEntry for automatic revenue posting to GL.
 
 8. **Labor Cost Tracking**: Employee, Pay history, Hours, Time off, extra pay rules, Pay item type, Payroll, Staff pay, and Pay item enable labor cost analysis. Only approved / payment-files-ready / paid Payrolls feed Labor Cost %. Task duration does not post Hours.
 
 9. **Document Management**: Document entity provides centralized storage for payment evidence (invoices, receipts, payslips, bank exports) linked to Expense, PurchaseOrder, Payment, MaintenanceOrder, Payroll, Payslip, and Payment file. Billing this ship stores bill/receipt files on `billDocuments` (period-scoped `_storage`).
 
-10. **Comprehensive Reporting & Analytics**: Report and ReportSnapshot entities enable calculation of all four metric categories (Operational Performance, Profitability, Cost & Efficiency, Liquidity & Solvency) from entity data. Reports aggregate data from Reservation, Order, JournalEntry, Payroll, InventoryTransaction, Asset, and ChartOfAccounts entities. Persona-based access control ensures appropriate metric visibility (daily, monthly, yearly) for different user roles. All metrics are derived from transactional data, ensuring accuracy and real-time availability. G3 uses completed housekeeping + maintenance + inventory tasks with `completedAt <= dueAt`.
+10. **Comprehensive Reporting & Analytics**: Report and ReportSnapshot entities enable calculation of all four metric categories (Operational Performance, Profitability, Cost & Efficiency, Liquidity & Solvency) from entity data. Reports aggregate data from Reservation, RestaurantOrder, beverage `orders`, JournalEntry, Payroll, InventoryTransaction, Asset, and ChartOfAccounts entities. Persona-based access control ensures appropriate metric visibility (daily, monthly, yearly) for different user roles. All metrics are derived from transactional data, ensuring accuracy and real-time availability. G3 uses completed housekeeping + maintenance + inventory tasks with `completedAt <= dueAt`.
 
 11. **Task Assignment**: Shared `taskAssignments` / `taskTemplates` / `taskSlaDefaults`. No generic Task table. Room readiness is inferred from open housekeeping tasks.
 

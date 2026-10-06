@@ -2,11 +2,12 @@
 
 This document is the **financial metrics** catalog (RevPAR, GOPPAR, cost %, liquidity ratios, and so on).
 
-- Property dashboard after login: `/admin/dashboard` (`reports.read`) — P&L / RevPAR for the selected property, plus rooms, housekeeping, inventory, today’s F&B, billing. Spec: `ai/dashboard.md`.
+- Property dashboard after login: `/admin/dashboard` (`reports.read`) — P&L / RevPAR for the selected property, plus rooms, housekeeping, inventory, today’s Beverages, Restaurant today, billing. Spec: `ai/dashboard.md`.
 - Users without `reports.read` land on `/admin/staff/myProfile`, not the dashboard.
-- **Bar hub (implemented):** `/admin/bar-management` (`fnb.read`). Periods Daily / Weekly / Monthly / Yearly / YoY. Commercial KPIs (revenue, gross profit, pour cost %, waste/comps, store variance) and tabbed charts from `salesSummaries` are **stock-implied control** metrics. Health KPIs from `getBarHealthMetrics`. Spec: `ai/Bar inventory and sales management system design PRD.md`.
-- **POS v1 (implemented):** `/admin/pos` terminal + `/admin/pos/orders` + `/admin/pos/cash-up`. Guest F&B on the property dashboard / P&L is settled POS order totals (`orders` / `orderLines` + `payments`), not stock disappearance. Bar hub stock-implied revenue must not be dual-counted into TRevPAR. Cash shortages from cash-up feed `staffLiabilities` → payroll deduction or collect/waive (`/admin/bar-management/liabilities`).
-- Bar **stock sales** remain stock disappearance after waste/comps (`totalStock − closingStock − waste − comps` × `unitPrice`) for float control and pour cost. Average check and RevPASH stay catalog-only until covers exist.
+- **Bar hub (implemented):** `/admin/bar-management` (`beverages.read`; live may still check `fnb.read`). Periods Daily / Weekly / Monthly / Yearly / YoY. Commercial KPIs (revenue, gross profit, pour cost %, waste/comps, store variance) and tabbed charts from `salesSummaries` are **stock-implied control** metrics. Health KPIs from `getBarHealthMetrics`. Spec: `ai/Bar inventory and sales management system design PRD.md`.
+- **Beverage POS v1 (implemented):** `/admin/pos` terminal + `/admin/pos/orders` + `/admin/pos/cash-up`. Guest Beverages on the property dashboard / P&L is settled beverage POS order totals (`orders` / `orderLines` + `payments`), not stock disappearance. Bar hub stock-implied revenue must not be dual-counted into TRevPAR. Cash shortages from cash-up feed `staffLiabilities` → payroll deduction or collect/waive (`/admin/bar-management/liabilities`).
+- Bar **stock sales** remain stock disappearance after waste/comps (`totalStock − closingStock − waste − comps` × `unitPrice`) for float control and pour cost. Average check and RevPASH stay catalog-only until Restaurant cover metrics are reported separately.
+- **Restaurant (live R1–R3):** food menu, recipes, tables, restaurant POS / kitchen board, settle + room charge, inventory deduct on settle, dashboard **Restaurant today** + P&L `restaurantRevenue`. Spec: `ai/Restaurant management system design PRD.md`. Do not merge beverage `orders` with `restaurantOrders`. Food cost % is live on the today snapshot; Average Check / RevPASH / prime cost remain catalog metrics for later reporting.
 
 To truly measure the financial health of a hospitality enterprise (hotels, resorts, restaurants, etc.), you must track a comprehensive set of metrics that address four core areas: Operational Performance, Profitability, Liquidity & Solvency, and Efficiency.
 
@@ -19,9 +20,9 @@ Metric,Calculation (Example for Hotels),Why it Matters
 Revenue Per Available Room (RevPAR),Total Room Revenue/Total Available Rooms OR ADR×Occupancy Rate,"The single most important measure of room revenue generation, combining both pricing (ADR) and utilization (Occupancy)."
 Occupancy Rate,(Total Rooms Sold/Total Available Rooms)×100,Measures the demand for your property's rooms/inventory.
 Average Daily Rate (ADR),Total Room Revenue/Total Rooms Sold,"Measures the average price achieved per room, reflecting pricing strategy."
-Total Revenue Per Available Room (TRevPAR),Total Hotel Revenue/Total Available Rooms,"A broader measure that includes all revenue streams (F&B, spa, etc.) per available room."
-Average Check / Average Spend Per Customer,Total Sales/Total Customers/Covers,"Crucial for restaurants and F&B operations, indicating the average value of a sale."
-Revenue Per Available Seat Hour (RevPASH),Total Outlet Revenue/(Available Seats×Operating Hours),A key metric for F&B operations to measure efficiency of seating capacity over time.
+Total Revenue Per Available Room (TRevPAR),Total Hotel Revenue/Total Available Rooms,"A broader measure that includes all revenue streams (Beverages, Restaurant, spa, etc.) per available room."
+Average Check / Average Spend Per Customer,Total Sales/Total Customers/Covers,"Crucial for Restaurant operations, indicating the average value of a sale."
+Revenue Per Available Seat Hour (RevPASH),Total Outlet Revenue/(Available Seats×Operating Hours),A key metric for Restaurant operations to measure efficiency of seating capacity over time.
 
 2. Profitability Metrics
 These metrics assess the enterprise's ability to turn revenue into profit after accounting for costs.
@@ -30,7 +31,7 @@ Metric,Calculation,Why it Matters
 Gross Operating Profit Per Available Room (GOPPAR),Gross Operating Profit (GOP)/Total Available Rooms,"Measures profitability on a per-room basis before non-operating expenses (like rent, interest, taxes, depreciation). It reflects operational management efficiency."
 EBITDA / GOP Margin,(EBITDA/Total Revenue)×100 OR (GOP/Total Revenue)×100,"EBITDA (Earnings Before Interest, Taxes, Depreciation, and Amortization) is a key measure of core operating financial performance, often used for valuation and comparing against competitors."
 Net Profit Margin,(Net Income/Total Revenue)×100,"The ultimate ""bottom line,"" showing the percentage of total revenue that results in net profit after all expenses, including taxes and interest."
-Gross Profit Margin,(Revenue−Cost of Goods Sold)/Revenue,"Particularly important for F&B, indicating the profitability of sales after direct production costs."
+Gross Profit Margin,(Revenue−Cost of Goods Sold)/Revenue,"Particularly important for Restaurant and Beverages, indicating the profitability of sales after direct production costs."
 Return on Assets (ROA),Net Income/Total Assets,"Measures how efficiently the enterprise is using its assets (e.g., building, equipment) to generate profit."
 Return on Equity (ROE),Net Income/Shareholders’ Equity,Measures the return generated on the owners' investment.
 
@@ -39,9 +40,11 @@ These ratios highlight cost control and how efficiently resources are being mana
 
 Metric,Calculation,Why it Matters
 Labor Cost Percentage,(Total Labor Costs/Total Revenue)×100,"Labor is a major expense; this ratio tracks its proportion of total sales, revealing staffing efficiency."
-Food/Beverage Cost Percentage,(Cost of Food/Beverage Sold/Food/Beverage Revenue)×100,"The primary control metric for F&B, indicating ingredient cost management."
+Food Cost Percentage (Restaurant),(Cost of Food Sold/Restaurant Revenue)×100,"Primary control metric for Restaurant ingredient cost management."
+Pour Cost Percentage (Beverages),(Cost of Beverage Sold/Beverage Revenue)×100,"Primary control metric for Beverages / bar pour cost."
 Cost Per Occupied Room (CPOR),Total Operational Costs of Rooms/Total Rooms Sold,"Measures the variable cost of servicing an occupied room (e.g., utilities, housekeeping supplies)."
-Prime Cost (F&B),Cost of Goods Sold+Total Labor Costs,The two largest controllable expenses in a restaurant; keeping this low is vital for F&B profitability.
+Prime Cost (Restaurant),Cost of Goods Sold+Total Labor Costs,The two largest controllable expenses in a restaurant; keeping this low is vital for Restaurant profitability.
+Prime Cost (Beverages),Beverage COGS+Beverages Labor Costs,Controllable expenses for the live bar module.
 Inventory Turnover,Cost of Goods Sold/Average Inventory Value,"Measures how quickly inventory is sold and replaced, indicating efficiency and minimizing waste/spoilage."
 
 4. Liquidity & Solvency (Financial Stability)
@@ -56,7 +59,7 @@ Cash Flow from Operations,(Found on the Cash Flow Statement),Measures the actual
 
 5. Bar hub (live on `/admin/bar-management`)
 
-These are the F&B operational metrics the app actually computes today.
+These are the Beverages operational metrics the app actually computes today (pour cost, stock-implied control).
 
 Metric,Calculation,Where
 Total revenue / qty,Sum of current-period `salesSummaries` (YoY uses monthly YTD vs last year),KPI row 1

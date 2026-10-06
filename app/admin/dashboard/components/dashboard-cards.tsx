@@ -155,9 +155,15 @@ export function FinancialReportCard({
                 <td className="p-2 text-right">{money(data.roomRevenue)}</td>
               </tr>
               <tr className="border-t">
-                <td className="p-2">F&B</td>
+                <td className="p-2">Beverages (POS)</td>
                 <td className="p-2 text-right">{money(data.fnbRevenue)}</td>
               </tr>
+              {'restaurantRevenue' in data && data.restaurantRevenue !== undefined && (
+                <tr className="border-t">
+                  <td className="p-2">Restaurant</td>
+                  <td className="p-2 text-right">{money(data.restaurantRevenue)}</td>
+                </tr>
+              )}
               <tr className="border-t font-semibold">
                 <td className="p-2">Total revenue</td>
                 <td className="p-2 text-right">{money(data.totalRevenue)}</td>
@@ -331,7 +337,7 @@ export function FnBCard({
     canReadInventory ? { propertyId } : 'skip',
   );
   if (snapshot === undefined || (canReadInventory && alerts === undefined)) {
-    return <section className="bg-white border p-4">Loading F&B…</section>;
+    return <section className="bg-white border p-4">Loading beverages…</section>;
   }
   const data = snapshot.data;
   if (!data) {
@@ -339,7 +345,7 @@ export function FnBCard({
   }
 
   return (
-    <CardShell href="/admin/pos" linkLabel="POS">
+    <CardShell href="/admin/pos" linkLabel="Beverage POS">
       <KpiGrid className="md:grid-cols-2 lg:grid-cols-6">
         <Kpi label="POS qty sold" value={data.totalQtySold} />
         <Kpi label="POS revenue" value={formatPropertyMoney(data.totalRevenue, currency)} />
@@ -351,6 +357,34 @@ export function FnBCard({
           value={canReadInventory ? (alerts?.data?.length ?? 0) : '—'}
           warn={Boolean(alerts?.data?.length)}
         />
+      </KpiGrid>
+    </CardShell>
+  );
+}
+
+export function RestaurantCard({
+  propertyId,
+  currency,
+}: {
+  propertyId: Id<'properties'>;
+  currency?: string;
+}) {
+  const snapshot = useQuery(api.dashboard.getRestaurantTodaySnapshot, { propertyId });
+  if (snapshot === undefined) {
+    return <section className="bg-white border p-4">Loading restaurant…</section>;
+  }
+  const data = snapshot.data;
+  if (!data) {
+    return null;
+  }
+
+  return (
+    <CardShell href="/admin/restaurant" linkLabel="Restaurant hub">
+      <KpiGrid className="md:grid-cols-2 lg:grid-cols-4">
+        <Kpi label="Revenue today" value={formatPropertyMoney(data.revenue, currency)} />
+        <Kpi label="Food cost %" value={`${data.foodCostPercent.toFixed(1)}%`} />
+        <Kpi label="Open checks" value={data.openOrders} />
+        <Kpi label="Tables occupied" value={data.occupiedTables} />
       </KpiGrid>
     </CardShell>
   );

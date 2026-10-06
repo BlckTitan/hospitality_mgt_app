@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
 import { FcConferenceCall, FcDepartment, FcList, FcManager, FcMoneyTransfer, FcPhone, FcSalesPerformance } from "react-icons/fc";
-import { IoFastFoodOutline } from "react-icons/io5";
+import { IoFastFoodOutline, IoRestaurantOutline } from "react-icons/io5";
 import { MdLogout, MdOutlineBedroomChild } from 'react-icons/md';
 import { RxCaretDown, RxDashboard } from "react-icons/rx";
 import Link from 'next/link';
@@ -32,6 +32,16 @@ const navLinks = [
       { id: 404, href: '/admin/bar-management/store-inventory', label: 'Store Inventory'},
       { id: 405, href: '/admin/bar-management/store-transactions', label: 'Store Transactions'},
       { id: 408, href: '/admin/bar-management/store-count', label: 'Store Count'},
+    ]
+  },
+  {id: 14, href: "/admin/restaurant", label: "Restaurant", icon: <IoRestaurantOutline className="!text-orange-700"/>,
+    subLink: [
+      { id: 1401, href: '/admin/restaurant/menu-items', label: 'Menu items' },
+      { id: 1402, href: '/admin/restaurant/recipes', label: 'Recipes' },
+      { id: 1403, href: '/admin/restaurant/tables', label: 'Tables' },
+      { id: 1404, href: '/admin/restaurant/pos', label: 'Restaurant POS' },
+      { id: 1405, href: '/admin/restaurant/orders', label: 'Orders' },
+      { id: 1406, href: '/admin/restaurant/kitchen', label: 'Kitchen board' },
     ]
   },
   {id: 5, href: "/admin/expenses", label: "Expense Tracker", icon: <FcMoneyTransfer /> },

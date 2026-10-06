@@ -898,6 +898,7 @@ export default defineSchema({
         v.literal("front-office"),
         v.literal("housekeeping"),
         v.literal("fnb"),
+        v.literal("restaurant"),
         v.literal("maintenance"),
         v.literal("finance"),
         v.literal("admin"),
@@ -939,6 +940,7 @@ export default defineSchema({
       v.literal("front-office"),
       v.literal("housekeeping"),
       v.literal("fnb"),
+      v.literal("restaurant"),
       v.literal("maintenance"),
       v.literal("finance"),
       v.literal("admin"),
@@ -1235,6 +1237,159 @@ export default defineSchema({
     .index("by_orderId", ["orderId"])
     .index("by_propertyId", ["propertyId"])
     .index("by_beverageId", ["beverageId"]),
+
+  // ============================================
+  // Restaurant (independent of Beverages / bar POS)
+  // ============================================
+
+  restaurantMenuItems: defineTable({
+    propertyId: v.id("properties"),
+    name: v.string(),
+    description: v.optional(v.string()),
+    category: v.string(),
+    subcategory: v.optional(v.string()),
+    station: v.union(
+      v.literal("kitchen"),
+      v.literal("grill"),
+      v.literal("other"),
+    ),
+    price: v.number(),
+    cost: v.optional(v.number()),
+    isAvailable: v.boolean(),
+    imageUrl: v.optional(v.string()),
+    preparationTime: v.optional(v.number()),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_propertyId_category", ["propertyId", "category"])
+    .index("by_propertyId_station", ["propertyId", "station"])
+    .index("by_propertyId_isAvailable", ["propertyId", "isAvailable"])
+    .index("by_propertyId_isActive", ["propertyId", "isActive"]),
+
+  recipes: defineTable({
+    propertyId: v.id("properties"),
+    menuItemId: v.id("restaurantMenuItems"),
+    name: v.string(),
+    servings: v.number(),
+    instructions: v.optional(v.string()),
+    totalCost: v.optional(v.number()),
+    lastCalculatedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_menuItemId", ["menuItemId"])
+    .index("by_propertyId", ["propertyId"]),
+
+  recipeLines: defineTable({
+    recipeId: v.id("recipes"),
+    inventoryItemId: v.id("inventoryItems"),
+    quantity: v.number(),
+    unit: v.string(),
+    wastePercent: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_recipeId", ["recipeId"])
+    .index("by_inventoryItemId", ["inventoryItemId"]),
+
+  restaurantTables: defineTable({
+    propertyId: v.id("properties"),
+    tableNumber: v.string(),
+    capacity: v.number(),
+    section: v.optional(v.string()),
+    status: v.union(
+      v.literal("available"),
+      v.literal("occupied"),
+      v.literal("reserved"),
+      v.literal("out-of-service"),
+    ),
+    currentOrderId: v.optional(v.id("restaurantOrders")),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_propertyId_status", ["propertyId", "status"])
+    .index("by_propertyId_tableNumber", ["propertyId", "tableNumber"]),
+
+  restaurantOrders: defineTable({
+    propertyId: v.id("properties"),
+    tableId: v.optional(v.id("restaurantTables")),
+    reservationId: v.optional(v.id("reservations")),
+    orderType: v.union(
+      v.literal("dine_in"),
+      v.literal("takeout"),
+      v.literal("room_service"),
+    ),
+    status: v.union(
+      v.literal("open"),
+      v.literal("settled"),
+      v.literal("voided"),
+      v.literal("open_tab"),
+    ),
+    serverUserId: v.id("users"),
+    guestLabel: v.optional(v.string()),
+    subtotal: v.number(),
+    taxAmount: v.number(),
+    discountAmount: v.optional(v.number()),
+    totalAmount: v.number(),
+    amountPaid: v.number(),
+    balanceDue: v.number(),
+    openedAt: v.number(),
+    openedAtDateKey: v.string(),
+    settledAt: v.optional(v.number()),
+    completedAt: v.optional(v.number()),
+    checkSuffix: v.optional(v.string()),
+    inventoryDeductedAt: v.optional(v.number()),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_propertyId_status", ["propertyId", "status"])
+    .index("by_propertyId_openedAtDateKey", ["propertyId", "openedAtDateKey"])
+    .index("by_propertyId_status_openedAtDateKey", [
+      "propertyId",
+      "status",
+      "openedAtDateKey",
+    ])
+    .index("by_tableId", ["tableId"])
+    .index("by_reservationId", ["reservationId"])
+    .index("by_serverUserId", ["serverUserId"]),
+
+  restaurantOrderLines: defineTable({
+    propertyId: v.id("properties"),
+    orderId: v.id("restaurantOrders"),
+    menuItemId: v.id("restaurantMenuItems"),
+    nameSnapshot: v.string(),
+    unitPriceSnapshot: v.number(),
+    quantity: v.number(),
+    lineTotal: v.number(),
+    specialInstructions: v.optional(v.string()),
+    lineStatus: v.union(v.literal("active"), v.literal("voided")),
+    prepStatus: v.union(
+      v.literal("pending"),
+      v.literal("preparing"),
+      v.literal("ready"),
+      v.literal("served"),
+      v.literal("cancelled"),
+    ),
+    station: v.union(
+      v.literal("kitchen"),
+      v.literal("grill"),
+      v.literal("other"),
+    ),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_orderId", ["orderId"])
+    .index("by_propertyId", ["propertyId"])
+    .index("by_menuItemId", ["menuItemId"])
+    .index("by_propertyId_prepStatus", ["propertyId", "prepStatus"])
+    .index("by_propertyId_station_prepStatus", [
+      "propertyId",
+      "station",
+      "prepStatus",
+    ]),
 
   // End-of-day cash drawer vs expected cash tenders (POS)
   cashSettlements: defineTable({

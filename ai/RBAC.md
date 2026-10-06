@@ -47,15 +47,16 @@ Canonical **role names** stored on `roles.name` (must match `ROLE_PERMISSION_MAT
 4. Shift Management (Department shifts, Attendance Tracker, Cover, Shift, Hours)
 5. Payroll
 6. Reservations & Rooms
-7. Food & Beverage (F&B)
-8. Inventory Management
-9. Financial Management
-10. Billing (bill accounts, period bills, mark-paid → expense)
-11. Reports & Analytics (includes the operational dashboard page)
-12. System Settings
-13. Maintenance & Facilities
-14. Security & Access Logs
-15. Task Assignment (housekeeping, maintenance orders, inventory restock/putaway)
+7. Beverages (live bar / beverage POS)
+8. Restaurant (live; kitchen + grill are stations under Restaurant)
+9. Inventory Management
+10. Financial Management
+11. Billing (bill accounts, period bills, mark-paid → expense)
+12. Reports & Analytics (includes the operational dashboard page)
+13. System Settings
+14. Maintenance & Facilities
+15. Security & Access Logs
+16. Task Assignment (housekeeping, maintenance orders, inventory restock/putaway)
 
 ---
 
@@ -67,27 +68,33 @@ Legend:
 - VIEW = Read-only
 - NONE = No Access
 
-| Role | Users | Properties | Staff | Reservations | F&B | Inventory | Finance | Reports | System | Maintenance | Security |
-|------|------|------------|-------|--------------|-----|-----------|---------|---------|--------|------------|----------|
-| Administrator | FULL | FULL | FULL | FULL | FULL | FULL | FULL | FULL | FULL | FULL | FULL |
-| Director | NONE | FULL | FULL | FULL | FULL | FULL | FULL | FULL | LIMITED | VIEW | VIEW |
-| General Manager | NONE | LIMITED | FULL | FULL | FULL | FULL | FULL | FULL | NONE | LIMITED | VIEW |
-| Operations Manager | NONE | LIMITED | LIMITED | FULL | FULL | FULL | LIMITED | FULL | NONE | FULL | VIEW |
-| Finance Manager | NONE | NONE | LIMITED | VIEW | VIEW | VIEW | FULL | FULL | NONE | NONE | VIEW |
-| HR Manager | LIMITED | NONE | FULL | NONE | NONE | NONE | LIMITED | LIMITED | NONE | NONE | NONE |
-| IT Manager | FULL | LIMITED | LIMITED | LIMITED | LIMITED | LIMITED | LIMITED | FULL | FULL | FULL | FULL |
-| Manager | NONE | LIMITED | FULL | FULL | FULL | FULL | LIMITED | FULL | NONE | LIMITED | NONE |
-| Assistant Manager | NONE | NONE | LIMITED | FULL | FULL | LIMITED | NONE | LIMITED | NONE | NONE | NONE |
-| Supervisor | NONE | NONE | LIMITED | LIMITED | FULL | LIMITED | NONE | LIMITED | NONE | NONE | NONE |
-| Receptionist | NONE | NONE | NONE | FULL | LIMITED | NONE | LIMITED | LIMITED | NONE | NONE | NONE |
-| Concierge | NONE | NONE | NONE | LIMITED | NONE | NONE | NONE | VIEW | NONE | NONE | NONE |
-| Housekeeping | NONE | NONE | NONE | LIMITED | NONE | NONE | NONE | NONE | NONE | LIMITED | NONE |
-| Waiter | NONE | NONE | NONE | NONE | LIMITED | NONE | NONE | NONE | NONE | NONE | NONE |
-| Bartender | NONE | NONE | NONE | NONE | FULL | LIMITED | NONE | NONE | NONE | NONE | NONE |
-| Cook / Chef | NONE | NONE | NONE | NONE | FULL | LIMITED | NONE | NONE | NONE | NONE | NONE |
-| Kitchen Assistant | NONE | NONE | NONE | NONE | LIMITED | LIMITED | NONE | NONE | NONE | NONE | NONE |
-| Maintenance Staff | NONE | NONE | NONE | NONE | NONE | NONE | NONE | NONE | NONE | FULL | NONE |
-| Security Officer | NONE | NONE | NONE | NONE | NONE | NONE | NONE | NONE | NONE | NONE | FULL |
+| Role | Users | Properties | Staff | Reservations | Beverages | Restaurant | Inventory | Finance | Reports | System | Maintenance | Security |
+|------|------|------------|-------|--------------|-----------|------------|-----------|---------|---------|--------|------------|----------|
+| Administrator | FULL | FULL | FULL | FULL | FULL | FULL | FULL | FULL | FULL | FULL | FULL | FULL |
+| Director | NONE | FULL | FULL | FULL | FULL | FULL | FULL | FULL | FULL | LIMITED | VIEW | VIEW |
+| General Manager | NONE | LIMITED | FULL | FULL | FULL | FULL | FULL | FULL | FULL | NONE | LIMITED | VIEW |
+| Operations Manager | NONE | LIMITED | LIMITED | FULL | FULL | FULL | FULL | LIMITED | FULL | NONE | FULL | VIEW |
+| Finance Manager | NONE | NONE | LIMITED | VIEW | VIEW | VIEW | VIEW | FULL | FULL | NONE | NONE | VIEW |
+| HR Manager | LIMITED | NONE | FULL | NONE | NONE | NONE | NONE | LIMITED | LIMITED | NONE | NONE | NONE |
+| IT Manager | FULL | LIMITED | LIMITED | LIMITED | LIMITED | LIMITED | LIMITED | LIMITED | FULL | FULL | FULL | FULL |
+| Manager | NONE | LIMITED | FULL | FULL | FULL | FULL | FULL | LIMITED | FULL | NONE | LIMITED | NONE |
+| Assistant Manager | NONE | NONE | LIMITED | FULL | FULL | FULL | LIMITED | NONE | LIMITED | NONE | NONE | NONE |
+| Supervisor | NONE | NONE | LIMITED | LIMITED | FULL | FULL | LIMITED | NONE | LIMITED | NONE | NONE | NONE |
+| Receptionist | NONE | NONE | NONE | FULL | LIMITED | LIMITED | NONE | LIMITED | LIMITED | NONE | NONE | NONE |
+| Concierge | NONE | NONE | NONE | LIMITED | NONE | NONE | NONE | NONE | VIEW | NONE | NONE | NONE |
+| Housekeeping | NONE | NONE | NONE | LIMITED | NONE | NONE | NONE | NONE | NONE | NONE | LIMITED | NONE |
+| Waiter | NONE | NONE | NONE | NONE | LIMITED | LIMITED | NONE | NONE | NONE | NONE | NONE | NONE |
+| Bartender | NONE | NONE | NONE | NONE | FULL | NONE | LIMITED | NONE | NONE | NONE | NONE | NONE |
+| Cook / Chef | NONE | NONE | NONE | NONE | NONE | FULL | LIMITED | NONE | NONE | NONE | NONE | NONE |
+| Kitchen Assistant | NONE | NONE | NONE | NONE | NONE | LIMITED | LIMITED | NONE | NONE | NONE | NONE | NONE |
+| Maintenance Staff | NONE | NONE | NONE | NONE | NONE | NONE | NONE | NONE | NONE | NONE | FULL | NONE |
+| Security Officer | NONE | NONE | NONE | NONE | NONE | NONE | NONE | NONE | NONE | NONE | NONE | FULL |
+
+**Role notes (Beverages vs Restaurant):**
+- **Bartender** → Beverages (`beverages.*`); no Restaurant by default.
+- **Cook / Chef**, **Kitchen Assistant** (and Griller when used as a station role) → Restaurant (`restaurant.*`); kitchen + grill are stations under Restaurant, not separate modules.
+- **Waiter** may hold both LIMITED Beverages and LIMITED Restaurant (serves bar and dining).
+- Live Convex permissions may still be named `fnb.*` until the Beverages rename migration; AI docs use `beverages.*` as the target.
 
 ---
 
@@ -174,9 +181,9 @@ Salary, tax ID, and bank: Administrator, Director, General Manager, HR Manager, 
 
 **Role mapping (see `ai/payroll-implementation.md`):**
 - HR Manager, Finance Manager, Administrator, Director, General Manager: full payroll. Approve mutation still requires a **different user** than creator/calculator (maker ≠ checker).
-- Employees with a User login linked to Staff: My profile (`staff.self.read`), Attendance Tracker **My duty** Start/End shift when `clockMethod = self` (`payroll.timesheet.create` or `fnb.read`), own Shift rows, own Hours / Time off create, own Payslip (`payroll.payslip.read`); contact/bank/emergency change requests for HR approval
+- Employees with a User login linked to Staff: My profile (`staff.self.read`), Attendance Tracker **My duty** Start/End shift when `clockMethod = self` (`payroll.timesheet.create` or `beverages.read`), own Shift rows, own Hours / Time off create, own Payslip (`payroll.payslip.read`); contact/bank/emergency change requests for HR approval
 - Supervisor / Assistant Manager: Hours (`payroll.timesheet.read` + `approve`) and Time off (`payroll.leave.read` + `approve`) for **direct reports** (`staffs.managerId`); Department shifts (`staff.read` / `staff.update`) and Cover (`staff.update`); Attendance Tracker **Today’s floor** Start for / End for (`staff.update` or `payroll.timesheet.approve`; direct reports only when they cannot see all team records). No compensation fields.
-- F&B operational roles with `fnb.read` can open Attendance Tracker and own Shift rows; they still need a Staff link to start a shift
+- Beverages operational roles with `beverages.read` can open Attendance Tracker and own Shift rows; they still need a Staff link to start a shift. (Live code may still check `fnb.read` until migration.)
 - Other operational staff: none on runs or other employees' pay
 
 Route access (`lib/proxy-permissions.ts`; `granular` may be a string or string[]):
@@ -186,8 +193,8 @@ Route access (`lib/proxy-permissions.ts`; `granular` may be a string or string[]
 | Shift Management hub | `/admin/shift-management` | `staff.read` |
 | Department shifts | `/admin/shift-management/templates` | `staff.read` (edit: `staff.update`) |
 | Cover | `/admin/shift-management/cover` | `staff.update` |
-| Attendance Tracker | `/admin/shift-management/attendance` | `payroll.timesheet.create` or `fnb.read` or `staff.read` or `payroll.timesheet.approve` |
-| Shift list | `/admin/shift-management/shift` | `staff.read` or `payroll.timesheet.create` or `fnb.read` |
+| Attendance Tracker | `/admin/shift-management/attendance` | `payroll.timesheet.create` or `beverages.read` or `staff.read` or `payroll.timesheet.approve` |
+| Shift list | `/admin/shift-management/shift` | `staff.read` or `payroll.timesheet.create` or `beverages.read` |
 | Hours | `/admin/shift-management/hours` | `payroll.timesheet.read` (edit: `payroll.timesheet.update`) |
 
 ### Reports & Analytics / Operational dashboard
@@ -198,20 +205,27 @@ Permission keys stay technical. The metrics catalog is `ai/report_analytcs.md`. 
 - reports.create
 - reports.export
 
-Operational tabs still check their own module keys (`rooms.read`, `inventory.read`, `fnb.read`, `billing.period.read`, `housekeeping.task.read`, etc.). Missing a tab key hides that tab; it does not open the page.
+Operational tabs still check their own module keys (`rooms.read`, `inventory.read`, `fnb.read` / target `beverages.read`, `restaurant.read`, `billing.period.read`, `housekeeping.task.read`, etc.). Missing a tab key hides that tab; it does not open the page.
 
 | Screen | Path | Permission |
 |---|---|---|
 | Property dashboard | `/admin/dashboard` | `reports.read` |
-| Bar Management hub | `/admin/bar-management` | `fnb.read` (charts: `reports.read`; reorders/requests/counts: `inventory.read`) |
-| My Stock Today | `/admin/bar-management/my-stock` | `fnb.read` |
-| Stock requests | `/admin/bar-management/stock-requests` | `fnb.read` (create); `inventory.update` (approve/reject = issue) |
+| Bar Management hub | `/admin/bar-management` | `beverages.read` (charts: `reports.read`; reorders/requests/counts: `inventory.read`) |
+| My Stock Today | `/admin/bar-management/my-stock` | `beverages.read` |
+| Stock requests | `/admin/bar-management/stock-requests` | `beverages.read` (create); `inventory.update` (approve/reject = issue) |
 | Store count | `/admin/bar-management/store-count` | `inventory.read` / `inventory.update` |
-| Bars / Beverages / User stock logs | `/admin/bar-management/bar` etc. | `fnb.read` (`fnb.create` / `fnb.update` on create/edit) |
-| POS terminal / orders | `/admin/pos`, `/admin/pos/orders` | `fnb.read` (`fnb.create` / `fnb.update` to open/settle) |
-| POS cash-up | `/admin/pos/cash-up` | `fnb.read` (preview); `fnb.update` (post) |
-| Staff liabilities | `/admin/bar-management/liabilities` | `fnb.read` (list); `fnb.update` (create/approve/collect/waive) |
+| Bars / Beverages / User stock logs | `/admin/bar-management/bar` etc. | `beverages.read` (`beverages.create` / `beverages.update` on create/edit) |
+| Beverage POS terminal / orders | `/admin/pos`, `/admin/pos/orders` | `beverages.read` (`beverages.create` / `beverages.update` to open/settle) |
+| POS cash-up | `/admin/pos/cash-up` | `beverages.read` (preview); `beverages.update` (post) |
+| Staff liabilities | `/admin/bar-management/liabilities` | `beverages.read` (list); `beverages.update` (create/approve/collect/waive) |
 | Store inventory / transactions | `/admin/bar-management/store-inventory` etc. | `inventory.read` (`inventory.update` on edit) |
+| Restaurant hub | `/admin/restaurant` | `restaurant.read` |
+| Restaurant menu items | `/admin/restaurant/menu-items` | `restaurant.read` (`restaurant.create` / `restaurant.update` on create/edit) |
+| Restaurant recipes | `/admin/restaurant/recipes` | `restaurant.read` (`restaurant.update` to edit lines) |
+| Restaurant tables | `/admin/restaurant/tables` | `restaurant.read` (`restaurant.create` / `restaurant.update`) |
+| Restaurant POS | `/admin/restaurant/pos` | `restaurant.read` (`restaurant.create` / `restaurant.update` to open/settle) |
+| Restaurant orders | `/admin/restaurant/orders` | `restaurant.read` (`restaurant.update` to pay down) |
+| Kitchen board | `/admin/restaurant/kitchen` | `restaurant.read` (`restaurant.update` to bump prep) |
 | My profile (default home without dashboard) | `/admin/staff/myProfile` | `staff.self.read` |
 
 **Post-login routing** (`getPostLoginPath` in `lib/route-access.ts`; spec `ai/dashboard.md`):
@@ -226,10 +240,24 @@ Apply that helper in `proxy.ts`, home, sign-in default, property setup finish, u
 - Assistant Manager, Supervisor, Receptionist, Concierge: LIMITED or VIEW reports — treat as `reports.read` when the role matrix grants Reports VIEW/LIMITED/FULL
 - Housekeeping, Waiter, Bartender, Cook, Kitchen Assistant, Maintenance Staff, Security Officer: Reports NONE — land on My profile
 
-### Food & Beverage
-- fnb.order.create
-- fnb.order.manage
-- fnb.menu.update
+### Beverages (live)
+Target keys (live code may still use `fnb.*` until migration):
+- beverages.read
+- beverages.create
+- beverages.update
+- beverages.delete
+
+### Restaurant (live)
+
+Keys live in Convex + frontend matrices (`restaurant.read|create|update|delete`). Aliases: `restaurant.order.create` → create, `restaurant.order.manage` / `restaurant.menu.update` → update. Run `syncSystemRoles` after deploy so existing role documents receive these keys.
+
+- restaurant.read
+- restaurant.create
+- restaurant.update
+- restaurant.delete
+- restaurant.order.create
+- restaurant.order.manage
+- restaurant.menu.update
 
 ### Task Assignment
 Permission keys stay technical. Work records stay `HousekeepingTask`, `MaintenanceOrder`, and `InventoryTask`. Assignment is `taskAssignments` (lead + helpers).
@@ -247,7 +275,7 @@ Permission keys stay technical. Work records stay `HousekeepingTask`, `Maintenan
 - inventory.task.update
 - inventory.task.complete
 
-Staff (Housekeeping Staff / Maintenance Staff / storekeepers with `fnb` or inventory access): `read` + `update` on **assigned** rows; `complete` only if they are **lead**. Supervisors: `assign` and `complete` any work in the module. Do **not** gate these screens on `system.admin`.
+Staff (Housekeeping Staff / Maintenance Staff / storekeepers with `beverages` or inventory access): `read` + `update` on **assigned** rows; `complete` only if they are **lead**. Supervisors: `assign` and `complete` any work in the module. Do **not** gate these screens on `system.admin`.
 
 | Screen | Path | Permission |
 |---|---|---|

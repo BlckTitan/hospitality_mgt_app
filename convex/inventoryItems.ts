@@ -4,6 +4,7 @@ import { requirePermission } from './lib/rbac';
 import { maybeCreateRestockTask } from './lib/taskAssignment';
 import { postInventoryTransaction } from './lib/inventoryStock';
 import { currentUsersStaff } from './lib/staffAccess';
+import { recalculateRecipesForInventoryItem } from './lib/restaurantCost';
 
 export const getAllInventoryItems = query({
   args: { propertyId: v.id('properties') },
@@ -208,6 +209,8 @@ export const updateInventoryItem = mutation({
       };
 
       // Update unitCost and lastCostUpdate if unitCost is provided
+      const unitCostChanged =
+        args.unitCost !== undefined && args.unitCost !== existingItem.unitCost;
       if (args.unitCost !== undefined) {
         updateData.unitCost = args.unitCost;
         updateData.lastCostUpdate = now;
@@ -220,6 +223,10 @@ export const updateInventoryItem = mutation({
       }
 
       await ctx.db.patch(args.inventoryItemId, updateData);
+
+      if (unitCostChanged) {
+        await recalculateRecipesForInventoryItem(ctx, args.inventoryItemId);
+      }
 
       const updatedItem = await ctx.db.get(args.inventoryItemId);
       if (updatedItem) await maybeCreateRestockTask(ctx, updatedItem);

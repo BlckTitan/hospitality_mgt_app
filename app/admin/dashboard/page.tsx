@@ -13,6 +13,7 @@ import {
   FnBCard,
   HousekeepingCard,
   InventoryCard,
+  RestaurantCard,
   RoomsCard,
 } from './components/dashboard-cards';
 
@@ -21,7 +22,8 @@ const TAB_LABELS = {
   rooms: 'Rooms',
   housekeeping: 'Housekeeping',
   inventory: 'Inventory',
-  fnb: 'F&B today',
+  fnb: 'Beverages today',
+  restaurant: 'Restaurant today',
   billing: 'Billing',
 } as const;
 
@@ -39,6 +41,7 @@ export default function Dashboard() {
   const canHousekeeping = hasGranularPermission('housekeeping.task.read');
   const canInventory = hasGranularPermission('inventory.read');
   const canFnB = hasGranularPermission('fnb.read');
+  const canRestaurant = hasGranularPermission('restaurant.read');
   const canBilling = hasGranularPermission('billing.period.read');
 
   const tabs = useMemo(() => {
@@ -47,9 +50,18 @@ export default function Dashboard() {
     if (currentPropertyId && canHousekeeping) items.push('housekeeping');
     if (currentPropertyId && canInventory) items.push('inventory');
     if (currentPropertyId && canFnB) items.push('fnb');
+    if (currentPropertyId && canRestaurant) items.push('restaurant');
     if (currentPropertyId && canBilling) items.push('billing');
     return items;
-  }, [canBilling, canFnB, canHousekeeping, canInventory, canRooms, currentPropertyId]);
+  }, [
+    canBilling,
+    canFnB,
+    canHousekeeping,
+    canInventory,
+    canRestaurant,
+    canRooms,
+    currentPropertyId,
+  ]);
 
   useEffect(() => {
     if (!tabs.includes(tab)) {
@@ -139,6 +151,9 @@ export default function Dashboard() {
           currency={selected.currency}
           canReadInventory={canInventory}
         />
+      )}
+      {tab === 'restaurant' && currentPropertyId && (
+        <RestaurantCard propertyId={currentPropertyId} currency={selected.currency} />
       )}
       {tab === 'billing' && currentPropertyId && (
         <BillingCard propertyId={currentPropertyId} currency={selected.currency} />

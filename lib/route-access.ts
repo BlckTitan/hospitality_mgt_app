@@ -8,6 +8,7 @@ export const STAFF_HOME_PATH = '/admin/staff/myProfile';
 export const SECTION_HUBS = [
   '/admin/user',
   '/admin/bar-management',
+  '/admin/restaurant',
   '/admin/inventory-management',
   '/admin/room-management',
   '/admin/shift-management',

@@ -115,7 +115,7 @@ Required additions beyond today’s `staffs` row:
 - `payType`, `baseSalary`, `hourlyRate`: **current** denormalized copy of the open Pay history row
 - `payCycleId` (optional; default is the property’s default Pay cycle)
 - `paymentMethod`: `bank` | `cash` | `mobile_money` | `check` (bank fields required only for `bank`)
-- `department`: closed set — `front-office` | `housekeeping` | `fnb` | `maintenance` | `finance` | `admin` | `other`. Role maps to department on onboard (`Housekeeper`/`Laundry Attendant` → housekeeping, `Receptionist` → front-office, `Griller` → fnb, `Security` → other, `Manager`/`Assistant Manager`/`Supervisor` → admin).
+- `department`: closed set — `front-office` | `housekeeping` | `beverages` | `restaurant` | `maintenance` | `finance` | `admin` | `other`. Role maps to department on onboard (`Housekeeper`/`Laundry Attendant` → housekeeping, `Receptionist` → front-office, `Bartender` → beverages, `Cook`/`Chef`/`Kitchen Assistant`/`Griller` → restaurant, `Security` → other, `Manager`/`Assistant Manager`/`Supervisor` → admin).
 - `shiftTemplateId` (optional): default **Department shift**. Inherited on create and when department changes.
 - `position`
 - `employmentStatus`: `active` | `terminated` (map current `employed` → `active`; do not store `on-leave` — derive from approved Time off)
@@ -175,9 +175,9 @@ Schema tables: `holidayCalendars`, `holidays`, `extraPayRules`. Interfaces: `Hol
 ### Department shift / Roster day / Shift
 Schema tables: `shiftTemplates`, `rosterSlots`, `shifts`. Interfaces: `ShiftTemplate`, `RosterSlot`, `Shift`.
 
-- **Department shift**: one default template per department (`isDefault`). F&B requires `barId`. Template `startTime` / `endTime` are expected hours, not the clock.
+- **Department shift**: one default template per department (`isDefault`). Beverages requires `barId`. Template `startTime` / `endTime` are expected hours, not the clock.
 - **Roster day**: Cover patches `workingEmployeeId` only. Reject if the scheduled person already has a `shifts` row or Hours that date, or the covering person already started a shift that day. Never rewrite Hours.
-- **Shift**: actual session. Attendance Tracker **Start shift** / **End shift** (self), **Start for** / **End for** (supervisor proxy), and ad-hoc create/Finalize share this table. Login does not insert a row. One session per staff per date. `barId` required only for F&B. End shift / Finalize drafts Hours and, for F&B, finalizes `userStockLogs`. Live **Start** snapshots expected start/end and scores punctuality in the property timezone (`on_time` | `late` | `unscheduled`) using Payroll settings `punctualityGraceMinutes` (default 5), stores `clockMethod` (`self` | `proxy`) and `recordedByUserId`, and always uses server time now. Ad-hoc typed start times are `unscheduled` and cannot write `on_time`. Punctuality does not change pay. Existing attendance is not rewritten when the department shift is edited. Staff `clockMethod` (`self` | `supervisor` | `kiosk`) blocks self-start unless `self` (and a User is linked).
+- **Shift**: actual session. Attendance Tracker **Start shift** / **End shift** (self), **Start for** / **End for** (supervisor proxy), and ad-hoc create/Finalize share this table. Login does not insert a row. One session per staff per date. `barId` required only for Beverages. End shift / Finalize drafts Hours and, for Beverages, finalizes `userStockLogs`. Live **Start** snapshots expected start/end and scores punctuality in the property timezone (`on_time` | `late` | `unscheduled`) using Payroll settings `punctualityGraceMinutes` (default 5), stores `clockMethod` (`self` | `proxy`) and `recordedByUserId`, and always uses server time now. Ad-hoc typed start times are `unscheduled` and cannot write `on_time`. Punctuality does not change pay. Existing attendance is not rewritten when the department shift is edited. Staff `clockMethod` (`self` | `supervisor` | `kiosk`) blocks self-start unless `self` (and a User is linked).
 
 ### Hours
 Schema table: `hours`. Interface: `Hours`.
@@ -338,7 +338,7 @@ Labor Cost % for reports: sum Payroll `totalGrossPay` where status is `approved`
 
 Department **shift templates** define default hours per department. On onboard, staff inherit the department default. **Attendance Tracker** My duty Start/End (self-clock) or Today’s floor Start for/End for (supervisor proxy, server time) creates the day’s `shifts` row from that assignment (actual clock time, not template start). Logging in does not start the shift. Staff `clockMethod` blocks self-start unless `self`. **Cover** changes `rosterSlots.workingEmployeeId` for that date only and never rewrites Hours. Cover is rejected if the scheduled person already has a started shift or Hours that day, or if the covering person already started a shift.
 
-Ad-hoc Shifts remain available for unscheduled sessions. `barId` is required only for F&B. Hours screens live under Shift Management; payroll still pays only **approved** Hours.
+Ad-hoc Shifts remain available for unscheduled sessions. `barId` is required only for Beverages. Hours screens live under Shift Management; payroll still pays only **approved** Hours.
 
 When `shifts.isFinalized` becomes true (via Attendance Tracker End shift or `finalizeShift`):
 
@@ -347,7 +347,7 @@ When `shifts.isFinalized` becomes true (via Attendance Tracker End shift or `fin
 3. If no Hours exist for `(employeeId, workDate)`, insert `source = shift`, `status = draft`, clock times from the shift, hours from start/end minus a 30-minute default break, split with the daily OT limit.
 4. If a draft Hours row from a shift already exists and is unlocked, update hours from the finalized shift.
 5. If a submitted/approved/rejected/**locked** Hours row already exists for that date, do not overwrite; tell the operator.
-6. F&B shifts also finalize that shift’s `userStockLogs`.
+6. Beverages shifts also finalize that shift’s `userStockLogs`.
 
 Supervisors still approve the Hours before they can be paid. Manual Hours (no shift) remain allowed.
 

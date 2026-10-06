@@ -293,15 +293,23 @@ export default defineSchema({
     .index("by_staffId_role", ["staffId", "role"]),
 
   // ============================================
-  // Food & Beverage
+  // Restaurant (live — independent of Beverages)
+  // Spec: ai/Restaurant management system design PRD.md
+  // Do NOT reuse beverage POS `orders` / `orderLines` from live Convex.
   // ============================================
 
-  fnbMenuItems: defineTable({
+  restaurantMenuItems: defineTable({
     propertyId: v.id("properties"),
     name: v.string(),
     description: v.optional(v.string()),
     category: v.string(),
     subcategory: v.optional(v.string()),
+    // Production station: kitchen and grill share Restaurant, not separate modules
+    station: v.union(
+      v.literal("kitchen"),
+      v.literal("grill"),
+      v.literal("other"),
+    ),
     price: v.number(),
     cost: v.optional(v.number()),
     isAvailable: v.boolean(),
@@ -313,10 +321,13 @@ export default defineSchema({
   })
     .index("by_propertyId", ["propertyId"])
     .index("by_propertyId_category", ["propertyId", "category"])
-    .index("by_propertyId_isAvailable", ["propertyId", "isAvailable"]),
+    .index("by_propertyId_station", ["propertyId", "station"])
+    .index("by_propertyId_isAvailable", ["propertyId", "isAvailable"])
+    .index("by_propertyId_isActive", ["propertyId", "isActive"]),
 
   recipes: defineTable({
-    menuItemId: v.id("fnbMenuItems"),
+    propertyId: v.id("properties"),
+    menuItemId: v.id("restaurantMenuItems"),
     name: v.string(),
     servings: v.number(),
     instructions: v.optional(v.string()),
@@ -325,7 +336,8 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
   })
-    .index("by_menuItemId", ["menuItemId"]),
+    .index("by_menuItemId", ["menuItemId"])
+    .index("by_propertyId", ["propertyId"]),
 
   recipeLines: defineTable({
     recipeId: v.id("recipes"),
@@ -339,13 +351,18 @@ export default defineSchema({
     .index("by_recipeId", ["recipeId"])
     .index("by_inventoryItemId", ["inventoryItemId"]),
 
-  tables: defineTable({
+  restaurantTables: defineTable({
     propertyId: v.id("properties"),
     tableNumber: v.string(),
     capacity: v.number(),
     section: v.optional(v.string()),
-    status: v.string(), // available, occupied, reserved, cleaning
-    currentOrderId: v.optional(v.id("orders")),
+    status: v.union(
+      v.literal("available"),
+      v.literal("occupied"),
+      v.literal("reserved"),
+      v.literal("out-of-service"),
+    ),
+    currentOrderId: v.optional(v.id("restaurantOrders")),
     isActive: v.boolean(),
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -354,41 +371,82 @@ export default defineSchema({
     .index("by_propertyId_status", ["propertyId", "status"])
     .index("by_propertyId_tableNumber", ["propertyId", "tableNumber"]),
 
-  orders: defineTable({
+  restaurantOrders: defineTable({
     propertyId: v.id("properties"),
-    tableId: v.optional(v.id("tables")),
+    tableId: v.optional(v.id("restaurantTables")),
     reservationId: v.optional(v.id("reservations")),
-    orderType: v.string(), // dine-in, takeout, room-service, delivery
-    status: v.string(), // pending, preparing, ready, completed, cancelled
+    orderType: v.union(
+      v.literal("dine_in"),
+      v.literal("takeout"),
+      v.literal("room_service"),
+    ),
+    status: v.union(
+      v.literal("open"),
+      v.literal("settled"),
+      v.literal("voided"),
+      v.literal("open_tab"),
+    ),
+    serverUserId: v.id("users"),
+    guestLabel: v.optional(v.string()),
     subtotal: v.number(),
     taxAmount: v.number(),
     discountAmount: v.optional(v.number()),
     totalAmount: v.number(),
-    serverId: v.optional(v.id("staffs")),
+    amountPaid: v.number(),
+    balanceDue: v.number(),
+    openedAt: v.number(),
+    openedAtDateKey: v.string(),
+    settledAt: v.optional(v.number()),
     completedAt: v.optional(v.number()),
-    createdAt: v.number(),
-    updatedAt: v.number(),
+    checkSuffix: v.optional(v.string()),
+    inventoryDeductedAt: v.optional(v.number()),
   })
     .index("by_propertyId", ["propertyId"])
+    .index("by_propertyId_status", ["propertyId", "status"])
+    .index("by_propertyId_openedAtDateKey", ["propertyId", "openedAtDateKey"])
+    .index("by_propertyId_status_openedAtDateKey", [
+      "propertyId",
+      "status",
+      "openedAtDateKey",
+    ])
     .index("by_tableId", ["tableId"])
     .index("by_reservationId", ["reservationId"])
-    .index("by_serverId", ["serverId"])
-    .index("by_propertyId_status", ["propertyId", "status"])
-    .index("by_propertyId_createdAt", ["propertyId", "createdAt"]),
+    .index("by_serverUserId", ["serverUserId"]),
 
-  orderLines: defineTable({
-    orderId: v.id("orders"),
-    menuItemId: v.id("fnbMenuItems"),
+  restaurantOrderLines: defineTable({
+    propertyId: v.id("properties"),
+    orderId: v.id("restaurantOrders"),
+    menuItemId: v.id("restaurantMenuItems"),
+    nameSnapshot: v.string(),
+    unitPriceSnapshot: v.number(),
     quantity: v.number(),
-    unitPrice: v.number(),
-    totalPrice: v.number(),
+    lineTotal: v.number(),
     specialInstructions: v.optional(v.string()),
-    status: v.string(), // pending, preparing, ready, served, cancelled
+    lineStatus: v.union(v.literal("active"), v.literal("voided")),
+    prepStatus: v.union(
+      v.literal("pending"),
+      v.literal("preparing"),
+      v.literal("ready"),
+      v.literal("served"),
+      v.literal("cancelled"),
+    ),
+    station: v.union(
+      v.literal("kitchen"),
+      v.literal("grill"),
+      v.literal("other"),
+    ),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index("by_orderId", ["orderId"])
-    .index("by_menuItemId", ["menuItemId"]),
+    .index("by_propertyId", ["propertyId"])
+    .index("by_menuItemId", ["menuItemId"])
+    .index("by_propertyId_prepStatus", ["propertyId", "prepStatus"])
+    .index("by_propertyId_station_prepStatus", [
+      "propertyId",
+      "station",
+      "prepStatus",
+    ]),
 
   // ============================================
   // Inventory Management
@@ -600,7 +658,8 @@ export default defineSchema({
       v.union(
         v.literal("front-office"),
         v.literal("housekeeping"),
-        v.literal("fnb"),
+        v.literal("beverages"),
+        v.literal("restaurant"),
         v.literal("maintenance"),
         v.literal("finance"),
         v.literal("admin"),
@@ -776,13 +835,14 @@ export default defineSchema({
     .index("by_propertyId", ["propertyId"])
     .index("by_propertyId_kind", ["propertyId", "kind"]),
 
-  // Department default hours. F&B templates require barId.
+  // Department default hours. Beverages templates require barId when department is beverages.
   shiftTemplates: defineTable({
     propertyId: v.id("properties"),
     department: v.union(
       v.literal("front-office"),
       v.literal("housekeeping"),
-      v.literal("fnb"),
+      v.literal("beverages"),
+      v.literal("restaurant"),
       v.literal("maintenance"),
       v.literal("finance"),
       v.literal("admin"),
@@ -821,7 +881,7 @@ export default defineSchema({
     .index("by_template_date", ["shiftTemplateId", "shiftDate"]),
 
   // Actual working session. Attendance Tracker Start shift and ad-hoc create both insert here.
-  // barId required only for F&B. One session per staff per date (application-enforced).
+  // barId required only for Beverages. One session per staff per date (application-enforced).
   shifts: defineTable({
     propertyId: v.id("properties"),
     employeeId: v.optional(v.id("staffs")),
@@ -831,7 +891,8 @@ export default defineSchema({
       v.union(
         v.literal("front-office"),
         v.literal("housekeeping"),
-        v.literal("fnb"),
+        v.literal("beverages"),
+        v.literal("restaurant"),
         v.literal("maintenance"),
         v.literal("finance"),
         v.literal("admin"),

@@ -13,7 +13,7 @@ Hospitality operators juggle siloed systems for reservations, POS, payroll, proc
 
 ## Goals & Success Metrics
 
-- **G1**: Deliver live P&L dashboards and drill-down reports spanning rooms, Food & Beverage, maintenance, payroll, and utilities.
+- **G1**: Deliver live P&L dashboards and drill-down reports spanning rooms, Beverages, Restaurant, maintenance, payroll, and utilities.
   - *KPI*: <2 minute latency between transaction ingest and dashboard update.
 - **G2**: Reduce manual accounting workload.
   - *KPI*: ≥60% of journal entries auto-generated via rules and integrations.
@@ -31,7 +31,8 @@ Hospitality operators juggle siloed systems for reservations, POS, payroll, proc
 - **Finance & Accounting Teams**: own GL, AP/AR, payroll, taxes, vendor payments. They may view staff compensation (salary, tax ID, bank) but not necessarily edit identity.
 - **Front Office & Reservations Leads**: manage room inventory, rates, promotions, upsell flows.
 - **Housekeeping & Maintenance Supervisors**: schedule tasks, monitor completion, log expenses.
-- **Food & Beverage Managers & Storekeepers**: track menu performance, inventory, restocking, wastage.
+- **Beverages Managers & Bar Storekeepers**: track beverage performance, float/store stock, restocking, wastage (live bar hub).
+- **Restaurant Managers & Kitchen/Grill Leads**: track food menu performance, recipes, tables, and kitchen/grill throughput (live — see `ai/Restaurant management system design PRD.md`).
 - **Vendors & External Auditors (view-only)**: require secure document access and status updates.
 
 ## Scope
@@ -44,34 +45,36 @@ Hospitality operators juggle siloed systems for reservations, POS, payroll, proc
    - Room inventory, status, rates, occupancy forecasts.
    - Revenue tracking: room sales, discounts, net revPAR metrics.
    - Housekeeping assignments, checklists, supplies usage (lead + helpers; see Task Assignment).
-2. **Food & Beverage Management**
-   - Menu catalog, recipe costing, upsell recommendations.
-   - Native POS functionality for order taking, payment processing, and sales tracking (for businesses without existing POS systems).
-   - POS integrations for sales ingestion (for businesses with existing POS systems).
-   - Inventory counts, reorder points, supplier management, restocking workflows (restock/putaway are assignable tasks; purchase orders stay procurement — see Task Assignment).
-   - Document management for inventory purchases: supplier invoices, delivery receipts, and payment confirmations must be uploaded and linked to purchase orders.
-3. **Staff Management**
+2. **Beverages Management** *(independent module — live)*
+   - Beverage catalog, bar outlets, float ledger, store inventory, stock requests, reorder alerts, period analytics.
+   - Native beverage POS (`/admin/pos`): bar + room-service checks; cash / card (record) / room charge / open tab; cash-up and staff liabilities.
+   - Spec: `ai/Bar inventory and sales management system design PRD.md`. Permissions target: `beverages.*` (live code may still use `fnb.*` until migrated).
+3. **Restaurant Management** *(independent module — live)*
+   - Food menu catalog (kitchen + grill stations together), recipe costing, tables, restaurant POS / kitchen routing.
+   - Separate sellables, orders, permissions (`restaurant.*`), and department (`restaurant`) from Beverages.
+   - Spec: `ai/Restaurant management system design PRD.md`.
+4. **Staff Management**
    - Property-scoped people master (`staffs` only — no `employees` table). Existing `/admin/staff` and `Id<"staffs">` FKs stay.
    - Directory, onboard, terminate, optional User login link, employment type, manager line, documents, onboarding checklist, and self-service profile.
    - Compensation is edited as Pay history on the staff record; salary/tax/bank are visible only to Administrator, Director, General Manager, HR Manager, and Finance Manager.
-4. **Payroll Management**
+5. **Payroll Management**
    - Pay types (hourly / salary / mixed), pay rates, Hours, configurable allowances and deductions.
    - Native Payroll: Prepare pay, Approve payroll, generate Payslips, Download payment files, post GL, Mark as paid.
    - Implementation decisions and target model: `ai/payroll-implementation.md`.
-5. **Maintenance Management**
+6. **Maintenance Management**
    - Asset registry, preventive schedules, work orders, cost tracking, and purchased parts (`maintenanceOrderParts`; staff lead + optional helpers and optional vendor; see Task Assignment).
-6. **Billing, Expenses & Financial Management**
+7. **Billing, Expenses & Financial Management**
    - **Organizational billing** (`billAccounts` + `billPeriods`): admin configures recurring property bills (electricity, water, gas, internet, cable, waste, local government, other) with a cadence (`weekly` | `monthly` | `annually`). A daily cron opens the current expected period. Staff capture the invoice (amount, meters if metered, bill PDF). Mark as paid records a `Payment` (`referenceType = PropertyBill`) and inserts one `Expense` (`status = paid`) after a duplicate check. There is **no** separate `UtilityBill` table.
    - **Expenditure ledger** (`expenses`): the property cash-outflow book. Rows are created when money is recorded as spent: billed periods (mark-paid), payroll runs (mark-paid, `totalNetPay`), completed maintenance work orders with cost, purchase orders (mark-paid), and ad-hoc **Record expense**. `/admin/expenses` shows day / week / month / year totals by category (`utilities`, `supplies`, `staff`, `maintenance`, `other`). Do not enter the same invoice as both a period bill and an ad-hoc expense.
    - **Documents**: bill PDF required before mark-paid; receipt stored on the period (`billDocuments`, Convex `_storage`).
    - General inventory (linen, amenities, cleaning supplies, spare parts).
    - **Purchase documentation**: All inventory purchases require supplier invoices, delivery notes, and payment receipts to be uploaded and linked.
-7. **Reporting & Analytics**
-   - **Property dashboard** (`/admin/dashboard`, `reports.read`): property P&L / RevPAR plus operational snapshots (rooms, housekeeping, inventory, today’s F&B, billing). Not signed-in-person work. Module tabs hide when the read key is missing. Spec: `ai/dashboard.md`.
+8. **Reporting & Analytics**
+   - **Property dashboard** (`/admin/dashboard`, `reports.read`): property P&L / RevPAR plus operational snapshots (rooms, housekeeping, inventory, today’s Beverages, Restaurant today, billing). Not signed-in-person work. Module tabs hide when the read key is missing. Spec: `ai/dashboard.md`.
    - Daily flash reports, monthly statements, yearly trend analysis.
    - Custom report builder with filters by department, cost center, channel.
-   - Real-time dashboards for cash flow, occupancy, ADR, labor cost %, food cost %, etc.
-8. **Platform Foundations**
+   - Real-time dashboards for cash flow, occupancy, ADR, labor cost %, beverage pour cost %, food cost %, etc.
+9. **Platform Foundations**
    - Role-based access control, audit logs, SOC2-ready security controls.
    - **Post-login home**: users with `reports.read` land on `/admin/dashboard` (property P&L / operations; `ai/dashboard.md`). Everyone else lands on `/admin/staff/myProfile`. Same rule for `/`, sign-in default, setup finish, and the unauthorized primary button.
    - **User onboarding**: new users are created only via Clerk invitation. The admin selects a defined Role and Property; on accept, the system writes a `UserRole` row. Existing users cannot be re-invited — additional roles or properties are assigned on the user record.
@@ -123,27 +126,23 @@ Hospitality operators juggle siloed systems for reservations, POS, payroll, proc
 - Housekeeping workflow with task templates, productivity time tracking, and supply usage deduction from inventory. Assignment, SLA, auto-create, and completion rules: Task Assignment.
 - Room status stays `available | occupied | out-of-order | maintenance`. Front desk infers unreadiness from **open housekeeping tasks** on the room (do not add `dirty` / `cleaning`). Completing a checkout-clean task sets `Room.lastCleanedAt`.
 
-### Food & Beverage Management
+### Beverages Management
 
-- **Native POS Functionality** (for businesses without POS):
-  - Order entry interface for table service, bar, room service, and takeout.
-  - Payment processing integration (card, cash, digital wallets).
-  - Receipt generation and printing.
-  - Table management and order routing.
-  - Real-time order status tracking.
-- **POS Integration** (for businesses with existing POS):
-  - Sales ingestion via API/webhooks with mapping to GL accounts.
-  - Menu synchronization and price updates.
-- Recipe builder linking ingredients to inventory SKUs, auto-cost updates.
-- **Live bar stock & sales hub** (`/admin/bar-management`, `fnb.read`): float ledger (My Stock Today), waiter stock requests → store approve/issue, store physical counts, reorder alerts, and period analytics (Daily / Weekly / Monthly / Yearly / YoY). Stock-implied sales qty is `totalStock − closingStock − waste − comps` (control / pour cost). Spec: `ai/Bar inventory and sales management system design PRD.md`.
-- **POS v1** (`/admin/pos`, `/admin/pos/orders`, `/admin/pos/cash-up`, `fnb.read` / `fnb.create` / `fnb.update`): bar + room-service checks from the beverages catalog; tenders cash / card (record) / room charge / open tab — no payment gateway. Guest F&B revenue on the dashboard and P&L uses settled POS totals (plus amount paid on open tabs), not stock-implied sales. **Cash-up** compares counted drawer cash to expected cash tenders per server/day; shortages create pending staff liabilities (`/admin/bar-management/liabilities`) for approve → payroll deduction (`CASH_SHORT` / `STOCK_SHORT`) or cash collect / waive. Overage does not create a staff credit. Stock float shortages are recorded manually as liabilities (not auto from store count in v1).
-- Inventory cycle counts, variance detection, reorder automation, supplier price history. Restock (below reorder point) and putaway (PO received) are assignable inventory tasks; the purchase order itself is not assigned — see Task Assignment. Bar beverage reorders stay on `reorderAlerts` (not Task Assignment).
-- **Inventory Purchase Documentation**: All inventory purchases require:
-  - Supplier invoices (original or digital copies)
-  - Delivery notes/receipts
-  - Payment confirmations (bank statements, payment receipts)
-  - Documents must be linked to purchase orders for three-way matching (PO, invoice, receipt).
-- Upsell prompts (e.g., breakfast add-ons) at check-in/checkout + F&B dashboards for attach rates.
+- **Live bar stock & sales hub** (`/admin/bar-management`, target `beverages.read`): float ledger (My Stock Today), waiter stock requests → store approve/issue, store physical counts, reorder alerts, and period analytics (Daily / Weekly / Monthly / Yearly / YoY). Stock-implied sales qty is `totalStock − closingStock − waste − comps` (control / pour cost). Spec: `ai/Bar inventory and sales management system design PRD.md`.
+- **Beverage POS v1** (`/admin/pos`, `/admin/pos/orders`, `/admin/pos/cash-up`, target `beverages.read` / `beverages.create` / `beverages.update`): bar + room-service checks from the beverages catalog; tenders cash / card (record) / room charge / open tab — no payment gateway. Guest **beverage** revenue on the dashboard and P&L uses settled POS totals (plus amount paid on open tabs), not stock-implied sales. **Cash-up** compares counted drawer cash to expected cash tenders per server/day; shortages create pending staff liabilities (`/admin/bar-management/liabilities`) for approve → payroll deduction (`CASH_SHORT` / `STOCK_SHORT`) or cash collect / waive. Overage does not create a staff credit. Stock float shortages are recorded manually as liabilities (not auto from store count in v1).
+- Bar beverage reorders stay on `reorderAlerts` (not Task Assignment). General inventory restock/putaway remain assignable inventory tasks — see Task Assignment.
+- **Note:** Live Convex permissions may still be named `fnb.*` until the Beverages rename migration; AI docs use `beverages.*` as the target.
+
+### Restaurant Management
+
+- **Live** — Spec: `ai/Restaurant management system design PRD.md`.
+- Hub `/admin/restaurant`: today KPIs (`getRestaurantTodaySnapshot`).
+- Menu catalog with stations (`kitchen` | `grill` | `other`); recipes → `inventoryItems` with auto cost refresh when ingredient `unitCost` changes.
+- Tables board; Restaurant POS (`/admin/restaurant/pos`); orders list; kitchen board (prep bump by station).
+- Settlement: cash / card (record) / open tab / room charge (`restaurant_room_charge`). On full settle: inventory usage deduction via recipe lines.
+- Dashboard **Restaurant today** + P&L `restaurantRevenue` (separate from beverage POS / `fnbRevenue`).
+- Permissions: `restaurant.*`. Department: `restaurant`. After deploy run `syncSystemRoles`.
+- Upsell prompts / attach-rate reporting later. Restaurant cash-up deferred.
 
 ### Staff Management
 
@@ -198,7 +197,7 @@ Shared assignment, SLA, templates, and checklists across housekeeping, maintenan
 
 - **Assignees**: one **lead** plus optional **helpers** (`taskAssignments.role`). Any assignee may start the work. **Only the lead or a supervisor may complete.** Skip (housekeeping) and cancel (maintenance / inventory) are supervisor-only; reason goes in `notes`.
 - **Lead requirement**: completion is blocked without a lead. Auto-created work gets the **department supervisor** as lead when one can be resolved; otherwise it stays `pending` with no lead on the supervisor board.
-- **Department for default lead**: housekeeping → `housekeeping`; maintenance → `maintenance`; inventory restock/putaway → `fnb` (storekeeper / F&B). Resolution: active staff at the property in that department who have at least one direct report (`managerId`); if several, prefer the one with no `managerId`.
+- **Department for default lead**: housekeeping → `housekeeping`; maintenance → `maintenance`; inventory restock/putaway → `beverages` (bar/storekeeper) or property inventory supervisors as configured. Resolution: active staff at the property in that department who have at least one direct report (`managerId`); if several, prefer the one with no `managerId`.
 - **Assignee constraints**: `active`, same property. Manual create: lead defaults to the acting supervisor’s linked staff if they are in-department, else the department supervisor. Optional helpers. Maintenance may also name a `Supplier` (vendor does the physical work; the staff lead still owns in-app completion).
 - **Status**: `pending` → `in-progress` → `completed`. Housekeeping may `skipped`; maintenance and inventory may `cancelled`.
 - **SLA**: every work record has `dueAt` = trigger/create time + property `taskSlaDefaults.dueMinutes` for that module/`typeKey`. Snapshot; later default edits do not rewrite open work. Seeded defaults: checkout 45, stayover 180, emergency WO 120, restock 480, putaway 120, preventive 1440.
@@ -238,7 +237,7 @@ Organizational billing is the inbox and calendar for standing property obligatio
 ### Financial Core
 
 - GL structure with chart of accounts templates.
-- Journal rules from room/F&B/payroll events.
+- Journal rules from room / Beverages / Restaurant / payroll events.
 - Cash management: bank reconciliation, petty cash tracking.
 - Budget vs actual comparison per department.
 
@@ -301,14 +300,14 @@ Organizational billing is the inbox and calendar for standing property obligatio
 
 ## Data & ERD Considerations
 
-- Core entities: `Property` (includes required `country` for payroll jurisdiction), `User`, `Role`, `staffs` (Employee; no `employees` table), `staffDocuments`, `staffOnboardingItems`, `staffChangeRequests`, `Room`, `Reservation`, `HousekeepingTask`, `taskAssignments`, `taskTemplates`, `taskSlaDefaults`, `FnbMenuItem`, `InventoryItem`, `InventoryTask`, `Supplier`, `PurchaseOrder`, Department shift (`shiftTemplates`), Roster day (`rosterSlots`), Shift (`shifts`), Pay history, Pay cycle, Time-off type, Time off, Holidays, Extra pay rules, Hours, Payroll settings, Pay item type, Payroll, Staff pay, Pay item, Payslip, Payment file, `MaintenanceOrder`, `maintenanceOrderParts`, `Asset`, `Expense`, Bill account (`billAccounts`), Period bill (`billPeriods`), Bill document (`billDocuments`), `JournalEntry`, `Report`. There is **no** `UtilityBill` / `utilityBills` table. Schema table names stay `payHistory`, `payCycles`, `timeOffTypes`, `timeOff`, `holidayCalendars`, `extraPayRules`, `hours`, `payrollSettings`, `payItemTypes`, `payrolls`, `staffPay`, `payItems`, `payslips`, `paymentFiles`, plus live `shiftTemplates`, `rosterSlots`, `shifts`, `housekeepingTasks`, `taskAssignments`, `taskTemplates`, `taskSlaDefaults`, `maintenanceOrders`, `maintenanceOrderParts`, `inventoryTasks`, `billAccounts`, `billPeriods`, `billDocuments`.
+- Core entities: `Property` (includes required `country` for payroll jurisdiction), `User`, `Role`, `staffs` (Employee; no `employees` table), `staffDocuments`, `staffOnboardingItems`, `staffChangeRequests`, `Room`, `Reservation`, `HousekeepingTask`, `taskAssignments`, `taskTemplates`, `taskSlaDefaults`, **Beverages (live):** `Bar`, `Beverage`, store/float tables, beverage `orders`/`orderLines`; **Restaurant (live):** `restaurantMenuItems`, `recipes`, `recipeLines`, `restaurantTables`, `restaurantOrders`, `restaurantOrderLines`; `InventoryItem`, `InventoryTask`, `Supplier`, `PurchaseOrder`, Department shift (`shiftTemplates`), Roster day (`rosterSlots`), Shift (`shifts`), Pay history, Pay cycle, Time-off type, Time off, Holidays, Extra pay rules, Hours, Payroll settings, Pay item type, Payroll, Staff pay, Pay item, Payslip, Payment file, `MaintenanceOrder`, `maintenanceOrderParts`, `Asset`, `Expense`, Bill account (`billAccounts`), Period bill (`billPeriods`), Bill document (`billDocuments`), `JournalEntry`, `Report`. There is **no** `UtilityBill` / `utilityBills` table and **no** FnB / `FnbMenuItem` umbrella. Schema table names stay `payHistory`, `payCycles`, `timeOffTypes`, `timeOff`, `holidayCalendars`, `extraPayRules`, `hours`, `payrollSettings`, `payItemTypes`, `payrolls`, `staffPay`, `payItems`, `payslips`, `paymentFiles`, plus live `shiftTemplates`, `rosterSlots`, `shifts`, `housekeepingTasks`, `taskAssignments`, `taskTemplates`, `taskSlaDefaults`, `maintenanceOrders`, `maintenanceOrderParts`, `inventoryTasks`, `billAccounts`, `billPeriods`, `billDocuments`.
 - Relationships:
   - `Property` 1:N `staffs`, `Room`, `InventoryItem`, `Asset`.
   - User 1:1 Staff globally (optional). Staff `managerId` self-FK (direct reports).
   - `Reservation` links `Room`, `Guest`, and yields `JournalEntries`.
   - `HousekeepingTask` + `MaintenanceOrder` + `InventoryTask` share `taskAssignments` (lead + helpers). Room readiness is inferred from open housekeeping tasks; room status is not `dirty`/`cleaning`.
   - `MaintenanceOrder` 1:N `maintenanceOrderParts` (purchased/used items; optional `inventoryItemId`).
-  - `FnbMenuItem` consumes `InventoryItems` via recipe lines.
+  - `restaurantMenuItems` consume `inventoryItems` via `recipes` / `recipeLines` (cost on ingredient change; deduct on settle). Beverages use `beverageRecipeLines` / float stock independently.
   - Department shift → Employee (default on onboard); Roster day (Cover) → who should attend; Shift (Attendance Tracker or ad-hoc) → Hours on End shift / Finalize.
   - A Payroll is created from a Pay cycle, aggregates approved/unlocked Hours, Time off, Pay history, and Pay item types for `staffs` into Staff pay / Pay items, then posts a `JournalEntry` and produces Payslips + Payment files.
   - Property → Bill account → Period bill → Payment + Expense (on mark-paid). Payroll, maintenance, and purchase orders also post one Expense on their cash event. One invoice, one expense.
@@ -350,7 +349,7 @@ Organizational billing is the inbox and calendar for standing property obligatio
 1. **Discovery & Design (Weeks 0-4)**: validate workflows with pilot customers (both with and without existing systems), finalize ERD, UX prototypes.
 2. **MVP Build (Weeks 5-16)**:
    - Prioritize native POS/PMS functionality for businesses without existing systems.
-   - Build room + F&B financial flows, reporting dashboards.
+   - Build room + Beverages + Restaurant financial flows and reporting dashboards.
    - Develop integrations with 1 PMS + 1 POS + 1 accounting suite for businesses with existing systems.
 3. **Pilot Launch (Weeks 17-20)**: onboard 2-3 properties (mix of businesses with and without existing systems), collect feedback, close critical gaps.
 4. **General Availability (Weeks 21-28)**: expand integrations, add payroll + maintenance automation, finalize compliance docs.
@@ -378,7 +377,7 @@ Organizational billing is the inbox and calendar for standing property obligatio
 
 - **revPAR (Revenue Per Available Room)**: A key hospitality metric calculated as (Total Room Revenue / Total Available Rooms) or (Average Daily Rate × Occupancy Rate). Measures revenue-generating efficiency of room inventory.
 
-- **SKU (Stock Keeping Unit)**: A unique identifier for each distinct product or item in inventory, used for tracking, ordering, and inventory management. In F&B context, each ingredient or menu item would have its own SKU.
+- **SKU (Stock Keeping Unit)**: A unique identifier for each distinct product or item in inventory, used for tracking, ordering, and inventory management. In Beverages / Restaurant context, each ingredient, beverage SKU, or menu item would have its own SKU.
 
 - **CSV (Comma-Separated Values)**: A simple file format used to store tabular data (e.g., spreadsheets) where values are separated by commas. Used for importing/exporting data when direct API integrations aren't available.
 

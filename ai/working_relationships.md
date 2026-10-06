@@ -9,7 +9,7 @@ This document explains how the entities in the Hospitality Management Suite work
 1. [The Foundation: Property, Users, and Access Control](#the-foundation)
 2. [A Guest's Journey: From Booking to Checkout](#guest-journey)
 3. [Behind the Scenes: Room Operations](#room-operations)
-4. [Food & Beverage: From Menu to Payment](#food-beverage)
+4. [Restaurant: From Menu to Payment](#restaurant)
 5. [Inventory Management: From Purchase to Consumption](#inventory-management)
 6. [People Management: Employees and Payroll](#people-management)
 7. [Maintenance: Keeping Everything Running](#maintenance)
@@ -132,25 +132,27 @@ On July 15th, John arrives. The front desk:
    - `dueAt`: now + stayover SLA default (180 minutes)
    - Lead `taskAssignment` to the housekeeping department supervisor (Mike Chen)
 
-**Step 5: Room Service Order**
+**Step 5: Room Service Order (Restaurant)**
 
 John orders room service on July 16th. The system:
-1. Creates an **Order**:
+1. Creates a **RestaurantOrder**:
    - `orderId: 2001`
    - `propertyId: 1`
    - `reservationId: 10001` (links to John's reservation)
    - `orderType: "room-service"`
-   - `serverId: 202` (F&B employee)
+   - `serverId: 202` (Restaurant employee)
    - `status: "pending"`
 
-2. Creates **OrderLine** records:
+2. Creates **RestaurantOrderLine** records:
    - Line 1: `menuItemId: 50` (Caesar Salad), `quantity: 1`, `unitPrice: $12`
    - Line 2: `menuItemId: 75` (Grilled Salmon), `quantity: 1`, `unitPrice: $28`
-   - Line 3: `menuItemId: 120` (Wine), `quantity: 1`, `unitPrice: $18`
+   - Line 3: `menuItemId: 120` (House wine by the glass), `quantity: 1`, `unitPrice: $18`
 
 3. Calculates totals: `subtotal: $58`, `taxAmount: $4.64`, `totalAmount: $62.64`
 
 4. When the order is completed, inventory is automatically deducted (see [Inventory Management](#inventory-management) section).
+
+**Note:** Beverage bar sales use a separate live module (Beverages / bar POS `orders`) and are not merged with `RestaurantOrder`.
 
 **Step 6: Checkout**
 
@@ -236,7 +238,9 @@ When a room goes out of order:
 
 ---
 
-## Food & Beverage: From Menu to Payment {#food-beverage}
+## Restaurant: From Menu to Payment {#restaurant}
+
+**Beverages** (live bar management, beverages catalog, beverage POS) is a **separate** module — see `ai/Bar inventory and sales management system design PRD.md`. This section covers the **live Restaurant** dining flow. Do not merge beverage `orders` with `RestaurantOrder` / `restaurantOrders`.
 
 ### Menu Item Costing
 
@@ -261,7 +265,7 @@ The system calculates recipe cost:
 - Herbs: 0.05 kg × $20/kg = $1.00
 - **Total Recipe Cost: $4.33**
 
-The **FnbMenuItem** record is updated: `cost: $4.33`. The selling price is `$28`, so the profit margin is $23.67 (84.5%).
+The **RestaurantMenuItem** record is updated: `cost: $4.33`. The selling price is `$28`, so the profit margin is $23.67 (84.5%).
 
 **Automatic Cost Updates**
 
@@ -269,59 +273,59 @@ When the supplier increases salmon price from $15/kg to $16/kg:
 1. **InventoryItem** `inventoryItemId: 2001` updated: `unitCost: $16`
 2. **InventoryTransaction** created: `transactionType: "adjustment"`, `unitCost: $16`
 3. System automatically recalculates all **Recipe** records that use salmon
-4. **FnbMenuItem** `menuItemId: 75` updated: `cost: $4.43` (new cost)
+4. **RestaurantMenuItem** `menuItemId: 75` updated: `cost: $4.43` (new cost)
 
 ### Restaurant Operations
 
 **Table Management**
 
 A party of 4 arrives at the restaurant:
-1. Hostess checks **Table** records: Finds `tableId: 15`, `capacity: 4`, `status: "available"`
-2. Updates **Table**: `status: "occupied"`
-3. Creates **Order**:
+1. Hostess checks **RestaurantTable** records: Finds `tableId: 15`, `capacity: 4`, `status: "available"`
+2. Updates **RestaurantTable**: `status: "occupied"`
+3. Creates **RestaurantOrder**:
    - `orderId: 2002`
    - `tableId: 15`
    - `orderType: "dine-in"`
    - `serverId: 202` (Sarah, server)
    - `status: "pending"`
 
-4. Updates **Table**: `currentOrderId: 2002` (links active order to table)
+4. Updates **RestaurantTable**: `currentOrderId: 2002` (links active order to table)
 
 **Order Processing**
 
 The server takes the order and enters items:
-- **OrderLine** records created:
+- **RestaurantOrderLine** records created:
   - Line 1: `menuItemId: 50` (Caesar Salad), `quantity: 2`
   - Line 2: `menuItemId: 75` (Grilled Salmon), `quantity: 2`
-  - Line 3: `menuItemId: 120` (Wine), `quantity: 1`
+  - Line 3: `menuItemId: 120` (House wine by the glass), `quantity: 1`
 
-The kitchen receives the order:
-1. **OrderLine** records updated: `status: "preparing"`
+The kitchen receives the order (kitchen + grill are stations under Restaurant):
+1. **RestaurantOrderLine** records updated: `status: "preparing"`
 2. When items are ready: `status: "ready"`
 3. When served: `status: "served"`
 
 **Inventory Deduction**
 
 When the order is completed, the system automatically deducts inventory:
-- For each **OrderLine** that has a **Recipe**:
+- For each **RestaurantOrderLine** that has a **Recipe**:
   - System looks up **RecipeLine** records
   - Creates **InventoryTransaction** records:
-    - `transactionId: 6003`: `inventoryItemId: 2001` (Salmon), `quantity: -0.4` (kg) (2 orders × 0.2 kg), `referenceType: "OrderLine"`, `referenceId: 5001`
-    - `transactionId: 6004`: `inventoryItemId: 2002` (Olive Oil), `quantity: -0.02` (L), `referenceType: "OrderLine"`, `referenceId: 5002`
+    - `transactionId: 6003`: `inventoryItemId: 2001` (Salmon), `quantity: -0.4` (kg) (2 orders × 0.2 kg), `referenceType: "RestaurantOrderLine"`, `referenceId: 5001`
+    - `transactionId: 6004`: `inventoryItemId: 2002` (Olive Oil), `quantity: -0.02` (L), `referenceType: "RestaurantOrderLine"`, `referenceId: 5002`
     - And so on...
 
 **Payment and Financial Posting**
 
 When the table pays:
-1. **Payment** created: `paymentId: 3003`, `amount: $116`, `referenceType: "Order"`, `referenceId: 2002`
-2. **Order** updated: `status: "completed"`, `completedAt: 2024-07-18 20:30:00`
-3. **Table** updated: `status: "available"`, `currentOrderId: null`
+1. **Payment** created: `paymentId: 3003`, `amount: $116`, `referenceType: "RestaurantOrder"`, `referenceId: 2002`
+2. **RestaurantOrder** updated: `status: "completed"`, `completedAt: 2024-07-18 20:30:00`
+3. **RestaurantTable** updated: `status: "available"`, `currentOrderId: null`
 4. **JournalEntry** automatically created:
    - `entryId: 5002`
-   - `referenceType: "Order"`
+   - `referenceType: "RestaurantOrder"`
    - `referenceId: 2002`
    - **JournalEntryLine** records:
-     - `accountId: 4200` (F&B Revenue), `debitAmount: $116`
+     - `accountId: 4200` (Restaurant Revenue), `debitAmount: $116`
      - `accountId: 1100` (Cash/Accounts Receivable), `creditAmount: $116`
 
 ---
@@ -441,8 +445,8 @@ When the invoice is due:
 
 **Recipe-Based Deduction**
 
-When a menu item is sold (see [Food & Beverage](#food-beverage) section), the system:
-1. Looks up the **Recipe** for the **FnbMenuItem**
+When a menu item is sold (see [Restaurant](#restaurant) section), the system:
+1. Looks up the **Recipe** for the **RestaurantMenuItem**
 2. Finds all **RecipeLine** records
 3. Creates **InventoryTransaction** records for each ingredient
 4. Updates **InventoryItem** `currentQuantity` accordingly
@@ -641,7 +645,8 @@ Each property has its own **ChartOfAccounts** structure:
 **Hierarchical Structure:**
 - `accountId: 4000` (Revenue - Parent)
   - `accountId: 4100` (Room Revenue)
-  - `accountId: 4200` (F&B Revenue)
+  - `accountId: 4200` (Restaurant Revenue)
+  - `accountId: 4250` (Beverages Revenue)
 - `accountId: 5000` (Expenses - Parent)
   - `accountId: 5100` (COGS - Food)
   - `accountId: 5200` (Labor Expense)
@@ -783,7 +788,8 @@ Every morning at 6:00 AM, the system generates a **Report**:
 
 The report queries:
 - **Reservation** records: Occupancy rate, revenue
-- **Order** records: F&B sales
+- **RestaurantOrder** records: Restaurant sales
+- **Beverage orders** (live bar POS): Beverages sales (separate module)
 - **Payment** records: Cash flow
 - **HousekeepingTask** records: Room readiness
 
@@ -791,7 +797,7 @@ The report queries:
 - `snapshotId: 2001`
 - `reportId: 1001`
 - `snapshotDate: 2024-07-18`
-- `data: { "occupancy": "85%", "roomRevenue": "$12,500", "f&bRevenue": "$3,200", ... }`
+- `data: { "occupancy": "85%", "roomRevenue": "$12,500", "beveragesRevenue": "$2,100", "restaurantRevenue": "$1,100", ... }`
 
 The Finance Manager receives an email with the report.
 
@@ -808,7 +814,8 @@ The report aggregates:
 - **JournalEntry** records: All transactions for the month
 - **ChartOfAccounts** balances: Account-level summaries
 - **Reservation** revenue: Room sales
-- **Order** revenue: F&B sales
+- **RestaurantOrder** revenue: Restaurant sales
+- **Beverage orders** revenue: Beverages sales (separate)
 - **Expense** records: All expenses (including billed `sourceType = PropertyBill` rows)
 - **Payroll** records: Labor costs
 
@@ -825,14 +832,14 @@ The report aggregates:
 **Day 1 (July 15):**
 1. **Reservation** created, **Payment** (deposit) processed
 2. Check-in: **Reservation** → `status: "checked-in"`, **Room** → `status: "occupied"`
-3. Room service order: **Order** created, linked to **Reservation**
+3. Room service order: **RestaurantOrder** created, linked to **Reservation**
 4. Inventory deducted via **Recipe** system
-5. **JournalEntry** created for F&B revenue
+5. **JournalEntry** created for Restaurant revenue
 
 **Day 2 (July 16):**
 1. **HousekeepingTask** (stayover service) completed
 2. Inventory used (cleaning supplies) tracked via **InventoryTransaction**
-3. Restaurant dinner: **Order** created, **Table** assigned
+3. Restaurant dinner: **RestaurantOrder** created, **RestaurantTable** assigned
 4. Payment processed, **JournalEntry** created
 
 **Day 3 (July 17):**

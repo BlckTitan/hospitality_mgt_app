@@ -211,7 +211,7 @@ export function calculateADR(
 ```typescript
 /**
  * Calculates Total Revenue Per Available Room (includes all revenue)
- * @param totalHotelRevenue - Total revenue (rooms + F&B + other)
+ * @param totalHotelRevenue - Total revenue (rooms + Beverages + Restaurant + other)
  * @param totalAvailableRooms - Total available rooms
  * @returns TRevPAR value
  */
@@ -224,12 +224,12 @@ export function calculateTRevPAR(
 }
 ```
 
-### Calculate Average Check (F&B)
+### Calculate Average Check (Restaurant)
 
 ```typescript
 /**
  * Calculates average spending per customer/cover
- * @param totalSales - Total F&B sales
+ * @param totalSales - Total Restaurant sales
  * @param numberOfCovers - Number of customer visits/covers
  * @returns Average check value
  */
@@ -247,7 +247,7 @@ export function calculateAverageCheck(
 ```typescript
 /**
  * Calculates Revenue Per Available Seat Hour
- * @param totalOutletRevenue - Total F&B outlet revenue
+ * @param totalOutletRevenue - Total Restaurant outlet revenue
  * @param availableSeats - Total available seats
  * @param operatingHours - Operating hours per day/period
  * @returns RevPASH value
@@ -369,16 +369,29 @@ export function calculateLaborCostPercentage(
 }
 
 /**
- * Calculates F&B cost percentage (COGS / F&B Revenue)
- * @param foodBeverageCogs - Cost of goods sold for F&B
- * @param foodBeverageRevenue - F&B revenue
- * @returns F&B cost percentage
+ * Calculates Restaurant food cost percentage (COGS / Restaurant Revenue)
+ * @param foodCogs - Cost of goods sold for Restaurant
+ * @param restaurantRevenue - Restaurant revenue
+ * @returns Food cost percentage
  */
-export function calculateFBCostPercentage(
-  foodBeverageCogs: number,
-  foodBeverageRevenue: number
+export function calculateFoodCostPercentage(
+  foodCogs: number,
+  restaurantRevenue: number
 ): number {
-  return calculateCostPercentage(foodBeverageCogs, foodBeverageRevenue);
+  return calculateCostPercentage(foodCogs, restaurantRevenue);
+}
+
+/**
+ * Calculates Beverages pour cost percentage (COGS / Beverage Revenue)
+ * @param beverageCogs - Cost of goods sold for Beverages
+ * @param beverageRevenue - Beverages revenue
+ * @returns Pour cost percentage
+ */
+export function calculatePourCostPercentage(
+  beverageCogs: number,
+  beverageRevenue: number
+): number {
+  return calculateCostPercentage(beverageCogs, beverageRevenue);
 }
 
 /**
@@ -544,7 +557,7 @@ export function calculateDaysInventoryOutstanding(
 /**
  * Aggregates operational performance metrics for a reporting period
  * @param reservations - Array of reservations for period
- * @param orders - Array of F&B orders for period
+ * @param orders - Array of Restaurant/Beverages orders for period
  * @param totalAvailableRooms - Total available rooms
  * @returns Object with calculated metrics
  */
@@ -557,8 +570,8 @@ export function buildOperationalPerformanceMetrics(
     .filter((r) => ['checked-in', 'checked-out'].includes(r.status))
     .reduce((sum, r) => sum + r.totalAmount, 0);
 
-  const fbRevenue = orders.reduce((sum, o) => sum + o.totalAmount, 0);
-  const totalRevenue = roomRevenue + fbRevenue;
+  const outletRevenue = orders.reduce((sum, o) => sum + o.totalAmount, 0);
+  const totalRevenue = roomRevenue + outletRevenue;
   const roomsSold = reservations.filter((r) =>
     ['checked-in', 'checked-out'].includes(r.status)
   ).length;
@@ -568,10 +581,10 @@ export function buildOperationalPerformanceMetrics(
     occupancy_rate: calculateOccupancyRate(roomsSold, totalAvailableRooms),
     adr: calculateADR(roomRevenue, roomsSold),
     trevpar: calculateTRevPAR(totalRevenue, totalAvailableRooms),
-    average_check: calculateAverageCheck(fbRevenue, orders.length),
+    average_check: calculateAverageCheck(restaurantRevenue, orders.length),
     revpash:
       orders.length > 0
-        ? calculateRevPASH(fbRevenue, 50, 8) // example: 50 seats, 8 hours
+        ? calculateRevPASH(restaurantRevenue, 50, 8) // example: 50 seats, 8 hours
         : 0,
   };
 }
@@ -614,18 +627,18 @@ export function buildProfitabilityMetrics(
 /**
  * Aggregates cost efficiency metrics
  * @param laborCosts - Total labor costs
- * @param fbCogs - F&B cost of goods sold
+ * @param foodCogs - Restaurant food COGS
  * @param totalRevenue - Total revenue
- * @param fbRevenue - F&B revenue
+ * @param restaurantRevenue - Restaurant revenue
  * @param roomOperatingCosts - Room operation costs
  * @param roomsSold - Rooms sold
  * @returns Object with calculated metrics
  */
 export function buildCostEfficiencyMetrics(
   laborCosts: number,
-  fbCogs: number,
+  foodCogs: number,
   totalRevenue: number,
-  fbRevenue: number,
+  restaurantRevenue: number,
   roomOperatingCosts: number,
   roomsSold: number
 ) {
@@ -634,10 +647,10 @@ export function buildCostEfficiencyMetrics(
       laborCosts,
       totalRevenue
     ),
-    f_and_b_cost_percentage: calculateFBCostPercentage(fbCogs, fbRevenue),
+    food_cost_percentage: calculateFoodCostPercentage(foodCogs, restaurantRevenue),
     cpor: calculateCPOR(roomOperatingCosts, roomsSold),
-    prime_cost: calculatePrimeCost(fbCogs, laborCosts),
-    inventory_turnover: calculateInventoryTurnover(fbCogs, 5000), // example avg inventory
+    prime_cost: calculatePrimeCost(foodCogs, laborCosts),
+    inventory_turnover: calculateInventoryTurnover(foodCogs, 5000), // example avg inventory
   };
 }
 
@@ -1572,13 +1585,15 @@ export function getPostLoginPath(
 
 `listAccessibleProperties` (Convex query, `args: {}`): returns `{ _id, name, currency, timezone }` for `authContext.propertyIds`. Used by the dashboard instead of `getAllProperties` so `reports.read` without `properties.read` still works.
 
-`getFinancialReport` (`convex/dashboard.ts`, `reports.read`): property P&L + RevPAR for `[start, end)`. Rooms + F&B revenue, expenses by category, occupancy, ADR, RevPAR, TRevPAR, GOP, GOPPAR. Available rooms = current sellable inventory × period nights.
+`getFinancialReport` (`convex/dashboard.ts`, `reports.read`): property P&L + RevPAR for `[start, end)`. Rooms + Beverages revenue + Restaurant revenue (`restaurantRevenue`), expenses by category, occupancy, ADR, RevPAR, TRevPAR, GOP, GOPPAR. Available rooms = current sellable inventory × period nights.
+
+`getRestaurantTodaySnapshot` (`convex/dashboard.ts`, `restaurant.read`): property-local today restaurant revenue, food cost %, open checks, occupied tables. Drill-through: `/admin/restaurant`. Separate from Beverages today / `getFnBTodaySnapshot`.
 
 `propertyDateKey` (`convex/lib/barStock.ts`): property-local ISO date via `localDayBounds` + `propertyTimeZone`. Used for `userStockLogs.logDate`, `storeTransactions.txnDateKey`, and current `salesSummaries` `periodKey`.
 
 `periodDateKeys(dateKey, periodType)`: daily = that day; weekly = last 7 days; monthly = 1st through `dateKey`; yearly (health window) = last 30 days.
 
-`getBarHealthMetrics` (`convex/barHealth.ts`, `fnb.read`): finalization rate, waiter-shift revenue, SKU ranks, optional YoY deltas, reorder aging if `inventory.read`.
+`getBarHealthMetrics` (`convex/barHealth.ts`, `beverages.read`): finalization rate, waiter-shift revenue, SKU ranks, optional YoY deltas, reorder aging if `inventory.read`.
 
 `getYearOnYearOverview` (`convex/salesSummaries.ts`, `reports.read`): monthly `salesSummaries` for this year vs last year through the current property month.
 

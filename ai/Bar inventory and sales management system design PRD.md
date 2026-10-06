@@ -150,7 +150,7 @@ validate `isActive` before proceeding.
 
 ### 4.2 Shift and Stock Tracking — Waiter View
 
-**Live app:** `shifts` are property-wide staff sessions (`employeeId`), not bar-only. `barId` is required only for F&B. Waiters start and end work on **Attendance Tracker** (`startShift` / `endShift`); logging in does not create a shift. Ad-hoc Shift create/Finalize still exists. End shift also drafts payroll Hours. Stock-log fields and indexes in this section remain the F&B snapshot — see `ai/payroll-implementation.md` for the staff scheduling model.
+**Live app:** `shifts` are property-wide staff sessions (`employeeId`), not bar-only. `barId` is required only for Beverages. Waiters start and end work on **Attendance Tracker** (`startShift` / `endShift`); logging in does not create a shift. Ad-hoc Shift create/Finalize still exists. End shift also drafts payroll Hours. Stock-log fields and indexes in this section remain the Beverages snapshot — see `ai/payroll-implementation.md` for the staff scheduling model.
 
 **FR-SHF-001** — A Convex mutation shall create a `shifts` document when a
 waiter begins a working session, recording `userId`, `barId`, `shiftDate`
@@ -211,7 +211,7 @@ the same `(userId, barId, beverageId)`, ordered by `logDate` descending, using
 the `by_userId_barId_bev_date` index. If no prior record exists, `openingStock`
 defaults to `0`.
 
-**FR-SHF-007** — Waiters with `fnb.read` use **My Stock Today**
+**FR-SHF-007** — Waiters with `beverages.read` use **My Stock Today**
 (`/admin/bar-management/my-stock`). Queries `getMyTodayStock` and mutations
 `addMyTodayBeverage`, `saveMyClosingStock`, and `finalizeMyToday` are scoped to
 the authenticated `userId` and the property timezone `logDate` from
@@ -293,9 +293,9 @@ Does not touch waiter float logs.
 
 ### 4.4 Sales and Performance Analytics — Bar Management hub
 
-**Live page:** `/admin/bar-management` (`fnb.read`). Charts that read
+**Live page:** `/admin/bar-management` (`beverages.read`; live may still check `fnb.read`). Charts that read
 `salesSummaries` also need `reports.read`. Reorder tiles need `inventory.read`.
-The property dashboard F&B tab stays a **today snapshot** and links here — it
+The property dashboard Beverages today tab stays a **today snapshot** and links here — it
 does not host these charts. Spec: `ai/dashboard.md`, `ai/pageSetup.md`.
 
 **Sales identity:** `salesQuantity = totalStock − closingStock − waste − comps`
@@ -318,7 +318,7 @@ year (`getYearOnYearOverview`).
 1. Commercial KPIs: Total Revenue, Gross Profit, Gross Margin / Pour cost %,
    Waste & comps, Total Quantity Sold, Active Bars, Active Staff. YoY adds
    `% vs last year YTD` on revenue and qty.
-2. Health KPIs from `getBarHealthMetrics` (`convex/barHealth.ts`, `fnb.read`):
+2. Health KPIs from `getBarHealthMetrics` (`convex/barHealth.ts`, `beverages.read`):
    stock days finalized (waiter–bar–day sessions), open reorders + oldest age,
    stale reorders (open or acknowledged ≥ 24h), open stock requests, latest
    posted store count net variance, revenue per waiter-shift.
@@ -586,12 +586,12 @@ without validating it against that server date.
 | Open reorder alerts          | `reorderAlerts` `by_propertyId_status`                         | Store Manager  | Real-time                             |
 | Open stock requests          | `stockRequests` pending                                        | Store Manager  | Real-time                             |
 | Store count variance         | Latest posted `storeCounts.netVarianceQty`                     | Store Manager  | Per count                             |
-| Hub commercial KPIs          | `getSalesByBarPeriod` / `getSalesByUserPeriod`                 | F&B + reports  | Daily / Weekly / Monthly / Yearly / YoY |
-| Hub health KPIs + SKUs       | `getBarHealthMetrics` (`userStockLogs` + optional summaries)   | `fnb.read`     | Same period control                   |
+| Hub commercial KPIs          | `getSalesByBarPeriod` / `getSalesByUserPeriod`                 | Beverages + reports  | Daily / Weekly / Monthly / Yearly / YoY |
+| Hub health KPIs + SKUs       | `getBarHealthMetrics` (`userStockLogs` + optional summaries)   | `beverages.read`     | Same period control                   |
 | Sales by bar / user          | `salesSummaries` `by_propertyId_periodType_periodKey`          | `reports.read` | Current period key                    |
 | Revenue trend                | `getRevenueTrend`                                              | `reports.read` | Last N keys; YoY monthly overlay      |
 | Year-on-year YTD             | `getYearOnYearOverview` (monthly summaries Jan–current month)  | `reports.read` | This year vs last year YTD            |
-| SKU top / slowest            | Health query ranks by revenue                                  | `fnb.read`     | Current period                        |
+| SKU top / slowest            | Health query ranks by revenue                                  | `beverages.read`     | Current period                        |
 
 ---
 
@@ -652,7 +652,7 @@ are not used. CRUD lives in `convex/bars.ts`, `convex/beverages.ts`,
 ## 10. Assumptions and Constraints
 
 - The data model supports any number of active bars at a property.
-- Each waiter works at one bar per F&B shift. Multi-bar shifts are out of scope.
+- Each waiter works at one bar per Beverages shift. Multi-bar shifts are out of scope.
 - One `userStockLogs` document exists per `(userId, barId, beverageId, logDate)`.
   If a waiter covers multiple shifts in one day at the same bar, they share a
   single daily stock log per beverage.

@@ -381,12 +381,14 @@ This document outlines which entities should have dedicated pages and the data f
 
 ---
 
-## Food & Beverage Management Pages
+## Beverages Management Pages (live)
+
+Bar management, beverages catalog, and beverage POS. Spec: `ai/Bar inventory and sales management system design PRD.md`. Permissions target: `beverages.*` (live code may still use `fnb.*` until migration). Department: `beverages`. Do **not** merge beverage `orders` with restaurant orders.
 
 ### 17c. Bar Management hub (`/admin/bar-management`)
 **Purpose**: Live **stock-control** hub for bars (float, requests, store counts, stock-implied analytics). Guest ticket sales live on POS (`/admin/pos`). Spec: `ai/Bar inventory and sales management system design PRD.md` §4.4.
 
-**Permission:** `fnb.read`. Commercial charts need `reports.read`. Reorder KPIs/table need `inventory.read`.
+**Permission:** `beverages.read`. Commercial charts need `reports.read`. Reorder KPIs/table need `inventory.read`.
 
 **Layout (top → bottom):**
 - Commercial KPIs: Total Revenue, Gross Profit, Pour cost %, Waste & comps, Total Quantity Sold, Active Bars, Active Staff — labeled as **stock-implied (control)**, not POS guest sales
@@ -408,26 +410,26 @@ This document outlines which entities should have dedicated pages and the data f
 
 ---
 
-### 17e. POS terminal (`/admin/pos`)
+### 17e. Beverage POS terminal (`/admin/pos`)
 **Purpose**: Bar-first POS — open checks, add beverage lines, settle with cash / card (record) / room charge / open tab. No payment gateway.
 
-**Permission:** `fnb.read` to view; `fnb.create` to open checks; `fnb.update` to add/void lines and settle.
+**Permission:** `beverages.read` to view; `beverages.create` to open checks; `beverages.update` to add/void lines and settle.
 
 **Layout:** Property + bar selectors; mode Bar | Room service; menu grid from active `beverages`; check panel with lines, tenders, Settle / Open tab / Void.
 
 **Data Fetching:**
 - `listSellableBeverages`, `listBarsForPos`, `listStayReservationsForPos`, `getOrder`
 - Mutations: `createOrder`, `addLine`, `voidLine`, `voidOrder`, `setRoomContext`, `settleOrder`, `markOpenTab`
-- Room charge writes `payments` on the Order and a Reservation `fnb_room_charge` payment (+ bumps `depositAmount`)
+- Room charge writes `payments` on the beverage Order and a Reservation `fnb_room_charge` payment (+ bumps `depositAmount`). Note: payment method key may still say `fnb_room_charge` until a rename migration.
 
 **Rendering Strategy: SSR** — live Convex subscriptions.
 
 ---
 
-### 17f. POS orders (`/admin/pos/orders`)
-**Purpose**: List open / open_tab / settled / voided orders; pay down open tabs.
+### 17f. Beverage POS orders (`/admin/pos/orders`)
+**Purpose**: List open / open_tab / settled / voided beverage orders; pay down open tabs. Separate from restaurant orders.
 
-**Permission:** `fnb.read`; pay down needs `fnb.update`.
+**Permission:** `beverages.read`; pay down needs `beverages.update`.
 
 **Data Fetching:** `listOrders`, `payDownTab`
 
@@ -444,7 +446,7 @@ This document outlines which entities should have dedicated pages and the data f
 - One posted cash-up per server + date (re-post blocked).
 - Stock float shortages are **not** inferred here — use Staff liabilities (manual) or later store-count linkage.
 
-**Permission:** `fnb.read` to preview/list; `fnb.update` to post.
+**Permission:** `beverages.read` to preview/list; `beverages.update` to post.
 
 **Data Fetching:**
 - `listServersForCashUp`, `previewCashSettlement`, `listCashSettlements`
@@ -458,12 +460,12 @@ This document outlines which entities should have dedicated pages and the data f
 **Purpose**: Track amounts owed by staff from cash shortages (cash-up) or manual stock shortages. Lifecycle: pending → approved → deducted (via payroll) | collected | waived.
 
 **Rules:**
-- Approve requires `fnb.update`. Approved rows with remaining amount inject `CASH_SHORT` / `STOCK_SHORT` deduction Pay items on **Prepare pay**.
+- Approve requires `beverages.update`. Approved rows with remaining amount inject `CASH_SHORT` / `STOCK_SHORT` deduction Pay items on **Prepare pay**.
 - **Approve payroll** marks included liabilities `deducted` and clears remaining.
 - Collect (cash recovery) or Waive closes without payroll; blocked once the liability is already included in a payroll run.
 - Recalculate / re-prepare pay clears `includedInPayrollId` on that run’s prior inclusions so liabilities can re-attach.
 
-**Permission:** `fnb.read` to list; `fnb.update` to create / approve / collect / waive.
+**Permission:** `beverages.read` to list; `beverages.update` to create / approve / collect / waive.
 
 **Data Fetching:**
 - `listStaffLiabilities`, `listServersForCashUp` (staff picker)
@@ -475,7 +477,7 @@ This document outlines which entities should have dedicated pages and the data f
 ### 17d. My Stock Today (`/admin/bar-management/my-stock`)
 **Purpose**: Waiter float ledger for property-local today — Opening / Received / Total / Closing / Waste / Comps / Sales
 
-**Permission:** `fnb.read`
+**Permission:** `beverages.read`
 
 **Data Fetching:**
 - `getMyTodayStock` — authenticated user, `propertyDateKey` today
@@ -491,7 +493,7 @@ This document outlines which entities should have dedicated pages and the data f
 ### 17d-ii. Stock requests (`/admin/bar-management/stock-requests`)
 **Purpose**: Waiter submits replenishment lines; store approves (creates issue → bumps Received) or rejects
 
-**Permission:** `fnb.read` to view/create own; `inventory.update` to approve/reject
+**Permission:** `beverages.read` to view/create own; `inventory.update` to approve/reject
 
 **Data Fetching:**
 - `listStockRequests`, `getStockRequest`
@@ -514,11 +516,41 @@ This document outlines which entities should have dedicated pages and the data f
 
 ---
 
-### 18. Menu Items Page (`/menu-items`)
-**Purpose**: Manage F&B menu catalog
+## Restaurant Management Pages (live)
 
-**Data Fetching:**
-- Fetch all `FnbMenuItem` records for current property (with pagination)
+Independent dining module under `/admin/restaurant`. Permissions: `restaurant.*`. Kitchen + grill are stations. Spec: `ai/Restaurant management system design PRD.md`. Do **not** merge with beverage `orders`.
+
+### Hub (`/admin/restaurant`)
+KPIs from `getRestaurantTodaySnapshot` (`restaurant.read`) + links to child screens.
+
+### Menu Items (`/admin/restaurant/menu-items`) — R1
+CRUD catalog with station filter (`kitchen` | `grill` | `other`).
+
+### Recipes (`/admin/restaurant/recipes`) — R1
+Upsert recipe per menu item; ingredient lines from inventory; cost recalculation.
+
+### Tables (`/admin/restaurant/tables`) — R2
+Status board; create/update; setStatus.
+
+### Restaurant POS (`/admin/restaurant/pos`) — R2
+dine_in / takeout / room_service; settle cash/card/room charge (`restaurant_room_charge`) / open tab.
+
+### Orders (`/admin/restaurant/orders`) — R2
+List + pay down open tabs.
+
+### Kitchen board (`/admin/restaurant/kitchen`) — R2
+Station filter; bump prep status pending → preparing → ready → served.
+
+---
+
+### Planned detail routes (optional later)
+
+List screens above are live. The following keep target fetch/permission contracts for optional detail URLs.
+
+**Permission:** `restaurant.read` (`restaurant.create` / `restaurant.update` on create/edit)
+
+**Data Fetching (menu list):**
+- Fetch all `RestaurantMenuItem` records for current property (with pagination)
 - Include joined `Recipe` data (if exists)
 - Include calculated cost from recipe
 - Filter by: `category`, `subcategory`, `isAvailable`, `isActive`
@@ -527,61 +559,66 @@ This document outlines which entities should have dedicated pages and the data f
 **Related Entities to Include:**
 - `Recipe` (joined, optional)
 
-**Rendering Strategy: ISR (revalidate: 600 seconds / 10 minutes)**
-- **Reason**: Menu items change periodically but not constantly, availability status updates benefit from caching, calculated costs from recipes are relatively stable, balances freshness with performance
+**Rendering Strategy: SSR** (Convex subscriptions; ignore older ISR notes)
 
 ---
 
-### 19. Menu Item Detail Page (`/menu-items/[menuItemId]`)
-**Purpose**: View/edit menu item details and recipe
+### 19. Restaurant Menu Item Detail Page (`/admin/restaurant/menu-items/[menuItemId]`)
+**Purpose**: View/edit menu item details and recipe (optional detail route)
+
+**Permission:** `restaurant.read`
 
 **Data Fetching:**
-- Fetch single `FnbMenuItem` by `menuItemId`
+- Fetch single `RestaurantMenuItem` by `menuItemId`
 - Fetch related `Recipe` with all `RecipeLine` records
 - Include joined `InventoryItem` data for each recipe line
 - Show calculated recipe cost
-- Include sales statistics (from `OrderLine`)
+- Include sales statistics (from `RestaurantOrderLine`)
 
 **Related Entities to Include:**
 - `Recipe` (where `menuItemId` matches, optional)
 - `RecipeLine` with `InventoryItem` (where `recipeId` matches, if recipe exists)
-- Count and sum from `OrderLine` (where `menuItemId` matches, aggregated)
+- Count and sum from `RestaurantOrderLine` (where `menuItemId` matches, aggregated)
 
 **Rendering Strategy: ISR (revalidate: 600 seconds / 10 minutes)**
 - **Reason**: Menu item details change infrequently, recipe costs update periodically, sales statistics can be slightly stale, benefits from caching for performance
 
 ---
 
-### 20. Recipes Page (`/recipes`)
-**Purpose**: Manage recipes and costing
+### 20. Restaurant Recipes Page (`/admin/restaurant/recipes`)
+**Purpose**: Manage recipes and costing (live list; detail URL optional)
+
+**Permission:** `restaurant.read`
 
 **Data Fetching:**
 - Fetch all `Recipe` records (with pagination)
-- Include joined `FnbMenuItem` data
+- Include joined `RestaurantMenuItem` data
 - Show calculated `totalCost` and cost per serving
 - Filter by: `menuItemId`, name
 - Sort by: name, `totalCost`
 
 **Related Entities to Include:**
-- `FnbMenuItem` (joined)
+- `RestaurantMenuItem` (joined)
 
 **Rendering Strategy: ISR (revalidate: 600 seconds / 10 minutes)**
 - **Reason**: Recipes change infrequently, cost calculations update when ingredient prices change (periodic), benefits from caching, property-specific data
 
 ---
 
-### 21. Recipe Detail Page (`/recipes/[recipeId]`)
-**Purpose**: View/edit recipe details and ingredients
+### 21. Restaurant Recipe Detail Page (`/admin/restaurant/recipes/[recipeId]`)
+**Purpose**: View/edit recipe details and ingredients (optional detail route)
+
+**Permission:** `restaurant.read`
 
 **Data Fetching:**
 - Fetch single `Recipe` by `recipeId`
-- Fetch joined `FnbMenuItem` data
+- Fetch joined `RestaurantMenuItem` data
 - Fetch all `RecipeLine` records with joined `InventoryItem` data
 - Show current ingredient costs and total recipe cost
 - Show cost impact if ingredient prices change
 
 **Related Entities to Include:**
-- `FnbMenuItem` (joined)
+- `RestaurantMenuItem` (joined)
 - `RecipeLine` with `InventoryItem` (where `recipeId` matches)
 
 **Rendering Strategy: ISR (revalidate: 600 seconds / 10 minutes)**
@@ -589,79 +626,87 @@ This document outlines which entities should have dedicated pages and the data f
 
 ---
 
-### 22. Tables Page (`/tables`)
-**Purpose**: Manage restaurant table layout
+### 22. Restaurant Tables Page (`/admin/restaurant/tables`)
+**Purpose**: Manage restaurant table layout (live)
+
+**Permission:** `restaurant.read`
 
 **Data Fetching:**
-- Fetch all `Table` records for current property (with pagination)
-- Include current `Order` status (if occupied)
+- Fetch all `RestaurantTable` records for current property (with pagination)
+- Include current `RestaurantOrder` status (if occupied)
 - Filter by: `status`, `section`, `capacity`
 - Sort by: `tableNumber`, section
 
 **Related Entities to Include:**
-- Current `Order` (where `tableId` matches and `status IN ('pending', 'in-progress')`, limit 1)
+- Current `RestaurantOrder` (where `tableId` matches and `status` in `open` / `open_tab`, limit 1)
 
 **Rendering Strategy: SSR**
 - **Reason**: Table status changes frequently (occupied/available), current order status is real-time critical, operational page for restaurant floor management, requires fresh data
 
 ---
 
-### 23. Table Detail Page (`/tables/[tableId]`)
-**Purpose**: View table status and current order
+### 23. Restaurant Table Detail Page (`/admin/restaurant/tables/[tableId]`)
+**Purpose**: View table status and current order (optional detail route)
+
+**Permission:** `restaurant.read`
 
 **Data Fetching:**
-- Fetch single `Table` by `tableId`
-- Fetch current active `Order` (if any)
-- Fetch `OrderLine` records for current order with joined `FnbMenuItem` data
+- Fetch single `RestaurantTable` by `tableId`
+- Fetch current active `RestaurantOrder` (if any)
+- Fetch `RestaurantOrderLine` records for current order with joined `RestaurantMenuItem` data
 - Fetch recent order history
 
 **Related Entities to Include:**
-- Current `Order` (where `tableId` matches and `status IN ('pending', 'in-progress')`)
-- `OrderLine` with `FnbMenuItem` (where `orderId` matches current order)
-- Recent `Order` history (where `tableId` matches, ordered by `createdAt` DESC, limit 10)
+- Current `RestaurantOrder` (where `tableId` matches and `status` in `open` / `open_tab`)
+- `RestaurantOrderLine` with `RestaurantMenuItem` (where `orderId` matches current order)
+- Recent `RestaurantOrder` history (where `tableId` matches, ordered by `openedAt` DESC, limit 10)
 
 **Rendering Strategy: SSR**
 - **Reason**: Current order status updates in real-time, order items and status change frequently, critical for POS operations, requires fresh data for service staff
 
 ---
 
-### 24. Orders Page (`/orders`)
-**Purpose**: Manage POS orders (dine-in, takeout, room service, bar)
+### 24. Restaurant Orders Page (`/admin/restaurant/orders`)
+**Purpose**: Manage restaurant POS orders (dine-in, takeout, room service) — live. Separate from beverage POS orders.
+
+**Permission:** `restaurant.read` (`restaurant.create` / `restaurant.update` to open/settle)
 
 **Data Fetching:**
-- Fetch all `Order` records for current property (with pagination)
-- Include joined `Table`, `Reservation`, and `Employee` data
+- Fetch all `RestaurantOrder` records for current property (with pagination)
+- Include joined `RestaurantTable`, `Reservation`, and server `User` data
 - Include order total and status
-- Filter by: `orderType`, `status`, `createdAt`, `tableId`, `serverId`
-- Sort by: `createdAt` DESC, `status`
+- Filter by: `orderType`, `status`, `openedAtDateKey`, `tableId`, `serverUserId`
+- Sort by: `openedAt` DESC, `status`
 
 **Related Entities to Include:**
-- `Table` (joined, optional)
+- `RestaurantTable` (joined, optional)
 - `Reservation` (joined, optional)
-- `Employee` (joined, where `serverId` matches)
+- `User` (joined, where `serverUserId` matches)
 
 **Rendering Strategy: SSR**
-- **Reason**: Order status changes frequently (pending/in-progress/ready/completed), real-time POS operations, critical for restaurant operations, requires fresh data for kitchen and service staff
+- **Reason**: Order status changes frequently, real-time POS operations, critical for restaurant operations, requires fresh data for kitchen and service staff
 
 ---
 
-### 25. Order Detail Page (`/orders/[orderId]`)
-**Purpose**: View/edit order details and items
+### 25. Restaurant Order Detail Page (`/admin/restaurant/orders/[orderId]`)
+**Purpose**: View/edit restaurant order details and items (optional detail route; POS covers settle)
+
+**Permission:** `restaurant.read`
 
 **Data Fetching:**
-- Fetch single `Order` by `orderId`
-- Fetch joined `Table`, `Reservation`, `Property`, and `Employee` data
-- Fetch all `OrderLine` records with joined `FnbMenuItem` data
+- Fetch single `RestaurantOrder` by `orderId`
+- Fetch joined `RestaurantTable`, `Reservation`, `Property`, and server `User` data
+- Fetch all `RestaurantOrderLine` records with joined `RestaurantMenuItem` data
 - Fetch `Payment` records for this order
 - Show order status and preparation progress
 
 **Related Entities to Include:**
-- `Table` (joined, optional)
+- `RestaurantTable` (joined, optional)
 - `Reservation` (joined, optional)
 - `Property` (joined)
-- `Employee` (joined, where `serverId` matches)
-- `OrderLine` with `FnbMenuItem` (where `orderId` matches)
-- `Payment` (where `referenceType = 'Order'` and `referenceId` matches, optional)
+- `User` (joined, where `serverUserId` matches)
+- `RestaurantOrderLine` with `RestaurantMenuItem` (where `orderId` matches)
+- `Payment` (where `referenceType = 'RestaurantOrder'` and `referenceId` matches, optional)
 
 **Rendering Strategy: SSR**
 - **Reason**: Order status and item preparation progress update in real-time, payment status changes, critical for POS operations, requires fresh data
@@ -702,7 +747,7 @@ This document outlines which entities should have dedicated pages and the data f
 - `Supplier` (joined, optional)
 - `Property` (joined)
 - `InventoryTransaction` (where `inventoryItemId` matches, ordered by `transactionDate` DESC, limit 50)
-- `RecipeLine` (where `inventoryItemId` matches, with joined `Recipe` and `FnbMenuItem`)
+- `RecipeLine` (where `inventoryItemId` matches, with joined `Recipe` and `RestaurantMenuItem`)
 
 **Rendering Strategy: SSR**
 - **Reason**: Current stock level is real-time critical, transaction history updates frequently, cost changes affect recipe calculations, requires fresh data for inventory management
@@ -888,8 +933,8 @@ Sidebar: **Dashboard** (`/admin/dashboard`, `reports.read` — hidden without it
 
 **Data Fetching:**
 - Fetch Department shifts for current property
-- Include assigned staff count and default bar name (F&B)
-- **+** creates a template (F&B requires a default bar). Edit is `/admin/shift-management/templates/edit?template_id=`
+- Include assigned staff count and default bar name (Beverages)
+- **+** creates a template (Beverages requires a default bar). Edit is `/admin/shift-management/templates/edit?template_id=`
 
 **Related Entities:** `Property`, `Bar` (optional), `staffs` (by `shiftTemplateId`)
 
@@ -909,7 +954,7 @@ Sidebar: **Dashboard** (`/admin/dashboard`, `reports.read` — hidden without it
 
 **Related Entities:** `staffs`, `shiftTemplates`, `rosterSlots`, `shifts`, `hours`
 
-**Rendering Strategy: SSR** — My duty (`payroll.timesheet.create` or `fnb.read`); floor (`staff.read` / `staff.update` / `payroll.timesheet.approve`)
+**Rendering Strategy: SSR** — My duty (`payroll.timesheet.create` or `beverages.read`); floor (`staff.read` / `staff.update` / `payroll.timesheet.approve`)
 
 ---
 
@@ -930,11 +975,11 @@ Sidebar: **Dashboard** (`/admin/dashboard`, `reports.read` — hidden without it
 **Purpose**: List actual working sessions (`shifts`). Same table as Attendance Tracker.
 
 **Data Fetching:**
-- Managers (`staff.read`): all property shifts. Employees (`payroll.timesheet.create` or `fnb.read`): own rows only (`employeeId` / `userId`)
+- Managers (`staff.read`): all property shifts. Employees (`payroll.timesheet.create` or `beverages.read`): own rows only (`employeeId` / `userId`)
 - Employees cannot add, edit, delete, or Finalize
 - **+** is the unscheduled path (`staff.create`). Edit is `/admin/shift-management/shift/edit?shift_id=` (`staff.update`). **Finalize** (or End shift) drafts Hours. One session per staff per date.
 
-**Related Entities:** `staffs`, `bars` (F&B), `hours`, `shiftTemplates`, `rosterSlots`
+**Related Entities:** `staffs`, `bars` (Beverages), `hours`, `shiftTemplates`, `rosterSlots`
 
 **Rendering Strategy: SSR**
 
@@ -1570,11 +1615,12 @@ Sidebar: **Dashboard** (`/admin/dashboard`, `reports.read` — hidden without it
 **Data Fetching:**
 - Properties via `listAccessibleProperties` (auth `propertyIds` only; do not use `getAllProperties`, which needs `properties.read`)
 - Summaries are tabs. P&L / RevPAR is always listed. Other tabs appear only if the module read key is present; the active tab’s query runs:
-  - P&L / RevPAR: `getFinancialReport` (`reports.read`) — day / week / month / year via `cashPeriod`; rooms + F&B revenue, expenses by category, occupancy, ADR, RevPAR, TRevPAR, GOP, GOPPAR
+  - P&L / RevPAR: `getFinancialReport` (`reports.read`) — day / week / month / year via `cashPeriod`; rooms + Beverages revenue + Restaurant revenue (`restaurantRevenue`), expenses by category, occupancy, ADR, RevPAR, TRevPAR, GOP, GOPPAR
   - Rooms: `getRoomsSnapshot` (`rooms.read` or `reservations.read`) — occupancy counts; today’s arrivals / departures / in-house (max 5 each)
   - Housekeeping: `getHousekeepingSnapshot` (`housekeeping.task.read`) — open / overdue / unassigned; up to 5 overdue titles
   - Inventory: `getInventoryDashboard` (`inventory.read`)
-  - F&B today: `getFnBTodaySnapshot` (`fnb.read`) from today’s `userStockLogs`; open reorder count if `inventory.read`. Drill-through: `/admin/bar-management`.
+  - Beverages today: stock-implied today snapshot (`beverages.read`) from today’s `userStockLogs`; open reorder count if `inventory.read`. Drill-through: `/admin/bar-management`. (Live query may still be named `getFnBTodaySnapshot` until rename.)
+  - Restaurant today: `getRestaurantTodaySnapshot` (`restaurant.read`) — revenue, food cost %, open checks, occupied tables. Drill-through: `/admin/restaurant`.
   - Billing: `listDashboard` (`billing.period.read`)
 - Do not call `getAllRooms` or `getAllReservations`. Do not chart raw `salesSummaries` SKU rows on this page (period charts live on the Bar Management hub).
 
@@ -1585,7 +1631,7 @@ Sidebar: **Dashboard** (`/admin/dashboard`, `reports.read` — hidden without it
 - `expenses` (period P&L by category)
 - `housekeepingTasks` (open/overdue/unassigned counts)
 - `inventoryItems` / `purchaseOrders` (inventory dashboard payload)
-- `userStockLogs` (period F&B revenue; today qty + revenue)
+- `userStockLogs` (period Beverages revenue; today qty + revenue)
 - `reorderAlerts` (open count)
 - `billPeriods` / `billAccounts` (overdue, due this week)
 
@@ -1601,7 +1647,8 @@ Sidebar: **Dashboard** (`/admin/dashboard`, `reports.read` — hidden without it
 **Breakdown by Category:**
 - Core Platform: 6 pages
 - Room Management: 11 pages
-- Food & Beverage: 10 pages (includes live Bar Management hub + My Stock Today; menu/recipe/order pages remain catalog)
+- Beverages: live Bar Management hub + My Stock Today + beverage POS (permissions `beverages.*`)
+- Restaurant (live): hub, menu, recipes, tables, POS, orders, kitchen under `/admin/restaurant/...` (permissions `restaurant.*`)
 - Inventory Management: 8 pages (includes inventory tasks)
 - Staff: 2 pages
 - Shift Management: 8 pages (hub, Department shifts, Attendance Tracker, Cover, Shift, Hours, Hours edit, Punctuality)
