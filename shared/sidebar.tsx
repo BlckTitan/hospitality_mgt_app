@@ -138,7 +138,6 @@ export default function Sidebar() {
             <div className='w-full h-fit flex flex-col items-start gap-1'>
               <span className='text-black text-sm lg:!text-white'>{user?.fullName?.toLocaleUpperCase()}</span>
               <span className='text-black text-sm lg:!text-white'>{user?.primaryEmailAddress?.emailAddress}</span>
-              <Link href="/account" className='hover:!text-blue-500 text-sm !text-gray-500 p-0'>Manage Account</Link>
             </div>
           </div>
         </Show>

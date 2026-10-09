@@ -1,9 +1,8 @@
 'use client'
-import { Show, SignOutButton, UserButton, useUser } from '@clerk/nextjs'
+import { Show, SignOutButton, useUser } from '@clerk/nextjs'
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import React, { useEffect, useState } from 'react'
-import ClerkUiMount from '../components/ClerkUiMount'
 import { FcPhone, FcSalesPerformance , FcConferenceCall, FcMoneyTransfer , FcList, FcDepartment, FcManager } from "react-icons/fc";
 import { IoFastFoodOutline, IoRestaurantOutline } from "react-icons/io5";
 import { MdLogout, MdOutlineBedroomChild, MdMenu, MdClose } from 'react-icons/md';
@@ -82,7 +81,13 @@ function NavSkeleton() {
       <div className="w-full h-full flex items-center justify-between px-4 lg:px-16">
         <div className="h-5 w-40 animate-pulse rounded bg-neutral-200" />
         <div className="h-8 w-8 animate-pulse rounded-full bg-neutral-200 lg:hidden" />
-        <div className="hidden lg:block h-8 w-8 animate-pulse rounded-full bg-neutral-200" />
+        <div className="hidden lg:flex items-center gap-2">
+          <div className="h-9 w-9 animate-pulse rounded-full bg-neutral-200" />
+          <div className="flex flex-col gap-1">
+            <div className="h-3 w-24 animate-pulse rounded bg-neutral-200" />
+            <div className="h-3 w-32 animate-pulse rounded bg-neutral-100" />
+          </div>
+        </div>
       </div>
     </nav>
   );
@@ -124,7 +129,7 @@ export default function Navigation() {
             </Link>
             <button
               type="button"
-              className="lg:hidden inline-flex h-10 w-10 items-center justify-center rounded-md text-neutral-800 bg-red-500"
+              className="lg:hidden inline-flex h-10 w-10 items-center justify-center rounded-md text-neutral-800"
               aria-label={menuOpen ? 'Close menu' : 'Open menu'}
               aria-expanded={menuOpen}
               onClick={() => setMenuOpen((v) => !v)}
@@ -153,19 +158,27 @@ export default function Navigation() {
                     <div className="w-full h-fit flex flex-col items-start gap-1">
                       <span className="text-black text-sm lg:!text-white">{user?.fullName?.toLocaleUpperCase()}</span>
                       <span className="text-black text-sm lg:!text-white">{user?.primaryEmailAddress?.emailAddress}</span>
-                      <Link href="/account" className="hover:!text-blue-500 text-sm !text-gray-500 p-0">Manage Account</Link>
                     </div>
                   </div>
                 </Show>
               </header>
 
-              <Link href="/#" className="py-2 px-4 !hidden lg:!inline-flex">
+              <div className="hidden lg:flex items-center gap-3 py-1 px-4 shrink-0">
                 <Show when="signed-in">
-                  <ClerkUiMount fallback={<div className="h-8 w-8 animate-pulse rounded-full bg-neutral-200" />}>
-                    <UserButton />
-                  </ClerkUiMount>
+                  <div className="flex flex-col items-start leading-tight min-w-0">
+                    <span className="text-neutral-900 text-sm truncate max-w-[220px]">{user?.fullName?.toLocaleUpperCase()}</span>
+                    <span className="text-neutral-600 text-xs truncate max-w-[220px]">{user?.primaryEmailAddress?.emailAddress}</span>
+                  </div>
+                  
+                  <img
+                    src={user?.imageUrl}
+                    alt="Profile Image"
+                    width={36}
+                    height={36}
+                    className="h-9 w-9 rounded-full object-cover"
+                  />
                 </Show>
-              </Link>
+              </div>
 
               <div className="w-full h-auto block lg:hidden">
                 {filteredNavItems.map(({ id, href, label, icon, subLink }) => {
