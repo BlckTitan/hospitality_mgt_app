@@ -1,5 +1,5 @@
 import type { FunctionArgs } from 'convex/server';
-import { useMutation, useQuery } from 'convex/react';
+import { useQuery } from 'convex/react';
 import { Dispatch, SetStateAction, useEffect, useState } from 'react';
 import { api } from '../convex/_generated/api';
 import { Id } from '../convex/_generated/dataModel';
@@ -57,17 +57,6 @@ export default function PaginationComponent({
   const usesClientData = Array.isArray(jointTableData);
   const skipPaginated =
     usesClientData || CLIENT_DATA_TABLES.has(collectionName) || !collectionName;
-  const needsBackfill = useQuery(
-    api.searchBackfill.needsSearchNameBackfill,
-    showSearch ? {} : "skip",
-  );
-  const backfillSearchNames = useMutation(api.searchBackfill.backfillSearchNames);
-
-  useEffect(() => {
-    if (needsBackfill) {
-      void backfillSearchNames({});
-    }
-  }, [needsBackfill, backfillSearchNames]);
   const currentCursor = cursorHistory[currentPage - 1] ?? undefined;
 
   const response = useQuery(

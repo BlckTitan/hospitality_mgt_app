@@ -52,15 +52,6 @@ export async function POST(req: NextRequest) {
     }
 
     const clerkInvitationId = inviteResult.data.clerkInvitationId;
-    if (clerkInvitationId) {
-      const client = await clerkClient();
-      try {
-        await client.invitations.revokeInvitation(clerkInvitationId);
-      } catch (error) {
-        console.error('Error revoking Clerk invitation:', error);
-      }
-    }
-
     const updateResult = await convex.mutation(api.users.updateInviteStatus, {
       inviteId: inviteId as any,
       status: 'revoked',
@@ -71,6 +62,15 @@ export async function POST(req: NextRequest) {
         { error: updateResult.message },
         { status: 400 },
       );
+    }
+
+    if (clerkInvitationId) {
+      const client = await clerkClient();
+      try {
+        await client.invitations.revokeInvitation(clerkInvitationId);
+      } catch (error) {
+        console.error('Error revoking Clerk invitation:', error);
+      }
     }
 
     return NextResponse.json({

@@ -1,7 +1,7 @@
 import { mutation, query, MutationCtx, QueryCtx } from './_generated/server';
 import { v } from 'convex/values';
 import { Doc, Id } from './_generated/dataModel';
-import { requireAuthenticated, requirePermission } from './lib/rbac';
+import { hasGranularPermission, requireAuthenticated, requirePermission, scopeAuthContextToProperty } from './lib/rbac';
 import { unassignStaffFromOpenWork } from './lib/taskAssignment';
 import {
   assignDefaultShiftTemplate,
@@ -174,12 +174,19 @@ async function enrichStaff(ctx: DbCtx, staff: Doc<'staffs'>, canSeePay: boolean)
   };
 }
 
+function compensationAuth(
+  auth: Awaited<ReturnType<typeof requirePermission>>,
+  propertyId: Id<'properties'>,
+) {
+  return scopeAuthContextToProperty(auth, propertyId);
+}
+
 async function terminateStaffRecord(ctx: MutationCtx, staffId: Id<'staffs'>) {
   const existingStaff = await ctx.db.get(staffId);
-  if (!existingStaff) {
+  if (!existingStaff?.propertyId) {
     return { success: false, message: 'Staff does not exist' };
   }
-  await requirePermission(ctx, 'staff.delete');
+  await requirePermission(ctx, 'staff.delete', existingStaff.propertyId);
   await unassignStaffFromOpenWork(ctx, staffId);
   await ctx.db.patch(existingStaff._id, {
     employmentStatus: 'terminated' as const,
@@ -195,10 +202,10 @@ async function terminateStaffRecord(ctx: MutationCtx, staffId: Id<'staffs'>) {
 export const getStaff = query({
   args: { staff_id: v.id('staffs') },
   handler: async (ctx, args) => {
-    const auth = await requirePermission(ctx, 'staff.read');
     const staff = await ctx.db.get(args.staff_id);
-    if (!staff) return null;
-    return await enrichStaff(ctx, staff, canReadCompensation(auth));
+    if (!staff?.propertyId) return null;
+    const auth = await requirePermission(ctx, 'staff.read', staff.propertyId);
+    return await enrichStaff(ctx, staff, canReadCompensation(compensationAuth(auth, staff.propertyId)));
   },
 });
 
@@ -210,15 +217,16 @@ export const listStaff = query({
   },
   handler: async (ctx, args) => {
     const auth = await requirePermission(ctx, 'staff.read');
-    const propertyId = auth.propertyIds[0];
+    const propertyId = auth.propertyIds.find((id) =>
+      hasGranularPermission(scopeAuthContextToProperty(auth, id), 'staff.read'),
+    );
     if (!propertyId) return [];
-    const canSeePay = canReadCompensation(auth);
+    const canSeePay = canReadCompensation(compensationAuth(auth, propertyId));
     const rows = await ctx.db
       .query('staffs')
       .withIndex('by_propertyId', (q) => q.eq('propertyId', propertyId))
       .collect();
-    const unscoped = (await ctx.db.query('staffs').collect()).filter((row) => !row.propertyId);
-    const merged = [...rows, ...unscoped];
+    const merged = rows;
     const filtered = merged.filter((row) => {
       const status = normalizeEmploymentStatus(row.employmentStatus);
       if (!args.includeTerminated && status === 'terminated') return false;
@@ -301,15 +309,16 @@ export const listManagers = query({
 export const getAllStaffs = query({
   handler: async (ctx) => {
     const auth = await requirePermission(ctx, 'staff.read');
-    const propertyId = auth.propertyIds[0];
-    const canSeePay = canReadCompensation(auth);
+    const propertyId = auth.propertyIds.find((id) =>
+      hasGranularPermission(scopeAuthContextToProperty(auth, id), 'staff.read'),
+    );
+    if (!propertyId) return [];
+    const canSeePay = canReadCompensation(compensationAuth(auth, propertyId));
     try {
-      const staffs = propertyId
-        ? await ctx.db
-            .query('staffs')
-            .withIndex('by_propertyId', (q) => q.eq('propertyId', propertyId))
-            .collect()
-        : await ctx.db.query('staffs').collect();
+      const staffs = await ctx.db
+        .query('staffs')
+        .withIndex('by_propertyId', (q) => q.eq('propertyId', propertyId))
+        .collect();
       return staffs.map((row) => publicStaffFields(row, canSeePay));
     } catch (error) {
       console.log(`Failed to fetch staffs: ${error}`);
@@ -321,10 +330,10 @@ export const getAllStaffs = query({
 export const getStaffDetail = query({
   args: { staff_id: v.id('staffs') },
   handler: async (ctx, args) => {
-    const auth = await requirePermission(ctx, 'staff.read');
     const staff = await ctx.db.get(args.staff_id);
-    if (!staff) return null;
-    const canSeePay = canReadCompensation(auth);
+    if (!staff?.propertyId) return null;
+    const auth = await requirePermission(ctx, 'staff.read', staff.propertyId);
+    const canSeePay = canReadCompensation(compensationAuth(auth, staff.propertyId));
     const profile = await enrichStaff(ctx, staff, canSeePay);
 
     const hours = (
@@ -398,7 +407,7 @@ export const getStaffDetail = query({
     const documentsWithUrl = await Promise.all(
       documents.map(async (row) => ({
         ...row,
-        url: await ctx.storage.getUrl(row.storageId),
+        url: canSeePay ? await ctx.storage.getUrl(row.storageId) : undefined,
       })),
     );
 
@@ -407,10 +416,13 @@ export const getStaffDetail = query({
       .withIndex('by_employeeId', (q) => q.eq('employeeId', staff._id))
       .collect();
 
-    const changeRequests = await ctx.db
+    const changeRequestRows = await ctx.db
       .query('staffChangeRequests')
       .withIndex('by_employeeId', (q) => q.eq('employeeId', staff._id))
       .collect();
+    const changeRequests = changeRequestRows.map((row) =>
+      canSeePay || row.kind !== 'bank' ? row : { ...row, payload: null },
+    );
 
     return {
       ...profile,
@@ -644,10 +656,11 @@ export const updateStaff = mutation({
   },
   handler: async (ctx, args) => {
     const existingStaff = await ctx.db.get(args.id);
-    if (!existingStaff) {
+    if (!existingStaff?.propertyId) {
       return { success: false, message: 'Staff does not exist!' };
     }
-    await requirePermission(ctx, 'staff.update');
+    const auth = await requirePermission(ctx, 'staff.update', existingStaff.propertyId);
+    const canEditSensitive = canReadCompensation(compensationAuth(auth, existingStaff.propertyId));
     const propertyId = existingStaff.propertyId;
 
     try {
@@ -698,10 +711,16 @@ export const updateStaff = mutation({
         lastName: args.lastName,
         employmentStatus: nextStatus,
         phone: args.phone,
-        DoB: args.DoB,
         stateOfOrigin: args.stateOfOrigin,
-        address: args.address,
         LGA: args.LGA,
+        ...(canEditSensitive
+          ? {
+              DoB: args.DoB,
+              address: args.address,
+              nationalId: args.nationalId,
+              idType: args.idType,
+            }
+          : {}),
         dateTerminated:
           nextStatus === 'terminated'
             ? args.dateTerminated || new Date().toISOString()
@@ -710,8 +729,6 @@ export const updateStaff = mutation({
         role: args.role,
         position: args.position,
         employmentType: args.employmentType ?? existingStaff.employmentType,
-        nationalId: args.nationalId,
-        idType: args.idType,
         emergencyName: args.emergencyName,
         emergencyPhone: args.emergencyPhone,
         emergencyRelationship: args.emergencyRelationship,
@@ -771,9 +788,9 @@ export const upsertPayHistory = mutation({
   },
   handler: async (ctx, args) => {
     const staff = await ctx.db.get(args.id);
-    if (!staff) return { success: false, message: 'Staff does not exist' };
+    if (!staff?.propertyId) return { success: false, message: 'Staff does not exist' };
     const auth = await requirePermission(ctx, 'staff.update', staff.propertyId);
-    if (!canUpdateCompensation(auth)) {
+    if (!canUpdateCompensation(compensationAuth(auth, staff.propertyId))) {
       return { success: false, message: 'You cannot change compensation' };
     }
     if (args.paymentMethod === 'bank' && !args.accountNumber && !staff.accountNumber) {
@@ -831,8 +848,10 @@ export const removeStaff = mutation({
 export const listStaffPayItems = query({
   args: { employeeId: v.id('staffs') },
   handler: async (ctx, args) => {
-    const auth = await requirePermission(ctx, 'staff.read');
-    if (!canReadCompensation(auth)) return [];
+    const staff = await ctx.db.get(args.employeeId);
+    if (!staff?.propertyId) return [];
+    const auth = await requirePermission(ctx, 'staff.read', staff.propertyId);
+    if (!canReadCompensation(compensationAuth(auth, staff.propertyId))) return [];
     const rows = await ctx.db
       .query('staffPayItems')
       .withIndex('by_employeeId', (q) => q.eq('employeeId', args.employeeId))
@@ -856,9 +875,9 @@ export const upsertStaffPayItem = mutation({
   },
   handler: async (ctx, args) => {
     const staff = await ctx.db.get(args.employeeId);
-    if (!staff) return { success: false, message: 'Staff not found' };
+    if (!staff?.propertyId) return { success: false, message: 'Staff not found' };
     const auth = await requirePermission(ctx, 'staff.update', staff.propertyId);
-    if (!canUpdateCompensation(auth)) {
+    if (!canUpdateCompensation(compensationAuth(auth, staff.propertyId))) {
       return { success: false, message: 'You cannot change pay items' };
     }
     const existing = await ctx.db
@@ -929,7 +948,10 @@ export const attachStaffDocument = mutation({
 export const listStaffDocuments = query({
   args: { employeeId: v.id('staffs') },
   handler: async (ctx, args) => {
-    await requirePermission(ctx, 'staff.read');
+    const staff = await ctx.db.get(args.employeeId);
+    if (!staff?.propertyId) return [];
+    const auth = await requirePermission(ctx, 'staff.read', staff.propertyId);
+    const canSeeDocuments = canReadCompensation(compensationAuth(auth, staff.propertyId));
     const rows = await ctx.db
       .query('staffDocuments')
       .withIndex('by_employeeId', (q) => q.eq('employeeId', args.employeeId))
@@ -937,7 +959,7 @@ export const listStaffDocuments = query({
     return await Promise.all(
       rows.map(async (row) => ({
         ...row,
-        url: await ctx.storage.getUrl(row.storageId),
+        url: canSeeDocuments ? await ctx.storage.getUrl(row.storageId) : undefined,
       })),
     );
   },
@@ -1056,6 +1078,10 @@ export const getMyStaffDetail = query({
 
     return {
       ...stripCompensation({ ...staff }, false),
+      DoB: staff.DoB,
+      address: staff.address,
+      nationalId: staff.nationalId,
+      idType: staff.idType,
       paymentMethod: staff.paymentMethod,
       accountNumber: maskAccountNumber(staff.accountNumber),
       employmentStatus: normalizeEmploymentStatus(staff.employmentStatus),

@@ -22,7 +22,7 @@ export default clerkMiddleware(async (auth, req) => {
   const { userId, getToken } = await auth();
   const { pathname } = req.nextUrl;
 
-  if (pathname.startsWith('/_next/') || pathname.includes('.')) {
+  if (pathname.startsWith('/_next/')) {
     return NextResponse.next();
   }
 

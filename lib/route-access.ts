@@ -66,6 +66,18 @@ export function getPostLoginPath(
     : STAFF_HOME_PATH;
 }
 
+/** Same-origin path only. Rejects absolute and protocol-relative redirects. */
+export function safeInternalPath(requestedPath?: string | null): string | null {
+  if (!requestedPath) return null;
+  if (!requestedPath.startsWith('/') || requestedPath.startsWith('//')) return null;
+  if (requestedPath.includes('://') || requestedPath.includes('\\') || requestedPath.includes('\0')) {
+    return null;
+  }
+  const pathOnly = requestedPath.split('?')[0]?.split('#')[0] ?? '';
+  if (!pathOnly.startsWith('/') || pathOnly.startsWith('//')) return null;
+  return requestedPath;
+}
+
 export function resolvePostAuthPath(
   userContext: UserContext,
   requestedPath?: string | null,
@@ -73,8 +85,10 @@ export function resolvePostAuthPath(
   const checker = createPermissionChecker(userContext);
   const hasGranularPermission = (granular: string) =>
     checker.hasGranularPermission(granular);
-  if (requestedPath && canAccessPath(requestedPath, hasGranularPermission)) {
-    return requestedPath;
+  const safePath = safeInternalPath(requestedPath);
+  const pathOnly = safePath?.split('?')[0]?.split('#')[0];
+  if (safePath && pathOnly && canAccessPath(pathOnly, hasGranularPermission)) {
+    return safePath;
   }
   return getPostLoginPath(hasGranularPermission);
 }

@@ -41,6 +41,9 @@ export const createRole = mutation({
   },
   handler: async (ctx, args) => {
     await requirePermission(ctx, 'roles.create');
+    if (args.isSystemRole) {
+      return { success: false, message: 'System roles cannot be created from this action' };
+    }
     try {
       // Check if role with same name already exists
       const existingRole = await ctx.db
@@ -57,7 +60,7 @@ export const createRole = mutation({
         name: args.name,
         description: args.description,
         permissions: args.permissions || {},
-        isSystemRole: args.isSystemRole,
+        isSystemRole: false,
         createdAt: now,
         updatedAt: now,
       });
@@ -87,11 +90,14 @@ export const updateRole = mutation({
 
     await requirePermission(ctx, 'roles.update');
 
+    if (existingRole.isSystemRole || args.isSystemRole) {
+      return {
+        success: false,
+        message: 'System roles are updated from the RBAC config',
+      };
+    }
+
     try {
-      // Prevent modification of system roles (optional safety check)
-      if (existingRole.isSystemRole && !args.isSystemRole) {
-        return { success: false, message: 'Cannot change system role status' };
-      }
 
       // Check if name is being changed and if new name already exists
       if (args.name !== existingRole.name) {
@@ -109,7 +115,7 @@ export const updateRole = mutation({
         name: args.name,
         description: args.description,
         permissions: args.permissions || {},
-        isSystemRole: args.isSystemRole,
+        isSystemRole: false,
         updatedAt: Date.now(),
       });
 

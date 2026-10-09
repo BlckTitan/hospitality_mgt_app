@@ -47,7 +47,8 @@ type SignResponse = {
   timestamp: number;
   folder: string;
   signature: string;
-  publicId?: string;
+  allowedFormats: string;
+  overwrite: number;
   error?: string;
 };
 
@@ -140,9 +141,8 @@ export default function ImageUpload({
       formData.append('timestamp', String(signed.timestamp));
       formData.append('signature', signed.signature);
       formData.append('folder', signed.folder);
-      if (signed.publicId) {
-        formData.append('public_id', signed.publicId);
-      }
+      formData.append('allowed_formats', signed.allowedFormats);
+      formData.append('overwrite', String(signed.overwrite));
 
       const uploadRes = await fetch(
         `https://api.cloudinary.com/v1_1/${signed.cloudName}/image/upload`,

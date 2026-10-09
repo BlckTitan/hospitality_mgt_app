@@ -152,21 +152,21 @@ export function FinancialReportCard({
             <tbody>
               <tr className="border-t">
                 <td className="p-2">Rooms</td>
-                <td className="p-2 text-right">{money(data.roomRevenue)}</td>
+                <td className="p-2 text-right text-green-600">{money(data.roomRevenue)}</td>
               </tr>
               <tr className="border-t">
                 <td className="p-2">Beverages (POS)</td>
-                <td className="p-2 text-right">{money(data.fnbRevenue)}</td>
+                <td className="p-2 text-right text-green-600">{money(data.fnbRevenue)}</td>
               </tr>
               {'restaurantRevenue' in data && data.restaurantRevenue !== undefined && (
                 <tr className="border-t">
                   <td className="p-2">Restaurant</td>
-                  <td className="p-2 text-right">{money(data.restaurantRevenue)}</td>
+                  <td className="p-2 text-right text-green-600">{money(data.restaurantRevenue)}</td>
                 </tr>
               )}
               <tr className="border-t font-semibold">
                 <td className="p-2">Total revenue</td>
-                <td className="p-2 text-right">{money(data.totalRevenue)}</td>
+                <td className="p-2 text-right text-green-600">{money(data.totalRevenue)}</td>
               </tr>
             </tbody>
           </table>
@@ -178,12 +178,12 @@ export function FinancialReportCard({
               {EXPENSE_CATEGORY_OPTIONS.map((item) => (
                 <tr key={item.value} className="border-t">
                   <td className="p-2">{item.label}</td>
-                  <td className="p-2 text-right">{money(data.expenses[item.value])}</td>
+                  <td className="p-2 text-right text-red-600">{money(data.expenses[item.value])}</td>
                 </tr>
               ))}
               <tr className="border-t font-semibold">
                 <td className="p-2">Total expenses</td>
-                <td className="p-2 text-right">{money(data.totalExpenses)}</td>
+                <td className="p-2 text-right text-red-600">{money(data.totalExpenses)}</td>
               </tr>
               <tr className="border-t font-semibold">
                 <td className="p-2">Gross operating profit</td>

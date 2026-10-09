@@ -1,8 +1,9 @@
-import { internalMutation, mutation, query, QueryCtx } from "./_generated/server";
+import { internalMutation, mutation, query, MutationCtx, QueryCtx } from "./_generated/server";
+import { Doc, Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
 import { UserJSON } from "@clerk/backend";
 import { v, Validator } from "convex/values";
-import { requireAuthenticated, requirePermission } from "./lib/rbac";
+import { hasGranularPermission, requireAuthenticated, requirePermission, scopeAuthContextToProperty } from "./lib/rbac";
 import { assertAdministratorAssignmentChange } from "./lib/userRoleAssignment";
 import {
   fulfillPendingInviteForUser,
@@ -26,25 +27,24 @@ const inviteStatusValidator = v.union(
 export const getAllUsers = query({
   args: { propertyId: v.optional(v.id("properties")) },
   handler: async (ctx, args) => {
-    await requirePermission(ctx, "users.read", args.propertyId);
+    const auth = await requirePermission(ctx, "users.read", args.propertyId);
+    const propertyIds = args.propertyId
+      ? [args.propertyId]
+      : auth.propertyIds.filter((id) =>
+          hasGranularPermission(scopeAuthContextToProperty(auth, id), "users.read"),
+        );
     try {
-      if (args.propertyId) {
+      const userIds = new Set<Id<"users">>();
+      for (const propertyId of propertyIds) {
         const userRoles = await ctx.db
           .query("userRoles")
-          .withIndex("by_propertyId", (q) =>
-            q.eq("propertyId", args.propertyId!),
-          )
+          .withIndex("by_propertyId", (q) => q.eq("propertyId", propertyId))
           .collect();
-
-        const userIds = [...new Set(userRoles.map((userRole) => userRole.userId))];
-        const users = (
-          await Promise.all(userIds.map((userId) => ctx.db.get(userId)))
-        ).filter((user) => user !== null);
-
-        return { success: true, data: users };
+        for (const userRole of userRoles) userIds.add(userRole.userId);
       }
-
-      const users = await ctx.db.query("users").collect();
+      const users = (await Promise.all([...userIds].map((userId) => ctx.db.get(userId)))).filter(
+        (user) => user !== null,
+      );
       return { success: true, data: users };
     } catch (error) {
       console.log(`Failed to fetch users: ${error}`);
@@ -56,11 +56,28 @@ export const getAllUsers = query({
 export const getUser = query({
   args: { userId: v.id("users") },
   handler: async (ctx, args) => {
-    await requirePermission(ctx, "users.read");
+    const auth = await requireAuthenticated(ctx);
     try {
       const user = await ctx.db.get(args.userId);
       if (!user) {
         return { success: false, data: null, message: "User not found" };
+      }
+      if (user._id !== auth.user._id) {
+        const memberships = await ctx.db
+          .query("userRoles")
+          .withIndex("by_userId", (q) => q.eq("userId", user._id))
+          .collect();
+        const canRead = memberships.some(
+          (membership) =>
+            auth.propertyIds.includes(membership.propertyId) &&
+            hasGranularPermission(
+              scopeAuthContextToProperty(auth, membership.propertyId),
+              "users.read",
+            ),
+        );
+        if (!canRead) {
+          return { success: false, data: null, message: "User not found" };
+        }
       }
       return { success: true, data: user };
     } catch (error) {
@@ -312,9 +329,6 @@ export const getUserByExternalId = query({
   args: { externalId: v.string() },
   handler: async (ctx, args) => {
     const authContext = await requireAuthenticated(ctx);
-    if (args.externalId !== authContext.user.externalId) {
-      await requirePermission(ctx, "users.read");
-    }
 
     try {
       const user = await userByExternalId(ctx, args.externalId);
@@ -323,11 +337,84 @@ export const getUserByExternalId = query({
         return { success: false, data: null, message: "User not found" };
       }
 
+      if (user._id !== authContext.user._id) {
+        const memberships = await ctx.db
+          .query("userRoles")
+          .withIndex("by_userId", (q) => q.eq("userId", user._id))
+          .collect();
+        const canRead = memberships.some(
+          (membership) =>
+            authContext.propertyIds.includes(membership.propertyId) &&
+            hasGranularPermission(
+              scopeAuthContextToProperty(authContext, membership.propertyId),
+              "users.read",
+            ),
+        );
+        if (!canRead) {
+          return { success: false, data: null, message: "User not found" };
+        }
+      }
+
       return { success: true, data: user };
     } catch (error) {
       console.log(`Failed to fetch user by external ID: ${error}`);
       return { success: false, data: null, message: "Failed to fetch user" };
     }
+  },
+});
+
+async function authorizeNewInvite(
+  ctx: QueryCtx | MutationCtx,
+  args: { email: string; roleId: Id<"roles">; propertyId: Id<"properties"> },
+): Promise<
+  | { success: false; message: string }
+  | { success: true; authContext: Awaited<ReturnType<typeof requirePermission>>; email: string; role: Doc<"roles"> }
+> {
+  let authContext: Awaited<ReturnType<typeof requirePermission>>;
+  try {
+    authContext = await requirePermission(ctx, "users.create", args.propertyId);
+  } catch {
+    return { success: false, message: "Unauthorized" };
+  }
+
+  const role = await ctx.db.get(args.roleId);
+  if (!role) {
+    return { success: false, message: "Role does not exist" };
+  }
+
+  const adminGuard = await assertAdministratorAssignmentChange(ctx, authContext, {
+    propertyId: args.propertyId,
+    existingRoleName: null,
+    newRoleName: role.name,
+  });
+  if (adminGuard.ok === false) {
+    return { success: false, message: adminGuard.message };
+  }
+
+  const email = normalizeInviteEmail(args.email);
+  const existingInvites = await ctx.db
+    .query("pendingInvites")
+    .withIndex("by_email", (q) => q.eq("email", email))
+    .collect();
+  if (existingInvites.some((invite) => invite.status === "pending")) {
+    return { success: false, message: "Pending invite already exists for this email" };
+  }
+
+  return { success: true, authContext, email, role };
+}
+
+export const assertCanCreateInvite = query({
+  args: {
+    email: v.string(),
+    roleId: v.id("roles"),
+    propertyId: v.id("properties"),
+  },
+  handler: async (ctx, args) => {
+    const gate = await authorizeNewInvite(ctx, args);
+    if (gate.success === false) {
+      return { success: false as const, message: gate.message };
+    }
+    return { success: true as const };
   },
 });
 
@@ -340,35 +427,19 @@ export const createPendingInvite = mutation({
     clerkInvitationId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const authContext = await requirePermission(ctx, "users.create", args.propertyId);
-    const role = await ctx.db.get(args.roleId);
-    if (!role) {
-      return { success: false, message: "Role does not exist" };
+    const gate = await authorizeNewInvite(ctx, args);
+    if (gate.success === false) {
+      return { success: false as const, message: gate.message };
     }
-
-    const adminGuard = await assertAdministratorAssignmentChange(ctx, authContext, {
-      propertyId: args.propertyId,
-      existingRoleName: null,
-      newRoleName: role.name,
-    });
-    if (adminGuard.ok === false) {
-      return { success: false, message: adminGuard.message };
-    }
-
-    const email = normalizeInviteEmail(args.email);
+    const { authContext, email } = gate;
 
     const existingInvites = await ctx.db
       .query("pendingInvites")
       .withIndex("by_email", (q) => q.eq("email", email))
       .collect();
-    const existingPending = existingInvites.find((invite) => invite.status === "pending");
     const existingReusable = existingInvites.find(
       (invite) => invite.status === "expired" || invite.status === "revoked",
     );
-
-    if (existingPending) {
-      return { success: false, message: "Pending invite already exists for this email" };
-    }
 
     const expiresAt = Date.now() + (7 * 24 * 60 * 60 * 1000);
 

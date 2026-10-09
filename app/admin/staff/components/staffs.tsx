@@ -5,7 +5,7 @@ import { useMutation, useQuery, useConvexAuth } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { toast } from "sonner";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { usePermissions } from "../../../../hooks/usePermissions";
 import ImageThumbnail from "../../../../shared/imageThumbnail";
 
@@ -17,11 +17,6 @@ export default function Staff() {
   const { hasGranularPermission } = usePermissions();
   const canUpdate = hasGranularPermission("staff.update");
   const canTerminate = hasGranularPermission("staff.delete");
-  const needsBackfill = useQuery(
-    api.staffMigrations.needsStaffHrBackfill,
-    isAuthenticated ? {} : "skip",
-  );
-  const backfill = useMutation(api.staffMigrations.backfillStaffHr);
   const terminateStaff = useMutation(api.staff.terminateStaff);
   const rows = useQuery(
     api.staff.listStaff,
@@ -35,12 +30,6 @@ export default function Staff() {
         }
       : "skip",
   );
-
-  useEffect(() => {
-    if (needsBackfill) {
-      void backfill({});
-    }
-  }, [needsBackfill, backfill]);
 
   const handleTerminate = async (id: string, name: string) => {
     if (!confirm(`Terminate ${name}? Hours and payroll history will be kept.`)) return;

@@ -677,6 +677,22 @@ export const getPayslip = query({
     const line = await ctx.db.get(payslip.staffPayId);
     const run = line ? await ctx.db.get(line.payrollId) : null;
     const staff = await ctx.db.get(payslip.employeeId);
-    return { success: true, data: { payslip, line, run, staff } };
+    return {
+      success: true,
+      data: {
+        payslip,
+        line,
+        run,
+        staff: staff
+          ? {
+              _id: staff._id,
+              firstName: staff.firstName,
+              lastName: staff.lastName,
+              employeeNumber: staff.employeeNumber,
+              department: staff.department,
+            }
+          : null,
+      },
+    };
   },
 });

@@ -25,6 +25,10 @@ export const COMPENSATION_FIELDS = [
   "accountName",
   "accountNumber",
   "routingCode",
+  "nationalId",
+  "idType",
+  "DoB",
+  "address",
 ] as const;
 
 export type EmploymentType = "full-time" | "part-time" | "casual" | "contractor";

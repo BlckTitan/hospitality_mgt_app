@@ -49,10 +49,9 @@ export function signCloudinaryParams(
   return createHash('sha1').update(`${toSign}${apiSecret}`).digest('hex');
 }
 
-export function createSignedUploadParams(options?: {
-  folder?: string;
-  publicId?: string;
-}) {
+export const CLOUDINARY_SIGNED_FORMATS = 'jpg,png,webp';
+
+export function createSignedUploadParams(options?: { folder?: string }) {
   const { cloudName, apiKey, apiSecret } = getCloudinaryConfig();
   const timestamp = Math.round(Date.now() / 1000);
   const folder = resolveUploadFolder(options?.folder);
@@ -60,11 +59,9 @@ export function createSignedUploadParams(options?: {
   const paramsToSign: Record<string, string | number> = {
     timestamp,
     folder,
+    allowed_formats: CLOUDINARY_SIGNED_FORMATS,
+    overwrite: 0,
   };
-
-  if (options?.publicId) {
-    paramsToSign.public_id = options.publicId;
-  }
 
   const signature = signCloudinaryParams(paramsToSign, apiSecret);
 
@@ -74,6 +71,7 @@ export function createSignedUploadParams(options?: {
     timestamp,
     folder,
     signature,
-    ...(options?.publicId ? { publicId: options.publicId } : {}),
+    allowedFormats: CLOUDINARY_SIGNED_FORMATS,
+    overwrite: 0,
   };
 }

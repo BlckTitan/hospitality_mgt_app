@@ -31,6 +31,28 @@ function staffName(staff: { firstName: string; lastName: string } | null) {
   return `${staff.firstName} ${staff.lastName}`;
 }
 
+function publicStaff(staff: {
+  _id: string;
+  firstName: string;
+  lastName: string;
+  department?: string;
+  userId?: string;
+} | null) {
+  if (!staff) return null;
+  return {
+    _id: staff._id,
+    firstName: staff.firstName,
+    lastName: staff.lastName,
+    department: staff.department,
+    userId: staff.userId,
+  };
+}
+
+function publicUser(user: { _id: string; name: string; email: string } | null) {
+  if (!user) return null;
+  return { _id: user._id, name: user.name, email: user.email };
+}
+
 async function requireShiftRead(
   ctx: Parameters<typeof requirePermission>[0],
   propertyId: Parameters<typeof requirePermission>[2]
@@ -77,9 +99,9 @@ export const getAllShifts = query({
           ]);
           return {
             ...shift,
-            user,
+            user: publicUser(user),
             bar,
-            staff,
+            staff: publicStaff(staff),
             staffName: staffName(staff),
             hoursStatus: hours?.status,
             hoursId: hours?._id,
@@ -119,7 +141,10 @@ export const getShift = query({
         shift.employeeId ? ctx.db.get(shift.employeeId) : null,
         ctx.db.query('hours').withIndex('by_shiftId', (q) => q.eq('shiftId', shift._id)).first(),
       ]);
-      return { success: true, data: { ...shift, user, bar, staff, hours } };
+      return {
+        success: true,
+        data: { ...shift, user: publicUser(user), bar, staff: publicStaff(staff), hours },
+      };
     } catch (error) {
       console.log(`Failed to fetch shift: ${error}`);
       return { success: false, data: null, message: 'Failed to fetch shift' };
@@ -135,8 +160,7 @@ export const listStaffForShifts = query({
       .query('staffs')
       .withIndex('by_propertyId', (q) => q.eq('propertyId', args.propertyId))
       .collect();
-    const unscoped = (await ctx.db.query('staffs').collect()).filter((s) => !s.propertyId);
-    const merged = [...staffs, ...unscoped].filter(
+    const merged = staffs.filter(
       (s) => s.employmentStatus !== 'terminated'
     );
     return {

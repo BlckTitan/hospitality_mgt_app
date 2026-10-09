@@ -43,6 +43,15 @@ export async function POST(req: NextRequest) {
 
     convex.setAuth(token);
 
+    const gate = await convex.query(api.users.assertCanCreateInvite, {
+      email: normalizedEmail,
+      roleId: roleId as any,
+      propertyId: propertyId as any,
+    });
+    if (gate.success === false) {
+      return NextResponse.json({ error: gate.message }, { status: 403 });
+    }
+
     // Check if user already exists in Clerk before creating invitation
     const client = await clerkClient();
     try {
@@ -104,7 +113,7 @@ export async function POST(req: NextRequest) {
       clerkInvitationId: clerkInvitationId,
     });
 
-    if (!inviteResult.success) {
+    if (inviteResult.success === false) {
       // Rollback: Revoke the Clerk invitation since Convex record creation failed
       try {
         await client.invitations.revokeInvitation(clerkInvitationId);
