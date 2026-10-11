@@ -1092,8 +1092,11 @@ Represents maintenance work orders/requests. Staff lead/helpers live on `taskAss
 - `title`: Order title
 - `description`: Detailed description (optional on schema / auto-created preventive orders; required on manual create/edit)
 - `status`: Status (pending, in-progress, completed, cancelled)
-- `scheduledDate`: Scheduled date (optional)
-- `dueAt`: SLA deadline snapshot (replaces `slaDeadline`)
+- `scheduledDate`: Next visit date when `isScheduled` (optional; stored at 09:00 local)
+- `isScheduled`: Optional. When true, this visit is dated and may repeat
+- `intervalMonths`: Optional. `0` does not repeat; 1–60 is the gap in months (presets 1, 3, 6, 12)
+- `reminderDays`: Optional. Days before `scheduledDate` to remind (0–90, default 7)
+- `dueAt`: SLA deadline snapshot, or `scheduledDate` when the order is scheduled
 - `startedAt`: Start timestamp (optional)
 - `completedAt`: Completion timestamp (optional)
 - `estimatedCost`: Estimated cost (optional; defaults to purchased-items total on create when omitted)
@@ -1104,9 +1107,9 @@ Represents maintenance work orders/requests. Staff lead/helpers live on `taskAss
 - `createdAt`: Timestamp of creation
 - `updatedAt`: Timestamp of last update
 
-**Uniqueness**: at most one **open** preventive order per asset. Completing preventive updates `Asset.lastMaintenanceDate` / `nextMaintenanceDate`.
+**Uniqueness**: at most one **open** preventive order per asset. Completing preventive updates `Asset.lastMaintenanceDate` / `nextMaintenanceDate` (next interval when the order repeats, otherwise now + 90 days). Completing a repeating scheduled order also inserts the next pending visit.
 
-**Purpose**: Manages maintenance workflows, tracks estimated and actual costs, purchased items (`MaintenanceOrderPart`), and ensures asset reliability. List Cost shows actual, else `Est.` estimated, else parts total. The staff lead owns in-app completion even when a vendor is named. **Document Requirement**: Maintenance work orders should include vendor invoices, work completion certificates, warranty documents, and payment receipts linked via the Document entity for cost verification and warranty tracking.
+**Purpose**: Manages maintenance workflows, tracks estimated and actual costs, purchased items (`MaintenanceOrderPart`), and ensures asset reliability. List Cost shows actual, else `Est.` estimated, else parts total, formatted in the property currency. The staff lead owns in-app completion even when a vendor is named. Open scheduled orders inside the reminder window are returned as reminders for the maintenance board and the dashboard strip. **Document Requirement**: Maintenance work orders should include vendor invoices, work completion certificates, warranty documents, and payment receipts linked via the Document entity for cost verification and warranty tracking.
 
 ---
 

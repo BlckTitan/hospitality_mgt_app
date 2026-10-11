@@ -205,9 +205,10 @@ Hospitality operators juggle siloed systems for reservations, POS, payroll, proc
 - Asset registry with depreciation schedules.
 - Work order intake (manual or schedule-driven preventive). Inspection-triggered intake is later.
 - Manual create/edit requires a **description** of the work. Auto-created preventive orders may omit it.
-- Cost tracking per work order: optional `estimatedCost` on create (falls back to purchased-items total when omitted); optional `actualCost` on edit (falls back to purchased-items total when omitted). The list Cost column shows actual, else `Est.` estimated, else parts total.
+- Cost tracking per work order: optional `estimatedCost` on create (falls back to purchased-items total when omitted); optional `actualCost` on edit (falls back to purchased-items total when omitted). The list Cost column shows actual, else `Est.` estimated, else parts total. Amounts are plain numbers; labels and formatted totals use the property’s `currency` (`formatPropertyMoney`, same as inventory). Fallback code is USD when the property has none.
 - Purchased items live on `maintenanceOrderParts` (not an array on the order): name, quantity, unit cost, optional `inventoryItemId` when the item is in inventory, or a custom name when it is a one-off purchase. Catalog picker uses `maintenance.order.read` so maintenance staff do not need `inventory.read`.
 - Optional vendor (`Supplier`) **in addition to** the staff lead/helpers, SLA via `dueAt`. Assignment and completion: Task Assignment.
+- **Optional schedule** on create/edit (`isScheduled`). When on: next date (`scheduledDate`, stored at 09:00 local), repeat (`intervalMonths`: `0` once, or 1 / 3 / 6 / 12 / custom 1–60 months), and `reminderDays` (0–90, default 7). `dueAt` is that date, not the SLA snapshot. Turning the schedule off on an open order restores `dueAt` from the SLA. Completing a repeat (`intervalMonths` ≥ 1) inserts the next pending order (same title, type, priority, vendor, estimated cost, lead, and helpers; no parts) and walks the date forward until it is in the future. A one-time scheduled visit does not spawn another order. Open orders inside the reminder window (including overdue) show on the maintenance page and, for `maintenance.order.read`, as a strip on the dashboard. Asset preventive completion still sets `nextMaintenanceDate` to the next interval when the order repeats, otherwise now + 90 days.
 - **Maintenance Documentation**: Maintenance work orders must include:
   - Vendor invoices for maintenance services
   - Work completion certificates
@@ -226,7 +227,7 @@ Shared assignment, SLA, templates, and checklists across housekeeping, maintenan
 - **Department for default lead**: housekeeping → `housekeeping`; maintenance → `maintenance`; inventory restock/putaway → `beverages` (bar/storekeeper) or property inventory supervisors as configured. Resolution: active staff at the property in that department who have at least one direct report (`managerId`); if several, prefer the one with no `managerId`.
 - **Assignee constraints**: `active`, same property. Manual create: lead defaults to the acting supervisor’s linked staff if they are in-department, else the department supervisor. Optional helpers. Maintenance may also name a `Supplier` (vendor does the physical work; the staff lead still owns in-app completion).
 - **Status**: `pending` → `in-progress` → `completed`. Housekeeping may `skipped`; maintenance and inventory may `cancelled`.
-- **SLA**: every work record has `dueAt` = trigger/create time + property `taskSlaDefaults.dueMinutes` for that module/`typeKey`. Snapshot; later default edits do not rewrite open work. Seeded defaults: checkout 45, stayover 180, emergency WO 120, restock 480, putaway 120, preventive 1440.
+- **SLA**: every work record has `dueAt` = trigger/create time + property `taskSlaDefaults.dueMinutes` for that module/`typeKey`. Snapshot; later default edits do not rewrite open work. Seeded defaults: checkout 45, stayover 180, emergency WO 120, restock 480, putaway 120, preventive 1440. A scheduled maintenance order is the exception: `dueAt` is the chosen maintenance date.
 - **G3**: percent of **completed** housekeeping + maintenance + inventory tasks in the period with `completedAt <= dueAt`. Skipped/cancelled excluded.
 - **Templates**: reusable checklists per property + module + `typeKey` (optional `roomTypeId` for housekeeping). At create, snapshot steps onto the work record as `{ id, label, isComplete }[]`. Putaway may seed checklist from PO lines (item + qty).
 - **Auto-create**:
@@ -238,7 +239,7 @@ Shared assignment, SLA, templates, and checklists across housekeeping, maintenan
 - **Uniqueness (open work only)**: one checkout task per room; one stayover per room per calendar day; one restock per inventory item; one putaway per received PO; one preventive work order per asset.
 - **Duration**: `estimatedDuration` / `actualDuration` on housekeeping are productivity-only; they do not post Hours.
 - **Notifications**: in-app this phase.
-- **Boards**: unassigned (no lead), mine (current user’s linked staff), overdue (`dueAt` passed, not completed).
+- **Boards**: unassigned (no lead), mine (current user’s linked staff), overdue (`dueAt` passed, not completed). Maintenance also has **due soon** (open scheduled order inside `reminderDays`, including overdue).
 - **Permissions**: `housekeeping.task.`*, `maintenance.order.*`, `inventory.task.*` with `read | assign | update | complete`. Staff: read/update assigned rows; complete only if lead. Supervisors: assign and complete any in module. Do not gate these screens on `system.admin`.
 
 

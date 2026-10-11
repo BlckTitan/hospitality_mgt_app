@@ -605,15 +605,30 @@ A guest reports a broken AC in Room 301:
 5. Technician completes repair:
    - `status: "completed"`
    - `completedAt: 2024-07-18 17:30:00`
-   - `actualCost: $150` (replacement part; if left blank while parts exist, stored as the parts total)
-   - List Cost shows `$150` (actual preferred over estimated `$85` and over parts total)
+   - `actualCost: 150` (replacement part; if left blank while parts exist, stored as the parts total)
+   - List Cost shows `150` in the property currency (actual preferred over estimated `85` and over parts total)
    - `resolutionNotes: "Replaced compressor. System tested and working."`
 
 6. **Room** updated: `status: "available"`
 
-7. **Asset** updated (if AC is tracked as asset):
+7. **Asset** updated (if AC is tracked as asset and this order is not a repeating schedule):
    - `lastMaintenanceDate: 2024-07-18`
-   - `nextMaintenanceDate: 2024-10-18` (3 months later)
+   - `nextMaintenanceDate: 2024-10-18` (90 days later)
+
+### Repeating schedule
+
+Generator service every 3 months, with a reminder a week before:
+
+1. Manual **MaintenanceOrder** on create:
+   - `title: "Generator service"`
+   - `isScheduled: true`
+   - `scheduledDate`: next visit at 09:00 local
+   - `intervalMonths: 3`
+   - `reminderDays: 7`
+   - `dueAt` equals `scheduledDate` (not the preventive SLA)
+2. While the order is open and the date is within 7 days (or already past), it appears in **Maintenance reminders** on `/admin/maintenance` and on the dashboard for users with `maintenance.order.read`.
+3. On complete, the system inserts the next pending order with the same title, interval, reminder, lead, and helpers. Parts are not copied. The next date moves forward by 3 months until it is in the future.
+4. AC service uses the same fields with `intervalMonths: 1`. A dated visit that should not repeat uses `intervalMonths: 0`.
 
 **Vendor Service**
 

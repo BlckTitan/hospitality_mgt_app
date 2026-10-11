@@ -104,7 +104,11 @@ type ScheduleValue = {
   reminderDays?: number;
 };
 
-function readSchedule(args: ScheduleInput): { ok: true; value: ScheduleValue } | { ok: false; message: string } {
+type ScheduleResult =
+  | { ok: true; value: ScheduleValue }
+  | { ok: false; message: string };
+
+function readSchedule(args: ScheduleInput): ScheduleResult {
   if (!args.isScheduled) {
     return { ok: true, value: { isScheduled: false } };
   }
@@ -401,7 +405,7 @@ export const createMaintenanceOrder = mutation({
       return { success: false, message: error instanceof Error ? error.message : 'Invalid purchased items' };
     }
     const schedule = readSchedule(args);
-    if (!schedule.ok) return { success: false, message: schedule.message };
+    if (schedule.ok === false) return { success: false, message: schedule.message };
     const now = Date.now();
     const dueAt = schedule.value.isScheduled && schedule.value.scheduledDate
       ? schedule.value.scheduledDate
@@ -604,7 +608,7 @@ export const updateMaintenanceOrder = mutation({
     }
     if (args.isScheduled !== undefined) {
       const schedule = readSchedule(args);
-      if (!schedule.ok) return { success: false, message: schedule.message };
+      if (schedule.ok === false) return { success: false, message: schedule.message };
       patch.isScheduled = schedule.value.isScheduled;
       if (schedule.value.isScheduled) {
         patch.scheduledDate = schedule.value.scheduledDate;

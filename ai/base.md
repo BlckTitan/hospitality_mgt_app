@@ -945,12 +945,18 @@ interface MaintenanceOrder {
   description?: string;
   status: 'pending' | 'in-progress' | 'completed' | 'cancelled';
   scheduledDate?: Date;
+  /** When true, `dueAt` is `scheduledDate` and reminders use `reminderDays`. */
+  isScheduled?: boolean;
+  /** 0 = one dated visit. 1, 3, 6, 12, or another whole number of months repeats. */
+  intervalMonths?: number;
+  /** Days before the scheduled date to show an in-app reminder. Default 7. */
+  reminderDays?: number;
   dueAt: Date;
   startedAt?: Date;
   completedAt?: Date;
-  /** Falls back to purchased-items total on create when omitted. */
+  /** Falls back to purchased-items total on create when omitted. Displayed in the property currency. */
   estimatedCost?: number;
-  /** Falls back to purchased-items total on update when omitted. List Cost prefers this over estimated. */
+  /** Falls back to purchased-items total on update when omitted. List Cost prefers this over estimated. Displayed in the property currency. */
   actualCost?: number;
   resolutionNotes?: string;
   checklist?: ChecklistItem[];

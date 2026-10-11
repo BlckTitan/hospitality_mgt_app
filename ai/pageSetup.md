@@ -1177,21 +1177,22 @@ Sidebar: **Dashboard** (`/admin/dashboard`, `reports.read` — hidden without it
 ---
 
 ### 41. Maintenance Orders Page (`/admin/maintenance`)
-**Purpose**: Manage maintenance work orders. Boards: unassigned (no lead), mine, overdue. Create is a modal on this page.
+**Purpose**: Manage maintenance work orders. Boards: unassigned (no lead), mine, overdue, due soon (open scheduled visit inside the reminder window). Create is a modal on this page. A reminder list sits above the table when any open scheduled order is due soon or overdue.
 
 **Permission:** `maintenance.order.read` (create: `maintenance.order.assign`)
 
 **Data Fetching:**
 - Fetch all `MaintenanceOrder` records for current property (with pagination)
 - Include joined `Asset`, `Room`, `Supplier`, and `taskAssignments` + `Employee`
-- Include per-order `partsCost` (sum of `maintenanceOrderParts` quantity × unitCost) and `displayCost` (actual, else estimated, else parts total)
+- Include per-order `partsCost` (sum of `maintenanceOrderParts` quantity × unitCost) and `displayCost` (actual, else estimated, else parts total), formatted with the property currency
+- Include `reminders` for open scheduled orders inside `reminderDays` (also `getMaintenanceReminders` on the dashboard)
 - Include `Document` records (invoices, completion certificates)
 - Filter by: `status`, `orderType`, `priority`, `assetId`, `roomId`, lead `staffId`, `dueAt`
 - Sort by: `priority`, `dueAt`, `status`
 
-**List columns:** title, type, priority, status, due, Cost (`displayCost`: actual, else `Est.` estimated, else parts total), lead.
+**List columns:** title, type, priority, status, schedule (once / every N months, or —), due, Cost (`displayCost`: actual, else `Est.` estimated, else parts total, in the property currency), lead.
 
-**Create form:** required title; required description (min 5 chars); order type; priority; optional estimated cost (falls back to parts total); optional vendor; lead + helpers; purchased items (`maintenanceOrderParts`: inventory catalog or custom name, quantity, unit cost). Parts catalog query uses `maintenance.order.read`.
+**Create form:** required title; required description (min 5 chars); order type; priority; optional estimated cost labeled with the property currency (falls back to parts total); optional schedule (next date, repeat, remind-me days); optional vendor; lead + helpers; purchased items (`maintenanceOrderParts`: inventory catalog or custom name, quantity, unit cost). Line totals use the property currency. Parts catalog query uses `maintenance.order.read`.
 
 **Related Entities to Include:**
 - `Asset` (joined, optional)
@@ -1209,7 +1210,7 @@ Sidebar: **Dashboard** (`/admin/dashboard`, `reports.read` — hidden without it
 ---
 
 ### 42. Maintenance Order Detail Page (`/admin/maintenance/edit?order_id=`)
-**Purpose**: View/edit maintenance work order details, description, estimated/actual cost, purchased items, vendor, lead/helpers, checklist, SLA
+**Purpose**: View/edit maintenance work order details, description, estimated/actual cost, schedule, purchased items, vendor, lead/helpers, checklist, SLA
 
 **Permission:** `maintenance.order.update` (complete: `maintenance.order.complete` as lead or supervisor)
 
@@ -1220,7 +1221,7 @@ Sidebar: **Dashboard** (`/admin/dashboard`, `reports.read` — hidden without it
 - Fetch related `Document` records (invoices, completion certificates, warranty docs)
 - Show cost breakdown: estimated, actual, parts total; `dueAt` status
 
-**Edit form:** required description (min 5 chars); estimated cost; actual cost (falls back to parts total when blank if parts exist); purchased items (inventory or custom); status/priority; lead/vendor; notes.
+**Edit form:** required description (min 5 chars); estimated and actual cost in the property currency (actual falls back to parts total when blank if parts exist); optional schedule (same fields as create; completing a repeat creates the next visit); purchased items (inventory or custom); status/priority; lead/vendor; notes.
 
 **Related Entities to Include:**
 - `Asset` (joined, optional)
@@ -1634,6 +1635,7 @@ Sidebar: **Dashboard** (`/admin/dashboard`, `reports.read` — hidden without it
 - `userStockLogs` (period Beverages revenue; today qty + revenue)
 - `reorderAlerts` (open count)
 - `billPeriods` / `billAccounts` (overdue, due this week)
+- `maintenanceOrders` (reminder strip only, when the user has `maintenance.order.read`: open scheduled visits inside `reminderDays`)
 
 **Rendering Strategy: SSR**
 - **Reason**: Operational counts change through the day; each card is a live Convex subscription scoped to the selected property.

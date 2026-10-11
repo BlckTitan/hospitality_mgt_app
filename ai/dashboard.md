@@ -75,6 +75,8 @@ Summaries are tabs (inventory-hub button style). Default tab is **P&L / RevPAR**
 
 Do **not** put My shift or My tasks on this page.
 
+**Maintenance reminders** (not a tab): above the tabs, when the user has `maintenance.order.read`, subscribe to `getMaintenanceReminders`. Show open scheduled work orders whose date is inside `reminderDays` (including overdue). Each row links to `/admin/maintenance/edit?order_id=`. Hide the strip when the list is empty. Users without that permission do not run the query.
+
 Leave `app/admin/dashboard/components/sales-summary-charts.tsx` unused. Period bar charts, health KPIs, SKUs, and YoY live on `/admin/bar-management` (`app/admin/bar-management/components/sales-summary-charts.tsx`). Do not chart raw `salesSummaries` SKU rows on the property dashboard.
 
 Money: format with the selected property’s `currency` (same pattern as inventory `formatPropertyMoney`). Period controls use `lib/cashPeriod.ts` (day / week / month / year) in the property timezone.
