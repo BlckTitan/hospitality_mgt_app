@@ -753,6 +753,10 @@ export default defineSchema({
       v.literal("cancelled")
     ),
     scheduledDate: v.optional(v.number()),
+    isScheduled: v.optional(v.boolean()),
+    // 0 means a single dated visit. 1, 3, 12, and so on repeat by that many months.
+    intervalMonths: v.optional(v.number()),
+    reminderDays: v.optional(v.number()),
     dueAt: v.number(),
     startedAt: v.optional(v.number()),
     completedAt: v.optional(v.number()),

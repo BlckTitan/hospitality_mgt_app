@@ -19,6 +19,12 @@ import {
   serializeParts,
   type MaintenancePartDraft,
 } from "./maintenancePartsFields";
+import { usePropertyCurrency } from "../../inventory-management/components/money";
+import {
+  dateInputToTimestamp,
+  intervalMonthsOf,
+  MaintenanceScheduleFields,
+} from "./maintenanceScheduleFields";
 
 type FormData = {
   title: string;
@@ -26,6 +32,11 @@ type FormData = {
   orderType: 'preventive' | 'corrective' | 'emergency' | 'inspection';
   priority: 'low' | 'medium' | 'high' | 'urgent';
   estimatedCost?: number;
+  isScheduled?: boolean;
+  scheduledDate?: string;
+  repeatEvery?: string;
+  customIntervalMonths?: number;
+  reminderDays?: number;
   leadId?: string;
   helperIds?: string[];
   supplierId?: string;
@@ -33,6 +44,7 @@ type FormData = {
 
 export function FormComponent({ onClose, propertyId }: { onClose?: () => void; propertyId: string }) {
   const createOrder = useMutation(api.maintenanceOrders.createMaintenanceOrder);
+  const currency = usePropertyCurrency(propertyId);
   const staffList = useQuery(api.housekeepingTasks.listAssignableStaff, { propertyId: propertyId as Id<'properties'> });
   const suppliers = useQuery(api.suppliers.getAllSuppliers, {
     propertyId: propertyId as Id<'properties'>,
@@ -51,6 +63,10 @@ export function FormComponent({ onClose, propertyId }: { onClose?: () => void; p
       orderType: 'corrective',
       priority: 'medium',
       estimatedCost: undefined,
+      isScheduled: false,
+      scheduledDate: '',
+      repeatEvery: '1',
+      reminderDays: 7,
       leadId: '',
       helperIds: [],
       supplierId: '',
@@ -58,16 +74,24 @@ export function FormComponent({ onClose, propertyId }: { onClose?: () => void; p
   });
 
   const selectedLead = watch('leadId');
+  const isScheduled = watch('isScheduled');
+  const repeatEvery = watch('repeatEvery');
 
   const onSubmit: SubmitHandler<FormData> = async (data) => {
     try {
       const serializedParts = serializeParts(parts);
+      const scheduled = Boolean(data.isScheduled);
+      const scheduledDate = scheduled ? dateInputToTimestamp(data.scheduledDate ?? '') : undefined;
       const response = await createOrder({
         propertyId: propertyId as Id<'properties'>,
         title: data.title,
         description: data.description,
         orderType: data.orderType,
         priority: data.priority,
+        isScheduled: scheduled,
+        scheduledDate,
+        intervalMonths: scheduled ? intervalMonthsOf(data) : undefined,
+        reminderDays: scheduled ? Number(data.reminderDays) : undefined,
         estimatedCost: optionalMoney(data.estimatedCost),
         supplierId: data.supplierId ? (data.supplierId as Id<'suppliers'>) : undefined,
         leadId: data.leadId ? (data.leadId as Id<'staffs'>) : undefined,
@@ -147,7 +171,7 @@ export function FormComponent({ onClose, propertyId }: { onClose?: () => void; p
         />
         <InputComponent
           id="estimatedCost"
-          label="Estimated cost"
+          label={`Estimated cost (${currency})`}
           type="number"
           inputWidth="w-1/2"
           step="0.01"
@@ -156,6 +180,13 @@ export function FormComponent({ onClose, propertyId }: { onClose?: () => void; p
           placeholder="0.00"
         />
       </div>
+
+      <MaintenanceScheduleFields
+        register={register as any}
+        errors={errors}
+        isScheduled={Boolean(isScheduled)}
+        repeatEvery={repeatEvery}
+      />
 
       <div className={fieldRowClassName}>
         <SelectComponent
@@ -205,6 +236,7 @@ export function FormComponent({ onClose, propertyId }: { onClose?: () => void; p
         parts={parts}
         onChange={setParts}
         catalog={catalog}
+        currency={currency}
       />
 
       <Modal.Footer>

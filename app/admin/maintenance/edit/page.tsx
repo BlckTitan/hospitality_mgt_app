@@ -42,6 +42,10 @@ export default function Page() {
         priority={row.priority}
         estimatedCost={row.estimatedCost}
         actualCost={row.actualCost}
+        isScheduled={row.isScheduled}
+        scheduledDate={row.scheduledDate}
+        intervalMonths={row.intervalMonths}
+        reminderDays={row.reminderDays}
         leadId={row.lead?.staffId}
         helperIds={row.helpers?.map((helper) => helper.staffId) ?? []}
         supplierId={row.supplierId}

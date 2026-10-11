@@ -6,14 +6,17 @@ import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { useState } from "react";
 import { usePermissions } from "../../../../hooks/usePermissions";
+import { formatPropertyMoney, usePropertyCurrency } from "../../inventory-management/components/money";
+import { intervalLabel, reminderPhrase } from "./maintenanceScheduleFields";
 
-type Board = "" | "unassigned" | "mine" | "overdue";
+type Board = "" | "unassigned" | "mine" | "overdue" | "dueSoon";
 
 export default function MaintenanceOrders({ currentPropertyId }: { currentPropertyId: Id<"properties"> }) {
   const [board, setBoard] = useState<Board>("");
   const { isAuthenticated } = useConvexAuth();
   const { hasGranularPermission } = usePermissions();
   const canUpdate = hasGranularPermission("maintenance.order.update");
+  const currency = usePropertyCurrency(currentPropertyId);
   const orders = useQuery(
     api.maintenanceOrders.getAllMaintenanceOrders,
     isAuthenticated
@@ -22,6 +25,7 @@ export default function MaintenanceOrders({ currentPropertyId }: { currentProper
   );
 
   const rows = orders?.data ?? [];
+  const reminders = orders?.reminders ?? [];
 
   if (orders === undefined) {
     return <p className="p-4">Loading</p>;
@@ -41,9 +45,31 @@ export default function MaintenanceOrders({ currentPropertyId }: { currentProper
             <option value="unassigned">Unassigned</option>
             <option value="mine">Mine</option>
             <option value="overdue">Overdue</option>
+            <option value="dueSoon">Due soon</option>
           </select>
         </label>
       </div>
+
+      {reminders.length > 0 && (
+        <div className="mb-4 border border-amber-300 bg-amber-50 p-3">
+          <p className="font-semibold text-amber-900 mb-2">Maintenance reminders</p>
+          <ul className="text-sm space-y-1">
+            {reminders.map((reminder) => (
+              <li key={reminder._id}>
+                <a href={`/admin/maintenance/edit?order_id=${reminder._id}`} className="font-medium">
+                  {reminder.title}
+                </a>
+                {" · "}
+                {intervalLabel(reminder.intervalMonths)}
+                {" · "}
+                {new Date(reminder.scheduledDate).toLocaleDateString()}
+                {" · "}
+                {reminderPhrase(reminder.daysUntil)}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="overflow-x-auto">
         <table className="w-full text-sm border">
@@ -55,6 +81,7 @@ export default function MaintenanceOrders({ currentPropertyId }: { currentProper
               <th className="p-2">Status</th>
               <th className="p-2">Priority</th>
               <th className="p-2">Cost</th>
+              <th className="p-2">Schedule</th>
               <th className="p-2">Due</th>
               <th className="p-2">Action</th>
             </tr>
@@ -62,7 +89,7 @@ export default function MaintenanceOrders({ currentPropertyId }: { currentProper
           <tbody>
             {rows.length === 0 && (
               <tr>
-                <td className="p-3" colSpan={8}>
+                <td className="p-3" colSpan={9}>
                   No maintenance orders found.
                 </td>
               </tr>
@@ -83,12 +110,23 @@ export default function MaintenanceOrders({ currentPropertyId }: { currentProper
                 </td>
                 <td className="p-2">{row.priority}</td>
                 <td className="p-2">
-                  {formatCost(row)}
+                  {formatCost(row, currency)}
+                </td>
+                <td className="p-2">
+                  {row.isScheduled
+                    ? intervalLabel(row.intervalMonths)
+                    : "—"}
                 </td>
                 <td className="p-2">
                   <span className={row.overdue ? "text-red-600 font-semibold" : ""}>
-                    {new Date(row.dueAt).toLocaleString()}
-                    {row.overdue ? " (overdue)" : ""}
+                    {row.isScheduled && row.scheduledDate
+                      ? new Date(row.scheduledDate).toLocaleDateString()
+                      : new Date(row.dueAt).toLocaleString()}
+                    {row.reminder
+                      ? ` (${reminderPhrase(row.reminder.daysUntil)})`
+                      : row.overdue
+                        ? " (overdue)"
+                        : ""}
                   </span>
                 </td>
                 <td className="p-2">
@@ -114,12 +152,8 @@ function formatCost(row: {
   actualCost?: number;
   estimatedCost?: number;
   partsCost?: number;
-}) {
-  const formatted = (amount: number) =>
-    new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-    }).format(amount);
+}, currency: string) {
+  const formatted = (amount: number) => formatPropertyMoney(amount, currency);
   if (row.actualCost != null) return formatted(row.actualCost);
   if (row.estimatedCost != null) return `Est. ${formatted(row.estimatedCost)}`;
   if (row.partsCost && row.partsCost > 0) return formatted(row.partsCost);

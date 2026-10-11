@@ -1,7 +1,7 @@
 ﻿import { mutation, query, MutationCtx, QueryCtx } from './_generated/server';
 import { v } from 'convex/values';
-import { requirePermission } from './lib/rbac';
-import { Id } from './_generated/dataModel';
+import { requirePermission, tryRequirePermission } from './lib/rbac';
+import { Doc, Id } from './_generated/dataModel';
 import { postCashOutflow } from './lib/postCashOutflow';
 import { postInventoryTransaction } from './lib/inventoryStock';
 import { currentUsersStaff } from './lib/staffAccess';
@@ -64,6 +64,86 @@ async function listParts(ctx: QueryCtx | MutationCtx, maintenanceOrderId: Id<'ma
 
 function partsCostOf(parts: Array<{ quantity: number; unitCost: number }>) {
   return parts.reduce((sum, part) => sum + part.quantity * part.unitCost, 0);
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function startOfLocalDay(timestamp: number) {
+  const date = new Date(timestamp);
+  date.setHours(0, 0, 0, 0);
+  return date.getTime();
+}
+
+function addMonths(timestamp: number, months: number) {
+  const date = new Date(timestamp);
+  const day = date.getDate();
+  date.setMonth(date.getMonth() + months);
+  if (date.getDate() !== day) date.setDate(0);
+  return date.getTime();
+}
+
+function nextOccurrence(from: number, months: number, now: number) {
+  let next = addMonths(from, months);
+  for (let i = 0; i < 36 && next <= now; i += 1) {
+    next = addMonths(next, months);
+  }
+  return next;
+}
+
+type ScheduleInput = {
+  isScheduled?: boolean;
+  scheduledDate?: number;
+  intervalMonths?: number;
+  reminderDays?: number;
+};
+
+type ScheduleValue = {
+  isScheduled: boolean;
+  scheduledDate?: number;
+  intervalMonths?: number;
+  reminderDays?: number;
+};
+
+function readSchedule(args: ScheduleInput): { ok: true; value: ScheduleValue } | { ok: false; message: string } {
+  if (!args.isScheduled) {
+    return { ok: true, value: { isScheduled: false } };
+  }
+  if (args.scheduledDate == null || !Number.isFinite(args.scheduledDate)) {
+    return { ok: false, message: 'Choose the maintenance date' };
+  }
+  const intervalMonths = args.intervalMonths ?? 0;
+  if (!Number.isInteger(intervalMonths) || intervalMonths < 0 || intervalMonths > 60) {
+    return { ok: false, message: 'Repeat interval must be a whole number from 1 to 60 months' };
+  }
+  const reminderDays = args.reminderDays ?? 7;
+  if (!Number.isInteger(reminderDays) || reminderDays < 0 || reminderDays > 90) {
+    return { ok: false, message: 'Reminder must be a whole number from 0 to 90 days before the date' };
+  }
+  return {
+    ok: true,
+    value: {
+      isScheduled: true,
+      scheduledDate: args.scheduledDate,
+      intervalMonths,
+      reminderDays,
+    },
+  };
+}
+
+function maintenanceReminder(
+  row: {
+    isScheduled?: boolean;
+    scheduledDate?: number;
+    reminderDays?: number;
+    status: string;
+  },
+  now: number,
+) {
+  if (!row.isScheduled || row.scheduledDate == null || !isOpenStatus(row.status)) return null;
+  const daysUntil = Math.round((startOfLocalDay(row.scheduledDate) - startOfLocalDay(now)) / DAY_MS);
+  const lead = row.reminderDays ?? 7;
+  if (daysUntil > lead) return null;
+  return { daysUntil, scheduledDate: row.scheduledDate };
 }
 
 function oneOffPartsCost(
@@ -158,7 +238,12 @@ export const listPartsCatalog = query({
 export const getAllMaintenanceOrders = query({
   args: {
     propertyId: v.id('properties'),
-    board: v.optional(v.union(v.literal('unassigned'), v.literal('mine'), v.literal('overdue'))),
+    board: v.optional(v.union(
+      v.literal('unassigned'),
+      v.literal('mine'),
+      v.literal('overdue'),
+      v.literal('dueSoon'),
+    )),
   },
   handler: async (ctx, args) => {
     const auth = await requirePermission(ctx, MODULE_PERMS.maintenance.read, args.propertyId);
@@ -184,20 +269,64 @@ export const getAllMaintenanceOrders = query({
         partsCost,
         displayCost: row.actualCost ?? (partsCost > 0 ? partsCost : row.estimatedCost),
         overdue: isOpenStatus(row.status) && row.dueAt < now,
+        reminder: maintenanceReminder(row, now),
       };
     }));
+    const reminders = data
+      .filter((row) => row.reminder)
+      .sort((a, b) => (a.scheduledDate ?? 0) - (b.scheduledDate ?? 0))
+      .map((row) => ({
+        _id: row._id,
+        title: row.title,
+        scheduledDate: row.scheduledDate as number,
+        intervalMonths: row.intervalMonths,
+        daysUntil: row.reminder!.daysUntil,
+      }));
     return {
       success: true,
+      reminders,
       data: data.filter((row) => {
         if (!args.board) return true;
         if (args.board === 'unassigned') return !row.lead;
         if (args.board === 'overdue') return row.overdue;
+        if (args.board === 'dueSoon') return row.reminder != null;
         if (args.board === 'mine') {
           return linked ? row.assignments.some((a) => a.staffId === linked._id) : false;
         }
         return true;
       }),
     };
+  },
+});
+
+export const getMaintenanceReminders = query({
+  args: { propertyId: v.id('properties') },
+  handler: async (ctx, args) => {
+    const auth = await tryRequirePermission(ctx, MODULE_PERMS.maintenance.read, args.propertyId);
+    if (!auth) return [];
+    const now = Date.now();
+    const pending = await ctx.db
+      .query('maintenanceOrders')
+      .withIndex('by_propertyId_status', (q) => q.eq('propertyId', args.propertyId).eq('status', 'pending'))
+      .take(200);
+    const inProgress = await ctx.db
+      .query('maintenanceOrders')
+      .withIndex('by_propertyId_status', (q) => q.eq('propertyId', args.propertyId).eq('status', 'in-progress'))
+      .take(200);
+    return [...pending, ...inProgress]
+      .map((row) => {
+        const reminder = maintenanceReminder(row, now);
+        if (!reminder) return null;
+        return {
+          _id: row._id,
+          title: row.title,
+          scheduledDate: reminder.scheduledDate,
+          intervalMonths: row.intervalMonths,
+          daysUntil: reminder.daysUntil,
+        };
+      })
+      .filter((row): row is NonNullable<typeof row> => row != null)
+      .sort((a, b) => a.scheduledDate - b.scheduledDate);
   },
 });
 
@@ -237,7 +366,10 @@ export const createMaintenanceOrder = mutation({
     priority: priorityValidator,
     title: v.string(),
     description: v.optional(v.string()),
+    isScheduled: v.optional(v.boolean()),
     scheduledDate: v.optional(v.number()),
+    intervalMonths: v.optional(v.number()),
+    reminderDays: v.optional(v.number()),
     estimatedCost: v.optional(v.number()),
     leadId: v.optional(v.id('staffs')),
     helperIds: v.optional(v.array(v.id('staffs'))),
@@ -268,8 +400,12 @@ export const createMaintenanceOrder = mutation({
     } catch (error) {
       return { success: false, message: error instanceof Error ? error.message : 'Invalid purchased items' };
     }
+    const schedule = readSchedule(args);
+    if (!schedule.ok) return { success: false, message: schedule.message };
     const now = Date.now();
-    const dueAt = await dueAtFor(ctx, args.propertyId, 'maintenance', args.orderType, now);
+    const dueAt = schedule.value.isScheduled && schedule.value.scheduledDate
+      ? schedule.value.scheduledDate
+      : await dueAtFor(ctx, args.propertyId, 'maintenance', args.orderType, now);
     const snap = await snapshotChecklist(ctx, args.propertyId, 'maintenance', args.orderType);
     const leadId = args.leadId ?? await defaultLeadStaffId(ctx, args.propertyId, 'maintenance', auth.user._id);
     const requestedBy = await linkedStaffForUser(ctx, auth.user._id);
@@ -288,7 +424,14 @@ export const createMaintenanceOrder = mutation({
       title: args.title,
       description: args.description,
       status: 'pending',
-      scheduledDate: args.scheduledDate,
+      ...(schedule.value.isScheduled
+        ? {
+            isScheduled: true as const,
+            scheduledDate: schedule.value.scheduledDate,
+            intervalMonths: schedule.value.intervalMonths,
+            reminderDays: schedule.value.reminderDays,
+          }
+        : {}),
       dueAt,
       estimatedCost: args.estimatedCost ?? (partsCost > 0 ? partsCost : undefined),
       checklist: snap.checklist,
@@ -307,6 +450,67 @@ export const createMaintenanceOrder = mutation({
   },
 });
 
+async function scheduleNextOccurrence(
+  ctx: MutationCtx,
+  existing: Doc<'maintenanceOrders'>,
+  actorUserId: Id<'users'>,
+) {
+  if (!existing.isScheduled || !existing.intervalMonths || existing.intervalMonths < 1 || existing.scheduledDate == null) {
+    return false;
+  }
+  const nextDate = nextOccurrence(existing.scheduledDate, existing.intervalMonths, Date.now());
+  const pending = await ctx.db
+    .query('maintenanceOrders')
+    .withIndex('by_propertyId_status', (q) => q.eq('propertyId', existing.propertyId).eq('status', 'pending'))
+    .take(200);
+  const inProgress = await ctx.db
+    .query('maintenanceOrders')
+    .withIndex('by_propertyId_status', (q) => q.eq('propertyId', existing.propertyId).eq('status', 'in-progress'))
+    .take(200);
+  const duplicate = [...pending, ...inProgress].some((row) => (
+    row.isScheduled && row.title === existing.title && row.scheduledDate === nextDate
+  ));
+  if (duplicate) return false;
+
+  const now = Date.now();
+  const snap = await snapshotChecklist(ctx, existing.propertyId, 'maintenance', existing.orderType);
+  const assignments = await listAssignments(ctx, { maintenanceOrderId: existing._id });
+  const leadId = assignments.find((row) => row.role === 'lead')?.staffId;
+  const helperIds = assignments.filter((row) => row.role === 'helper').map((row) => row.staffId);
+  const id = await ctx.db.insert('maintenanceOrders', {
+    propertyId: existing.propertyId,
+    assetId: existing.assetId,
+    roomId: existing.roomId,
+    supplierId: existing.supplierId,
+    requestedBy: existing.requestedBy,
+    createdBy: actorUserId,
+    templateId: snap.templateId,
+    orderType: existing.orderType,
+    source: 'manual',
+    priority: existing.priority,
+    title: existing.title,
+    description: existing.description,
+    status: 'pending',
+    isScheduled: true,
+    scheduledDate: nextDate,
+    intervalMonths: existing.intervalMonths,
+    reminderDays: existing.reminderDays,
+    dueAt: nextDate,
+    estimatedCost: existing.estimatedCost,
+    checklist: snap.checklist,
+    createdAt: now,
+    updatedAt: now,
+  });
+  await assignLeadAndHelpers(ctx, {
+    propertyId: existing.propertyId,
+    parent: { maintenanceOrderId: id },
+    leadId,
+    helperIds,
+    assignedBy: actorUserId,
+  });
+  return true;
+}
+
 export const updateMaintenanceOrder = mutation({
   args: {
     maintenanceOrderId: v.id('maintenanceOrders'),
@@ -318,7 +522,10 @@ export const updateMaintenanceOrder = mutation({
     title: v.optional(v.string()),
     description: v.optional(v.string()),
     status: v.optional(statusValidator),
+    isScheduled: v.optional(v.boolean()),
     scheduledDate: v.optional(v.number()),
+    intervalMonths: v.optional(v.number()),
+    reminderDays: v.optional(v.number()),
     estimatedCost: v.optional(v.number()),
     actualCost: v.optional(v.number()),
     resolutionNotes: v.optional(v.string()),
@@ -390,10 +597,31 @@ export const updateMaintenanceOrder = mutation({
     const patch: Record<string, unknown> = { updatedAt: now };
     for (const key of [
       'assetId', 'roomId', 'supplierId', 'orderType', 'priority', 'title',
-      'description', 'status', 'scheduledDate', 'estimatedCost', 'actualCost',
+      'description', 'status', 'estimatedCost', 'actualCost',
       'resolutionNotes', 'notes', 'checklist',
     ] as const) {
       if (args[key] !== undefined) patch[key] = args[key];
+    }
+    if (args.isScheduled !== undefined) {
+      const schedule = readSchedule(args);
+      if (!schedule.ok) return { success: false, message: schedule.message };
+      patch.isScheduled = schedule.value.isScheduled;
+      if (schedule.value.isScheduled) {
+        patch.scheduledDate = schedule.value.scheduledDate;
+        patch.intervalMonths = schedule.value.intervalMonths;
+        patch.reminderDays = schedule.value.reminderDays;
+        if (isOpenStatus(args.status ?? existing.status) && schedule.value.scheduledDate) {
+          patch.dueAt = schedule.value.scheduledDate;
+        }
+      } else if (isOpenStatus(args.status ?? existing.status)) {
+        patch.dueAt = await dueAtFor(
+          ctx,
+          existing.propertyId,
+          'maintenance',
+          args.orderType ?? existing.orderType,
+          now,
+        );
+      }
     }
     if (args.actualCost === undefined && partsCost !== undefined && partsCost > 0) {
       patch.actualCost = partsCost;
@@ -406,9 +634,18 @@ export const updateMaintenanceOrder = mutation({
       if (existing.orderType === 'preventive' && existing.assetId) {
         const asset = await ctx.db.get(existing.assetId);
         if (asset) {
+          const scheduled = typeof patch.isScheduled === 'boolean' ? patch.isScheduled : existing.isScheduled;
+          const interval = typeof patch.intervalMonths === 'number'
+            ? patch.intervalMonths
+            : (existing.intervalMonths ?? 0);
+          const from = typeof patch.scheduledDate === 'number'
+            ? patch.scheduledDate
+            : (existing.scheduledDate ?? now);
           await ctx.db.patch(asset._id, {
             lastMaintenanceDate: now,
-            nextMaintenanceDate: now + 90 * 24 * 60 * 60 * 1000,
+            nextMaintenanceDate: scheduled && interval > 0
+              ? nextOccurrence(from, interval, now)
+              : now + 90 * DAY_MS,
             updatedAt: now,
           });
         }
@@ -456,6 +693,13 @@ export const updateMaintenanceOrder = mutation({
       }
     }
     await ctx.db.patch(args.maintenanceOrderId, patch);
-    return { success: true, message: 'Maintenance order updated' };
+    let message = 'Maintenance order updated';
+    if (args.status === 'completed' && existing.status !== 'completed') {
+      const saved = await ctx.db.get(args.maintenanceOrderId);
+      if (saved && await scheduleNextOccurrence(ctx, saved, auth.user._id)) {
+        message = 'Maintenance order updated. The next scheduled visit was created.';
+      }
+    }
+    return { success: true, message };
   },
 });

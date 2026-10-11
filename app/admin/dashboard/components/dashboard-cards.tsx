@@ -17,6 +17,7 @@ import {
 } from '../../../../lib/cashPeriod';
 import { EXPENSE_CATEGORY_OPTIONS } from '../../expenses/components/categoryLabels';
 import { SalesByDayChart } from './sales-by-day-chart';
+import { intervalLabel, reminderPhrase } from '../../maintenance/components/maintenanceScheduleFields';
 
 function formatWhen(value?: number) {
   if (!value) return '—';
@@ -426,5 +427,31 @@ export function BillingCard({
         </ul>
       )}
     </CardShell>
+  );
+}
+
+export function MaintenanceReminders({ propertyId }: { propertyId: Id<'properties'> }) {
+  const reminders = useQuery(api.maintenanceOrders.getMaintenanceReminders, { propertyId });
+  if (!reminders || reminders.length === 0) return null;
+
+  return (
+    <div className="mb-4 border border-amber-300 bg-amber-50 p-3">
+      <p className="font-semibold text-amber-900 mb-2">Maintenance reminders</p>
+      <ul className="text-sm space-y-1">
+        {reminders.map((reminder) => (
+          <li key={reminder._id}>
+            <Link href={`/admin/maintenance/edit?order_id=${reminder._id}`} className="font-medium">
+              {reminder.title}
+            </Link>
+            {' · '}
+            {intervalLabel(reminder.intervalMonths)}
+            {' · '}
+            {new Date(reminder.scheduledDate).toLocaleDateString()}
+            {' · '}
+            {reminderPhrase(reminder.daysUntil)}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

@@ -3,6 +3,7 @@
 import { Button } from '../../../../shared/button';
 import { Id } from '../../../../convex/_generated/dataModel';
 import { Field, fieldRowClassName, fieldWidthClass } from '../../../../shared/field';
+import { formatPropertyMoney } from '../../inventory-management/components/money';
 
 export type MaintenancePartDraft = {
   key: string;
@@ -65,22 +66,16 @@ export function optionalMoney(value?: number | string | null) {
   return amount;
 }
 
-export function formatCurrency(amount?: number | null) {
-  if (amount === undefined || amount === null) return '—';
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(amount);
-}
-
 export function MaintenancePartsFields({
   parts,
   onChange,
   catalog,
+  currency,
 }: {
   parts: MaintenancePartDraft[];
   onChange: (parts: MaintenancePartDraft[]) => void;
   catalog: PartsCatalogItem[];
+  currency?: string;
 }) {
   const updatePart = (key: string, patch: Partial<MaintenancePartDraft>) => {
     onChange(parts.map((part) => (part.key === key ? { ...part, ...patch } : part)));
@@ -166,7 +161,7 @@ export function MaintenancePartsFields({
                     onChange={(event) => updatePart(part.key, { quantity: event.target.value })}
                   />
                 </Field>
-                <Field id={`part-cost-${part.key}`} label="Unit cost *" widthClass={fieldWidthClass('w-3/12')}>
+                <Field id={`part-cost-${part.key}`} label={`Unit cost (${currency}) *`} widthClass={fieldWidthClass('w-3/12')}>
                   <input
                     id={`part-cost-${part.key}`}
                     type="number"
@@ -179,7 +174,7 @@ export function MaintenancePartsFields({
                 </Field>
                 <Field label="Line total" widthClass={fieldWidthClass('w-3/12')}>
                   <p className="w-full max-w-full min-w-0 h-10 p-2 border rounded-sm bg-slate-50 mb-0 flex items-center">
-                    {Number.isFinite(lineTotal) ? formatCurrency(lineTotal) : '—'}
+                    {Number.isFinite(lineTotal) ? formatPropertyMoney(lineTotal, currency) : '—'}
                   </p>
                 </Field>
               </div>
@@ -189,7 +184,7 @@ export function MaintenancePartsFields({
       </div>
       {parts.length > 0 && (
         <p className="text-sm mt-2 mb-0">
-          Items total: <span className="font-semibold">{formatCurrency(partsCostOf(parts))}</span>
+          Items total: <span className="font-semibold">{formatPropertyMoney(partsCostOf(parts), currency)}</span>
         </p>
       )}
     </div>

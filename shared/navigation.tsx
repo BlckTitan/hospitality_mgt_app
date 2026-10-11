@@ -2,7 +2,7 @@
 import { Show, SignOutButton, useUser } from '@clerk/nextjs'
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { FcPhone, FcSalesPerformance , FcConferenceCall, FcMoneyTransfer , FcList, FcDepartment, FcManager } from "react-icons/fc";
 import { IoFastFoodOutline, IoRestaurantOutline } from "react-icons/io5";
 import { MdLogout, MdOutlineBedroomChild, MdMenu, MdClose } from 'react-icons/md';
@@ -99,10 +99,31 @@ export default function Navigation() {
   const { canAccessRoute, isLoading } = usePermissions();
   const [menuOpen, setMenuOpen] = useState(false);
   const [openSection, setOpenSection] = useState<string | null>(null);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setMenuOpen(false);
+    setProfileOpen(false);
   }, [path]);
+
+  useEffect(() => {
+    if (!profileOpen) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!profileMenuRef.current?.contains(event.target as Node)) {
+        setProfileOpen(false);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setProfileOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [profileOpen]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -163,20 +184,46 @@ export default function Navigation() {
                 </Show>
               </header>
 
-              <div className="hidden lg:flex items-center gap-3 py-1 px-4 shrink-0">
+              <div ref={profileMenuRef} className="relative hidden lg:block shrink-0">
                 <Show when="signed-in">
-                  <div className="flex flex-col items-start leading-tight min-w-0">
-                    <span className="text-neutral-900 text-sm truncate max-w-[220px]">{user?.fullName?.toLocaleUpperCase()}</span>
-                    <span className="text-neutral-600 text-xs truncate max-w-[220px]">{user?.primaryEmailAddress?.emailAddress}</span>
-                  </div>
-                  
-                  <img
-                    src={user?.imageUrl}
-                    alt="Profile Image"
-                    width={36}
-                    height={36}
-                    className="h-9 w-9 rounded-full object-cover"
-                  />
+                  <button
+                    type="button"
+                    className="flex cursor-pointer items-center gap-3 rounded-md py-1 pl-3 pr-1 hover:bg-neutral-50"
+                    aria-haspopup="menu"
+                    aria-expanded={profileOpen}
+                    aria-controls="desktop-profile-menu"
+                    onClick={() => setProfileOpen((open) => !open)}
+                  >
+                    <span className="flex min-w-0 flex-col items-start text-left leading-tight">
+                      <span className="max-w-[220px] truncate text-sm text-neutral-900">{user?.fullName?.toLocaleUpperCase()}</span>
+                      <span className="max-w-[220px] truncate text-xs text-neutral-600">{user?.primaryEmailAddress?.emailAddress}</span>
+                    </span>
+                    <img
+                      src={user?.imageUrl}
+                      alt=""
+                      width={36}
+                      height={36}
+                      className="h-9 w-9 rounded-full object-cover"
+                    />
+                  </button>
+                  {profileOpen ? (
+                    <div
+                      id="desktop-profile-menu"
+                      role="menu"
+                      className="absolute right-0 top-[calc(100%+0.35rem)] z-50 min-w-40 rounded-md border border-neutral-200 bg-white py-1 shadow-lg"
+                    >
+                      <SignOutButton redirectUrl="/">
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-sm text-neutral-800 hover:bg-neutral-100"
+                        >
+                          <MdLogout className="text-lg" />
+                          <span>Log Out</span>
+                        </button>
+                      </SignOutButton>
+                    </div>
+                  ) : null}
                 </Show>
               </div>
 

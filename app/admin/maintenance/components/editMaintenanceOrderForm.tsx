@@ -19,6 +19,14 @@ import {
   serializeParts,
   type MaintenancePartDraft,
 } from "./maintenancePartsFields";
+import { usePropertyCurrency } from "../../inventory-management/components/money";
+import {
+  dateInputToTimestamp,
+  intervalMonthsOf,
+  MaintenanceScheduleFields,
+  repeatEveryFrom,
+  timestampToDateInput,
+} from "./maintenanceScheduleFields";
 
 type FormData = {
   title: string;
@@ -28,6 +36,11 @@ type FormData = {
   priority: 'low' | 'medium' | 'high' | 'urgent';
   estimatedCost?: number;
   actualCost?: number;
+  isScheduled?: boolean;
+  scheduledDate?: string;
+  repeatEvery?: string;
+  customIntervalMonths?: number;
+  reminderDays?: number;
   leadId?: string;
   helperIds?: string[];
   supplierId?: string;
@@ -50,6 +63,10 @@ export function FormComponent({
   priority,
   estimatedCost,
   actualCost,
+  isScheduled,
+  scheduledDate,
+  intervalMonths,
+  reminderDays,
   leadId,
   helperIds,
   supplierId,
@@ -65,6 +82,10 @@ export function FormComponent({
   priority: string;
   estimatedCost?: number;
   actualCost?: number;
+  isScheduled?: boolean;
+  scheduledDate?: number;
+  intervalMonths?: number;
+  reminderDays?: number;
   leadId?: string;
   helperIds?: string[];
   supplierId?: string;
@@ -73,6 +94,7 @@ export function FormComponent({
   parts?: ExistingPart[];
 }) {
   const updateOrder = useMutation(api.maintenanceOrders.updateMaintenanceOrder);
+  const currency = usePropertyCurrency(propertyId);
   const staffList = useQuery(api.housekeepingTasks.listAssignableStaff, { propertyId: propertyId as Id<'properties'> });
   const suppliers = useQuery(api.suppliers.getAllSuppliers, {
     propertyId: propertyId as Id<'properties'>,
@@ -101,6 +123,13 @@ export function FormComponent({
       priority: priority as FormData['priority'],
       estimatedCost,
       actualCost,
+      isScheduled: Boolean(isScheduled),
+      scheduledDate: timestampToDateInput(scheduledDate),
+      repeatEvery: isScheduled ? repeatEveryFrom(intervalMonths) : '1',
+      customIntervalMonths: isScheduled && intervalMonths && ![1, 3, 6, 12].includes(intervalMonths)
+        ? intervalMonths
+        : undefined,
+      reminderDays: reminderDays ?? 7,
       leadId: leadId || '',
       helperIds: helperIds ?? [],
       supplierId: supplierId || '',
@@ -109,9 +138,13 @@ export function FormComponent({
   });
 
   const selectedLead = watch('leadId');
+  const scheduleEnabled = watch('isScheduled');
+  const repeatEvery = watch('repeatEvery');
 
   const onSubmit: SubmitHandler<FormData> = async (data) => {
     try {
+      const scheduled = Boolean(data.isScheduled);
+      const nextDate = scheduled ? dateInputToTimestamp(data.scheduledDate ?? '') : undefined;
       const response = await updateOrder({
         maintenanceOrderId: id,
         title: data.title,
@@ -119,6 +152,10 @@ export function FormComponent({
         orderType: data.orderType,
         status: data.status,
         priority: data.priority,
+        isScheduled: scheduled,
+        scheduledDate: nextDate,
+        intervalMonths: scheduled ? intervalMonthsOf(data) : 0,
+        reminderDays: scheduled ? Number(data.reminderDays) : undefined,
         estimatedCost: optionalMoney(data.estimatedCost),
         actualCost: optionalMoney(data.actualCost),
         supplierId: data.supplierId ? (data.supplierId as Id<'suppliers'>) : undefined,
@@ -215,7 +252,7 @@ export function FormComponent({
       <div className={fieldRowClassName}>
         <InputComponent
           id="estimatedCost"
-          label="Estimated cost"
+          label={`Estimated cost (${currency})`}
           type="number"
           inputWidth="w-4/12"
           step="0.01"
@@ -225,7 +262,7 @@ export function FormComponent({
         />
         <InputComponent
           id="actualCost"
-          label="Actual cost"
+          label={`Actual cost (${currency})`}
           type="number"
           inputWidth="w-4/12"
           step="0.01"
@@ -234,6 +271,13 @@ export function FormComponent({
           placeholder="Leave blank to use items total"
         />
       </div>
+
+      <MaintenanceScheduleFields
+        register={register as any}
+        errors={errors}
+        isScheduled={Boolean(scheduleEnabled)}
+        repeatEvery={repeatEvery}
+      />
 
       <div className={fieldRowClassName}>
         <SelectComponent
@@ -283,6 +327,7 @@ export function FormComponent({
         parts={parts}
         onChange={setParts}
         catalog={catalog}
+        currency={currency}
       />
 
       <div className={fieldRowClassName}>

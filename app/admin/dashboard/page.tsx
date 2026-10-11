@@ -13,6 +13,7 @@ import {
   FnBCard,
   HousekeepingCard,
   InventoryCard,
+  MaintenanceReminders,
   RestaurantCard,
   RoomsCard,
 } from './components/dashboard-cards';
@@ -43,6 +44,7 @@ export default function Dashboard() {
   const canFnB = hasGranularPermission('fnb.read');
   const canRestaurant = hasGranularPermission('restaurant.read');
   const canBilling = hasGranularPermission('billing.period.read');
+  const canMaintenance = hasGranularPermission('maintenance.order.read');
 
   const tabs = useMemo(() => {
     const items: TabId[] = ['pnl'];
@@ -119,6 +121,10 @@ export default function Dashboard() {
           ))}
         </select>
       </div>
+
+      {currentPropertyId && canMaintenance && (
+        <MaintenanceReminders propertyId={currentPropertyId} />
+      )}
 
       <div className="flex flex-wrap gap-2 mb-4">
         {tabs.map((item) => (

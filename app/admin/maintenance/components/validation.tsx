@@ -36,6 +36,48 @@ export const formSchema = yup.object().shape({
 
   estimatedCost: optionalMoney,
   actualCost: optionalMoney,
+
+  isScheduled: yup.boolean().default(false),
+
+  scheduledDate: yup.string().when('isScheduled', {
+    is: true,
+    then: (schema) => schema.required('Choose the maintenance date'),
+    otherwise: (schema) => schema.optional(),
+  }),
+
+  repeatEvery: yup.string().oneOf(['none', '1', '3', '6', '12', 'custom']).when('isScheduled', {
+    is: true,
+    then: (schema) => schema.required('Choose how often this repeats'),
+    otherwise: (schema) => schema.optional(),
+  }),
+
+  customIntervalMonths: yup
+    .number()
+    .transform((value, original) => (original === '' || original === null || Number.isNaN(value) ? undefined : value))
+    .when(['isScheduled', 'repeatEvery'], {
+      is: (isScheduled: boolean, repeatEvery: string) => Boolean(isScheduled) && repeatEvery === 'custom',
+      then: (schema) => schema
+        .typeError('Enter how many months')
+        .required('Enter how many months')
+        .integer('Use a whole number of months')
+        .min(1, 'Use at least 1 month')
+        .max(60, 'Use 60 months or fewer'),
+      otherwise: (schema) => schema.optional(),
+    }),
+
+  reminderDays: yup
+    .number()
+    .transform((value, original) => (original === '' || original === null || Number.isNaN(value) ? undefined : value))
+    .when('isScheduled', {
+      is: true,
+      then: (schema) => schema
+        .typeError('Enter how many days before to remind')
+        .required('Enter how many days before to remind')
+        .integer('Use a whole number of days')
+        .min(0, 'Reminder cannot be negative')
+        .max(90, 'Remind at most 90 days before'),
+      otherwise: (schema) => schema.optional(),
+    }),
   leadId: yup.string(),
   helperIds: yup.array().of(yup.string()),
   supplierId: yup.string(),

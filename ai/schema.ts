@@ -1127,6 +1127,9 @@ export default defineSchema({
       v.literal("cancelled")
     ),
     scheduledDate: v.optional(v.number()),
+    isScheduled: v.optional(v.boolean()),
+    intervalMonths: v.optional(v.number()),
+    reminderDays: v.optional(v.number()),
     dueAt: v.number(),
     startedAt: v.optional(v.number()),
     completedAt: v.optional(v.number()),
