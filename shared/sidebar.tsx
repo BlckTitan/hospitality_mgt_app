@@ -45,7 +45,7 @@ const navLinks = [
     ]
   },
   {id: 5, href: "/admin/expenses", label: "Expense Tracker", icon: <FcMoneyTransfer /> },
-  {id: 6, href: "/admin/dashboard", label: "Report and Analytics", icon: <FcSalesPerformance /> },
+  // {id: 6, href: "/admin/dashboard", label: "Report and Analytics", icon: <FcSalesPerformance /> },
   {id: 7, href: "/admin/staff", label: "Staff", icon: <FcConferenceCall />, subLink: [
     {id: 701, href: '/admin/staff/myProfile', label: 'My profile'},
   ]},
