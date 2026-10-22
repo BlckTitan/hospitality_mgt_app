@@ -1,4 +1,4 @@
-import { internalMutation, mutation, query, MutationCtx, QueryCtx } from "./_generated/server";
+import { action, internalMutation, internalQuery, mutation, query, MutationCtx, QueryCtx } from "./_generated/server";
 import { Doc, Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
 import { UserJSON } from "@clerk/backend";
@@ -10,8 +10,11 @@ import {
   normalizeInviteEmail,
 } from "./lib/pendingInvites";
 import {
+  cleanUserName,
   createUserIfAbsent,
   ensureUserFromIdentity,
+  isUsableUserName,
+  newUserFieldsFromIdentity,
   patchLastLoginAtIfActive,
   userByExternalId,
 } from "./lib/userIdentity";
@@ -127,14 +130,7 @@ export const trackLogin = mutation({
       };
     }
 
-    const newUser = await createUserIfAbsent(ctx, {
-      externalId: identity.subject,
-      email: identity.email ?? "",
-      name: identity.name ?? identity.nickname ?? identity.email ?? "User",
-      isActive: true,
-      createdAt: now,
-      updatedAt: now,
-    });
+    const newUser = await createUserIfAbsent(ctx, newUserFieldsFromIdentity(identity, now));
     const lastLoginUpdated = await patchLastLoginAtIfActive(ctx, newUser, now);
     return {
       success: true,
@@ -161,6 +157,10 @@ export const updateUser = mutation({
     }
 
     await requirePermission(ctx, "users.update");
+
+    if (args.name !== undefined && args.name.includes("@")) {
+      return { success: false, message: "Name can't be an email address" };
+    }
 
     try {
       if (args.email && args.email !== existingUser.email) {
@@ -228,14 +228,18 @@ export const deleteUser = mutation({
 export const upsertFromClerk = internalMutation({
   args: { data: v.any() as Validator<UserJSON> },
   async handler(ctx, { data }) {
+    const user = await userByExternalId(ctx, data.id);
     const syncedFields = {
-      name: `${data.first_name ?? ""} ${data.last_name ?? ""}`.trim(),
+      name: cleanUserName(
+        `${data.first_name ?? ""} ${data.last_name ?? ""}`,
+        data.username,
+        user?.name,
+      ),
       externalId: data.id,
-      email: data.email_addresses[0]?.email_address ?? "",
+      email: primaryClerkEmail(data) || user?.email || "",
       isActive: true,
     };
 
-    const user = await userByExternalId(ctx, data.id);
     const now = Date.now();
     const clerkLastSignInAt = data.last_sign_in_at
       ? Number(data.last_sign_in_at)
@@ -264,6 +268,114 @@ export const upsertFromClerk = internalMutation({
         userId: user._id,
       });
     }
+  },
+});
+
+type ClerkEmailFields = {
+  primary_email_address_id?: string | null;
+  email_addresses?: { id: string; email_address: string }[];
+};
+
+function primaryClerkEmail(data: ClerkEmailFields): string {
+  const addresses = data.email_addresses ?? [];
+  const primary = addresses.find((address) => address.id === data.primary_email_address_id);
+  return (primary ?? addresses[0])?.email_address ?? "";
+}
+
+export const needsProfileSync = internalQuery({
+  args: { externalId: v.string() },
+  handler: async (ctx, { externalId }): Promise<boolean> => {
+    const user = await userByExternalId(ctx, externalId);
+    if (!user) return true;
+    return !user.email || (Boolean(user.name.trim()) && !isUsableUserName(user.name));
+  },
+});
+
+export const syncProfileFromClerk = internalMutation({
+  args: {
+    externalId: v.string(),
+    email: v.string(),
+    name: v.string(),
+  },
+  handler: async (ctx, args): Promise<null> => {
+    const now = Date.now();
+    const existing = await userByExternalId(ctx, args.externalId);
+
+    if (!existing) {
+      await createUserIfAbsent(ctx, {
+        externalId: args.externalId,
+        email: args.email,
+        name: args.name,
+        isActive: true,
+        createdAt: now,
+        updatedAt: now,
+      });
+      return null;
+    }
+
+    const email = args.email || existing.email;
+    const name = cleanUserName(args.name, existing.name);
+    await ctx.db.patch(existing._id, {
+      email,
+      name,
+      searchName: loginSearchName(name, email),
+      updatedAt: now,
+    });
+    await fulfillPendingInviteForUser(ctx, { email, userId: existing._id });
+    return null;
+  },
+});
+
+/**
+ * Fills the user's email and name from Clerk when the auth token left them blank,
+ * then applies any pending invite for that verified email.
+ * Needs CLERK_SECRET_KEY in the Convex environment; without it this is a no-op.
+ */
+export const syncCurrentUserFromClerk = action({
+  args: {},
+  handler: async (ctx): Promise<{ synced: boolean }> => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      return { synced: false };
+    }
+
+    const needsSync: boolean = await ctx.runQuery(internal.users.needsProfileSync, {
+      externalId: identity.subject,
+    });
+    if (!needsSync) {
+      return { synced: false };
+    }
+
+    const secretKey = process.env.CLERK_SECRET_KEY;
+    if (!secretKey) {
+      console.warn("CLERK_SECRET_KEY is not set in Convex; cannot read the user's email from Clerk.");
+      return { synced: false };
+    }
+
+    const response = await fetch(
+      `https://api.clerk.com/v1/users/${encodeURIComponent(identity.subject)}`,
+      { headers: { Authorization: `Bearer ${secretKey}` } },
+    );
+    if (!response.ok) {
+      console.error(`Clerk user lookup failed with status ${response.status}`);
+      return { synced: false };
+    }
+
+    const clerkUser = (await response.json()) as ClerkEmailFields & {
+      first_name?: string | null;
+      last_name?: string | null;
+      username?: string | null;
+    };
+
+    await ctx.runMutation(internal.users.syncProfileFromClerk, {
+      externalId: identity.subject,
+      email: primaryClerkEmail(clerkUser),
+      name: cleanUserName(
+        `${clerkUser.first_name ?? ""} ${clerkUser.last_name ?? ""}`,
+        clerkUser.username,
+      ),
+    });
+    return { synced: true };
   },
 });
 

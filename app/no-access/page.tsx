@@ -5,10 +5,12 @@ import { SignOutButton, useUser } from '@clerk/nextjs';
 import { ShieldX } from 'lucide-react';
 import { Button } from '../../shared/button';
 import { PROPERTY_SETUP_PATH } from '../../lib/route-access';
+import { wasInvitedByAdmin } from '../../lib/invite-metadata';
 
 export default function NoAccessPage() {
   const { user } = useUser();
   const name = user?.fullName || user?.primaryEmailAddress?.emailAddress;
+  const invited = wasInvitedByAdmin(user?.publicMetadata);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -27,13 +29,17 @@ export default function NoAccessPage() {
           ) : null}
 
           <p className="text-gray-600 mb-8">
-            You don&apos;t have a role on a property yet. If you work at a property that already uses Hospitality Manager, ask its administrator to invite you. If you run a property, set it up to get started.
+            {invited
+              ? "You were invited to a property, but your role hasn't been added yet. Ask the administrator who invited you to check your invitation."
+              : "You don't have a role on a property yet. If you work at a property that already uses Hospitality Manager, ask its administrator to invite you. If you run a property, set it up to get started."}
           </p>
 
           <div className="space-y-4">
-            <Link href={PROPERTY_SETUP_PATH}>
-              <Button className="w-full">Set up a new property</Button>
-            </Link>
+            {invited ? null : (
+              <Link href={PROPERTY_SETUP_PATH}>
+                <Button className="w-full">Set up a new property</Button>
+              </Link>
+            )}
 
             <SignOutButton redirectUrl="/">
               <Button variant="outline" className="w-full">Sign out</Button>

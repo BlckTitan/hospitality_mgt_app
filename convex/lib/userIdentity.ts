@@ -3,6 +3,33 @@ import { MutationCtx, QueryCtx } from "../_generated/server";
 import { fulfillPendingInviteForUser } from "./pendingInvites";
 import { loginSearchName } from "./searchNames";
 
+const PLACEHOLDER_NAME = "User";
+
+export function isUsableUserName(value: string | null | undefined): value is string {
+  const trimmed = value?.trim();
+  return Boolean(trimmed) && !trimmed!.includes("@") && trimmed !== PLACEHOLDER_NAME;
+}
+
+/** First candidate that is a real name. Emails and the old "User" placeholder never qualify. */
+export function cleanUserName(...candidates: (string | null | undefined)[]): string {
+  for (const candidate of candidates) {
+    if (isUsableUserName(candidate)) {
+      return candidate.trim().replace(/\s+/g, " ");
+    }
+  }
+  return "";
+}
+
+function identityName(identity: {
+  name?: string;
+  nickname?: string;
+  givenName?: string;
+  familyName?: string;
+}): string {
+  const fullName = [identity.givenName, identity.familyName].filter(Boolean).join(" ");
+  return cleanUserName(identity.name, fullName, identity.nickname);
+}
+
 function pickCanonicalUser(users: Doc<"users">[]): Doc<"users"> {
   return [...users].sort(
     (a, b) => a.createdAt - b.createdAt || a._id.localeCompare(b._id),
@@ -78,12 +105,10 @@ export async function createUserIfAbsent(
       email: fields.email || user.email,
       userId: user._id,
     });
-    const searchName = loginSearchName(
-      fields.name || user.name,
-      fields.email || user.email,
-    );
-    if (user.searchName !== searchName) {
-      await ctx.db.patch(user._id, { searchName });
+    const name = cleanUserName(fields.name, user.name);
+    const searchName = loginSearchName(name, fields.email || user.email);
+    if (user.searchName !== searchName || user.name !== name) {
+      await ctx.db.patch(user._id, { name, searchName });
       const refreshed = await ctx.db.get(user._id);
       if (refreshed) {
         return refreshed;
@@ -92,9 +117,11 @@ export async function createUserIfAbsent(
     return user;
   }
 
+  const name = cleanUserName(fields.name);
   const insertedUserId = await ctx.db.insert("users", {
     ...fields,
-    searchName: loginSearchName(fields.name, fields.email),
+    name,
+    searchName: loginSearchName(name, fields.email),
   });
 
   const matches = await usersByExternalId(ctx, fields.externalId);
@@ -131,8 +158,8 @@ export async function ensureUserFromIdentity(
   const existingUser = await userByExternalId(ctx, identity.subject);
   
   if (existingUser) {
-    const name = identity.name ?? identity.nickname ?? existingUser.name;
-    const email = identity.email ?? existingUser.email;
+    const name = cleanUserName(identityName(identity), existingUser.name);
+    const email = identity.email || existingUser.email;
     await ctx.db.patch(existingUser._id, {
       updatedAt: timestamp,
       email,
@@ -150,12 +177,26 @@ export async function ensureUserFromIdentity(
     return updatedUser;
   }
 
-  return await createUserIfAbsent(ctx, {
+  return await createUserIfAbsent(ctx, newUserFieldsFromIdentity(identity, timestamp));
+}
+
+export function newUserFieldsFromIdentity(
+  identity: {
+    subject: string;
+    email?: string;
+    name?: string;
+    nickname?: string;
+    givenName?: string;
+    familyName?: string;
+  },
+  timestamp: number,
+): NewUserFields {
+  return {
     externalId: identity.subject,
     email: identity.email ?? "",
-    name: identity.name ?? identity.nickname ?? identity.email ?? "User",
+    name: identityName(identity),
     isActive: true,
     createdAt: timestamp,
     updatedAt: timestamp,
-  });
+  };
 }

@@ -56,16 +56,28 @@ export async function ensureUserAndGetContext(
   }
 
   try {
-    const existingContext = await fetchUserContext(authToken);
-    if (existingContext) {
-      return existingContext;
+    let context = await fetchUserContext(authToken);
+    if (context && !hasNoAppRole(context)) {
+      return context;
     }
 
     const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
     convex.setAuth(authToken);
-    await convex.mutation(api.users.ensureCurrentUser, {});
 
-    return await fetchUserContext(authToken);
+    if (!context) {
+      await convex.mutation(api.users.ensureCurrentUser, {});
+      context = await fetchUserContext(authToken);
+    }
+
+    // An invite can only be matched once the row has the user's real email.
+    if (!context || hasNoAppRole(context)) {
+      const { synced } = await convex.action(api.users.syncCurrentUserFromClerk, {});
+      if (synced) {
+        context = await fetchUserContext(authToken);
+      }
+    }
+
+    return context;
   } catch (error) {
     console.error('Error ensuring user and getting context:', error);
     return null;
