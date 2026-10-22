@@ -11,7 +11,8 @@ import { currencies, timezones } from '../../../lib/data';
 import { SubmitHandler, useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import { propertySetupSchema } from './validation';
-import { DASHBOARD_PATH, resolvePostAuthPath } from '../../../lib/route-access';
+import { DASHBOARD_PATH, NO_ACCESS_PATH, resolvePostAuthPath } from '../../../lib/route-access';
+import { usePermissions } from '../../../hooks/usePermissions';
 import InputComponent from '../../../shared/input';
 import SelectComponent from '../../../shared/select';
 
@@ -32,6 +33,7 @@ export default function PropertySetupPage() {
   const trackLogin = useMutation(api.users.trackLogin);
   const createProperty = useMutation(api.property.createProperty);
   const userContext = useQuery(api.authContext.getCurrentUserContext);
+  const { hasGranularPermission, isLoading: permissionsLoading } = usePermissions();
   const [loading, setLoading] = useState(false);
   const [loginTracked, setLoginTracked] = useState(false);
   const [ensureError, setEnsureError] = useState<string | null>(null);
@@ -74,18 +76,26 @@ export default function PropertySetupPage() {
   }, [isLoaded, userId, trackLogin, loginTracked]);
 
   useEffect(() => {
-    if (!loginTracked || userContext === undefined) {
+    if (!loginTracked || userContext === undefined || permissionsLoading) {
       return;
     }
 
-    if (userContext && userContext.roles.length > 0) {
-      router.replace(resolvePostAuthPath(userContext));
+    if (!userContext) {
+      router.replace(NO_ACCESS_PATH);
+      return;
     }
-  }, [loginTracked, userContext, router]);
+
+    const isFirstProperty = userContext.roles.length === 0;
+    if (isFirstProperty || hasGranularPermission('properties.create')) {
+      return;
+    }
+
+    router.replace(resolvePostAuthPath(userContext));
+  }, [loginTracked, userContext, permissionsLoading, hasGranularPermission, router]);
 
   if (!isLoaded || !userId) {
     if (isLoaded && !userId) {
-      router.push('/sign-up');
+      router.push('/sign-in');
     }
 
     return (
@@ -115,6 +125,19 @@ export default function PropertySetupPage() {
     return (
       <div className="w-full h-screen flex items-center justify-center">
         <p className="text-red-600">{ensureError}</p>
+      </div>
+    );
+  }
+
+  const isFirstProperty = Boolean(userContext && userContext.roles.length === 0);
+  const canCreateProperty = Boolean(
+    userContext && (isFirstProperty || hasGranularPermission('properties.create')),
+  );
+
+  if (permissionsLoading || !canCreateProperty) {
+    return (
+      <div className="w-full h-screen flex items-center justify-center">
+        <Spinner size="sm"  />
       </div>
     );
   }
@@ -156,14 +179,22 @@ export default function PropertySetupPage() {
         {/* Header */}
         <header className="w-full h-fit flex flex-col items-center justify-center gap-1">
           <div className="flex flex-col items-center justify-center gap-1">
-            <h1 className="site_main_title">Welcome</h1>
-            <h1 className="site_main_title">Hospitality Manager</h1>
+            {isFirstProperty ? (
+              <>
+                <h1 className="site_main_title">Welcome</h1>
+                <h1 className="site_main_title">Hospitality Manager</h1>
+              </>
+            ) : (
+              <h1 className="site_main_title">Create a property</h1>
+            )}
           </div>
           <p className="text-center text-gray-600 text-lg">
-            Let's set up your first property to get started
+            {isFirstProperty
+              ? "Let's set up your first property to get started"
+              : 'Add a property to your account'}
           </p>
           <p className="text-center text-gray-500 text-sm max-w-md">
-            Create your property profile with basic details like name, location, and preferred settings.
+            Enter the property name, location, and preferred settings.
           </p>
         </header>
 

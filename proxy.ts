@@ -8,16 +8,31 @@ import {
 import { createPermissionChecker } from './lib/permission-utils';
 import {
   ensureUserAndGetContext,
-  needsPropertySetup,
+  hasNoAppRole,
   PUBLIC_ROUTES,
 } from './lib/proxy-helpers';
 import { isSignInEntryPath, isSignUpEntryPath } from './lib/auth-routes';
-import { canAccessPath, resolvePostAuthPath } from './lib/route-access';
+import {
+  canAccessPath,
+  NO_ACCESS_PATH,
+  PROPERTY_SETUP_PATH,
+  resolvePostAuthPath,
+} from './lib/route-access';
 
 const isAdminRoute = createRouteMatcher(['/admin(.*)']);
 const isSetupRoute = createRouteMatcher(['/setup(.*)']);
+const isNoAccessRoute = createRouteMatcher(['/no-access(.*)']);
 const isHomeRoute = createRouteMatcher(['/']);
 const isPublicRoute = createRouteMatcher(PUBLIC_ROUTES.map((route) => `${route}(.*)`));
+
+function requestedPath(req: { nextUrl: { searchParams: { get: (name: string) => string | null } } }): string | null {
+  return req.nextUrl.searchParams.get('next') ?? req.nextUrl.searchParams.get('redirect_url');
+}
+
+function redirectTo(path: string, reqUrl: string) {
+  return NextResponse.redirect(new URL(path, reqUrl));
+}
+
 export default clerkMiddleware(async (auth, req) => {
   const { userId, getToken } = await auth();
   const { pathname } = req.nextUrl;
@@ -31,24 +46,21 @@ export default clerkMiddleware(async (auth, req) => {
 
     if (isMissingClerkConvexJwtTemplate(userId, authToken)) {
       logMissingClerkConvexJwtTemplate('middleware');
-      const setupUrl = new URL('/auth/clerk-setup', req.url);
-      return NextResponse.redirect(setupUrl);
+      return redirectTo('/auth/clerk-setup', req.url);
     }
 
     const userContext = await ensureUserAndGetContext(authToken);
 
-    if (!userContext || needsPropertySetup(userContext)) {
-      const setupUrl = new URL('/setup/property', req.url);
-      return NextResponse.redirect(setupUrl);
+    if (!userContext || hasNoAppRole(userContext)) {
+      return redirectTo(NO_ACCESS_PATH, req.url);
     }
 
-    const homeUrl = new URL(resolvePostAuthPath(userContext), req.url);
-    return NextResponse.redirect(homeUrl);
+    return redirectTo(resolvePostAuthPath(userContext), req.url);
   }
 
-  if (!userId && (isAdminRoute(req) || isSetupRoute(req))) {
+  if (!userId && (isAdminRoute(req) || isSetupRoute(req) || isNoAccessRoute(req))) {
     const url = new URL('/sign-in', req.url);
-    url.searchParams.set('redirect_url', pathname);
+    url.searchParams.set('next', pathname);
     return NextResponse.redirect(url);
   }
 
@@ -57,21 +69,16 @@ export default clerkMiddleware(async (auth, req) => {
 
     if (isMissingClerkConvexJwtTemplate(userId, authToken)) {
       logMissingClerkConvexJwtTemplate('middleware-signup');
-      const setupUrl = new URL('/auth/clerk-setup', req.url);
-      return NextResponse.redirect(setupUrl);
+      return redirectTo('/auth/clerk-setup', req.url);
     }
 
     const userContext = await ensureUserAndGetContext(authToken);
 
-    // If user has roles (e.g., from an accepted invite), skip property setup
-    if (userContext && !needsPropertySetup(userContext)) {
-      const homeUrl = new URL(resolvePostAuthPath(userContext), req.url);
-      return NextResponse.redirect(homeUrl);
+    if (!userContext || hasNoAppRole(userContext)) {
+      return redirectTo(PROPERTY_SETUP_PATH, req.url);
     }
 
-    // Otherwise, proceed with property setup
-    const url = new URL('/setup/property', req.url);
-    return NextResponse.redirect(url);
+    return redirectTo(resolvePostAuthPath(userContext), req.url);
   }
 
   if (userId && isSignInEntryPath(pathname)) {
@@ -79,19 +86,15 @@ export default clerkMiddleware(async (auth, req) => {
 
     if (isMissingClerkConvexJwtTemplate(userId, authToken)) {
       logMissingClerkConvexJwtTemplate('middleware-signin');
-      const setupUrl = new URL('/auth/clerk-setup', req.url);
-      return NextResponse.redirect(setupUrl);
+      return redirectTo('/auth/clerk-setup', req.url);
     }
 
     const userContext = await ensureUserAndGetContext(authToken);
-    if (!userContext || needsPropertySetup(userContext)) {
-      const setupUrl = new URL('/setup/property', req.url);
-      return NextResponse.redirect(setupUrl);
+    if (!userContext || hasNoAppRole(userContext)) {
+      return redirectTo(NO_ACCESS_PATH, req.url);
     }
 
-    const requested = req.nextUrl.searchParams.get('redirect_url');
-    const homeUrl = new URL(resolvePostAuthPath(userContext, requested), req.url);
-    return NextResponse.redirect(homeUrl);
+    return redirectTo(resolvePostAuthPath(userContext, requestedPath(req)), req.url);
   }
 
   if (userId && !isPublicRoute(req)) {
@@ -101,8 +104,7 @@ export default clerkMiddleware(async (auth, req) => {
       logMissingClerkConvexJwtTemplate('middleware');
 
       if (!pathname.startsWith('/auth/clerk-setup')) {
-        const setupUrl = new URL('/auth/clerk-setup', req.url);
-        return NextResponse.redirect(setupUrl);
+        return redirectTo('/auth/clerk-setup', req.url);
       }
 
       return NextResponse.next();
@@ -110,35 +112,30 @@ export default clerkMiddleware(async (auth, req) => {
 
     const userContext = await ensureUserAndGetContext(authToken);
 
-    if (!userContext) {
-      if (isSetupRoute(req)) {
+    if (!userContext || hasNoAppRole(userContext)) {
+      if (isNoAccessRoute(req) || isSetupRoute(req)) {
         return NextResponse.next();
       }
 
-      const setupUrl = new URL('/setup/property', req.url);
-      return NextResponse.redirect(setupUrl);
+      return redirectTo(NO_ACCESS_PATH, req.url);
     }
 
-    const onboardingRequired = needsPropertySetup(userContext);
-
-    if (onboardingRequired) {
-      if (isSetupRoute(req)) {
-        return NextResponse.next();
-      }
-
-      const setupUrl = new URL('/setup/property', req.url);
-      return NextResponse.redirect(setupUrl);
-    }
-
-    if (isSetupRoute(req)) {
-      const homeUrl = new URL(resolvePostAuthPath(userContext), req.url);
-      return NextResponse.redirect(homeUrl);
+    if (isNoAccessRoute(req)) {
+      return redirectTo(resolvePostAuthPath(userContext), req.url);
     }
 
     const permissionChecker = createPermissionChecker(userContext);
+
+    if (isSetupRoute(req)) {
+      if (permissionChecker.hasGranularPermission('properties.create')) {
+        return NextResponse.next();
+      }
+
+      return redirectTo(resolvePostAuthPath(userContext), req.url);
+    }
+
     if (!canAccessPath(pathname, (granular) => permissionChecker.hasGranularPermission(granular))) {
-      const unauthorizedUrl = new URL('/unauthorized', req.url);
-      return NextResponse.redirect(unauthorizedUrl);
+      return redirectTo('/unauthorized', req.url);
     }
   }
 

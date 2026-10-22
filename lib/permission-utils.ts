@@ -129,10 +129,6 @@ export class PermissionChecker {
       return true;
     }
 
-    if (granularPerm === 'staff.self.read') {
-      return true;
-    }
-
     if (
       granularPerm === 'staff.compensation.read' ||
       granularPerm === 'staff.compensation.update'

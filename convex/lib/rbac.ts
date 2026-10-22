@@ -71,10 +71,6 @@ function hasCustomModulePermission(
 }
 
 export function hasGranularPermission(authContext: AuthContext, granularPerm: string): boolean {
-  if (granularPerm === "staff.self.read") {
-    return true;
-  }
-
   if (authContext.permissions[granularPerm]) {
     return true;
   }
@@ -277,15 +273,18 @@ export async function userHasAnyRoles(ctx: Ctx, userId: Id<"users">): Promise<bo
   return userRole !== null;
 }
 
-export async function requirePermissionOrInitialSetup(
+/**
+ * A user with no role assignment anywhere may create their first property and become
+ * its administrator. Once they hold any role, the permission is required.
+ */
+export async function requirePermissionOrFirstProperty(
   ctx: MutationCtx,
   granularPermission: string,
 ): Promise<AuthContext> {
   await ensureUserFromIdentity(ctx);
   const authContext = await requireAuthContext(ctx);
-  const hasRoles = await userHasAnyRoles(ctx, authContext.user._id);
 
-  if (!hasRoles) {
+  if (!(await userHasAnyRoles(ctx, authContext.user._id))) {
     return authContext;
   }
 
@@ -295,3 +294,4 @@ export async function requirePermissionOrInitialSetup(
 
   return authContext;
 }
+

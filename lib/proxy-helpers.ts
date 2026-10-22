@@ -11,7 +11,7 @@ export const PUBLIC_ROUTES = [
   '/api/auth',
 ];
 
-export function needsPropertySetup(userContext: UserContext): boolean {
+export function hasNoAppRole(userContext: UserContext): boolean {
   return userContext.roles.length === 0;
 }
 

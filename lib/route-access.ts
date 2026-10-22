@@ -4,6 +4,8 @@ import { matchRoute } from './route-matching';
 
 export const DASHBOARD_PATH = '/admin/dashboard';
 export const STAFF_HOME_PATH = '/admin/staff/myProfile';
+export const NO_ACCESS_PATH = '/no-access';
+export const PROPERTY_SETUP_PATH = '/setup/property';
 
 export const SECTION_HUBS = [
   '/admin/user',
@@ -58,12 +60,24 @@ export function canAccessPath(
   return !matchedRoute;
 }
 
+function isPostLoginCandidate(route: string): boolean {
+  if (route.includes('[')) return false;
+  if (route.endsWith('/edit') || route.endsWith('/create') || route.endsWith('/view')) {
+    return false;
+  }
+  return true;
+}
+
 export function getPostLoginPath(
   hasGranularPermission: (granular: string) => boolean,
 ): string {
-  return canAccessPath(DASHBOARD_PATH, hasGranularPermission)
-    ? DASHBOARD_PATH
-    : STAFF_HOME_PATH;
+  for (const route of Object.keys(ROUTE_PERMISSIONS)) {
+    if (!isPostLoginCandidate(route)) continue;
+    if (routeAllows(ROUTE_PERMISSIONS[route], hasGranularPermission)) {
+      return route;
+    }
+  }
+  return NO_ACCESS_PATH;
 }
 
 /** Same-origin path only. Rejects absolute and protocol-relative redirects. */
@@ -87,7 +101,21 @@ export function resolvePostAuthPath(
     checker.hasGranularPermission(granular);
   const safePath = safeInternalPath(requestedPath);
   const pathOnly = safePath?.split('?')[0]?.split('#')[0];
-  if (safePath && pathOnly && canAccessPath(pathOnly, hasGranularPermission)) {
+  const blocked = !pathOnly
+    || pathOnly === NO_ACCESS_PATH
+    || pathOnly === '/'
+    || pathOnly === '/unauthorized'
+    || pathOnly.startsWith('/sign-in')
+    || pathOnly.startsWith('/sign-up')
+    || pathOnly.startsWith('/auth/');
+  const setupAllowed = Boolean(pathOnly?.startsWith('/setup'))
+    && hasGranularPermission('properties.create');
+  if (
+    safePath &&
+    pathOnly &&
+    !blocked &&
+    (setupAllowed || (!pathOnly.startsWith('/setup') && canAccessPath(pathOnly, hasGranularPermission)))
+  ) {
     return safePath;
   }
   return getPostLoginPath(hasGranularPermission);
@@ -107,13 +135,13 @@ export function filterNavByAccess<TItem extends NavBranch<TLeaf>, TLeaf extends 
   canAccess: (href: string) => boolean,
 ): TItem[] {
   return items.flatMap((item) => {
-    if (item.href === '/#') {
-      return [item];
+    if (!item.href || item.href === '/#') {
+      return [];
     }
 
     const children = (item.subLink ?? []).filter((link) => {
-      if (link.href === '/#' || link.href === item.href) {
-        return link.href === '/#';
+      if (!link.href || link.href === '/#' || link.href === item.href) {
+        return false;
       }
       return canAccess(link.href);
     });

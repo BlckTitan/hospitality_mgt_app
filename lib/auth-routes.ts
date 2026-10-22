@@ -6,6 +6,7 @@ const NO_DASHBOARD_LAYOUT_ROUTES = [
   '/setup/property',
   '/auth/clerk-setup',
   '/unauthorized',
+  '/no-access',
 ] as const;
 
 function normalizePathname(pathname: string): string {

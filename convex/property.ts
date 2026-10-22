@@ -1,6 +1,6 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
-import { requirePermission, requirePermissionOrInitialSetup, getAuthContext } from './lib/rbac';
+import { requirePermission, requirePermissionOrFirstProperty, getAuthContext } from './lib/rbac';
 import { assignAdministratorRoleForProperty } from './lib/systemRoles';
 import { seedPayrollForProperty } from './lib/payrollHelpers';
 
@@ -101,7 +101,7 @@ export const createProperty = mutation({
     coverImageUrl: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
-    const authContext = await requirePermissionOrInitialSetup(ctx, 'properties.create');
+    const authContext = await requirePermissionOrFirstProperty(ctx, 'properties.create');
     try {
       // Check if property with same name already exists
       const existingProperty = await ctx.db

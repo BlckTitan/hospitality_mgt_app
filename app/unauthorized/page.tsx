@@ -4,12 +4,18 @@ import Link from 'next/link';
 import { ShieldX } from 'lucide-react';
 import { Button } from '../../shared/button';
 import { usePermissions } from '../../hooks/usePermissions';
-import { DASHBOARD_PATH, getPostLoginPath } from '../../lib/route-access';
+import { DASHBOARD_PATH, getPostLoginPath, NO_ACCESS_PATH, STAFF_HOME_PATH } from '../../lib/route-access';
+
+function homeLabel(path: string): string {
+  if (path === DASHBOARD_PATH) return 'Go to Dashboard';
+  if (path === STAFF_HOME_PATH) return 'Go to My Profile';
+  if (path === NO_ACCESS_PATH) return 'View access status';
+  return 'Continue';
+}
 
 export default function UnauthorizedPage() {
   const { hasGranularPermission, isLoading } = usePermissions();
   const homePath = getPostLoginPath(hasGranularPermission);
-  const goesToDashboard = homePath === DASHBOARD_PATH;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -28,9 +34,9 @@ export default function UnauthorizedPage() {
           </p>
           
           <div className="space-y-4">
-            <Link href={isLoading ? DASHBOARD_PATH : homePath}>
+            <Link href={isLoading ? NO_ACCESS_PATH : homePath}>
               <Button className="w-full">
-                {goesToDashboard ? 'Go to Dashboard' : 'Go to My Profile'}
+                {isLoading ? 'Continue' : homeLabel(homePath)}
               </Button>
             </Link>
             

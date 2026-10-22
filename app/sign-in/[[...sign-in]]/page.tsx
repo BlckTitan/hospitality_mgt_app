@@ -7,11 +7,11 @@ import React, { useEffect, useState } from 'react';
 import ClerkUiMount from '../../../components/ClerkUiMount';
 import Spinner from '../../../shared/spinner';
 import { api } from '../../../convex/_generated/api';
-import { DASHBOARD_PATH, resolvePostAuthPath } from '../../../lib/route-access';
+import { NO_ACCESS_PATH, resolvePostAuthPath } from '../../../lib/route-access';
 
 export default function Page() {
   const searchParams = useSearchParams();
-  const redirectUrl = searchParams.get('redirect_url') || DASHBOARD_PATH;
+  const requestedPath = searchParams.get('next') ?? searchParams.get('redirect_url');
   const router = useRouter();
 
   const { isLoaded, userId } = useAuth();
@@ -19,6 +19,9 @@ export default function Page() {
   const trackLogin = useMutation(api.users.trackLogin);
   const [loginTracked, setLoginTracked] = useState(false);
   const [ensureError, setEnsureError] = useState<string | null>(null);
+  const forceRedirectUrl = requestedPath
+    ? `/sign-in?next=${encodeURIComponent(requestedPath)}`
+    : '/sign-in';
 
   useEffect(() => {
     if (!isLoaded || !userId || loginTracked) {
@@ -29,11 +32,10 @@ export default function Page() {
       try {
         await trackLogin();
         setLoginTracked(true);
-        // Allow Clerk to handle the redirect via fallbackRedirectUrl
       } catch (error) {
         console.error('Failed to track login:', error);
         setEnsureError('Failed to track login');
-        setLoginTracked(true); // Don't block on errors
+        setLoginTracked(true);
       }
     };
 
@@ -46,10 +48,10 @@ export default function Page() {
     }
 
     const destination = userContext && userContext.roles?.length > 0
-      ? resolvePostAuthPath(userContext, redirectUrl)
-      : '/setup/property';
+      ? resolvePostAuthPath(userContext, requestedPath)
+      : NO_ACCESS_PATH;
     router.replace(destination);
-  }, [loginTracked, userContext, redirectUrl, router]);
+  }, [loginTracked, userContext, requestedPath, router]);
 
   if (!isLoaded || (userId && !loginTracked) || (userId && loginTracked && userContext === undefined)) {
     return <div className='w-full h-screen flex items-center justify-center'><Spinner size='md' /></div>;
@@ -64,7 +66,7 @@ export default function Page() {
   return (
     <div className='w-full h-screen flex justify-center items-center'>
       <ClerkUiMount fallback={<Spinner size='md' />}>
-        <SignIn fallbackRedirectUrl={redirectUrl} />
+        <SignIn forceRedirectUrl={forceRedirectUrl} signUpUrl="/sign-up" />
       </ClerkUiMount>
     </div>
   );
