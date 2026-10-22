@@ -1,0 +1,26 @@
+# Production pushes Convex, then builds Next.js with the production Convex URL.
+# Deploy previews and branch deploys build the site only. They must not run
+# `convex deploy` (that would overwrite production functions). Keep
+# CONVEX_DEPLOY_KEY and live Clerk secrets on the Netlify Production context.
+# Leave deploy previews off until a separate staging Convex deployment exists.
+
+[build]
+  command = "npx convex deploy --cmd 'pnpm run build'"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+[context.deploy-preview]
+  command = "pnpm run build"
+
+[context.branch-deploy]
+  command = "pnpm run build"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains"
