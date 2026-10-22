@@ -93,7 +93,7 @@ Production context variables are listed in `.env.example`.
 
 Keep `CONVEX_DEPLOY_KEY` and the live Clerk secret on the Production context. Leave deploy previews off until a separate staging Convex deployment exists. A preview that runs `convex deploy` would overwrite production functions. `netlify.toml` already points preview and branch builds at `pnpm run build` only.
 
-HSTS is set in `netlify.toml`. `X-Frame-Options`, `X-Content-Type-Options`, and `Referrer-Policy` stay in `next.config.ts`. Leave Content-Security-Policy unset for this launch so Clerk’s widgets can load.
+HSTS is set in `netlify.toml`. `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, and `Content-Security-Policy` stay in `next.config.ts`. The CSP allows the Clerk Frontend API host decoded from `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` at build time (`clerk.<your-domain>` for a live key). Without it, the browser blocks Clerk JS and sign-in fails with `failed_to_load_clerk_js`. After changing the Clerk key, redeploy.
 
 When a custom domain is attached in Netlify, update Clerk allowed origins and `NEXT_PUBLIC_APP_URL` to that host, then redeploy.
 

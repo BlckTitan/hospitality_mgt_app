@@ -11,6 +11,15 @@ const convexBrowserHttpClient = path.join(
   "node_modules/convex/dist/esm/browser/http_client.js",
 );
 
+// Clerk loads its scripts and API from the Frontend API host encoded in the
+// publishable key. Development keys use *.clerk.accounts.dev; production keys
+// use clerk.<your-domain>, which none of the Clerk wildcards below cover.
+function clerkFrontendApiOrigin(publishableKey = "") {
+  const encoded = publishableKey.match(/^pk_(?:test|live)_(.+)$/)?.[1];
+  const host = encoded ? Buffer.from(encoded, "base64").toString("utf8") : "";
+  return host.endsWith("$") ? `https://${host.slice(0, -1)}` : "";
+}
+
 const nextConfig: NextConfig = {
   /* config options here */
   experimental: {
@@ -65,14 +74,18 @@ const nextConfig: NextConfig = {
     ];
   },
   async headers() {
+    const clerkHosts = [
+      "https://*.clerk.accounts.dev",
+      clerkFrontendApiOrigin(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY),
+    ].filter(Boolean).join(' ');
     const contentSecurityPolicy = [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.clerk.accounts.dev https://*.clerk.com https://challenges.cloudflare.com",
+      `script-src 'self' 'unsafe-inline' 'unsafe-eval' ${clerkHosts} https://*.clerk.com https://challenges.cloudflare.com`,
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https://res.cloudinary.com https://img.clerk.com",
       "font-src 'self' data:",
-      "connect-src 'self' https://*.convex.cloud https://*.convex.site wss://*.convex.cloud https://*.clerk.accounts.dev https://*.clerk.com https://clerk-telemetry.com https://api.cloudinary.com",
-      "frame-src 'self' https://*.clerk.accounts.dev https://challenges.cloudflare.com",
+      `connect-src 'self' https://*.convex.cloud https://*.convex.site wss://*.convex.cloud ${clerkHosts} https://*.clerk.com https://clerk-telemetry.com https://api.cloudinary.com`,
+      `frame-src 'self' ${clerkHosts} https://challenges.cloudflare.com`,
       "worker-src 'self' blob:",
       "object-src 'none'",
       "base-uri 'self'",
