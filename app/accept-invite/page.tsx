@@ -72,13 +72,13 @@ export default function AcceptInvitePage() {
             </Button>
           </>
         ) : (
-          <>
+          <div className="flex flex-col items-center justify-center space-y-4">
             <Spinner size="md" />
             <h1 className="text-2xl font-bold text-gray-900">Joining your property</h1>
             <p className="text-gray-600">
               You were invited by an administrator. We&apos;re adding your role now, and you&apos;ll be taken in automatically.
             </p>
-          </>
+          </div>
         )}
 
         <SignOutButton redirectUrl="/">
