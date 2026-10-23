@@ -3,8 +3,8 @@ import { TableColumn } from "../../../../shared/table";
 import { MdEditDocument } from "react-icons/md";
 import { Button } from '../../../../shared/button';
 import PaginationComponent from "../../../../shared/pagination";
-import { Suspense } from "react";
-import { useMutation } from "convex/react";
+import { Suspense, useState } from "react";
+import { useAction } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { toast } from "sonner";
@@ -20,10 +20,13 @@ interface UserProps {
 }
 
 const Users = () => {
-  const removeUser = useMutation(api.users.deleteUser);
+  const removeUser = useAction(api.users.deleteUser);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const handleDelete = async (id: string, name: string) => {
+    if (deletingId) return;
     if (!confirm('Are you sure you want to delete user: ' + name)) return;
+    setDeletingId(id);
     try {
       const response = await removeUser({ userId: id as Id<'users'> });
 
@@ -34,11 +37,13 @@ const Users = () => {
           window.location.href = "/admin/user";
         }, 2000);
       } else {
-        return toast.error(response.message);
+        toast.error(response.message);
       }
     } catch (error) {
       console.log(`Failed to delete user! ${error}`);
       toast.error("Failed to delete user. Please try again.");
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -83,6 +88,7 @@ const Users = () => {
 
           <Button
             variant='white'
+            disabled={deletingId !== null}
             onClick={() => handleDelete(row._id, row.name)}
           >
             <i className='icon'>

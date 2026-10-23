@@ -204,26 +204,90 @@ export const updateUser = mutation({
   },
 });
 
-export const deleteUser = mutation({
+export const getUserForDeletion = internalQuery({
   args: { userId: v.id("users") },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<{ externalId: string } | null> => {
     const user = await ctx.db.get(args.userId);
-
     if (!user) {
-      return { success: false, message: "User does not exist" };
+      return null;
     }
 
     await requirePermission(ctx, "users.delete");
-
-    try {
-      await ctx.db.delete(args.userId);
-      return { success: true, message: "User deleted successfully" };
-    } catch (error) {
-      console.log(`Failed to delete user: ${error}`);
-      return { success: false, message: "Failed to delete user" };
-    }
+    return { externalId: user.externalId };
   },
 });
+
+export const deleteUserRecord = internalMutation({
+  args: { userId: v.id("users") },
+  handler: async (ctx, args): Promise<null> => {
+    const user = await ctx.db.get(args.userId);
+    if (user) {
+      await ctx.db.delete(user._id);
+    }
+    return null;
+  },
+});
+
+/**
+ * Removes the Clerk sign-in account, then the Convex user.
+ * The app record stays if Clerk deletion fails, so a later sign-in cannot
+ * recreate access while the Clerk user still exists.
+ * Needs CLERK_SECRET_KEY in the Convex environment.
+ */
+export const deleteUser = action({
+  args: { userId: v.id("users") },
+  handler: async (ctx, args): Promise<{ success: boolean; message: string }> => {
+    const target: { externalId: string } | null = await ctx.runQuery(
+      internal.users.getUserForDeletion,
+      { userId: args.userId },
+    );
+
+    if (!target) {
+      return { success: false, message: "User does not exist" };
+    }
+
+    const clerkResult = await deleteClerkUser(target.externalId);
+    if (clerkResult === "unconfigured" || clerkResult === "failed") {
+      return {
+        success: false,
+        message: "Could not remove the sign-in account. The user was kept.",
+      };
+    }
+
+    await ctx.runMutation(internal.users.deleteUserRecord, {
+      userId: args.userId,
+    });
+    return { success: true, message: "User deleted successfully" };
+  },
+});
+
+async function deleteClerkUser(
+  externalId: string,
+): Promise<"deleted" | "already_gone" | "failed" | "unconfigured"> {
+  const secretKey = process.env.CLERK_SECRET_KEY;
+  if (!secretKey) {
+    console.error("CLERK_SECRET_KEY is not set in Convex; the Clerk user was not deleted.");
+    return "unconfigured";
+  }
+
+  const response = await fetch(
+    `https://api.clerk.com/v1/users/${encodeURIComponent(externalId)}`,
+    {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${secretKey}` },
+    },
+  );
+
+  if (response.ok) {
+    return "deleted";
+  }
+  if (response.status === 404) {
+    return "already_gone";
+  }
+
+  console.error(`Clerk user delete failed with status ${response.status}`);
+  return "failed";
+}
 
 export const upsertFromClerk = internalMutation({
   args: { data: v.any() as Validator<UserJSON> },
