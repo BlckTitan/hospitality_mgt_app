@@ -1,13 +1,14 @@
 'use client'
 
-import { SignIn, useAuth } from '@clerk/nextjs'
+import { SignIn, useAuth, useUser } from '@clerk/nextjs'
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery } from 'convex/react';
 import React, { useEffect, useState } from 'react';
 import ClerkUiMount from '../../../components/ClerkUiMount';
 import Spinner from '../../../shared/spinner';
 import { api } from '../../../convex/_generated/api';
-import { NO_ACCESS_PATH, resolvePostAuthPath } from '../../../lib/route-access';
+import { ACCEPT_INVITE_PATH, NO_ACCESS_PATH, resolvePostAuthPath } from '../../../lib/route-access';
+import { wasInvitedByAdmin } from '../../../lib/invite-metadata';
 
 export default function Page() {
   const searchParams = useSearchParams();
@@ -15,6 +16,7 @@ export default function Page() {
   const router = useRouter();
 
   const { isLoaded, userId } = useAuth();
+  const { user } = useUser();
   const userContext = useQuery(api.authContext.getCurrentUserContext);
   const trackLogin = useMutation(api.users.trackLogin);
   const [loginTracked, setLoginTracked] = useState(false);
@@ -47,11 +49,12 @@ export default function Page() {
       return;
     }
 
+    const noRolePath = wasInvitedByAdmin(user?.publicMetadata) ? ACCEPT_INVITE_PATH : NO_ACCESS_PATH;
     const destination = userContext && userContext.roles?.length > 0
       ? resolvePostAuthPath(userContext, requestedPath)
-      : NO_ACCESS_PATH;
+      : noRolePath;
     router.replace(destination);
-  }, [loginTracked, userContext, requestedPath, router]);
+  }, [loginTracked, userContext, requestedPath, router, user]);
 
   if (!isLoaded || (userId && !loginTracked) || (userId && loginTracked && userContext === undefined)) {
     return <div className='w-full h-screen flex items-center justify-center'><Spinner size='md' /></div>;

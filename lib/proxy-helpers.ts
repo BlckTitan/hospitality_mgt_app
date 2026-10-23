@@ -1,5 +1,7 @@
+import { clerkClient } from '@clerk/nextjs/server';
 import { ConvexHttpClient } from 'convex/browser';
 import { api } from '../convex/_generated/api';
+import { wasInvitedByAdmin } from './invite-metadata';
 import { createPermissionChecker, UserContext } from './permission-utils';
 
 export const PUBLIC_ROUTES = [
@@ -13,6 +15,18 @@ export const PUBLIC_ROUTES = [
 
 export function hasNoAppRole(userContext: UserContext): boolean {
   return userContext.roles.length === 0;
+}
+
+/** Reads the Clerk user server-side so the browser cannot claim or hide an invite. */
+export async function isInvitedClerkUser(clerkUserId: string): Promise<boolean> {
+  try {
+    const client = await clerkClient();
+    const user = await client.users.getUser(clerkUserId);
+    return wasInvitedByAdmin(user.publicMetadata as Record<string, unknown>);
+  } catch (error) {
+    console.error('Error reading Clerk invite metadata:', error);
+    return false;
+  }
 }
 
 async function fetchUserContext(authToken: string): Promise<UserContext | null> {

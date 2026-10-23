@@ -9,10 +9,12 @@ import { createPermissionChecker } from './lib/permission-utils';
 import {
   ensureUserAndGetContext,
   hasNoAppRole,
+  isInvitedClerkUser,
   PUBLIC_ROUTES,
 } from './lib/proxy-helpers';
 import { isSignInEntryPath, isSignUpEntryPath } from './lib/auth-routes';
 import {
+  ACCEPT_INVITE_PATH,
   canAccessPath,
   NO_ACCESS_PATH,
   PROPERTY_SETUP_PATH,
@@ -22,6 +24,7 @@ import {
 const isAdminRoute = createRouteMatcher(['/admin(.*)']);
 const isSetupRoute = createRouteMatcher(['/setup(.*)']);
 const isNoAccessRoute = createRouteMatcher(['/no-access(.*)']);
+const isAcceptInviteRoute = createRouteMatcher(['/accept-invite(.*)']);
 const isHomeRoute = createRouteMatcher(['/']);
 const isPublicRoute = createRouteMatcher(PUBLIC_ROUTES.map((route) => `${route}(.*)`));
 
@@ -31,6 +34,11 @@ function requestedPath(req: { nextUrl: { searchParams: { get: (name: string) => 
 
 function redirectTo(path: string, reqUrl: string) {
   return NextResponse.redirect(new URL(path, reqUrl));
+}
+
+/** Where a signed-in user without any role belongs: invited users never see property setup. */
+async function noRoleDestination(clerkUserId: string, fallback: string): Promise<string> {
+  return (await isInvitedClerkUser(clerkUserId)) ? ACCEPT_INVITE_PATH : fallback;
 }
 
 export default clerkMiddleware(async (auth, req) => {
@@ -52,13 +60,16 @@ export default clerkMiddleware(async (auth, req) => {
     const userContext = await ensureUserAndGetContext(authToken);
 
     if (!userContext || hasNoAppRole(userContext)) {
-      return redirectTo(NO_ACCESS_PATH, req.url);
+      return redirectTo(await noRoleDestination(userId, NO_ACCESS_PATH), req.url);
     }
 
     return redirectTo(resolvePostAuthPath(userContext), req.url);
   }
 
-  if (!userId && (isAdminRoute(req) || isSetupRoute(req) || isNoAccessRoute(req))) {
+  if (
+    !userId &&
+    (isAdminRoute(req) || isSetupRoute(req) || isNoAccessRoute(req) || isAcceptInviteRoute(req))
+  ) {
     const url = new URL('/sign-in', req.url);
     url.searchParams.set('next', pathname);
     return NextResponse.redirect(url);
@@ -75,7 +86,7 @@ export default clerkMiddleware(async (auth, req) => {
     const userContext = await ensureUserAndGetContext(authToken);
 
     if (!userContext || hasNoAppRole(userContext)) {
-      return redirectTo(PROPERTY_SETUP_PATH, req.url);
+      return redirectTo(await noRoleDestination(userId, PROPERTY_SETUP_PATH), req.url);
     }
 
     return redirectTo(resolvePostAuthPath(userContext), req.url);
@@ -91,7 +102,7 @@ export default clerkMiddleware(async (auth, req) => {
 
     const userContext = await ensureUserAndGetContext(authToken);
     if (!userContext || hasNoAppRole(userContext)) {
-      return redirectTo(NO_ACCESS_PATH, req.url);
+      return redirectTo(await noRoleDestination(userId, NO_ACCESS_PATH), req.url);
     }
 
     return redirectTo(resolvePostAuthPath(userContext, requestedPath(req)), req.url);
@@ -113,6 +124,14 @@ export default clerkMiddleware(async (auth, req) => {
     const userContext = await ensureUserAndGetContext(authToken);
 
     if (!userContext || hasNoAppRole(userContext)) {
+      const invited = await isInvitedClerkUser(userId);
+
+      if (invited) {
+        return isAcceptInviteRoute(req)
+          ? NextResponse.next()
+          : redirectTo(ACCEPT_INVITE_PATH, req.url);
+      }
+
       if (isNoAccessRoute(req) || isSetupRoute(req)) {
         return NextResponse.next();
       }
@@ -120,7 +139,7 @@ export default clerkMiddleware(async (auth, req) => {
       return redirectTo(NO_ACCESS_PATH, req.url);
     }
 
-    if (isNoAccessRoute(req)) {
+    if (isNoAccessRoute(req) || isAcceptInviteRoute(req)) {
       return redirectTo(resolvePostAuthPath(userContext), req.url);
     }
 

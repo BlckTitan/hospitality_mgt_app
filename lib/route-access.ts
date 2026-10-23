@@ -6,6 +6,7 @@ export const DASHBOARD_PATH = '/admin/dashboard';
 export const STAFF_HOME_PATH = '/admin/staff/myProfile';
 export const NO_ACCESS_PATH = '/no-access';
 export const PROPERTY_SETUP_PATH = '/setup/property';
+export const ACCEPT_INVITE_PATH = '/accept-invite';
 
 export const SECTION_HUBS = [
   '/admin/user',
@@ -103,6 +104,7 @@ export function resolvePostAuthPath(
   const pathOnly = safePath?.split('?')[0]?.split('#')[0];
   const blocked = !pathOnly
     || pathOnly === NO_ACCESS_PATH
+    || pathOnly.startsWith(ACCEPT_INVITE_PATH)
     || pathOnly === '/'
     || pathOnly === '/unauthorized'
     || pathOnly.startsWith('/sign-in')

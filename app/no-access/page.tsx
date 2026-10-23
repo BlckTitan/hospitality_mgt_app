@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { SignOutButton, useUser } from '@clerk/nextjs';
 import { ShieldX } from 'lucide-react';
 import { Button } from '../../shared/button';
-import { PROPERTY_SETUP_PATH } from '../../lib/route-access';
+import { ACCEPT_INVITE_PATH, PROPERTY_SETUP_PATH } from '../../lib/route-access';
 import { wasInvitedByAdmin } from '../../lib/invite-metadata';
 
 export default function NoAccessPage() {
@@ -35,7 +35,11 @@ export default function NoAccessPage() {
           </p>
 
           <div className="space-y-4">
-            {invited ? null : (
+            {invited ? (
+              <Link href={ACCEPT_INVITE_PATH}>
+                <Button className="w-full">Check my invitation</Button>
+              </Link>
+            ) : (
               <Link href={PROPERTY_SETUP_PATH}>
                 <Button className="w-full">Set up a new property</Button>
               </Link>

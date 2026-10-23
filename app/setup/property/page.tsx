@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { SignOutButton, useAuth, useUser } from '@clerk/nextjs';
+import { useAuth, useUser } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
 import { useMutation, useQuery } from 'convex/react';
 import { toast } from 'sonner';
@@ -11,10 +11,14 @@ import { currencies, timezones } from '../../../lib/data';
 import { SubmitHandler, useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import { propertySetupSchema } from './validation';
-import { DASHBOARD_PATH, NO_ACCESS_PATH, resolvePostAuthPath } from '../../../lib/route-access';
+import {
+  ACCEPT_INVITE_PATH,
+  DASHBOARD_PATH,
+  NO_ACCESS_PATH,
+  resolvePostAuthPath,
+} from '../../../lib/route-access';
 import { usePermissions } from '../../../hooks/usePermissions';
 import { wasInvitedByAdmin } from '../../../lib/invite-metadata';
-import { Button } from '../../../shared/button';
 import InputComponent from '../../../shared/input';
 import SelectComponent from '../../../shared/select';
 
@@ -89,12 +93,16 @@ export default function PropertySetupPage() {
     }
 
     const isFirstProperty = userContext.roles.length === 0;
+    if (isFirstProperty && wasInvitedByAdmin(user?.publicMetadata)) {
+      router.replace(ACCEPT_INVITE_PATH);
+      return;
+    }
     if (isFirstProperty || hasGranularPermission('properties.create')) {
       return;
     }
 
     router.replace(resolvePostAuthPath(userContext));
-  }, [loginTracked, userContext, permissionsLoading, hasGranularPermission, router]);
+  }, [loginTracked, userContext, permissionsLoading, hasGranularPermission, router, user]);
 
   if (!isLoaded || !userId) {
     if (isLoaded && !userId) {
@@ -134,25 +142,11 @@ export default function PropertySetupPage() {
 
   const isFirstProperty = Boolean(userContext && userContext.roles.length === 0);
 
-  if (isFirstProperty && wasInvitedByAdmin(user?.publicMetadata)) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="max-w-md w-full p-8 text-center space-y-6">
-          <Spinner size="md" />
-          <h1 className="text-2xl font-bold text-gray-900">Joining your property</h1>
-          <p className="text-gray-600">
-            You were invited by an administrator. We&apos;re adding your role now, and you&apos;ll be taken in automatically. If nothing happens in a minute, ask the administrator to check your invitation.
-          </p>
-          <SignOutButton redirectUrl="/">
-            <Button variant="outline" className="w-full">Sign out</Button>
-          </SignOutButton>
-        </div>
-      </div>
-    );
-  }
-
+  const invitedWithoutRole = isFirstProperty && wasInvitedByAdmin(user?.publicMetadata);
   const canCreateProperty = Boolean(
-    userContext && (isFirstProperty || hasGranularPermission('properties.create')),
+    userContext &&
+      !invitedWithoutRole &&
+      (isFirstProperty || hasGranularPermission('properties.create')),
   );
 
   if (permissionsLoading || !canCreateProperty) {
