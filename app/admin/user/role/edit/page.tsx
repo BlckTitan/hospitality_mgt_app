@@ -1,7 +1,7 @@
 'use client'
 
 import { BackLink } from '../../../../../shared/pageHeader';
-import { useQuery } from 'convex/react';
+import { useQuery, useConvexAuth } from 'convex/react';
 import { useSearchParams } from 'next/navigation';
 import React from 'react'
 import { api } from '../../../../../convex/_generated/api';
@@ -10,13 +10,20 @@ import Spinner from '../../../../../shared/spinner';
 import { FormComponent } from '../components/editRoleForm';
 
 export default function Page() {
+  const { isAuthenticated, isLoading } = useConvexAuth();
   const searchParams = useSearchParams();
   const id = searchParams.get("role_id") ?? null;
-  const response = useQuery(api.roles.getRole, { role_id: id as Id<'roles'> });
+  const response = useQuery(
+    api.roles.getRole,
+    !isLoading && isAuthenticated && id ? { role_id: id as Id<'roles'> } : 'skip',
+  );
 
-  // check response for data
-  if (response === undefined) return <div className='w-full h-screen flex items-center justify-center'><Spinner  size='sm'  /></div>;
-  if (!response || !response.success || !response.data) return <div>No data available!</div>;
+  if (isLoading || response === undefined) {
+    return <div className='w-full h-screen flex items-center justify-center'><Spinner  size='sm'  /></div>;
+  }
+  if (!response.success || !response.data) {
+    return <div className="p-4 text-gray-600">{response.message ?? 'No data available!'}</div>;
+  }
 
   const role = response.data;
 

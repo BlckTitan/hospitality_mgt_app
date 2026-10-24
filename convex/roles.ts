@@ -1,6 +1,6 @@
 import { mutation, query, internalMutation } from './_generated/server';
 import { v } from 'convex/values';
-import { requirePermission } from './lib/rbac';
+import { requirePermission, tryRequirePermission } from './lib/rbac';
 import { ensureAllSystemRoles } from './lib/systemRoles';
 export const getAllRoles = query({
   handler: async (ctx) => {
@@ -18,7 +18,16 @@ export const getAllRoles = query({
 export const getRole = query({
   args: { role_id: v.id('roles') },
   handler: async (ctx, args) => {
-    await requirePermission(ctx, 'roles.read');
+    const auth = await tryRequirePermission(ctx, 'roles.read');
+    if (!auth) {
+      const identity = await ctx.auth.getUserIdentity();
+      return {
+        success: false,
+        data: null,
+        message: identity ? 'Unauthorized' : 'Not authenticated',
+      };
+    }
+
     try {
       const role = await ctx.db.get(args.role_id);
       if (!role) {
