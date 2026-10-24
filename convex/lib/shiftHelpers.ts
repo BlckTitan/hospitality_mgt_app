@@ -30,6 +30,8 @@ export const ROLE_TO_DEPARTMENT: Record<string, ShiftDepartment> = {
   "Kitchen Assistant": "restaurant",
   "kitchen Assistant": "restaurant",
   Security: "other",
+  Waiter: "fnb",
+  Bartender: "fnb",
   Manager: "admin",
   "Assistant Manager": "admin",
   Supervisor: "admin",

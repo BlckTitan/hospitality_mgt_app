@@ -16,12 +16,12 @@ import {
   getRosterSlotForWorking,
   resolveStaffTemplate,
   staffDisplayName,
-  todayIsoDate,
 } from "./lib/shiftHelpers";
 import { punctualityFieldsForClock, punctualityInsertFields } from "./lib/punctuality";
 import { canSeeAllTeamRecords, currentUsersStaff, isActiveStatus } from "./lib/staffAccess";
 import { resolveStaffClockMethod, type ShiftClockMethod } from "./lib/clockMethod";
-import { computeCogsSnapshot, refreshSalesSummariesForLogs } from "./lib/barStock";
+import { computeCogsSnapshot, propertyDateKey, refreshSalesSummariesForLogs } from "./lib/barStock";
+import { staffWorksFrontOffice } from "./lib/dutyContext";
 
 type DbCtx = MutationCtx | QueryCtx;
 
@@ -35,6 +35,9 @@ type ActiveShiftView = {
   minutesLate?: number;
   punctualityStatus?: "on_time" | "late" | "unscheduled";
   clockMethod?: ShiftClockMethod;
+  department?: string;
+  barId?: Id<"bars">;
+  barName?: string;
 };
 
 type DutyView = {
@@ -58,6 +61,7 @@ type DutyView = {
   canStartFor: boolean;
   canEndFor: boolean;
   activeShift: ActiveShiftView | null;
+  requiresFrontOfficeShift: boolean;
   blockedReason?: string;
 };
 
@@ -84,6 +88,7 @@ async function buildDuty(
   const hasTemplate = Boolean(slotTemplate ?? template);
   const dayShift = await findAnyShiftForStaffDate(ctx, staff._id, shiftDate);
   const activeShift = dayShift && !dayShift.isFinalized ? dayShift : null;
+  const bar = dayShift?.barId ? await ctx.db.get(dayShift.barId) : null;
   const isSelf = actorStaffId === staff._id;
   const expectedStart = slotTemplate?.startTime ?? template?.startTime;
   const expectedEnd = slotTemplate?.endTime ?? template?.endTime;
@@ -139,8 +144,12 @@ async function buildDuty(
           minutesLate: dayShift.minutesLate,
           punctualityStatus: dayShift.punctualityStatus,
           clockMethod: dayShift.clockMethod,
+          department: dayShift.department,
+          barId: dayShift.barId,
+          barName: bar?.name,
         }
       : null,
+    requiresFrontOfficeShift: staffWorksFrontOffice(staff),
     blockedReason,
   };
 }
@@ -206,7 +215,7 @@ async function startStaffShift(
     };
   }
 
-  const shiftDate = todayIsoDate();
+  const shiftDate = await propertyDateKey(ctx, args.propertyId);
   const coveringSlot = await getRosterSlotForWorking(ctx, args.staff._id, shiftDate);
   const ownCovered = await getRosterSlotForScheduled(ctx, args.staff._id, shiftDate);
   if (ownCovered && ownCovered.workingEmployeeId !== args.staff._id) {
@@ -278,7 +287,10 @@ async function startStaffShift(
 }
 
 async function endStaffShift(ctx: MutationCtx, staff: Doc<"staffs">) {
-  const shiftDate = todayIsoDate();
+  if (!staff.propertyId) {
+    return { success: false as const, message: "Staff is not assigned to a property." };
+  }
+  const shiftDate = await propertyDateKey(ctx, staff.propertyId);
   const shift = await findActiveShiftForStaffDate(ctx, staff._id, shiftDate);
   if (!shift) {
     return { success: false as const, message: "This person has not started a shift." };
@@ -351,7 +363,7 @@ export const getMyDuty = query({
     }
     return {
       success: true,
-      data: await buildDuty(ctx, staff, propertyId, todayIsoDate(), staff._id),
+      data: await buildDuty(ctx, staff, propertyId, await propertyDateKey(ctx, propertyId), staff._id),
     };
   },
 });
@@ -360,8 +372,8 @@ export const getFloorDuty = query({
   args: {},
   handler: async (ctx) => {
     const auth = await requireAuthenticated(ctx);
-    const shiftDate = todayIsoDate();
     const propertyId = auth.propertyIds[0];
+    const shiftDate = propertyId ? await propertyDateKey(ctx, propertyId) : "";
     if (!propertyId) {
       return { success: true, canView: false, canProxy: false, shiftDate, data: [] };
     }
@@ -435,7 +447,7 @@ export const getStaffTodayDuty = query({
     if (!access.seeAll && me && staff._id !== me._id && staff.managerId !== me._id) {
       return { success: false, message: "You can only view attendance for your team.", data: null, canProxy: false };
     }
-    const data = await buildDuty(ctx, staff, propertyId, todayIsoDate(), me?._id);
+    const data = await buildDuty(ctx, staff, propertyId, await propertyDateKey(ctx, propertyId), me?._id);
     const proxyError = access.canProxy ? await assertCanProxyStaff(ctx, access, staff) : "You cannot clock attendance for other staff.";
     return {
       success: true,

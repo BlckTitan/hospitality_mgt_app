@@ -31,7 +31,6 @@ export default function PosTerminal() {
   const currency = usePropertyCurrency(currentPropertyId || undefined)
 
   const [mode, setMode] = useState<OrderMode>('bar')
-  const [barId, setBarId] = useState('')
   const [reservationId, setReservationId] = useState('')
   const [orderId, setOrderId] = useState<Id<'orders'> | null>(null)
   const [category, setCategory] = useState<string>('All')
@@ -41,10 +40,7 @@ export default function PosTerminal() {
 
   const isRoom = mode === 'room_service'
 
-  const bars = useQuery(
-    api.posOrders.listBarsForPos,
-    currentPropertyId ? { propertyId: currentPropertyId } : 'skip',
-  )
+  const duty = useQuery(api.attendance.getMyDuty, {})
   const beverages = useQuery(
     api.posOrders.listSellableBeverages,
     currentPropertyId ? { propertyId: currentPropertyId } : 'skip',
@@ -70,9 +66,27 @@ export default function PosTerminal() {
   const voidOrder = useMutation(api.posOrders.voidOrder)
   const markOpenTab = useMutation(api.posOrders.markOpenTab)
 
-  const barList = bars?.data ?? []
-  const selectedBarId = (barId || barList[0]?._id || '') as string
+  const dutyData = duty?.success ? duty.data : null
+  const openShift = dutyData?.activeShift
+  const onBarShift = Boolean(
+    openShift &&
+      !openShift.isFinalized &&
+      openShift.department === 'fnb' &&
+      openShift.barId &&
+      dutyData?.propertyId === currentPropertyId,
+  )
   const order = orderResponse?.success ? orderResponse.data : null
+  const legacyCheck = Boolean(order && !order.barId && !order.shiftId)
+  const canSell = onBarShift
+  const dutyMessage = !duty
+    ? 'Loading shift'
+    : duty.success === false
+      ? duty.message
+      : onBarShift
+        ? `On duty: ${dutyData?.staffName} · ${openShift?.barName || 'Bar'}`
+        : openShift && !openShift.isFinalized && dutyData?.propertyId !== currentPropertyId
+          ? 'Your open shift is for another property.'
+          : 'Start your F&B shift at a bar before selling.'
   const activeLines = (order?.lines ?? []).filter((line) => line.status === 'active')
 
   const categories = useMemo(() => {
@@ -106,6 +120,10 @@ export default function PosTerminal() {
   const ensureOrder = async (): Promise<Id<'orders'> | null> => {
     if (orderId) return orderId
     if (!currentPropertyId) return null
+    if (!canSell) {
+      toast.error(dutyMessage)
+      return null
+    }
     if (isRoom && !reservationId) {
       toast.error('Select a room / reservation first')
       return null
@@ -115,7 +133,6 @@ export default function PosTerminal() {
       const response = await createOrder({
         propertyId: currentPropertyId,
         orderType: mode,
-        barId: selectedBarId ? (selectedBarId as Id<'bars'>) : undefined,
         reservationId: reservationId
           ? (reservationId as Id<'reservations'>)
           : undefined,
@@ -269,7 +286,6 @@ export default function PosTerminal() {
             onChange={(e) => {
               setPropertyId(e.target.value)
               setOrderId(null)
-              setBarId('')
               setReservationId('')
             }}
           >
@@ -280,21 +296,7 @@ export default function PosTerminal() {
             ))}
           </select>
         </label>
-        <label className="text-sm">
-          Bar
-          <select
-            className={selectClassName + ' mt-1 min-w-[10rem]'}
-            value={selectedBarId}
-            onChange={(e) => setBarId(e.target.value)}
-          >
-            {barList.length === 0 && <option value="">No bars</option>}
-            {barList.map((b) => (
-              <option key={b._id} value={b._id}>
-                {b.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        <p className={`text-sm m-0 ${canSell ? 'text-gray-700' : 'text-amber-800'}`}>{dutyMessage}</p>
         <div className="flex gap-2">
           <Button
             size="sm"
@@ -357,7 +359,8 @@ export default function PosTerminal() {
               }
             >
               #{String(row._id).slice(-6)}
-              {row.orderType === 'room_service' ? ' · room' : ' · bar'}
+              {row.barName ? ` · ${row.barName}` : row.orderType === 'room_service' ? ' · room' : ' · bar'}
+              {row.waiterName ? ` · ${row.waiterName}` : ''}
               {row.roomLabel ? ` · R${row.roomLabel}` : ''}
               {row.status === 'open_tab' ? ' · tab' : ''}
               {' · '}
@@ -386,7 +389,7 @@ export default function PosTerminal() {
               <button
                 key={item._id}
                 type="button"
-                disabled={busy || !currentPropertyId || (isRoom && !reservationId && !orderId)}
+                disabled={busy || !canSell || (isRoom && !reservationId && !orderId)}
                 onClick={() => void handleAddBeverage(item._id)}
                 className="text-left border rounded-md p-2 hover:bg-gray-50 disabled:opacity-50 flex items-center gap-2"
               >
@@ -419,14 +422,15 @@ export default function PosTerminal() {
                 New
               </Button>
               {orderId && order?.status === 'open' && (
-                <Button size="sm" variant="outline-danger" disabled={busy} onClick={() => void handleVoidOrder()}>
+                <Button size="sm" variant="outline-danger" disabled={busy || (!canSell && !legacyCheck)} onClick={() => void handleVoidOrder()}>
                   Void
                 </Button>
               )}
             </div>
           </div>
           <p className="text-xs text-gray-500 m-0">
-            {isRoom ? 'Room service' : 'Quick bar'}
+            {isRoom ? 'Room service' : openShift?.barName || 'Bar'}
+            {dutyData?.staffName ? ` · ${dutyData.staffName}` : ''}
             {order?.roomLabel ? ` · Room ${order.roomLabel}` : ''}
             {order?.guestName ? ` · ${order.guestName}` : ''}
             {order?.status ? ` · ${order.status}` : ''}
@@ -513,14 +517,14 @@ export default function PosTerminal() {
           <div className="flex gap-2">
             <Button
               variant="outline-dark"
-              disabled={busy || !orderId}
+              disabled={busy || !orderId || (!canSell && !legacyCheck)}
               onClick={() => void handleSettle(true)}
             >
               Open tab
             </Button>
             <Button
               variant="dark"
-              disabled={busy || !orderId}
+              disabled={busy || !orderId || (!canSell && !legacyCheck)}
               onClick={() => void handleSettle(false)}
             >
               Settle

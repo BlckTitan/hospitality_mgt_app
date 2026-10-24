@@ -3,6 +3,7 @@ import { v } from 'convex/values';
 import { Doc, Id } from './_generated/dataModel';
 import { requirePermission } from './lib/rbac';
 import { propertyDateKey } from './lib/barStock';
+import { requireFnBSaleShift } from './lib/dutyContext';
 
 const orderTypeValidator = v.union(
   v.literal('bar'),
@@ -78,10 +79,12 @@ async function linesForOrder(ctx: DbCtx, orderId: Id<'orders'>) {
 }
 
 async function enrichOrder(ctx: DbCtx, order: Doc<'orders'>) {
-  const [lines, bar, reservation] = await Promise.all([
+  const [lines, bar, reservation, employee, server] = await Promise.all([
     linesForOrder(ctx, order._id),
     order.barId ? ctx.db.get(order.barId) : null,
     order.reservationId ? ctx.db.get(order.reservationId) : null,
+    order.employeeId ? ctx.db.get(order.employeeId) : null,
+    ctx.db.get(order.serverUserId),
   ]);
   let roomLabel: string | null = null;
   let guestName: string | null = null;
@@ -100,7 +103,31 @@ async function enrichOrder(ctx: DbCtx, order: Doc<'orders'>) {
     reservation,
     roomLabel,
     guestName,
+    waiterName: employee
+      ? `${employee.firstName} ${employee.lastName}`.trim()
+      : (server?.name ?? null),
+    barName: bar?.name ?? null,
   };
+}
+
+async function assertCanWorkOrder(
+  ctx: MutationCtx,
+  order: Doc<'orders'>,
+  userId: Id<'users'>,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  if (!order.shiftId && !order.barId) return { ok: true };
+  const duty = await requireFnBSaleShift(ctx, {
+    userId,
+    propertyId: order.propertyId,
+  });
+  if (duty.ok === false) return duty;
+  if (order.barId && order.barId !== duty.barId) {
+    return { ok: false, message: 'This check belongs to another bar.' };
+  }
+  if (order.shiftId && order.serverUserId !== userId) {
+    return { ok: false, message: 'This check belongs to another waiter.' };
+  }
+  return { ok: true };
 }
 
 async function insertOrderPayment(
@@ -530,7 +557,6 @@ export const createOrder = mutation({
   args: {
     propertyId: v.id('properties'),
     orderType: orderTypeValidator,
-    barId: v.optional(v.id('bars')),
     reservationId: v.optional(v.id('reservations')),
     guestLabel: v.optional(v.string()),
   },
@@ -539,12 +565,11 @@ export const createOrder = mutation({
     if (args.orderType === 'room_service' && !args.reservationId) {
       return { success: false, message: 'Room service requires a reservation' };
     }
-    if (args.barId) {
-      const bar = await ctx.db.get(args.barId);
-      if (!bar || bar.propertyId !== args.propertyId || !bar.isActive) {
-        return { success: false, message: 'Invalid bar' };
-      }
-    }
+    const duty = await requireFnBSaleShift(ctx, {
+      userId: auth.user._id,
+      propertyId: args.propertyId,
+    });
+    if (duty.ok === false) return { success: false, message: duty.message };
     if (args.reservationId) {
       const reservation = await ctx.db.get(args.reservationId);
       if (!reservation || reservation.propertyId !== args.propertyId) {
@@ -556,11 +581,13 @@ export const createOrder = mutation({
     const openedAtDateKey = await propertyDateKey(ctx, args.propertyId, now);
     const orderId = await ctx.db.insert('orders', {
       propertyId: args.propertyId,
-      barId: args.barId,
+      barId: duty.barId,
+      shiftId: duty.shift._id,
+      employeeId: duty.staff._id,
       reservationId: args.reservationId,
       orderType: args.orderType,
       status: 'open',
-      serverUserId: auth.user._id,
+      serverUserId: duty.shift.userId ?? auth.user._id,
       guestLabel: args.guestLabel?.trim() || undefined,
       subtotal: 0,
       totalAmount: 0,
@@ -581,7 +608,9 @@ export const setRoomContext = mutation({
   },
   handler: async (ctx, args) => {
     const order = await loadOrderOrThrow(ctx, args.orderId);
-    await requirePermission(ctx, 'fnb.update', order.propertyId);
+    const auth = await requirePermission(ctx, 'fnb.update', order.propertyId);
+    const access = await assertCanWorkOrder(ctx, order, auth.user._id);
+    if (access.ok === false) return { success: false, message: access.message };
     if (order.status !== 'open' && order.status !== 'open_tab') {
       return { success: false, message: 'Only open checks can change room context' };
     }
@@ -608,7 +637,9 @@ export const addLine = mutation({
   },
   handler: async (ctx, args) => {
     const order = await loadOrderOrThrow(ctx, args.orderId);
-    await requirePermission(ctx, 'fnb.update', order.propertyId);
+    const auth = await requirePermission(ctx, 'fnb.update', order.propertyId);
+    const access = await assertCanWorkOrder(ctx, order, auth.user._id);
+    if (access.ok === false) return { success: false, message: access.message };
     if (order.status !== 'open') {
       return { success: false, message: 'Can only add lines to an open check' };
     }
@@ -655,7 +686,9 @@ export const voidLine = mutation({
     const line = await ctx.db.get(args.orderLineId);
     if (!line) return { success: false, message: 'Line not found' };
     const order = await loadOrderOrThrow(ctx, line.orderId);
-    await requirePermission(ctx, 'fnb.update', order.propertyId);
+    const auth = await requirePermission(ctx, 'fnb.update', order.propertyId);
+    const access = await assertCanWorkOrder(ctx, order, auth.user._id);
+    if (access.ok === false) return { success: false, message: access.message };
     if (order.status !== 'open') {
       return { success: false, message: 'Can only void lines on an open check' };
     }
@@ -672,7 +705,9 @@ export const voidOrder = mutation({
   args: { orderId: v.id('orders') },
   handler: async (ctx, args) => {
     const order = await loadOrderOrThrow(ctx, args.orderId);
-    await requirePermission(ctx, 'fnb.update', order.propertyId);
+    const auth = await requirePermission(ctx, 'fnb.update', order.propertyId);
+    const access = await assertCanWorkOrder(ctx, order, auth.user._id);
+    if (access.ok === false) return { success: false, message: access.message };
     if (order.status !== 'open') {
       return { success: false, message: 'Only unpaid open checks can be voided' };
     }
@@ -705,6 +740,8 @@ async function settleWithTenders(
 ) {
   const order = await loadOrderOrThrow(ctx, args.orderId);
   const auth = await requirePermission(ctx, 'fnb.update', order.propertyId);
+  const access = await assertCanWorkOrder(ctx, order, auth.user._id);
+  if (access.ok === false) return { success: false as const, message: access.message };
   if (args.allowOpenTabOnly) {
     if (order.status !== 'open_tab') {
       return { success: false as const, message: 'Order is not an open tab' };
@@ -809,7 +846,9 @@ export const markOpenTab = mutation({
   args: { orderId: v.id('orders') },
   handler: async (ctx, args) => {
     const order = await loadOrderOrThrow(ctx, args.orderId);
-    await requirePermission(ctx, 'fnb.update', order.propertyId);
+    const auth = await requirePermission(ctx, 'fnb.update', order.propertyId);
+    const access = await assertCanWorkOrder(ctx, order, auth.user._id);
+    if (access.ok === false) return { success: false, message: access.message };
     if (order.status !== 'open') {
       return { success: false, message: 'Only an open check can become an open tab' };
     }

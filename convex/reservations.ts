@@ -4,6 +4,7 @@ import { Id } from './_generated/dataModel';
 import { requirePermission } from './lib/rbac';
 import { peopleSearchName } from './lib/searchNames';
 import { maybeCreateCheckoutOnCheckOut, maybeCreateStayoverOnCheckIn } from './lib/taskAssignment';
+import { requireFrontOfficeDuty } from './lib/dutyContext';
 
 function generateConfirmationNumber(timestamp: number): string {
   const date = new Date(timestamp);
@@ -18,11 +19,32 @@ function isBlockingStatus(status: string): boolean {
   return status === 'pending' || status === 'confirmed' || status === 'checked-in';
 }
 
-async function resolveBookedBy(ctx: MutationCtx | QueryCtx, bookedByUserId?: Id<'users'>) {
-  if (!bookedByUserId) return null;
-  const user = await ctx.db.get(bookedByUserId);
-  if (!user) return null;
-  return { _id: user._id, name: user.name, email: user.email };
+async function resolveDeskActor(
+  ctx: MutationCtx | QueryCtx,
+  userId?: Id<'users'>,
+  employeeId?: Id<'staffs'>,
+) {
+  if (!userId && !employeeId) return null;
+  const [user, staff] = await Promise.all([
+    userId ? ctx.db.get(userId) : null,
+    employeeId ? ctx.db.get(employeeId) : null,
+  ]);
+  if (!user && !staff) return null;
+  return {
+    _id: user?._id,
+    name: staff
+      ? `${staff.firstName} ${staff.lastName}`.trim()
+      : (user?.name || user?.email || 'Staff'),
+    email: user?.email,
+  };
+}
+
+async function guardFrontOffice(
+  ctx: MutationCtx,
+  propertyId: Id<'properties'>,
+  userId: Id<'users'>,
+) {
+  return await requireFrontOfficeDuty(ctx, { userId, propertyId });
 }
 
 function rangesOverlap(aStart: number, aEnd: number, bStart: number, bEnd: number): boolean {
@@ -93,7 +115,11 @@ export const getAllReservations = query({
           const guest = await ctx.db.get(reservation.guestId);
           const room = await ctx.db.get(reservation.roomId);
           const roomType = room ? await ctx.db.get(room.roomTypeId) : null;
-          const bookedBy = await resolveBookedBy(ctx, reservation.bookedByUserId);
+          const bookedBy = await resolveDeskActor(
+            ctx,
+            reservation.bookedByUserId,
+            reservation.bookedByEmployeeId,
+          );
 
           return {
             ...reservation,
@@ -125,7 +151,11 @@ export const getReservation = query({
       const room = await ctx.db.get(reservation.roomId);
       const roomType = room ? await ctx.db.get(room.roomTypeId) : null;
       const property = await ctx.db.get(reservation.propertyId);
-      const bookedBy = await resolveBookedBy(ctx, reservation.bookedByUserId);
+      const [bookedBy, checkedInBy, checkedOutBy] = await Promise.all([
+        resolveDeskActor(ctx, reservation.bookedByUserId, reservation.bookedByEmployeeId),
+        resolveDeskActor(ctx, reservation.checkedInByUserId, reservation.checkedInByEmployeeId),
+        resolveDeskActor(ctx, reservation.checkedOutByUserId, reservation.checkedOutByEmployeeId),
+      ]);
       const payments = await ctx.db
         .query('payments')
         .withIndex('by_reference', (q) =>
@@ -154,6 +184,8 @@ export const getReservation = query({
           room: room ? { ...room, roomType } : null,
           property,
           bookedBy,
+          checkedInBy,
+          checkedOutBy,
           payments: paymentsWithEvidence,
           paidTotal,
         },
@@ -192,6 +224,8 @@ export const createReservation = mutation({
   },
   handler: async (ctx, args) => {
     const auth = await requirePermission(ctx, 'reservations.create', args.propertyId);
+    const duty = await guardFrontOffice(ctx, args.propertyId, auth.user._id);
+    if (duty.ok === false) return { success: false, message: duty.message };
     try {
       const hasExisting = Boolean(args.guestId);
       const hasNew = Boolean(args.newGuest);
@@ -285,6 +319,14 @@ export const createReservation = mutation({
         source: args.source,
         specialRequests: args.specialRequests,
         bookedByUserId: auth.user._id,
+        ...(duty.stamp
+          ? {
+              ...(duty.stamp.employeeId
+                ? { bookedByEmployeeId: duty.stamp.employeeId }
+                : {}),
+              bookedShiftId: duty.stamp.shiftId,
+            }
+          : {}),
         createdAt: now,
         updatedAt: now,
       });
@@ -405,7 +447,11 @@ export const generateReservationPaymentUploadUrl = mutation({
     if (!reservation) {
       throw new Error('Reservation not found');
     }
-    await requirePermission(ctx, 'reservations.update', reservation.propertyId);
+    const auth = await requirePermission(ctx, 'reservations.update', reservation.propertyId);
+    const duty = await guardFrontOffice(ctx, reservation.propertyId, auth.user._id);
+    if (duty.ok === false) {
+      throw new Error(duty.message);
+    }
     return await ctx.storage.generateUploadUrl();
   },
 });
@@ -430,7 +476,9 @@ export const updateReservation = mutation({
       return { success: false, message: 'Reservation does not exist' };
     }
 
-    await requirePermission(ctx, 'reservations.update', existingReservation.propertyId);
+    const auth = await requirePermission(ctx, 'reservations.update', existingReservation.propertyId);
+    const duty = await guardFrontOffice(ctx, existingReservation.propertyId, auth.user._id);
+    if (duty.ok === false) return { success: false, message: duty.message };
 
     try {
       if (existingReservation.status === 'checked-out' || existingReservation.status === 'cancelled') {
@@ -511,7 +559,9 @@ export const confirmReservation = mutation({
     if (!reservation) {
       return { success: false, message: 'Reservation does not exist' };
     }
-    await requirePermission(ctx, 'reservations.update', reservation.propertyId);
+    const auth = await requirePermission(ctx, 'reservations.update', reservation.propertyId);
+    const duty = await guardFrontOffice(ctx, reservation.propertyId, auth.user._id);
+    if (duty.ok === false) return { success: false, message: duty.message };
     if (reservation.status !== 'pending') {
       return { success: false, message: 'Only pending reservations can be confirmed' };
     }
@@ -542,6 +592,8 @@ export const checkInReservation = mutation({
       return { success: false, message: 'Reservation does not exist' };
     }
     const auth = await requirePermission(ctx, 'reservations.update', reservation.propertyId);
+    const duty = await guardFrontOffice(ctx, reservation.propertyId, auth.user._id);
+    if (duty.ok === false) return { success: false, message: duty.message };
     if (reservation.status !== 'pending' && reservation.status !== 'confirmed') {
       return { success: false, message: 'Only pending or confirmed reservations can be checked in' };
     }
@@ -591,6 +643,15 @@ export const checkInReservation = mutation({
     await ctx.db.patch(args.reservationId, {
       status: 'checked-in',
       checkedInAt: now,
+      checkedInByUserId: auth.user._id,
+      ...(duty.stamp
+        ? {
+            ...(duty.stamp.employeeId
+              ? { checkedInByEmployeeId: duty.stamp.employeeId }
+              : {}),
+            checkedInShiftId: duty.stamp.shiftId,
+          }
+        : {}),
       depositAmount: nextDeposit,
       updatedAt: now,
     });
@@ -616,6 +677,8 @@ export const checkOutReservation = mutation({
       return { success: false, message: 'Reservation does not exist' };
     }
     const auth = await requirePermission(ctx, 'reservations.update', reservation.propertyId);
+    const duty = await guardFrontOffice(ctx, reservation.propertyId, auth.user._id);
+    if (duty.ok === false) return { success: false, message: duty.message };
     if (reservation.status !== 'checked-in') {
       return { success: false, message: 'Only checked-in reservations can be checked out' };
     }
@@ -643,6 +706,15 @@ export const checkOutReservation = mutation({
     await ctx.db.patch(args.reservationId, {
       status: 'checked-out',
       checkedOutAt: now,
+      checkedOutByUserId: auth.user._id,
+      ...(duty.stamp
+        ? {
+            ...(duty.stamp.employeeId
+              ? { checkedOutByEmployeeId: duty.stamp.employeeId }
+              : {}),
+            checkedOutShiftId: duty.stamp.shiftId,
+          }
+        : {}),
       updatedAt: now,
     });
     await syncRoomOccupancy(ctx, reservation.roomId);
@@ -661,7 +733,9 @@ export const cancelReservation = mutation({
     if (!reservation) {
       return { success: false, message: 'Reservation does not exist' };
     }
-    await requirePermission(ctx, 'reservations.update', reservation.propertyId);
+    const auth = await requirePermission(ctx, 'reservations.update', reservation.propertyId);
+    const duty = await guardFrontOffice(ctx, reservation.propertyId, auth.user._id);
+    if (duty.ok === false) return { success: false, message: duty.message };
     if (reservation.status !== 'pending' && reservation.status !== 'confirmed') {
       return { success: false, message: 'Only pending or confirmed reservations can be cancelled' };
     }
@@ -680,7 +754,9 @@ export const deleteReservation = mutation({
       return { success: false, message: 'Reservation does not exist' };
     }
 
-    await requirePermission(ctx, 'reservations.delete', existingReservation.propertyId);
+    const auth = await requirePermission(ctx, 'reservations.delete', existingReservation.propertyId);
+    const duty = await guardFrontOffice(ctx, existingReservation.propertyId, auth.user._id);
+    if (duty.ok === false) return { success: false, message: duty.message };
 
     try {
       if (existingReservation.status === 'checked-in' || existingReservation.status === 'checked-out') {

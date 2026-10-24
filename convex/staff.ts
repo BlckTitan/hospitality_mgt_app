@@ -153,6 +153,7 @@ function publicStaffFields(staff: Doc<'staffs'>, canSeePay: boolean) {
 
 async function enrichStaff(ctx: DbCtx, staff: Doc<'staffs'>, canSeePay: boolean) {
   const template = staff.shiftTemplateId ? await ctx.db.get(staff.shiftTemplateId) : null;
+  const templateBar = template?.barId ? await ctx.db.get(template.barId) : null;
   const linkedUser = staff.userId ? await ctx.db.get(staff.userId) : null;
   const manager = staff.managerId ? await ctx.db.get(staff.managerId) : null;
   const pendingRequests = await ctx.db
@@ -164,7 +165,11 @@ async function enrichStaff(ctx: DbCtx, staff: Doc<'staffs'>, canSeePay: boolean)
     ...publicStaffFields(staff, canSeePay),
     employmentStatus: normalizeEmploymentStatus(staff.employmentStatus),
     onLeave,
-    shiftTemplateName: template?.name ?? null,
+    shiftTemplateName: template
+      ? templateBar?.name
+        ? `${template.name} · ${templateBar.name}`
+        : template.name
+      : null,
     clockMethod: resolveStaffClockMethod(staff),
     managerName: manager ? `${manager.firstName} ${manager.lastName}` : null,
     linkedLogin: linkedUser
@@ -463,6 +468,7 @@ export const createStaff = mutation({
     dateTerminated: v.optional(v.string()),
     role: v.string(),
     department: v.optional(v.string()),
+    shiftTemplateId: v.optional(v.id('shiftTemplates')),
     position: v.optional(v.string()),
     employmentType: employmentTypeValidator,
     managerId: v.optional(v.id('staffs')),
@@ -512,9 +518,19 @@ export const createStaff = mutation({
         if (managerError) return { success: false, message: managerError };
       }
 
-      const department = normalizeDepartment(args.department ?? departmentFromRole(args.role));
+      let department = normalizeDepartment(args.department ?? departmentFromRole(args.role));
       let template = null;
-      if (propertyId) {
+      if (args.shiftTemplateId) {
+        if (!propertyId) {
+          return { success: false, message: 'Assign a property before choosing a shift.' };
+        }
+        const chosen = await ctx.db.get(args.shiftTemplateId);
+        if (!chosen || chosen.propertyId !== propertyId || !chosen.isActive) {
+          return { success: false, message: 'That shift is not active for this property.' };
+        }
+        template = chosen;
+        department = chosen.department;
+      } else if (propertyId) {
         const rows = await ctx.db
           .query('shiftTemplates')
           .withIndex('by_propertyId_department', (q) =>
@@ -639,6 +655,7 @@ export const updateStaff = mutation({
     dateTerminated: v.optional(v.string()),
     role: v.string(),
     department: v.optional(v.string()),
+    shiftTemplateId: v.optional(v.id('shiftTemplates')),
     position: v.optional(v.string()),
     employmentType: v.optional(employmentTypeValidator),
     managerId: v.optional(v.union(v.id('staffs'), v.null())),
@@ -688,9 +705,21 @@ export const updateStaff = mutation({
         if (managerError) return { success: false, message: managerError };
       }
 
-      const department = args.department
+      let department = args.department
         ? normalizeDepartment(args.department)
         : normalizeDepartment(existingStaff.department ?? departmentFromRole(args.role));
+      let assignedTemplateId = existingStaff.shiftTemplateId;
+      if (args.shiftTemplateId) {
+        if (!existingStaff.propertyId) {
+          return { success: false, message: 'Assign a property before choosing a shift.' };
+        }
+        const chosen = await ctx.db.get(args.shiftTemplateId);
+        if (!chosen || chosen.propertyId !== existingStaff.propertyId || !chosen.isActive) {
+          return { success: false, message: 'That shift is not active for this property.' };
+        }
+        assignedTemplateId = chosen._id;
+        department = chosen.department;
+      }
       const departmentChanged = department !== existingStaff.department;
       const nextStatus = args.employmentStatus
         ? normalizeEmploymentStatus(args.employmentStatus)
@@ -726,6 +755,9 @@ export const updateStaff = mutation({
             ? args.dateTerminated || new Date().toISOString()
             : existingStaff.dateTerminated,
         department,
+        ...(args.shiftTemplateId && assignedTemplateId
+          ? { shiftTemplateId: assignedTemplateId }
+          : {}),
         role: args.role,
         position: args.position,
         employmentType: args.employmentType ?? existingStaff.employmentType,
@@ -755,7 +787,7 @@ export const updateStaff = mutation({
         if (latest) await unsetStaffManagerId(ctx, latest);
       }
 
-      if (departmentChanged && existingStaff.propertyId) {
+      if (!args.shiftTemplateId && departmentChanged && existingStaff.propertyId) {
         await assignDefaultShiftTemplate(
           ctx,
           existingStaff._id,
@@ -1066,6 +1098,7 @@ export const getMyStaffDetail = query({
       .collect();
 
     const template = staff.shiftTemplateId ? await ctx.db.get(staff.shiftTemplateId) : null;
+    const templateBar = template?.barId ? await ctx.db.get(template.barId) : null;
     const onLeave = await approvedTimeOffOverlapsToday(ctx, staff._id);
     const timeOffTypeOptions = staff.propertyId
       ? (
@@ -1086,7 +1119,11 @@ export const getMyStaffDetail = query({
       accountNumber: maskAccountNumber(staff.accountNumber),
       employmentStatus: normalizeEmploymentStatus(staff.employmentStatus),
       onLeave,
-      shiftTemplateName: template?.name ?? null,
+      shiftTemplateName: template
+        ? templateBar?.name
+          ? `${template.name} · ${templateBar.name}`
+          : template.name
+        : null,
       hours,
       timeOff: timeOffTypes,
       timeOffTypes: timeOffTypeOptions.map((row) => ({

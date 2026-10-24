@@ -303,6 +303,8 @@ export default function PosOrders() {
               <th className="py-2 pr-2">Check</th>
               <th className="py-2 pr-2">Opened</th>
               <th className="py-2 pr-2">Type</th>
+              <th className="py-2 pr-2">Bar</th>
+              <th className="py-2 pr-2">Waiter</th>
               <th className="py-2 pr-2">Status</th>
               <th className="py-2 pr-2">Guest / room</th>
               <th className="py-2 pr-2 text-right">Total</th>
@@ -314,7 +316,7 @@ export default function PosOrders() {
           <tbody>
             {listLoading || searchLoading ? (
               <tr>
-                <td colSpan={9} className="py-4 text-gray-500">
+                <td colSpan={11} className="py-4 text-gray-500">
                   Loading
                 </td>
               </tr>
@@ -326,6 +328,8 @@ export default function PosOrders() {
                   </td>
                   <td className="py-2 pr-2 whitespace-nowrap">{row.openedAtDateKey}</td>
                   <td className="py-2 pr-2">{ORDER_TYPE_LABELS[row.orderType] ?? row.orderType}</td>
+                  <td className="py-2 pr-2">{row.barName || '—'}</td>
+                  <td className="py-2 pr-2">{row.waiterName || '—'}</td>
                   <td className="py-2 pr-2">{STATUS_LABELS[row.status] ?? row.status}</td>
                   <td className="py-2 pr-2">
                     {row.roomLabel ? `Room ${row.roomLabel}` : row.guestLabel || '—'}
@@ -369,7 +373,7 @@ export default function PosOrders() {
             )}
             {!listLoading && !searchLoading && rows.length === 0 && (
               <tr>
-                <td colSpan={9} className="py-4 text-gray-500">
+                <td colSpan={11} className="py-4 text-gray-500">
                   {searching ? searchMessage || 'No check found for that ID.' : 'No orders for this filter.'}
                 </td>
               </tr>
@@ -482,6 +486,7 @@ function CheckDetail({
     roomLabel: string | null
     guestName: string | null
     serverName: string | null
+    waiterName?: string | null
     bar: { name: string } | null
     subtotal: number
     totalAmount: number
@@ -543,8 +548,12 @@ function CheckDetail({
               <dd className="m-0">{ORDER_TYPE_LABELS[order.orderType] ?? order.orderType}</dd>
             </div>
             <div>
-              <dt className="text-gray-500">Server</dt>
-              <dd className="m-0">{order.serverName || '—'}</dd>
+              <dt className="text-gray-500">Waiter</dt>
+              <dd className="m-0">{order.waiterName || order.serverName || '—'}</dd>
+            </div>
+            <div>
+              <dt className="text-gray-500">Bar</dt>
+              <dd className="m-0">{order.bar?.name || '—'}</dd>
             </div>
             <div>
               <dt className="text-gray-500">Opened</dt>
@@ -561,12 +570,6 @@ function CheckDetail({
                 {order.guestName ? ` · ${order.guestName}` : ''}
               </dd>
             </div>
-            {order.bar && (
-              <div>
-                <dt className="text-gray-500">Bar</dt>
-                <dd className="m-0">{order.bar.name}</dd>
-              </div>
-            )}
           </dl>
 
           <div>

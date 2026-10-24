@@ -7,12 +7,37 @@ import { currentUsersStaff } from './lib/staffAccess';
 
 type DbCtx = MutationCtx | QueryCtx;
 
+async function fnbBarForServerDate(
+  ctx: DbCtx,
+  args: {
+    propertyId: Id<'properties'>;
+    serverUserId: Id<'users'>;
+    settlementDateKey: string;
+  },
+) {
+  const rows = await ctx.db
+    .query('shifts')
+    .withIndex('by_userId_date', (q) =>
+      q.eq('userId', args.serverUserId).eq('shiftDate', args.settlementDateKey),
+    )
+    .collect();
+  return (
+    rows.find(
+      (row) =>
+        row.propertyId === args.propertyId &&
+        row.department === 'fnb' &&
+        row.barId,
+    ) ?? null
+  );
+}
+
 async function expectedTendersForServerDay(
   ctx: DbCtx,
   args: {
     propertyId: Id<'properties'>;
     serverUserId: Id<'users'>;
     settlementDateKey: string;
+    barId?: Id<'bars'>;
   },
 ) {
   const orders = await ctx.db
@@ -24,7 +49,8 @@ async function expectedTendersForServerDay(
   const mine = orders.filter(
     (o) =>
       o.serverUserId === args.serverUserId &&
-      (o.status === 'settled' || o.status === 'open_tab'),
+      (o.status === 'settled' || o.status === 'open_tab') &&
+      (!args.barId || !o.barId || o.barId === args.barId),
   );
 
   let expectedCash = 0;
@@ -88,10 +114,18 @@ export const previewCashSettlement = query({
     await requirePermission(ctx, 'fnb.read', args.propertyId);
     const dateKey =
       args.settlementDateKey ?? (await propertyDateKey(ctx, args.propertyId));
+    const shift = await fnbBarForServerDate(ctx, {
+      propertyId: args.propertyId,
+      serverUserId: args.serverUserId,
+      settlementDateKey: dateKey,
+    });
+    const barId = args.barId ?? shift?.barId;
+    const bar = barId ? await ctx.db.get(barId) : null;
     const expected = await expectedTendersForServerDay(ctx, {
       propertyId: args.propertyId,
       serverUserId: args.serverUserId,
       settlementDateKey: dateKey,
+      barId,
     });
     const existing = await ctx.db
       .query('cashSettlements')
@@ -107,6 +141,8 @@ export const previewCashSettlement = query({
       success: true,
       data: {
         settlementDateKey: dateKey,
+        barId: barId ?? null,
+        barName: bar?.name ?? null,
         ...expected,
         existingPosted: posted ?? null,
       },
@@ -172,6 +208,12 @@ export const postCashSettlement = mutation({
     }
     const dateKey =
       args.settlementDateKey ?? (await propertyDateKey(ctx, args.propertyId));
+    const shift = await fnbBarForServerDate(ctx, {
+      propertyId: args.propertyId,
+      serverUserId: args.serverUserId,
+      settlementDateKey: dateKey,
+    });
+    const barId = args.barId ?? shift?.barId;
 
     const existing = await ctx.db
       .query('cashSettlements')
@@ -190,6 +232,7 @@ export const postCashSettlement = mutation({
       propertyId: args.propertyId,
       serverUserId: args.serverUserId,
       settlementDateKey: dateKey,
+      barId,
     });
     const varianceCash = args.countedCash - expected.expectedCash;
     const staff = await currentUsersStaff(ctx, args.serverUserId);
@@ -201,7 +244,7 @@ export const postCashSettlement = mutation({
     const now = Date.now();
     const settlementId = await ctx.db.insert('cashSettlements', {
       propertyId: args.propertyId,
-      barId: args.barId,
+      ...(barId ? { barId } : {}),
       serverUserId: args.serverUserId,
       employeeId,
       settlementDateKey: dateKey,

@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useConvexAuth } from "convex/react";
 import { Button } from '../../../../shared/button';
 import { api } from "../../../../convex/_generated/api";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { formSchema, CLOCK_METHOD_OPTIONS } from "./validation";
 import { FieldValues, SubmitHandler, useForm } from "react-hook-form";
@@ -32,6 +32,7 @@ type FormData = {
   employmentStatus: string;
   salary?: number;
   department?: string;
+  shiftTemplateId?: string;
   employmentType?: string;
   managerId?: string;
   position?: string;
@@ -55,6 +56,7 @@ const DEPARTMENTS = [
   { value: "maintenance", label: "Maintenance" },
   { value: "finance", label: "Finance" },
   { value: "admin", label: "Admin" },
+  { value: "restaurant", label: "Restaurant" },
   { value: "other", label: "Other" },
 ];
 
@@ -72,6 +74,8 @@ export function FormComponent(props: {
   dateRecruited: string;
   salary?: number;
   department?: string;
+  shiftTemplateId?: string;
+  propertyId?: string;
   role: string;
   stateOfOrigin: string;
   userId?: string;
@@ -106,6 +110,10 @@ export function FormComponent(props: {
     api.staff.listManagers,
     isAuthenticated ? { excludeStaffId: props.id } : "skip",
   );
+  const templates = useQuery(
+    api.shiftTemplates.listShiftTemplates,
+    props.propertyId ? { propertyId: props.propertyId as Id<"properties"> } : "skip",
+  );
   const { hasGranularPermission } = usePermissions();
   const canPay = hasGranularPermission("staff.compensation.update");
   const [staffState, setStaffState] = useState<string>(props.stateOfOrigin);
@@ -127,6 +135,7 @@ export function FormComponent(props: {
       dateRecruited: props.dateRecruited ? new Date(props.dateRecruited) : null,
       role: props.role,
       department: props.department || "other",
+      shiftTemplateId: props.shiftTemplateId || "",
       employmentType: props.employmentType || "full-time",
       managerId: props.managerId || "",
       position: props.position || "",
@@ -155,6 +164,12 @@ export function FormComponent(props: {
   const [routingCode, setRoutingCode] = useState(props.routingCode || "");
 
   const linkedUserId = watch("userId");
+  const shiftTemplateId = watch("shiftTemplateId");
+
+  useEffect(() => {
+    const chosen = (templates?.data ?? []).find((row) => row._id === shiftTemplateId);
+    if (chosen) setValue("department", chosen.department);
+  }, [shiftTemplateId, templates?.data, setValue]);
   const imageUrl = watch("imageUrl");
 
   const onSubmit: SubmitHandler<FormData | FieldValues> = async (data) => {
@@ -174,6 +189,9 @@ export function FormComponent(props: {
           data.employmentStatus === "terminated" ? new Date().toISOString() : undefined,
         role: data.role,
         department: data.department,
+        ...(data.shiftTemplateId
+          ? { shiftTemplateId: data.shiftTemplateId as Id<"shiftTemplates"> }
+          : {}),
         employmentType: (data.employmentType || "full-time") as
           | "full-time"
           | "part-time"
@@ -353,6 +371,26 @@ export function FormComponent(props: {
           register={register("department")}
           options={DEPARTMENTS}
         />
+        <div className="w-full lg:w-1/3">
+          <label htmlFor="shiftTemplateId">Department shift</label>
+          <select
+            id="shiftTemplateId"
+            className="border rounded p-2 w-full"
+            {...register("shiftTemplateId")}
+          >
+            <option value="">Department default</option>
+            {(templates?.data ?? [])
+              .filter((row) => row.isActive)
+              .map((row) => (
+                <option key={row._id} value={row._id}>
+                  {row.name}
+                  {row.barName ? ` · ${row.barName}` : ""}
+                  {` · ${row.department}`}
+                </option>
+              ))}
+          </select>
+          <p className="text-xs text-slate-500 mt-1">F&amp;B shifts carry the bar. Front office is the reception desk.</p>
+        </div>
         <SelectComponent
           id="employmentType"
           label="Employment type"

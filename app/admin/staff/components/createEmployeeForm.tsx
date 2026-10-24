@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useConvexAuth } from "convex/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../../../../convex/_generated/api";
 import { SubmitHandler, useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
@@ -24,6 +24,7 @@ type FormData = {
   lastName: string;
   role: string | null;
   department?: string;
+  shiftTemplateId?: string;
   employmentType: "full-time" | "part-time" | "casual" | "contractor";
   managerId?: string;
   position?: string;
@@ -45,6 +46,7 @@ const DEPARTMENTS = [
   { value: "maintenance", label: "Maintenance" },
   { value: "finance", label: "Finance" },
   { value: "admin", label: "Admin" },
+  { value: "restaurant", label: "Restaurant" },
   { value: "other", label: "Other" },
 ];
 
@@ -52,6 +54,12 @@ export function FormComponent() {
   const { isAuthenticated } = useConvexAuth();
   const createStaff = useMutation(api.staff.createStaff);
   const managers = useQuery(api.staff.listManagers, isAuthenticated ? {} : "skip");
+  const properties = useQuery(api.property.listAccessibleProperties, isAuthenticated ? {} : "skip");
+  const propertyId = properties?.data?.[0]?._id;
+  const templates = useQuery(
+    api.shiftTemplates.listShiftTemplates,
+    propertyId ? { propertyId } : "skip",
+  );
   const { hasGranularPermission } = usePermissions();
   const canPay = hasGranularPermission("staff.compensation.update");
   const [staffState, setStaffState] = useState<string>("");
@@ -71,6 +79,7 @@ export function FormComponent() {
       dateRecruited: new Date(),
       salary: 0,
       department: "other",
+      shiftTemplateId: "",
       employmentType: "full-time",
       userId: "",
       managerId: "",
@@ -81,6 +90,12 @@ export function FormComponent() {
   });
 
   const linkedUserId = watch("userId");
+  const shiftTemplateId = watch("shiftTemplateId");
+
+  useEffect(() => {
+    const chosen = (templates?.data ?? []).find((row) => row._id === shiftTemplateId);
+    if (chosen) setValue("department", chosen.department);
+  }, [shiftTemplateId, templates?.data, setValue]);
   const imageUrl = watch("imageUrl");
 
   const onSubmit: SubmitHandler<FormData> = async (data) => {
@@ -101,6 +116,9 @@ export function FormComponent() {
         salary: Number(data.salary || 0),
         role: data.role ?? "Supervisor",
         department: data.department,
+        ...(data.shiftTemplateId
+          ? { shiftTemplateId: data.shiftTemplateId as Id<"shiftTemplates"> }
+          : {}),
         employmentType: data.employmentType,
         position: data.position || undefined,
         managerId: data.managerId ? (data.managerId as Id<"staffs">) : undefined,
@@ -250,6 +268,26 @@ export function FormComponent() {
           register={register("department")}
           options={DEPARTMENTS}
         />
+        <div className="w-full lg:w-1/3">
+          <label htmlFor="shiftTemplateId">Department shift</label>
+          <select
+            id="shiftTemplateId"
+            className="border rounded p-2 w-full"
+            {...register("shiftTemplateId")}
+          >
+            <option value="">Department default</option>
+            {(templates?.data ?? [])
+              .filter((row) => row.isActive)
+              .map((row) => (
+                <option key={row._id} value={row._id}>
+                  {row.name}
+                  {row.barName ? ` · ${row.barName}` : ""}
+                  {` · ${row.department}`}
+                </option>
+              ))}
+          </select>
+          <p className="text-xs text-slate-500 mt-1">F&amp;B shifts carry the bar. Front office is the reception desk.</p>
+        </div>
         <SelectComponent
           id="employmentType"
           label="Employment type"

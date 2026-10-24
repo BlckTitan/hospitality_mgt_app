@@ -11,6 +11,7 @@ import { api } from '../../../../convex/_generated/api';
 import BootstrapModal from '../../../../shared/modal';
 import { RoomPageGuide } from '../components/roomPageGuide';
 import { useSearchParams } from 'next/navigation';
+import { useFrontOfficeDuty } from '../components/useFrontOfficeDuty';
 
 export default function ReservationPage() {
   return (
@@ -30,6 +31,7 @@ function ReservationPageInner() {
   const [modalShow, setModalShow] = useState(false);
   const [initialGuestId, setInitialGuestId] = useState<string | null>(null);
 
+  const desk = useFrontOfficeDuty();
   const propertiesResponse = useQuery(api.property.getAllProperties);
   const properties = propertiesResponse?.data || [];
   const currentPropertyId = properties?.[0]?._id || '';
@@ -70,6 +72,9 @@ function ReservationPageInner() {
       <div className="min-w-0">
         <h1 className="text-2xl font-bold text-gray-800">Reservations</h1>
         <RoomPageGuide page="reservations" />
+        {desk.message ? (
+          <p className={`text-sm mt-1 mb-0 ${desk.blocked ? 'text-amber-800' : 'text-gray-700'}`}>{desk.message}</p>
+        ) : null}
       </div>
         <div className="flex items-center gap-3">
           <BackLink />
@@ -77,6 +82,7 @@ function ReservationPageInner() {
             variant="light"
             className="cursor-pointer"
             circle
+            disabled={desk.blocked}
             onClick={() => {
               setInitialGuestId(null);
               setModalShow(true);

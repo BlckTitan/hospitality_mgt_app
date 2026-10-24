@@ -21,6 +21,8 @@ export const formSchema = yup.object().shape({
     .required("Last name is required"),
 
   role: yup.string().required("Role is required"),
+  department: yup.string().optional(),
+  shiftTemplateId: yup.string().optional(),
   email: yup
     .string()
     .trim()

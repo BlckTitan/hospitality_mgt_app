@@ -47,6 +47,8 @@ export default function Page() {
         dateRecruited={response.dateRecruited}
         dateTerminated={response.dateTerminated}
         department={response.department}
+        shiftTemplateId={response.shiftTemplateId}
+        propertyId={response.propertyId}
         userId={response.userId}
         clockMethod={response.clockMethod}
         employmentType={response.employmentType}

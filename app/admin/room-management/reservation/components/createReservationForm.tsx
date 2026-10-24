@@ -10,6 +10,7 @@ import { Id } from "../../../../../convex/_generated/dataModel";
 import { api } from "../../../../../convex/_generated/api";
 import { useState, useEffect, useRef } from "react";
 import { formatPropertyMoney, usePropertyCurrency } from "../../../inventory-management/components/money";
+import { useFrontOfficeDuty } from "../../components/useFrontOfficeDuty";
 
 type GuestMode = "existing" | "new";
 
@@ -58,6 +59,7 @@ export function FormComponent({
   propertyId: string;
   initialGuestId?: string | null;
 }) {
+  const desk = useFrontOfficeDuty();
   const createReservation = useMutation(api.reservations.createReservation);
   const currency = usePropertyCurrency(propertyId);
   const roomsResponse = useQuery(api.rooms.getAllRooms, {
@@ -600,11 +602,14 @@ export function FormComponent({
         </div>
       </div>
 
+      {desk.message ? (
+        <p className={`text-sm ${desk.blocked ? 'text-amber-800' : 'text-gray-700'}`}>{desk.message}</p>
+      ) : null}
       <Modal.Footer>
         <Button variant="secondary" onClick={onClose}>
           Cancel
         </Button>
-        <Button type="submit" variant="dark">
+        <Button type="submit" variant="dark" disabled={desk.blocked}>
           Submit
         </Button>
       </Modal.Footer>

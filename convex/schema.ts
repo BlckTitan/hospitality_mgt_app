@@ -609,6 +609,14 @@ export default defineSchema({
     checkedOutAt: v.optional(v.number()),
     /** User (receptionist) who created the booking. Optional for pre-existing rows. */
     bookedByUserId: v.optional(v.id("users")),
+    bookedByEmployeeId: v.optional(v.id("staffs")),
+    bookedShiftId: v.optional(v.id("shifts")),
+    checkedInByUserId: v.optional(v.id("users")),
+    checkedInByEmployeeId: v.optional(v.id("staffs")),
+    checkedInShiftId: v.optional(v.id("shifts")),
+    checkedOutByUserId: v.optional(v.id("users")),
+    checkedOutByEmployeeId: v.optional(v.id("staffs")),
+    checkedOutShiftId: v.optional(v.id("shifts")),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -1188,6 +1196,9 @@ export default defineSchema({
     propertyId: v.id("properties"),
     barId: v.optional(v.id("bars")),
     reservationId: v.optional(v.id("reservations")),
+    // Set from the open F&B shift. Optional so checks rung before this link still load.
+    shiftId: v.optional(v.id("shifts")),
+    employeeId: v.optional(v.id("staffs")),
     orderType: v.union(
       v.literal("bar"),
       v.literal("room_service"),
@@ -1225,7 +1236,8 @@ export default defineSchema({
     ])
     .index("by_propertyId_and_checkSuffix", ["propertyId", "checkSuffix"])
     .index("by_reservationId", ["reservationId"])
-    .index("by_serverUserId", ["serverUserId"]),
+    .index("by_serverUserId", ["serverUserId"])
+    .index("by_shiftId", ["shiftId"]),
 
   orderLines: defineTable({
     propertyId: v.id("properties"),

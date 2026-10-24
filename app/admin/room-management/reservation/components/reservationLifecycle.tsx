@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { api } from '../../../../../convex/_generated/api';
 import { Id } from '../../../../../convex/_generated/dataModel';
 import { formatPropertyMoney } from '../../../inventory-management/components/money';
+import { useFrontOfficeDuty } from '../../components/useFrontOfficeDuty';
 
 type PaymentMethod = 'cash' | 'card' | 'bank_transfer' | 'other';
 
@@ -122,6 +123,7 @@ export function ReservationLifecycleActions({
   currency?: string;
   layout?: 'full' | 'compact';
 }) {
+  const desk = useFrontOfficeDuty();
   const confirmReservation = useMutation(api.reservations.confirmReservation);
   const checkInReservation = useMutation(api.reservations.checkInReservation);
   const checkOutReservation = useMutation(api.reservations.checkOutReservation);
@@ -292,14 +294,18 @@ export function ReservationLifecycleActions({
         </label>
       )}
       <div className="flex items-end gap-2 sm:col-span-2">
-        <Button variant="dark" size="sm" disabled={busy} onClick={() => void submitCollection()}>
+        <Button variant="dark" size="sm" disabled={busy || desk.blocked} onClick={() => void submitCollection()}>
           {collecting === 'check-in' ? 'Complete check-in' : 'Complete check-out'}
         </Button>
-        <Button variant="secondary" size="sm" disabled={busy} onClick={() => setCollecting(null)}>
+        <Button variant="secondary" size="sm" disabled={busy || desk.blocked} onClick={() => setCollecting(null)}>
           Back
         </Button>
       </div>
     </div>
+  ) : null;
+
+  const dutyNote = desk.message ? (
+    <p className={`mb-0 text-sm ${desk.blocked ? 'text-amber-800' : 'text-gray-700'}`}>{desk.message}</p>
   ) : null;
 
   if (layout === 'compact') {
@@ -310,7 +316,7 @@ export function ReservationLifecycleActions({
             <Button
               variant="outline-primary"
               size="sm"
-              disabled={busy}
+              disabled={busy || desk.blocked}
               onClick={() => {
                 if (!confirm('Confirm this reservation?')) return;
                 void run(() => confirmReservation({ reservationId }));
@@ -320,12 +326,12 @@ export function ReservationLifecycleActions({
             </Button>
           )}
           {canCheckIn && (
-            <Button variant="outline-success" size="sm" disabled={busy} onClick={() => startCollecting('check-in')}>
+            <Button variant="outline-success" size="sm" disabled={busy || desk.blocked} onClick={() => startCollecting('check-in')}>
               Check in
             </Button>
           )}
           {canCheckOut && (
-            <Button variant="outline-dark" size="sm" disabled={busy} onClick={() => startCollecting('check-out')}>
+            <Button variant="outline-dark" size="sm" disabled={busy || desk.blocked} onClick={() => startCollecting('check-out')}>
               Check out
             </Button>
           )}
@@ -333,7 +339,7 @@ export function ReservationLifecycleActions({
             <Button
               variant="outline-danger"
               size="sm"
-              disabled={busy}
+              disabled={busy || desk.blocked}
               onClick={() => {
                 if (!confirm('Cancel this reservation?')) return;
                 void run(() => cancelReservation({ reservationId }));
@@ -361,6 +367,7 @@ export function ReservationLifecycleActions({
           <p className="mb-0"><strong>Balance:</strong> {formatPropertyMoney(remaining, currency)}</p>
         </div>
       </div>
+      {dutyNote ? <div className="mt-2">{dutyNote}</div> : null}
       <p className="mt-2 mb-0 text-sm text-gray-600">
         Status changes only through these actions. Payment over zero needs evidence — cash attestation or a receipt file.
       </p>
@@ -368,7 +375,7 @@ export function ReservationLifecycleActions({
         {canConfirm && (
           <Button
             variant="outline-primary"
-            disabled={busy}
+            disabled={busy || desk.blocked}
             onClick={() => {
               if (!confirm('Confirm this reservation?')) return;
               void run(() => confirmReservation({ reservationId }));
@@ -378,19 +385,19 @@ export function ReservationLifecycleActions({
           </Button>
         )}
         {canCheckIn && (
-          <Button variant="success" disabled={busy} onClick={() => startCollecting('check-in')}>
+          <Button variant="success" disabled={busy || desk.blocked} onClick={() => startCollecting('check-in')}>
             Check in
           </Button>
         )}
         {canCheckOut && (
-          <Button variant="dark" disabled={busy} onClick={() => startCollecting('check-out')}>
+          <Button variant="dark" disabled={busy || desk.blocked} onClick={() => startCollecting('check-out')}>
             Check out
           </Button>
         )}
         {canCancel && (
           <Button
             variant="outline-danger"
-            disabled={busy}
+            disabled={busy || desk.blocked}
             onClick={() => {
               if (!confirm('Cancel this reservation?')) return;
               void run(() => cancelReservation({ reservationId }));

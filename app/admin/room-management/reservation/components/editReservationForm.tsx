@@ -11,6 +11,7 @@ import InputComponent from "../../../../../shared/input";
 import { useState, useEffect } from "react";
 import { ReservationLifecycleActions, ReservationPaymentHistory } from "./reservationLifecycle";
 import { formatPropertyMoney, usePropertyCurrency } from "../../../inventory-management/components/money";
+import { useFrontOfficeDuty } from "../../components/useFrontOfficeDuty";
 
 type FormData = {
   id: Id<'reservations'>;
@@ -41,6 +42,8 @@ export function FormComponent({
   paidTotal = 0,
   payments = [],
   bookedBy,
+  checkedInBy,
+  checkedOutBy,
 }: {
   id: Id<'reservations'>;
   roomId: string;
@@ -56,6 +59,8 @@ export function FormComponent({
   propertyId: string;
   paidTotal?: number;
   bookedBy?: { name: string; email?: string } | null;
+  checkedInBy?: { name: string; email?: string } | null;
+  checkedOutBy?: { name: string; email?: string } | null;
   payments?: Array<{
     _id: string;
     amount: number;
@@ -70,6 +75,7 @@ export function FormComponent({
     } | null;
   }>;
 }) {
+  const desk = useFrontOfficeDuty();
   const updateReservation = useMutation(api.reservations.updateReservation);
   const currency = usePropertyCurrency(propertyId);
   const roomsResponse = useQuery(api.rooms.getAllRooms, { propertyId: propertyId as Id<'properties'> });
@@ -195,6 +201,19 @@ export function FormComponent({
         </span>
         {bookedBy?.email ? ` · ${bookedBy.email}` : ''}
       </p>
+      {checkedInBy?.name ? (
+        <p className="mb-1 text-sm text-gray-600">
+          Checked in by: <span className="font-medium text-gray-900">{checkedInBy.name}</span>
+        </p>
+      ) : null}
+      {checkedOutBy?.name ? (
+        <p className="mb-4 text-sm text-gray-600">
+          Checked out by: <span className="font-medium text-gray-900">{checkedOutBy.name}</span>
+        </p>
+      ) : null}
+      {desk.message ? (
+        <p className={`mb-4 text-sm ${desk.blocked ? 'text-amber-800' : 'text-gray-700'}`}>{desk.message}</p>
+      ) : null}
 
       {isClosed && (
         <p className="mb-4 text-sm text-gray-600">
@@ -344,7 +363,7 @@ export function FormComponent({
         <Button type="button" variant="secondary" onClick={() => window.history.back()}>
           Back
         </Button>
-        {!isClosed && <Button type="submit" variant='dark'>Save booking</Button>}
+        {!isClosed && <Button type="submit" variant='dark' disabled={desk.blocked}>Save booking</Button>}
       </Modal.Footer>
     </form>
   );

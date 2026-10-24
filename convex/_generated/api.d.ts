@@ -31,6 +31,7 @@ import type * as inventoryTransactions from "../inventoryTransactions.js";
 import type * as lib_barStock from "../lib/barStock.js";
 import type * as lib_billingPeriods from "../lib/billingPeriods.js";
 import type * as lib_clockMethod from "../lib/clockMethod.js";
+import type * as lib_dutyContext from "../lib/dutyContext.js";
 import type * as lib_inventoryStock from "../lib/inventoryStock.js";
 import type * as lib_payrollHelpers from "../lib/payrollHelpers.js";
 import type * as lib_payrollPacks from "../lib/payrollPacks.js";
@@ -117,6 +118,7 @@ declare const fullApi: ApiFromModules<{
   "lib/barStock": typeof lib_barStock;
   "lib/billingPeriods": typeof lib_billingPeriods;
   "lib/clockMethod": typeof lib_clockMethod;
+  "lib/dutyContext": typeof lib_dutyContext;
   "lib/inventoryStock": typeof lib_inventoryStock;
   "lib/payrollHelpers": typeof lib_payrollHelpers;
   "lib/payrollPacks": typeof lib_payrollPacks;

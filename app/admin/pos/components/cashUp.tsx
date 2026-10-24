@@ -151,6 +151,7 @@ export default function CashUp() {
           <div className="border rounded-md p-3">
             <div className="text-xs text-gray-500">Date</div>
             <div className="font-semibold">{expected.settlementDateKey}</div>
+            <div className="text-xs text-gray-600">{expected.barName || 'No bar on this shift'}</div>
           </div>
           <div className="border rounded-md p-3">
             <div className="text-xs text-gray-500">Expected cash</div>

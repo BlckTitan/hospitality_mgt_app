@@ -46,6 +46,8 @@ export default function Page() {
         paidTotal={reservation.paidTotal ?? 0}
         payments={reservation.payments ?? []}
         bookedBy={reservation.bookedBy ?? null}
+        checkedInBy={reservation.checkedInBy ?? null}
+        checkedOutBy={reservation.checkedOutBy ?? null}
       />
     </div>
   );
