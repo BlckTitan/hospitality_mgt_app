@@ -4,6 +4,11 @@ import { requirePermission, requirePermissionOrFirstProperty, getAuthContext } f
 import { assignAdministratorRoleForProperty } from './lib/systemRoles';
 import { seedPayrollForProperty } from './lib/payrollHelpers';
 
+function clampReminderDays(days: number | undefined): number {
+  if (days === undefined || Number.isNaN(days)) return 1;
+  return Math.min(7, Math.max(0, Math.floor(days)));
+}
+
 export const listAccessibleProperties = query({
   args: {},
   handler: async (ctx) => {
@@ -96,6 +101,7 @@ export const createProperty = mutation({
     currency: v.optional(v.string()),
     taxId: v.optional(v.string()),
     country: v.optional(v.string()),
+    retainerReminderDays: v.optional(v.number()),
     isActive: v.boolean(),
     logoUrl: v.optional(v.union(v.string(), v.null())),
     coverImageUrl: v.optional(v.union(v.string(), v.null())),
@@ -136,6 +142,7 @@ export const createProperty = mutation({
         currency: args.currency || 'USD',
         taxId: args.taxId,
         country: args.country?.trim().toUpperCase() || undefined,
+        retainerReminderDays: clampReminderDays(args.retainerReminderDays),
         isActive: args.isActive,
         ...(logo ? { logoUrl: logo } : {}),
         ...(cover ? { coverImageUrl: cover } : {}),
@@ -165,6 +172,7 @@ export const updateProperty = mutation({
     currency: v.optional(v.string()),
     taxId: v.optional(v.string()),
     country: v.optional(v.string()),
+    retainerReminderDays: v.optional(v.number()),
     isActive: v.boolean(),
     logoUrl: v.optional(v.union(v.string(), v.null())),
     coverImageUrl: v.optional(v.union(v.string(), v.null())),
@@ -236,6 +244,7 @@ export const updateProperty = mutation({
         timezone: args.timezone,
         currency: args.currency,
         taxId: args.taxId,
+        retainerReminderDays: clampReminderDays(args.retainerReminderDays),
         country: nextCountry ?? existingProperty.country,
         isActive: args.isActive,
         ...logoPatch,

@@ -29,6 +29,7 @@ import {
   resolveStaffClockMethod,
   staffClockMethodValidator,
 } from './lib/clockMethod';
+import { changeRequestError, firstError, payDetailErrors, staffProfileError } from './lib/fieldText';
 
 type DbCtx = MutationCtx | QueryCtx;
 
@@ -502,6 +503,8 @@ export const createStaff = mutation({
       if (!trimmedImage) {
         return { success: false, message: 'Staff photo is required' };
       }
+      const profileError = staffProfileError(args);
+      if (profileError) return { success: false, message: profileError };
 
       if (args.email && (await emailTaken(ctx, args.email, propertyId))) {
         return { success: false, message: 'Staff already exists with that email at this property' };
@@ -557,6 +560,22 @@ export const createStaff = mutation({
       const payType = canPay ? (args.payType ?? 'salary') : 'salary';
       const baseSalary = args.salary ?? 0;
       const paymentMethod = canPay ? (args.paymentMethod ?? 'cash') : 'cash';
+      if (canPay) {
+        const payError = firstError(
+          payDetailErrors({
+            payType,
+            paymentMethod,
+            baseSalary,
+            hourlyRate: args.hourlyRate,
+            taxId: args.taxId,
+            bankName: args.bankName,
+            accountName: args.accountName,
+            accountNumber: args.accountNumber,
+            routingCode: args.routingCode,
+          }),
+        );
+        if (payError) return { success: false, message: payError };
+      }
 
       const staffId = await ctx.db.insert('staffs', {
         email: args.email,
@@ -685,6 +704,8 @@ export const updateStaff = mutation({
       if (!trimmedImage) {
         return { success: false, message: 'Staff photo is required' };
       }
+      const profileError = staffProfileError(args);
+      if (profileError) return { success: false, message: profileError };
 
       if (args.email && (await emailTaken(ctx, args.email, propertyId, existingStaff._id))) {
         return { success: false, message: 'Another staff member already uses that email at this property' };
@@ -825,9 +846,20 @@ export const upsertPayHistory = mutation({
     if (!canUpdateCompensation(compensationAuth(auth, staff.propertyId))) {
       return { success: false, message: 'You cannot change compensation' };
     }
-    if (args.paymentMethod === 'bank' && !args.accountNumber && !staff.accountNumber) {
-      return { success: false, message: 'Bank account number is required for bank payment' };
-    }
+    const payError = firstError(
+      payDetailErrors({
+        payType: args.payType,
+        paymentMethod: args.paymentMethod ?? staff.paymentMethod,
+        baseSalary: args.baseSalary ?? staff.baseSalary ?? staff.salary,
+        hourlyRate: args.hourlyRate ?? staff.hourlyRate,
+        taxId: args.taxId ?? staff.taxId,
+        bankName: args.bankName ?? staff.bankName,
+        accountName: args.accountName ?? staff.accountName,
+        accountNumber: args.accountNumber ?? staff.accountNumber,
+        routingCode: args.routingCode ?? staff.routingCode,
+      }),
+    );
+    if (payError) return { success: false, message: payError };
     const effectiveFrom = args.effectiveFrom ?? Date.now();
     await closeAndInsertPayHistory(ctx, {
       employeeId: staff._id,
@@ -1152,6 +1184,8 @@ export const createChangeRequest = mutation({
     if (!staff?.propertyId) {
       return { success: false, message: 'No staff record is linked to your login.' };
     }
+    const payloadError = changeRequestError(args.kind, args.payload);
+    if (payloadError) return { success: false, message: payloadError };
     const now = Date.now();
     await ctx.db.insert('staffChangeRequests', {
       propertyId: staff.propertyId,
@@ -1183,6 +1217,8 @@ export const reviewChangeRequest = mutation({
     if (args.status === 'approved') {
       const staff = await ctx.db.get(request.employeeId);
       if (!staff) return { success: false, message: 'Staff not found' };
+      const payloadError = changeRequestError(request.kind, request.payload);
+      if (payloadError) return { success: false, message: payloadError };
       const payload = request.payload as Record<string, string | undefined>;
       if (request.kind === 'contact') {
         await ctx.db.patch(staff._id, {

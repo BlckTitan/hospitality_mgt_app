@@ -11,6 +11,7 @@ import SelectComponent from '../../../../shared/select';
 import { PAYMENT_METHOD_OPTIONS } from '../../billing/components/labels';
 import { cashPeriodBounds } from '../../../../lib/cashPeriod';
 import { EXPENSE_CATEGORY_OPTIONS } from './categoryLabels';
+import { hasLetter } from '../../../../convex/lib/fieldText';
 
 const EXPENSE_NAME_MAX_LENGTH = 80;
 const INVOICE_NUMBER_MAX_LENGTH = 20;
@@ -100,6 +101,7 @@ export function RecordExpenseForm({
             value: EXPENSE_NAME_MAX_LENGTH,
             message: `Name must be ${EXPENSE_NAME_MAX_LENGTH} characters or fewer`,
           },
+          validate: (value) => hasLetter(value) || 'Name cannot be numbers only',
         })}
         error={errors.name}
       />
@@ -130,7 +132,11 @@ export function RecordExpenseForm({
         label='Vendor *'
         type='text'
         inputWidth='w-full'
-        register={register('vendor', { required: true })}
+        register={register('vendor', {
+          required: 'Vendor is required',
+          validate: (value) => hasLetter(value) || 'Vendor cannot be numbers only',
+        })}
+        error={errors.vendor}
       />
       <InputComponent
         id='description'

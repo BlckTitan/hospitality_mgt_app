@@ -8,6 +8,7 @@ import { api } from "../../../../../convex/_generated/api";
 import { formSchema } from "./validation";
 import InputComponent from "../../../../../shared/input";
 import ImageUpload from "../../../../../shared/imageUpload";
+import { ShortStayPriceFields, emptyShortStayPrices, pricesToPayload } from "./shortStayPriceFields";
 
 type FormData = {
   name: string;
@@ -23,6 +24,7 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
   const createRoomType = useMutation(api.roomTypes.createRoomType);
   const [amenities, setAmenities] = useState<string[]>([]);
   const [amenityInput, setAmenityInput] = useState('');
+  const [shortStayPrices, setShortStayPrices] = useState<number[]>(emptyShortStayPrices());
 
   const { register, handleSubmit, formState: { errors }, reset, setValue, watch } = useForm<FormData>({
     resolver: yupResolver(formSchema) as any,
@@ -61,6 +63,7 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
         amenities: amenities,
         isActive: data.isActive,
         imageUrl: data.imageUrl || undefined,
+        shortStayPrices: pricesToPayload(shortStayPrices),
       });
 
       if (response.success === false) {
@@ -140,6 +143,11 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
           />
         </div>
       </div>
+
+      <ShortStayPriceFields
+        prices={shortStayPrices}
+        onChange={(index, amount) => setShortStayPrices((prev) => prev.map((value, i) => i === index ? amount : value))}
+      />
 
       <div className="w-full mb-4">
         <label className="block mb-2 font-semibold text-sm">Amenities</label>

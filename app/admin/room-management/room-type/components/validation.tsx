@@ -1,12 +1,8 @@
 import * as yup from "yup";
+import { recordName } from "../../../../../lib/yupFields";
 
 export const formSchema = yup.object().shape({
-  name: yup
-    .string()
-    .trim()
-    .min(2, "Room type name must be at least 2 characters")
-    .max(100, "Room type name must not exceed 100 characters")
-    .required("Room type name is required"),
+  name: recordName("Room type name", { max: 100 }),
 
   description: yup
     .string()

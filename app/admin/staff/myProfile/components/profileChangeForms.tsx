@@ -6,6 +6,12 @@ import { Button } from '../../../../../shared/button'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { Id } from '../../../../../convex/_generated/dataModel'
+import {
+  contactChangeError,
+  emergencyContactError,
+  firstError,
+  payDetailErrors,
+} from '../../../../../convex/lib/fieldText'
 
 type ProfileDetail = {
   phone?: string
@@ -43,9 +49,15 @@ export function ContactChangeForm({
         variant='dark'
         size='sm'
         onClick={async () => {
+          const payload = { phone: phone || detail.phone, address: address || detail.address }
+          const message = contactChangeError(payload.phone, payload.address)
+          if (message) {
+            toast.error(message)
+            return
+          }
           const result = await createChangeRequest({
             kind: 'contact',
-            payload: { phone: phone || detail.phone, address: address || detail.address },
+            payload,
           })
           if (result.success) {
             toast.success(result.message)
@@ -91,6 +103,11 @@ export function EmergencyChangeForm({
         variant='dark'
         size='sm'
         onClick={async () => {
+          const message = emergencyContactError(emergencyName, emergencyPhone, emergencyRelationship)
+          if (message) {
+            toast.error(message)
+            return
+          }
           const result = await createChangeRequest({
             kind: 'emergency',
             payload: { emergencyName, emergencyPhone, emergencyRelationship },
@@ -139,9 +156,15 @@ export function BankChangeForm({
         variant='dark'
         size='sm'
         onClick={async () => {
+          const payload = { paymentMethod: 'bank' as const, bankName, accountName, accountNumber }
+          const message = firstError(payDetailErrors({ ...payload, requireAmounts: false }))
+          if (message) {
+            toast.error(message)
+            return
+          }
           const result = await createChangeRequest({
             kind: 'bank',
-            payload: { paymentMethod: 'bank', bankName, accountName, accountNumber },
+            payload,
           })
           if (result.success) {
             toast.success(result.message)
@@ -194,6 +217,10 @@ export function TimeOffRequestForm({
         onClick={async () => {
           if (!timeOffTypeId || !startDate || !endDate) {
             toast.error('Select a type and dates')
+            return
+          }
+          if (endDate < startDate) {
+            toast.error('End date must be on or after start date')
             return
           }
           const result = await requestTimeOff({

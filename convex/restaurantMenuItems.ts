@@ -1,6 +1,6 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
-import { requirePermission } from './lib/rbac';
+import { hasGranularPermission, requirePermission, scopeAuthContextToProperty } from './lib/rbac';
 
 const stationValidator = v.union(
   v.literal('kitchen'),
@@ -15,7 +15,11 @@ export const listMenuItems = query({
     isActive: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    await requirePermission(ctx, 'restaurant.read', args.propertyId);
+    const auth = await requirePermission(ctx, 'restaurant.menu.read', args.propertyId);
+    const menuOnly = !hasGranularPermission(
+      scopeAuthContextToProperty(auth, args.propertyId),
+      'restaurant.read',
+    );
 
     let rows =
       args.station !== undefined
@@ -35,7 +39,8 @@ export const listMenuItems = query({
     }
 
     rows.sort((a, b) => a.name.localeCompare(b.name));
-    return { success: true, data: rows };
+    const data = menuOnly ? rows.map(({ cost: _cost, ...item }) => item) : rows;
+    return { success: true, data };
   },
 });
 

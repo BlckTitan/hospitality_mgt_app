@@ -105,6 +105,11 @@ The agent checks available rooms. The system queries:
   - `status: "confirmed"`
   - `confirmationNumber: "GH-2024-10001"`
   - `bookedByUserId: <signed-in User id>` (receptionist on duty)
+  - `stayKind: "overnight"`
+
+A short stay is the same mutation with `stayKind: "short"`, a clock `checkInDate`, and `durationHours` from 1 to 7. The server sets `checkOutDate`, `rate`, and `totalAmount` from `shortStayRates` for that room type. It refuses the room when an overnight reservation already holds that calendar day, while an overnight guest is still checked in on the checkout morning, or while a checkout clean is open. Short stays do not count as sold nights.
+
+When a checked-in overnight guest may stay longer, the desk marks `mayExtend` or waits for the property reminder window (`retainerReminderDays`, default today and tomorrow). `getDeskReminders` lists them with balance and the last follow-up. `extendOvernightStay` adds one or two nights at the nightly rate and records the follow-up as extending. The guest is not extended automatically.
 
 **Step 3: Payment Processing**
 

@@ -1,4 +1,5 @@
 import * as yup from 'yup'
+import { recordName } from '../../../../../lib/yupFields'
 
 export const STATION_OPTIONS = [
   { value: 'kitchen', label: 'Kitchen' },
@@ -7,8 +8,8 @@ export const STATION_OPTIONS = [
 ]
 
 export const formSchema = yup.object().shape({
-  name: yup.string().trim().required('Name is required'),
-  category: yup.string().trim().required('Category is required'),
+  name: recordName('Name', { max: 120 }),
+  category: recordName('Category', { max: 80 }),
   station: yup.string().oneOf(['kitchen', 'grill', 'other']).required('Station is required'),
   price: yup
     .number()

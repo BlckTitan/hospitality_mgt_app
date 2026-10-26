@@ -1,19 +1,10 @@
 import * as yup from "yup";
+import { recordName } from "../../../../../lib/yupFields";
 
 export const formSchema = yup.object().shape({
-  name: yup
-    .string()
-    .trim()
-    .min(2, "Name must be at least 2 characters")
-    .max(200, "Name must not exceed 200 characters")
-    .required("Name is required"),
+  name: recordName("Name"),
 
-  contactPerson: yup
-    .string()
-    .trim()
-    .max(200, "Contact person name must not exceed 200 characters")
-    .optional()
-    .nullable(),
+  contactPerson: recordName("Contact person name", { required: false, max: 200 }),
 
   email: yup
     .string()

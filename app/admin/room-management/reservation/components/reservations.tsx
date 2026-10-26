@@ -26,6 +26,8 @@ interface ReservationProps {
   totalAmount: number;
   depositAmount?: number;
   status: string;
+  stayKind?: 'overnight' | 'short';
+  durationHours?: number;
   source?: string;
   specialRequests?: string;
   checkedInAt?: number;
@@ -98,6 +100,13 @@ const Reservations = ({ propertyId }: { propertyId: string }) => {
       render: (value, row) => (
         <span>{row.room ? `${row.room.roomNumber}${row.room.roomType ? ` (${row.room.roomType.name})` : ''}` : 'N/A'}</span>
       )
+    },
+    {
+      label: 'Stay',
+      key: 'stayKind',
+      render: (_value, row) => (
+        <span>{row.stayKind === 'short' ? `Short${row.durationHours ? ` · ${row.durationHours}h` : ''}` : 'Overnight'}</span>
+      ),
     },
     {
       label: 'Check-in',

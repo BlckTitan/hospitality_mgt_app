@@ -1,4 +1,6 @@
 import * as yup from 'yup';
+import { hasLetter } from '../../../convex/lib/fieldText';
+import { emptyStringToUndefined } from '../../../lib/yupFields';
 
 export const propertySetupSchema = yup.object().shape({
   name: yup
@@ -7,11 +9,13 @@ export const propertySetupSchema = yup.object().shape({
     .min(2, 'Property name must be at least 2 characters')
     .max(100, 'Property name must not exceed 100 characters')
     .matches(/^[A-Za-z0-9\s\-&.,]+$/, 'Property name contains invalid characters')
+    .test('has-letter', 'Property name cannot be numbers only', (value) => hasLetter(value))
     .required('Property name is required'),
 
   email: yup
     .string()
     .trim()
+    .transform(emptyStringToUndefined)
     .email('Please enter a valid email address')
     .max(254, 'Email is too long')
     .matches(/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/, 'Enter a valid email address')
@@ -35,10 +39,11 @@ export const propertySetupSchema = yup.object().shape({
     phone: yup
     .string()
     .trim()
-    .matches(
-      /^[+]?[(]?[0-9]{1,4}[)]?[-\s.]?[(]?[0-9]{1,4}[)]?[-\s.]?[0-9]{1,9}$/,
-      'Please enter a valid phone number'
-    )
+    .transform(emptyStringToUndefined)
+    .matches(/^[+]?[(]?[0-9]{1,4}[)]?[-\s.]?[(]?[0-9]{1,4}[)]?[-\s.]?[0-9]{1,9}$/, {
+      message: 'Please enter a valid phone number',
+      excludeEmptyString: true,
+    })
     .optional(),
 
   address: yup

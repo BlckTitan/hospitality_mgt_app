@@ -32,7 +32,7 @@ export const SYSTEM_ROLE_DEFINITIONS: SystemRoleDefinition[] = [
   { name: "Manager", description: "Department manager with broad operational access" },
   { name: "Assistant Manager", description: "Supports managers on reservations, F&B, and team oversight" },
   { name: "Supervisor", description: "Floor supervisor for F&B, tasks, hours, and direct reports" },
-  { name: "Receptionist", description: "Front desk reservations, guests, and limited F&B / finance" },
+  { name: "Receptionist", description: "Front desk reservations, guests, rooms, and read-only food and drink menus" },
   { name: "Concierge", description: "Guest services with limited reservation access" },
   { name: "Housekeeping", description: "Housekeeping tasks and limited room / reservation visibility" },
   { name: "Waiter", description: "F&B service orders" },
@@ -278,6 +278,10 @@ export function buildRolePermissions(roleName: string): Record<string, boolean> 
     permissions["system.settings"] = true;
     delete permissions["system.admin"];
     delete permissions["system.audit"];
+  }
+
+  if (roleName === "Receptionist") {
+    grant(["fnb.menu.read", "restaurant.menu.read"], permissions);
   }
 
   return permissions;

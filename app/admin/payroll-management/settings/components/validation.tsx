@@ -1,4 +1,5 @@
 import * as yup from 'yup';
+import { recordName } from '../../../../../lib/yupFields';
 
 export const SETTINGS_CODE = /^\d{6}$/;
 
@@ -23,7 +24,7 @@ export const timeOffTypeSchema = yup.object({
     .transform((value) => String(value ?? '').replace(/\D/g, '').slice(0, 6))
     .matches(SETTINGS_CODE, 'Code must be exactly 6 digits')
     .required('Code is required'),
-  name: yup.string().trim().required('Enter a Time-off type name'),
+  name: recordName('Time-off type name', { max: 80, requiredMessage: 'Enter a Time-off type name' }),
   paid: yup.boolean().required(),
 });
 
@@ -33,7 +34,7 @@ export const payItemTypeSchema = yup.object({
     .transform((value) => String(value ?? '').replace(/\D/g, '').slice(0, 6))
     .matches(SETTINGS_CODE, 'Code must be exactly 6 digits')
     .required('Code is required'),
-  name: yup.string().trim().required('Enter a Pay item type name'),
+  name: recordName('Pay item type name', { max: 80, requiredMessage: 'Enter a Pay item type name' }),
   kind: yup
     .mixed<'earning' | 'allowance' | 'deduction'>()
     .oneOf(['earning', 'allowance', 'deduction'])
@@ -43,7 +44,7 @@ export const payItemTypeSchema = yup.object({
 
 export const holidaySchema = yup.object({
   date: yup.string().required('Select a holiday date'),
-  name: yup.string().trim().required('Enter a holiday name'),
+  name: recordName('Holiday name', { max: 80, requiredMessage: 'Enter a holiday name' }),
 });
 
 export const extraPayRuleSchema = yup.object({

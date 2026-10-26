@@ -1,10 +1,25 @@
 import { mutation, query, MutationCtx, QueryCtx } from './_generated/server';
 import { v } from 'convex/values';
 import { Id } from './_generated/dataModel';
-import { requirePermission } from './lib/rbac';
+import { requirePermission, tryRequirePermission } from './lib/rbac';
 import { peopleSearchName } from './lib/searchNames';
 import { maybeCreateCheckoutOnCheckOut, maybeCreateStayoverOnCheckIn } from './lib/taskAssignment';
 import { requireFrontOfficeDuty } from './lib/dutyContext';
+import { propertyTimeZone, localDayBounds } from './lib/billingPeriods';
+import {
+  DAY_MS,
+  HOUR_MS,
+  MAY_EXTEND_LEAD_DAYS,
+  addDateKey,
+  isShortStay,
+  overnightBlocksShortStay,
+  rangesOverlap,
+  reminderDaysOf,
+  shortStayRateFor,
+  stayKindOf,
+  utcDateKey,
+  roomHasOpenCheckoutClean,
+} from './lib/stays';
 
 function generateConfirmationNumber(timestamp: number): string {
   const date = new Date(timestamp);
@@ -47,29 +62,66 @@ async function guardFrontOffice(
   return await requireFrontOfficeDuty(ctx, { userId, propertyId });
 }
 
-function rangesOverlap(aStart: number, aEnd: number, bStart: number, bEnd: number): boolean {
-  return aStart < bEnd && bStart < aEnd;
-}
-
-async function findOverlappingReservation(
+async function bookingConflict(
   ctx: MutationCtx,
   args: {
     roomId: Id<'rooms'>;
+    stayKind: 'overnight' | 'short';
     checkInDate: number;
     checkOutDate: number;
     excludeId?: Id<'reservations'>;
+    checkingIn?: boolean;
   },
-) {
+): Promise<string | null> {
   const existing = await ctx.db
     .query('reservations')
     .withIndex('by_roomId', (q) => q.eq('roomId', args.roomId))
     .collect();
+  const others = existing.filter((row) => row._id !== args.excludeId && isBlockingStatus(row.status));
 
-  return existing.find((row) => {
-    if (args.excludeId && row._id === args.excludeId) return false;
-    if (!isBlockingStatus(row.status)) return false;
-    return rangesOverlap(row.checkInDate, row.checkOutDate, args.checkInDate, args.checkOutDate);
-  });
+  if (args.stayKind === 'short') {
+    if (await roomHasOpenCheckoutClean(ctx, args.roomId)) {
+      return 'Room is not ready. Finish the checkout clean before a short stay.';
+    }
+    if (args.checkingIn && others.some((row) => row.status === 'checked-in')) {
+      return 'Room is occupied until the current guest checks out';
+    }
+    for (const row of others) {
+      if (isShortStay(row) && rangesOverlap(row.checkInDate, row.checkOutDate, args.checkInDate, args.checkOutDate)) {
+        return 'Room already has a short stay at this time';
+      }
+      if (overnightBlocksShortStay(row, args.checkInDate, args.checkOutDate)) {
+        return 'This room is reserved for an overnight stay and cannot be used for a short stay';
+      }
+    }
+    return null;
+  }
+
+  const overlap = others.find((row) =>
+    rangesOverlap(row.checkInDate, row.checkOutDate, args.checkInDate, args.checkOutDate),
+  );
+  if (overlap) return 'Room is already reserved for these dates';
+  return null;
+}
+
+async function pricedShortStay(
+  ctx: MutationCtx,
+  roomTypeId: Id<'roomTypes'>,
+  durationHours: number | undefined,
+  checkInDate: number,
+): Promise<{ hours: number; checkOutDate: number; amount: number } | { error: string }> {
+  if (durationHours === undefined || !Number.isInteger(durationHours) || durationHours < 1 || durationHours > 7) {
+    return { error: 'Choose a short stay of 1 to 7 hours' };
+  }
+  const rate = await shortStayRateFor(ctx, roomTypeId, durationHours);
+  if (!rate || rate.amount <= 0) {
+    return { error: `No price is set for a ${durationHours}-hour stay on this room type` };
+  }
+  return {
+    hours: durationHours,
+    checkOutDate: checkInDate + durationHours * HOUR_MS,
+    amount: rate.amount,
+  };
 }
 
 async function syncRoomOccupancy(ctx: MutationCtx, roomId: Id<'rooms'>) {
@@ -151,10 +203,11 @@ export const getReservation = query({
       const room = await ctx.db.get(reservation.roomId);
       const roomType = room ? await ctx.db.get(room.roomTypeId) : null;
       const property = await ctx.db.get(reservation.propertyId);
-      const [bookedBy, checkedInBy, checkedOutBy] = await Promise.all([
+      const [bookedBy, checkedInBy, checkedOutBy, retainerFollowedUpBy] = await Promise.all([
         resolveDeskActor(ctx, reservation.bookedByUserId, reservation.bookedByEmployeeId),
         resolveDeskActor(ctx, reservation.checkedInByUserId, reservation.checkedInByEmployeeId),
         resolveDeskActor(ctx, reservation.checkedOutByUserId, reservation.checkedOutByEmployeeId),
+        resolveDeskActor(ctx, reservation.retainerFollowedUpByUserId, reservation.retainerFollowedUpByEmployeeId),
       ]);
       const payments = await ctx.db
         .query('payments')
@@ -186,6 +239,7 @@ export const getReservation = query({
           bookedBy,
           checkedInBy,
           checkedOutBy,
+          retainerFollowedUpBy,
           payments: paymentsWithEvidence,
           paidTotal,
         },
@@ -213,7 +267,7 @@ export const createReservation = mutation({
     /** Inline guest profile for find-or-create booking. */
     newGuest: v.optional(newGuestValidator),
     checkInDate: v.number(),
-    checkOutDate: v.number(),
+    checkOutDate: v.optional(v.number()),
     numberOfGuests: v.number(),
     rate: v.number(),
     totalAmount: v.number(),
@@ -221,6 +275,9 @@ export const createReservation = mutation({
     status: v.union(v.literal('pending'), v.literal('confirmed')),
     source: v.optional(v.union(v.literal("direct"), v.literal("ota"), v.literal("walk-in"), v.literal("phone"), v.literal("other"))),
     specialRequests: v.optional(v.string()),
+    stayKind: v.optional(v.union(v.literal('overnight'), v.literal('short'))),
+    durationHours: v.optional(v.number()),
+    mayExtend: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const auth = await requirePermission(ctx, 'reservations.create', args.propertyId);
@@ -236,10 +293,7 @@ export const createReservation = mutation({
         };
       }
 
-      if (args.checkOutDate <= args.checkInDate) {
-        return { success: false, message: 'Check-out date must be after check-in date' };
-      }
-
+      const stayKind = args.stayKind ?? 'overnight';
       const room = await ctx.db.get(args.roomId);
       if (!room) {
         return { success: false, message: 'Room does not exist' };
@@ -257,6 +311,21 @@ export const createReservation = mutation({
       const roomType = await ctx.db.get(room.roomTypeId);
       if (roomType && args.numberOfGuests > roomType.maxOccupancy) {
         return { success: false, message: `Guest count exceeds max occupancy (${roomType.maxOccupancy})` };
+      }
+
+      let checkOutDate = args.checkOutDate ?? 0;
+      let rate = args.rate;
+      let totalAmount = args.totalAmount;
+      let durationHours: number | undefined;
+      if (stayKind === 'short') {
+        const priced = await pricedShortStay(ctx, room.roomTypeId, args.durationHours, args.checkInDate);
+        if ('error' in priced) return { success: false, message: priced.error };
+        checkOutDate = priced.checkOutDate;
+        rate = priced.amount;
+        totalAmount = priced.amount;
+        durationHours = priced.hours;
+      } else if (checkOutDate <= args.checkInDate) {
+        return { success: false, message: 'Check-out date must be after check-in date' };
       }
 
       const now = Date.now();
@@ -292,14 +361,13 @@ export const createReservation = mutation({
       }
 
       if (isBlockingStatus(args.status)) {
-        const overlappingReservation = await findOverlappingReservation(ctx, {
+        const conflict = await bookingConflict(ctx, {
           roomId: args.roomId,
+          stayKind,
           checkInDate: args.checkInDate,
-          checkOutDate: args.checkOutDate,
+          checkOutDate,
         });
-        if (overlappingReservation) {
-          return { success: false, message: 'Room is already reserved for these dates' };
-        }
+        if (conflict) return { success: false, message: conflict };
       }
 
       const confirmationNumber = await allocateConfirmationNumber(ctx, now);
@@ -310,14 +378,17 @@ export const createReservation = mutation({
         guestId,
         confirmationNumber,
         checkInDate: args.checkInDate,
-        checkOutDate: args.checkOutDate,
+        checkOutDate,
         numberOfGuests: args.numberOfGuests,
-        rate: args.rate,
-        totalAmount: args.totalAmount,
+        rate,
+        totalAmount,
         depositAmount: args.depositAmount,
         status: args.status,
         source: args.source,
         specialRequests: args.specialRequests,
+        stayKind,
+        ...(durationHours ? { durationHours } : {}),
+        ...(stayKind === 'overnight' && args.mayExtend ? { mayExtend: true } : {}),
         bookedByUserId: auth.user._id,
         ...(duty.stamp
           ? {
@@ -468,6 +539,8 @@ export const updateReservation = mutation({
     depositAmount: v.optional(v.number()),
     source: v.optional(v.union(v.literal("direct"), v.literal("ota"), v.literal("walk-in"), v.literal("phone"), v.literal("other"))),
     specialRequests: v.optional(v.string()),
+    durationHours: v.optional(v.number()),
+    mayExtend: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const existingReservation = await ctx.db.get(args.reservationId);
@@ -483,10 +556,6 @@ export const updateReservation = mutation({
     try {
       if (existingReservation.status === 'checked-out' || existingReservation.status === 'cancelled') {
         return { success: false, message: 'Checked-out or cancelled reservations cannot be edited' };
-      }
-
-      if (args.checkOutDate <= args.checkInDate) {
-        return { success: false, message: 'Check-out date must be after check-in date' };
       }
 
       const room = await ctx.db.get(args.roomId);
@@ -513,29 +582,48 @@ export const updateReservation = mutation({
         return { success: false, message: `Guest count exceeds max occupancy (${roomType.maxOccupancy})` };
       }
 
+      const stayKind = stayKindOf(existingReservation);
+      let checkOutDate = args.checkOutDate;
+      let rate = args.rate;
+      let totalAmount = args.totalAmount;
+      let durationHours = existingReservation.durationHours;
+      if (stayKind === 'short') {
+        const hours = args.durationHours ?? existingReservation.durationHours;
+        const priced = await pricedShortStay(ctx, room.roomTypeId, hours, args.checkInDate);
+        if ('error' in priced) return { success: false, message: priced.error };
+        checkOutDate = priced.checkOutDate;
+        rate = priced.amount;
+        totalAmount = priced.amount;
+        durationHours = priced.hours;
+      } else if (checkOutDate <= args.checkInDate) {
+        return { success: false, message: 'Check-out date must be after check-in date' };
+      }
+
       if (isBlockingStatus(existingReservation.status)) {
-        const overlappingReservation = await findOverlappingReservation(ctx, {
+        const conflict = await bookingConflict(ctx, {
           roomId: args.roomId,
+          stayKind,
           checkInDate: args.checkInDate,
-          checkOutDate: args.checkOutDate,
+          checkOutDate,
           excludeId: args.reservationId,
         });
-        if (overlappingReservation) {
-          return { success: false, message: 'Room is already reserved for these dates' };
-        }
+        if (conflict) return { success: false, message: conflict };
       }
 
       const now = Date.now();
       await ctx.db.patch(args.reservationId, {
         roomId: args.roomId,
         checkInDate: args.checkInDate,
-        checkOutDate: args.checkOutDate,
+        checkOutDate,
         numberOfGuests: args.numberOfGuests,
-        rate: args.rate,
-        totalAmount: args.totalAmount,
+        rate,
+        totalAmount,
         depositAmount: args.depositAmount,
         source: args.source,
         specialRequests: args.specialRequests,
+        stayKind,
+        ...(stayKind === 'short' && durationHours ? { durationHours } : {}),
+        ...(stayKind === 'overnight' ? { mayExtend: Boolean(args.mayExtend) } : { mayExtend: undefined }),
         updatedAt: now,
       });
 
@@ -565,15 +653,14 @@ export const confirmReservation = mutation({
     if (reservation.status !== 'pending') {
       return { success: false, message: 'Only pending reservations can be confirmed' };
     }
-    const overlap = await findOverlappingReservation(ctx, {
+    const conflict = await bookingConflict(ctx, {
       roomId: reservation.roomId,
+      stayKind: stayKindOf(reservation),
       checkInDate: reservation.checkInDate,
       checkOutDate: reservation.checkOutDate,
       excludeId: reservation._id,
     });
-    if (overlap) {
-      return { success: false, message: 'Room is already reserved for these dates' };
-    }
+    if (conflict) return { success: false, message: conflict };
     await ctx.db.patch(args.reservationId, { status: 'confirmed', updatedAt: Date.now() });
     return { success: true, message: 'Reservation confirmed' };
   },
@@ -609,15 +696,15 @@ export const checkInReservation = mutation({
       return { success: false, message: 'Room is not available for check-in' };
     }
 
-    const overlap = await findOverlappingReservation(ctx, {
+    const conflict = await bookingConflict(ctx, {
       roomId: reservation.roomId,
+      stayKind: stayKindOf(reservation),
       checkInDate: reservation.checkInDate,
       checkOutDate: reservation.checkOutDate,
       excludeId: reservation._id,
+      checkingIn: true,
     });
-    if (overlap) {
-      return { success: false, message: 'Room is already reserved for these dates' };
-    }
+    if (conflict) return { success: false, message: conflict };
 
     const now = Date.now();
     const amount = args.amountCollected ?? 0;
@@ -771,5 +858,188 @@ export const deleteReservation = mutation({
       console.log(`Failed to delete reservation: ${error}`);
       return { success: false, message: 'Failed to delete reservation' };
     }
+  },
+});
+
+const retainerFollowUpValidator = v.union(
+  v.literal('not-contacted'),
+  v.literal('contacted'),
+  v.literal('extending'),
+  v.literal('departing'),
+);
+
+export const extendOvernightStay = mutation({
+  args: {
+    reservationId: v.id('reservations'),
+    extraNights: v.union(v.literal(1), v.literal(2)),
+  },
+  handler: async (ctx, args) => {
+    const reservation = await ctx.db.get(args.reservationId);
+    if (!reservation) return { success: false, message: 'Reservation does not exist' };
+    const auth = await requirePermission(ctx, 'reservations.update', reservation.propertyId);
+    const duty = await guardFrontOffice(ctx, reservation.propertyId, auth.user._id);
+    if (duty.ok === false) return { success: false, message: duty.message };
+    if (reservation.status !== 'checked-in' || isShortStay(reservation)) {
+      return { success: false, message: 'Only a checked-in overnight guest can extend' };
+    }
+
+    const nights = Math.max(1, Math.round((reservation.checkOutDate - reservation.checkInDate) / DAY_MS));
+    const nightly = reservation.rate > 0 ? reservation.rate : reservation.totalAmount / nights;
+    const checkOutDate = reservation.checkOutDate + args.extraNights * DAY_MS;
+    const conflict = await bookingConflict(ctx, {
+      roomId: reservation.roomId,
+      stayKind: 'overnight',
+      checkInDate: reservation.checkInDate,
+      checkOutDate,
+      excludeId: reservation._id,
+    });
+    if (conflict) return { success: false, message: conflict };
+
+    const now = Date.now();
+    await ctx.db.patch(args.reservationId, {
+      checkOutDate,
+      totalAmount: nightly * (nights + args.extraNights),
+      retainerFollowUp: 'extending',
+      retainerFollowedUpAt: now,
+      retainerFollowedUpByUserId: auth.user._id,
+      ...(duty.stamp.employeeId ? { retainerFollowedUpByEmployeeId: duty.stamp.employeeId } : {}),
+      updatedAt: now,
+    });
+    return {
+      success: true,
+      message: `Stay extended by ${args.extraNights} night${args.extraNights === 1 ? '' : 's'}`,
+    };
+  },
+});
+
+export const recordRetainerFollowUp = mutation({
+  args: {
+    reservationId: v.id('reservations'),
+    followUp: retainerFollowUpValidator,
+    note: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const reservation = await ctx.db.get(args.reservationId);
+    if (!reservation) return { success: false, message: 'Reservation does not exist' };
+    const auth = await requirePermission(ctx, 'reservations.update', reservation.propertyId);
+    const duty = await guardFrontOffice(ctx, reservation.propertyId, auth.user._id);
+    if (duty.ok === false) return { success: false, message: duty.message };
+    if (reservation.status !== 'checked-in' || isShortStay(reservation)) {
+      return { success: false, message: 'Follow-up is for a checked-in overnight guest' };
+    }
+    const note = args.note?.trim();
+    const now = Date.now();
+    await ctx.db.patch(args.reservationId, {
+      retainerFollowUp: args.followUp,
+      retainerFollowedUpAt: now,
+      retainerFollowedUpByUserId: auth.user._id,
+      ...(duty.stamp.employeeId ? { retainerFollowedUpByEmployeeId: duty.stamp.employeeId } : {}),
+      ...(note ? { retainerNote: note } : {}),
+      updatedAt: now,
+    });
+    return { success: true, message: 'Follow-up saved' };
+  },
+});
+
+export const getDeskReminders = query({
+  args: { propertyId: v.id('properties') },
+  handler: async (ctx, args) => {
+    const allowed = await tryRequirePermission(ctx, 'reservations.read', args.propertyId);
+    if (!allowed) {
+      return { success: false, data: null, message: 'Unauthorized' };
+    }
+    const property = await ctx.db.get(args.propertyId);
+    const timeZone = propertyTimeZone(property);
+    const now = Date.now();
+    const today = localDayBounds(now, timeZone);
+    const reminderDays = reminderDaysOf(property);
+    const windowEnd = addDateKey(today.dateKey, reminderDays);
+    const extendEnd = addDateKey(today.dateKey, MAY_EXTEND_LEAD_DAYS);
+    const horizon = now + HOUR_MS;
+
+    const checkedIn = await ctx.db
+      .query('reservations')
+      .withIndex('by_propertyId_status', (q) =>
+        q.eq('propertyId', args.propertyId).eq('status', 'checked-in'),
+      )
+      .collect();
+
+    const shortStays = [];
+    const retainers = [];
+
+    for (const reservation of checkedIn) {
+      const guest = await ctx.db.get(reservation.guestId);
+      const room = await ctx.db.get(reservation.roomId);
+      const guestName = guest ? `${guest.firstName} ${guest.lastName}`.trim() : 'Guest';
+      const roomNumber = room?.roomNumber ?? '—';
+      const followedUpBy = await resolveDeskActor(
+        ctx,
+        reservation.retainerFollowedUpByUserId,
+        reservation.retainerFollowedUpByEmployeeId,
+      );
+
+      if (isShortStay(reservation)) {
+        if (reservation.checkOutDate <= horizon) {
+          shortStays.push({
+            _id: reservation._id,
+            confirmationNumber: reservation.confirmationNumber,
+            guestName,
+            roomNumber,
+            checkInDate: reservation.checkInDate,
+            checkOutDate: reservation.checkOutDate,
+            durationHours: reservation.durationHours ?? null,
+            overdue: reservation.checkOutDate < now,
+          });
+        }
+        continue;
+      }
+
+      const checkoutKey = utcDateKey(reservation.checkOutDate);
+      const inWindow = checkoutKey <= windowEnd;
+      const early = Boolean(reservation.mayExtend) && checkoutKey <= extendEnd;
+      if (!inWindow && !early) continue;
+
+      const payments = await ctx.db
+        .query('payments')
+        .withIndex('by_reference', (q) =>
+          q.eq('referenceType', 'Reservation').eq('referenceId', reservation._id),
+        )
+        .collect();
+      const paidTotal = payments.reduce((sum, row) => sum + row.amount, 0);
+      const bookedNights = Math.max(1, Math.round((reservation.checkOutDate - reservation.checkInDate) / DAY_MS));
+      const elapsed = Math.max(0, Math.round((today.start - reservation.checkInDate) / DAY_MS));
+
+      retainers.push({
+        _id: reservation._id,
+        confirmationNumber: reservation.confirmationNumber,
+        guestName,
+        roomNumber,
+        checkInDate: reservation.checkInDate,
+        checkOutDate: reservation.checkOutDate,
+        bookedNights,
+        nightsSoFar: Math.min(bookedNights, elapsed),
+        totalAmount: reservation.totalAmount,
+        balance: reservation.totalAmount - paidTotal,
+        mayExtend: Boolean(reservation.mayExtend),
+        overdue: checkoutKey < today.dateKey,
+        followUp: reservation.retainerFollowUp ?? 'not-contacted',
+        followedUpAt: reservation.retainerFollowedUpAt ?? null,
+        followedUpBy: followedUpBy?.name ?? null,
+        note: reservation.retainerNote ?? null,
+      });
+    }
+
+    shortStays.sort((a, b) => a.checkOutDate - b.checkOutDate);
+    retainers.sort((a, b) => a.checkOutDate - b.checkOutDate);
+
+    return {
+      success: true,
+      data: {
+        timeZone,
+        reminderDays,
+        shortStays,
+        retainers,
+      },
+    };
   },
 });

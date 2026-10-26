@@ -155,6 +155,12 @@ export function FinancialReportCard({
                 <td className="p-2">Rooms</td>
                 <td className="p-2 text-right text-green-600">{money(data.roomRevenue)}</td>
               </tr>
+              {'shortStayRevenue' in data && (
+                <tr className="border-t">
+                  <td className="p-2">Short stays</td>
+                  <td className="p-2 text-right text-green-600">{money(data.shortStayRevenue)}</td>
+                </tr>
+              )}
               <tr className="border-t">
                 <td className="p-2">Beverages (POS)</td>
                 <td className="p-2 text-right text-green-600">{money(data.fnbRevenue)}</td>

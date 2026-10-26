@@ -11,6 +11,7 @@ import { TableColumn } from "../../../../../shared/table";
 import PaginationComponent from "../../../../../shared/pagination";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import ImageThumbnail from "../../../../../shared/imageThumbnail";
+import { usePermissions } from "../../../../../hooks/usePermissions";
 
 interface BeverageProps {
   _id: string;
@@ -32,8 +33,16 @@ interface BeverageProps {
 }
 
 const Beverages = ({ currentPropertyId }: { currentPropertyId: Id<"properties"> }) => {
-  const beverageData = useQuery(api.beverages.getBeverages, { propertyId: currentPropertyId });
-  const propertyData = useQuery(api.beverages.getPropertyWithCurrency, { propertyId: currentPropertyId });
+  const { hasGranularPermission } = usePermissions();
+  const canOperate = hasGranularPermission('fnb.read');
+  const beverageData = useQuery(
+    api.beverages.getBeverages,
+    currentPropertyId ? { propertyId: currentPropertyId } : 'skip',
+  );
+  const propertyData = useQuery(
+    api.beverages.getPropertyWithCurrency,
+    currentPropertyId ? { propertyId: currentPropertyId } : 'skip',
+  );
   const removeBeverage = useMutation(api.beverages.deleteBeverage);
 
   const getCurrencySymbol = (currency?: string) => {
@@ -93,9 +102,10 @@ const Beverages = ({ currentPropertyId }: { currentPropertyId: Id<"properties"> 
         return <span>{symbol}{Number(value).toFixed(2)}</span>;
       }
     },
-    {
+    ...(canOperate
+      ? [{
       label: 'Unit Cost',
-      key: 'resolvedUnitCost',
+      key: 'resolvedUnitCost' as const,
       render: (_value, row) => {
         const currency = propertyData?.success ? propertyData.data?.currency : 'USD';
         const symbol = getCurrencySymbol(currency);
@@ -112,11 +122,14 @@ const Beverages = ({ currentPropertyId }: { currentPropertyId: Id<"properties"> 
               : '';
         return <span>{symbol}{Number(cost).toFixed(2)}{source ? <span className="text-xs text-gray-500"> · {source}</span> : null}</span>;
       }
-    },
-    {
+    } satisfies TableColumn<BeverageProps>]
+      : []),
+    ...(canOperate
+      ? [{
       label: 'Reorder Level',
-      key: 'reorderLevel' 
-    },
+      key: 'reorderLevel' as const,
+    } satisfies TableColumn<BeverageProps>]
+      : []),
     {
       label: 'Active',
       key: 'isActive',
@@ -131,9 +144,10 @@ const Beverages = ({ currentPropertyId }: { currentPropertyId: Id<"properties"> 
       key: '_creationTime',
       render: (value, row) => <span>{formatDate(row._creationTime)}</span>
     },
-    {
+    ...(canOperate
+      ? [{
       label: 'Action',
-      key: '_id',
+      key: '_id' as const,
       render: (value, row) => (
         <div className='flex justify-evenly lg:justify-start items-center gap-1'>
           <a href={`/admin/bar-management/beverages/edit?beverage_id=${row._id}`} className='!mr-2 !no-underline !text-amber-400'>
@@ -144,7 +158,8 @@ const Beverages = ({ currentPropertyId }: { currentPropertyId: Id<"properties"> 
           </Button>
         </div>
       )
-    }
+    } satisfies TableColumn<BeverageProps>]
+      : []),
   ];
 
   return (

@@ -6,6 +6,7 @@ import { isOpenStatus, MODULE_PERMS } from './lib/taskAssignment';
 import { EXPENSE_CATEGORIES } from './lib/postCashOutflow';
 import { sumPosGuestRevenue } from './posOrders';
 import { sumRestaurantGuestRevenue } from './restaurantOrders';
+import { isShortStay } from './lib/stays';
 
 const DAY_MS = 86_400_000;
 const COUNTED_RESERVATION_STATUSES = new Set(['confirmed', 'checked-in', 'checked-out']);
@@ -443,8 +444,15 @@ export const getFinancialReport = query({
 
     let roomsSoldNights = 0;
     let roomRevenue = 0;
+    let shortStayRevenue = 0;
     for (const reservation of reservationById.values()) {
       if (!COUNTED_RESERVATION_STATUSES.has(reservation.status)) continue;
+      if (isShortStay(reservation)) {
+        if (reservation.checkOutDate > args.start && reservation.checkInDate < args.end) {
+          shortStayRevenue += reservation.totalAmount;
+        }
+        continue;
+      }
       const sold = overlapNights(
         reservation.checkInDate,
         reservation.checkOutDate,
@@ -535,7 +543,7 @@ export const getFinancialReport = query({
       }
     }
 
-    const totalRevenue = roomRevenue + fnbRevenue + restaurantRevenue;
+    const totalRevenue = roomRevenue + shortStayRevenue + fnbRevenue + restaurantRevenue;
     const gop = totalRevenue - totalExpenses;
     const occupancyRate = availableRoomNights === 0 ? 0 : (roomsSoldNights / availableRoomNights) * 100;
     const adr = roomsSoldNights === 0 ? 0 : roomRevenue / roomsSoldNights;
@@ -560,6 +568,7 @@ export const getFinancialReport = query({
         gopMargin,
         laborCostPct,
         roomRevenue,
+        shortStayRevenue,
         fnbRevenue,
         fnbQtySold,
         fnbRevenueSource: 'pos' as const,
@@ -590,6 +599,7 @@ function emptyWeekBuckets() {
   return WEEKDAY_LABELS.map((day) => ({
     day,
     rooms: 0,
+    shortStay: 0,
     bar: 0,
     food: 0,
     total: 0,
@@ -693,6 +703,15 @@ export const getSalesByDayOfWeek = query({
 
     for (const reservation of reservationById.values()) {
       if (!COUNTED_RESERVATION_STATUSES.has(reservation.status)) continue;
+      if (isShortStay(reservation)) {
+        if (reservation.checkOutDate > args.start && reservation.checkInDate < args.end) {
+          const key = dateKeyFromUtcMs(reservation.checkInDate);
+          if (key >= startKey && key < endKey) {
+            buckets[mondayIndexFromDateKey(key)].shortStay += reservation.totalAmount;
+          }
+        }
+        continue;
+      }
       const stayNights = Math.max(
         1,
         periodNights(reservation.checkInDate, reservation.checkOutDate),
@@ -761,7 +780,7 @@ export const getSalesByDayOfWeek = query({
     }
 
     for (const bucket of buckets) {
-      bucket.total = bucket.rooms + bucket.bar + bucket.food;
+      bucket.total = bucket.rooms + bucket.shortStay + bucket.bar + bucket.food;
     }
 
     const revenuePeak = peakBy(buckets, (b) => b.total);

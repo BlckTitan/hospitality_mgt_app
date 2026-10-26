@@ -15,6 +15,7 @@ import UserAutocomplete, { applyLinkedUserToStaff } from "../../../../shared/use
 import { roles, states_lga } from "../../../../lib/data";
 import { usePermissions } from "../../../../hooks/usePermissions";
 import { fieldRowClassName } from "../../../../shared/field";
+import { firstError, payDetailErrors } from "../../../../convex/lib/fieldText";
 
 type FormData = {
   id: Id<"staffs">;
@@ -155,13 +156,18 @@ export function FormComponent(props: {
 
   const [payType, setPayType] = useState(props.payType || "salary");
   const [paymentMethod, setPaymentMethod] = useState(props.paymentMethod || "cash");
-  const [hourlyRate, setHourlyRate] = useState(String(props.hourlyRate || ""));
-  const [baseSalary, setBaseSalary] = useState(String(props.salary || props.salary || ""));
+  const [hourlyRate, setHourlyRate] = useState(
+    props.hourlyRate === undefined || props.hourlyRate === null ? "" : String(props.hourlyRate),
+  );
+  const [baseSalary, setBaseSalary] = useState(
+    props.salary === undefined || props.salary === null ? "" : String(props.salary),
+  );
   const [taxId, setTaxId] = useState(props.taxId || "");
   const [bankName, setBankName] = useState(props.bankName || "");
   const [accountName, setAccountName] = useState(props.accountName || "");
   const [accountNumber, setAccountNumber] = useState(props.accountNumber || "");
   const [routingCode, setRoutingCode] = useState(props.routingCode || "");
+  const [payErrors, setPayErrors] = useState<Record<string, string>>({});
 
   const linkedUserId = watch("userId");
   const shiftTemplateId = watch("shiftTemplateId");
@@ -222,6 +228,23 @@ export function FormComponent(props: {
       }
 
       if (canPay) {
+        const nextPayErrors = payDetailErrors({
+          payType,
+          paymentMethod,
+          baseSalary,
+          hourlyRate,
+          taxId,
+          bankName,
+          accountName,
+          accountNumber,
+          routingCode,
+        });
+        setPayErrors(nextPayErrors);
+        const payError = firstError(nextPayErrors);
+        if (payError) {
+          toast.error(payError);
+          return;
+        }
         const pay = await upsertPayHistory({
           id: props.id,
           payType: payType as "hourly" | "salary" | "mixed",
@@ -426,6 +449,7 @@ export function FormComponent(props: {
           inputWidth="w-1/3"
           type="string"
           register={register("position")}
+          error={errors.position}
         />
         <SelectComponent
           id="idType"
@@ -439,6 +463,7 @@ export function FormComponent(props: {
             { value: "drivers_license", label: "Driver's license" },
             { value: "other", label: "Other" },
           ]}
+          error={errors.idType}
         />
       </div>
       <div className={fieldRowClassName}>
@@ -448,6 +473,7 @@ export function FormComponent(props: {
           inputWidth="w-1/3"
           type="string"
           register={register("nationalId")}
+          error={errors.nationalId}
         />
         <InputComponent
           id="contractStartDate"
@@ -455,6 +481,7 @@ export function FormComponent(props: {
           inputWidth="w-1/3"
           type="date"
           register={register("contractStartDate")}
+          error={errors.contractStartDate}
         />
         <InputComponent
           id="contractEndDate"
@@ -462,6 +489,7 @@ export function FormComponent(props: {
           inputWidth="w-1/3"
           type="date"
           register={register("contractEndDate")}
+          error={errors.contractEndDate}
         />
       </div>
       <div className={fieldRowClassName}>
@@ -471,6 +499,7 @@ export function FormComponent(props: {
           inputWidth="w-1/3"
           type="date"
           register={register("probationEndDate")}
+          error={errors.probationEndDate}
         />
       </div>
 
@@ -482,6 +511,7 @@ export function FormComponent(props: {
           inputWidth="w-1/3"
           type="string"
           register={register("emergencyName")}
+          error={errors.emergencyName}
         />
         <InputComponent
           id="emergencyPhone"
@@ -489,6 +519,7 @@ export function FormComponent(props: {
           inputWidth="w-1/3"
           type="tel"
           register={register("emergencyPhone")}
+          error={errors.emergencyPhone}
         />
         <InputComponent
           id="emergencyRelationship"
@@ -496,6 +527,7 @@ export function FormComponent(props: {
           inputWidth="w-1/3"
           type="string"
           register={register("emergencyRelationship")}
+          error={errors.emergencyRelationship}
         />
       </div>
 
@@ -532,14 +564,17 @@ export function FormComponent(props: {
                 <option value="hourly">Hourly</option>
                 <option value="mixed">Mixed</option>
               </select>
+              {payErrors.payType && <span className="text-red-500 text-sm">{payErrors.payType}</span>}
             </label>
             <label className="flex flex-col text-sm w-full lg:w-1/3">
               Base salary
               <input className="border rounded p-2" value={baseSalary} onChange={(e) => setBaseSalary(e.target.value)} />
+              {payErrors.baseSalary && <span className="text-red-500 text-sm">{payErrors.baseSalary}</span>}
             </label>
             <label className="flex flex-col text-sm w-full lg:w-1/3">
               Hourly rate
               <input className="border rounded p-2" value={hourlyRate} onChange={(e) => setHourlyRate(e.target.value)} />
+              {payErrors.hourlyRate && <span className="text-red-500 text-sm">{payErrors.hourlyRate}</span>}
             </label>
           </div>
           <div className={fieldRowClassName}>
@@ -555,28 +590,34 @@ export function FormComponent(props: {
                 <option value="mobile_money">Mobile money</option>
                 <option value="check">Check</option>
               </select>
+              {payErrors.paymentMethod && <span className="text-red-500 text-sm">{payErrors.paymentMethod}</span>}
             </label>
             <label className="flex flex-col text-sm w-full lg:w-1/3">
               Tax ID
               <input className="border rounded p-2" value={taxId} onChange={(e) => setTaxId(e.target.value)} />
+              {payErrors.taxId && <span className="text-red-500 text-sm">{payErrors.taxId}</span>}
             </label>
             <label className="flex flex-col text-sm w-full lg:w-1/3">
               Bank name
               <input className="border rounded p-2" value={bankName} onChange={(e) => setBankName(e.target.value)} />
+              {payErrors.bankName && <span className="text-red-500 text-sm">{payErrors.bankName}</span>}
             </label>
           </div>
           <div className={fieldRowClassName}>
             <label className="flex flex-col text-sm w-full lg:w-1/3">
               Account name
               <input className="border rounded p-2" value={accountName} onChange={(e) => setAccountName(e.target.value)} />
+              {payErrors.accountName && <span className="text-red-500 text-sm">{payErrors.accountName}</span>}
             </label>
             <label className="flex flex-col text-sm w-full lg:w-1/3">
               Account number
               <input className="border rounded p-2" value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} />
+              {payErrors.accountNumber && <span className="text-red-500 text-sm">{payErrors.accountNumber}</span>}
             </label>
             <label className="flex flex-col text-sm w-full lg:w-1/3">
               Routing code
               <input className="border rounded p-2" value={routingCode} onChange={(e) => setRoutingCode(e.target.value)} />
+              {payErrors.routingCode && <span className="text-red-500 text-sm">{payErrors.routingCode}</span>}
             </label>
           </div>
         </>

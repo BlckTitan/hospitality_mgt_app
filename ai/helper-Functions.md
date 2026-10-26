@@ -1585,7 +1585,9 @@ export function getPostLoginPath(
 
 `listAccessibleProperties` (Convex query, `args: {}`): returns `{ _id, name, currency, timezone }` for `authContext.propertyIds`. Used by the dashboard instead of `getAllProperties` so `reports.read` without `properties.read` still works.
 
-`getFinancialReport` (`convex/dashboard.ts`, `reports.read`): property P&L + RevPAR for `[start, end)`. Rooms + Beverages revenue + Restaurant revenue (`restaurantRevenue`), expenses by category, occupancy, ADR, RevPAR, TRevPAR, GOP, GOPPAR. Available rooms = current sellable inventory × period nights.
+`getFinancialReport` (`convex/dashboard.ts`, `reports.read`): property P&L + RevPAR for `[start, end)`. Rooms + short-stay revenue (`shortStayRevenue`) + Beverages revenue + Restaurant revenue (`restaurantRevenue`), expenses by category, occupancy, ADR, RevPAR, TRevPAR, GOP, GOPPAR. Short stays are in total revenue and TRevPAR, and out of sold nights, ADR, and RevPAR. Available rooms = current sellable inventory × period nights.
+
+`getDeskReminders` (`convex/reservations.ts`, `reservations.read`): checked-in short stays ending within the next hour (including overdue), and checked-in overnight guests in the property retainer window. `extendOvernightStay` and `recordRetainerFollowUp` require an open front-office shift.
 
 `getRestaurantTodaySnapshot` (`convex/dashboard.ts`, `restaurant.read`): property-local today restaurant revenue, food cost %, open checks, occupied tables. Drill-through: `/admin/restaurant`. Separate from Beverages today / `getFnBTodaySnapshot`.
 

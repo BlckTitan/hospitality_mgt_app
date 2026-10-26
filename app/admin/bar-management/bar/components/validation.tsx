@@ -1,12 +1,8 @@
 import * as yup from "yup";
+import { recordName } from "../../../../../lib/yupFields";
 
 export const formSchema = yup.object().shape({
-  name: yup
-    .string()
-    .trim()
-    .min(1, "Bar name must be at least 1 character")
-    .max(100, "Bar name must not exceed 100 characters")
-    .required("Bar name is required"),
+  name: recordName("Bar name", { min: 1, max: 100 }),
 
   location: yup
     .string()

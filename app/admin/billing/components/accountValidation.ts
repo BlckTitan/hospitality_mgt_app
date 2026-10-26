@@ -1,7 +1,8 @@
 import * as yup from 'yup';
+import { recordName } from '../../../../lib/yupFields';
 
 export const accountFormSchema = yup.object().shape({
-  name: yup.string().trim().min(2, 'Name must be at least 2 characters').required('Name is required'),
+  name: recordName('Name'),
   billType: yup
     .string()
     .oneOf(['electricity', 'water', 'gas', 'internet', 'cable', 'waste', 'local_government', 'other'])

@@ -20,6 +20,7 @@ type FormData = {
     phone?: string;
     email?: string;
     timezone?: string;
+    retainerReminderDays?: number;
     currency?: string;
     taxId?: string;
     country?: string;
@@ -32,7 +33,7 @@ type FormData = {
 export function FormComponent(
   {
     id, name, address, phone, email, 
-    timezone, currency, taxId, country, isActive,
+    timezone, retainerReminderDays, currency, taxId, country, isActive,
     logoUrl: initialLogoUrl,
     coverImageUrl: initialCoverImageUrl,
   }: {
@@ -42,6 +43,7 @@ export function FormComponent(
     phone?: string;
     email?: string;
     timezone?: string;
+    retainerReminderDays?: number;
     currency?: string;
     taxId?: string;
     country?: string;
@@ -59,6 +61,7 @@ export function FormComponent(
         phone: phone,
         email: email,
         timezone: timezone,
+        retainerReminderDays: retainerReminderDays ?? 1,
         currency: currency,
         taxId: taxId,
         country: country || 'NG',
@@ -80,6 +83,7 @@ export function FormComponent(
           phone: data.phone,
           email: data.email,
           timezone: data.timezone || 'UTC',
+          retainerReminderDays: data.retainerReminderDays ?? 1,
           currency: data.currency || 'USD',
           taxId: data.taxId,
           country: data.country,
@@ -183,6 +187,18 @@ export function FormComponent(
               ))}
             </select>
             {errors.timezone && <span className="text-red-500 text-sm">{errors.timezone.message}</span>}
+          </div>
+
+          <div className="min-w-0 w-full">
+            <InputComponent
+              id="retainerReminderDays"
+              label="Retainer reminder (days after today)"
+              type="number"
+              inputWidth="w-full"
+              register={register('retainerReminderDays', { valueAsNumber: true })}
+              error={errors.retainerReminderDays}
+            />
+            <span className="text-xs text-gray-500">0 = checkout day only. 1 also includes tomorrow.</span>
           </div>
 
           <div className="min-w-0 w-full">

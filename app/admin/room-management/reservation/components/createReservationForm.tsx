@@ -22,8 +22,11 @@ type FormData = {
   newGuestEmail?: string;
   newGuestPhone?: string;
   roomId: string;
+  stayKind: "overnight" | "short";
+  durationHours?: number;
+  mayExtend?: boolean;
   checkInDate: string;
-  checkOutDate: string;
+  checkOutDate?: string;
   numberOfGuests: number;
   rate: number;
   totalAmount: number;
@@ -66,6 +69,10 @@ export function FormComponent({
     propertyId: propertyId as Id<"properties">,
   });
   const rooms = roomsResponse?.data || [];
+  const ratesResponse = useQuery(api.roomTypes.listShortStayRates, {
+    propertyId: propertyId as Id<"properties">,
+  });
+  const shortStayRates = ratesResponse?.data || [];
 
   const [guestSearch, setGuestSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -115,6 +122,9 @@ export function FormComponent({
       newGuestEmail: "",
       newGuestPhone: "",
       roomId: "",
+      stayKind: "overnight",
+      durationHours: 1,
+      mayExtend: false,
       checkInDate: "",
       checkOutDate: "",
       numberOfGuests: 1,
@@ -128,10 +138,16 @@ export function FormComponent({
   });
 
   const guestMode = watch("guestMode");
+  const watchStayKind = watch("stayKind");
+  const watchDuration = watch("durationHours");
   const watchCheckIn = watch("checkInDate");
   const watchCheckOut = watch("checkOutDate");
   const watchRate = watch("rate");
   const watchRoomId = watch("roomId");
+  const selectedRoom = rooms.find((room: { _id: string; roomTypeId?: string }) => room._id === watchRoomId);
+  const packagePrice = shortStayRates.find(
+    (rate) => rate.roomTypeId === selectedRoom?.roomTypeId && rate.hours === Number(watchDuration),
+  );
 
   useEffect(() => {
     if (!prefillGuest?.data || selectedGuest) return;
@@ -143,6 +159,7 @@ export function FormComponent({
   }, [prefillGuest, selectedGuest, setValue]);
 
   useEffect(() => {
+    if (watchStayKind === "short") return;
     if (!watchCheckIn || !watchCheckOut || !watchRate) return;
     const checkIn = new Date(watchCheckIn);
     const checkOut = new Date(watchCheckOut);
@@ -154,15 +171,23 @@ export function FormComponent({
       setCalculatedTotal(total);
       setValue("totalAmount", total);
     }
-  }, [watchCheckIn, watchCheckOut, watchRate, setValue]);
+  }, [watchStayKind, watchCheckIn, watchCheckOut, watchRate, setValue]);
 
   useEffect(() => {
-    if (!watchRoomId) return;
+    if (watchStayKind !== "short") return;
+    const amount = packagePrice?.amount ?? 0;
+    setCalculatedTotal(amount);
+    setValue("rate", amount);
+    setValue("totalAmount", amount);
+  }, [watchStayKind, packagePrice, setValue]);
+
+  useEffect(() => {
+    if (!watchRoomId || watchStayKind === "short") return;
     const room = rooms.find((r: any) => r._id === watchRoomId);
     if (room?.roomType?.baseRate) {
       setValue("rate", room.roomType.baseRate);
     }
-  }, [watchRoomId, rooms, setValue]);
+  }, [watchRoomId, watchStayKind, rooms, setValue]);
 
   useEffect(() => {
     const onPointerDown = (event: MouseEvent) => {
@@ -209,7 +234,9 @@ export function FormComponent({
   const onSubmit: SubmitHandler<FormData> = async (data) => {
     try {
       const checkInTimestamp = new Date(data.checkInDate).getTime();
-      const checkOutTimestamp = new Date(data.checkOutDate).getTime();
+      const checkOutTimestamp = data.stayKind === "short" || !data.checkOutDate
+        ? undefined
+        : new Date(data.checkOutDate).getTime();
 
       const guestPayload =
         data.guestMode === "new"
@@ -232,6 +259,9 @@ export function FormComponent({
         numberOfGuests: data.numberOfGuests,
         rate: data.rate,
         totalAmount: data.totalAmount,
+        stayKind: data.stayKind,
+        durationHours: data.stayKind === "short" ? Number(data.durationHours) : undefined,
+        mayExtend: data.stayKind === "overnight" ? Boolean(data.mayExtend) : false,
         depositAmount: data.depositAmount,
         status: data.status,
         source: data.source,
@@ -453,30 +483,89 @@ export function FormComponent({
         </div>
       </div>
 
-      <div
-        className="mb-2 flex h-fit w-full flex-col gap-1 lg:mb-4 lg:flex-row lg:items-center lg:justify-between
-        [&_div]:mb-2 [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start lg:[&_div]:mb-0"
-      >
-        <InputComponent
-          id="checkInDate"
-          label="Check-in Date *"
-          type="date"
-          inputWidth="w-1/2"
-          register={register("checkInDate", { required: true })}
-          error={errors.checkInDate}
-        />
-
-        <InputComponent
-          id="checkOutDate"
-          label="Check-out Date *"
-          type="date"
-          inputWidth="w-1/2"
-          register={register("checkOutDate", { required: true })}
-          error={errors.checkOutDate}
-        />
+      <div className="mb-4 flex flex-wrap gap-4 text-sm">
+        <label className="flex items-center gap-2">
+          <input type="radio" value="overnight" {...register("stayKind")} />
+          Overnight
+        </label>
+        <label className="flex items-center gap-2">
+          <input type="radio" value="short" {...register("stayKind")} />
+          Short stay (1–7 hours, no night)
+        </label>
       </div>
 
-      {nights > 0 && (
+      {watchStayKind === "short" ? (
+        <div
+          className="mb-2 flex h-fit w-full flex-col gap-1 lg:mb-4 lg:flex-row lg:items-center lg:justify-between
+          [&_div]:mb-2 [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start lg:[&_div]:mb-0"
+        >
+          <InputComponent
+            id="checkInDate"
+            label="Starts *"
+            type="datetime-local"
+            inputWidth="w-1/2"
+            register={register("checkInDate", { required: true })}
+            error={errors.checkInDate}
+          />
+          <div className="flex-1">
+            <label htmlFor="durationHours" className="mb-1 block text-sm font-medium">
+              Length *
+            </label>
+            <select
+              id="durationHours"
+              {...register("durationHours", { valueAsNumber: true })}
+              className="w-full rounded border p-2"
+            >
+              {[1, 2, 3, 4, 5, 6, 7].map((hours) => (
+                <option key={hours} value={hours}>
+                  {hours} hour{hours === 1 ? "" : "s"}
+                </option>
+              ))}
+            </select>
+            {errors.durationHours && (
+              <span className="text-sm text-red-500">{errors.durationHours.message}</span>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div
+          className="mb-2 flex h-fit w-full flex-col gap-1 lg:mb-4 lg:flex-row lg:items-center lg:justify-between
+          [&_div]:mb-2 [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start lg:[&_div]:mb-0"
+        >
+          <InputComponent
+            id="checkInDate"
+            label="Check-in Date *"
+            type="date"
+            inputWidth="w-1/2"
+            register={register("checkInDate", { required: true })}
+            error={errors.checkInDate}
+          />
+
+          <InputComponent
+            id="checkOutDate"
+            label="Check-out Date *"
+            type="date"
+            inputWidth="w-1/2"
+            register={register("checkOutDate", { required: true })}
+            error={errors.checkOutDate}
+          />
+        </div>
+      )}
+
+      {watchStayKind === "short" ? (
+        <div className="mb-4 w-full rounded bg-violet-50 p-2">
+          <p className="text-sm text-gray-700">
+            {packagePrice ? (
+              <>
+                <strong>{watchDuration} hour{Number(watchDuration) === 1 ? "" : "s"}:</strong>{" "}
+                {formatPropertyMoney(packagePrice.amount, currency)}. This price is set on the room type.
+              </>
+            ) : (
+              <>No price is set for this length. Add it on the room type before booking.</>
+            )}
+          </p>
+        </div>
+      ) : nights > 0 && (
         <div className="mb-4 w-full rounded bg-blue-50 p-2">
           <p className="text-sm text-gray-700">
             <strong>Nights:</strong> {nights} | <strong>Rate per night:</strong>{" "}
@@ -499,28 +588,36 @@ export function FormComponent({
           error={errors.numberOfGuests}
         />
 
-        <InputComponent
-          id="rate"
-          label={`Rate per Night (${currency}) *`}
-          type="number"
-          inputWidth="w-1/2"
-          register={register("rate", { valueAsNumber: true, required: true })}
-          error={errors.rate}
-        />
+        {watchStayKind === "short" ? (
+          <input type="hidden" {...register("rate", { valueAsNumber: true })} />
+        ) : (
+          <InputComponent
+            id="rate"
+            label={`Rate per Night (${currency}) *`}
+            type="number"
+            inputWidth="w-1/2"
+            register={register("rate", { valueAsNumber: true, required: true })}
+            error={errors.rate}
+          />
+        )}
       </div>
 
       <div
         className="mb-2 flex h-fit w-full flex-col gap-1 lg:mb-4 lg:flex-row lg:items-center lg:justify-between
         [&_div]:mb-2 [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start lg:[&_div]:mb-0"
       >
-        <InputComponent
-          id="totalAmount"
-          label={`Total Amount (${currency}) *`}
-          type="number"
-          inputWidth="w-1/2"
-          register={register("totalAmount", { valueAsNumber: true, required: true })}
-          error={errors.totalAmount}
-        />
+        {watchStayKind === "short" ? (
+          <input type="hidden" {...register("totalAmount", { valueAsNumber: true })} />
+        ) : (
+          <InputComponent
+            id="totalAmount"
+            label={`Total Amount (${currency}) *`}
+            type="number"
+            inputWidth="w-1/2"
+            register={register("totalAmount", { valueAsNumber: true, required: true })}
+            error={errors.totalAmount}
+          />
+        )}
 
         <InputComponent
           id="depositAmount"
@@ -580,6 +677,13 @@ export function FormComponent({
           )}
         </div>
       </div>
+
+      {watchStayKind === "overnight" && (
+        <label className="mb-4 flex items-center gap-2 text-sm">
+          <input type="checkbox" {...register("mayExtend")} />
+          May extend — show this guest on the retainer list up to 7 days before checkout
+        </label>
+      )}
 
       <div
         className="mb-2 flex h-fit w-full flex-col gap-1 lg:mb-4 lg:flex-row lg:items-center lg:justify-start

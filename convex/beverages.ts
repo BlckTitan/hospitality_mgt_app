@@ -1,7 +1,7 @@
 import { mutation, query, MutationCtx, QueryCtx } from './_generated/server';
 import { v } from 'convex/values';
 import { Doc, Id } from './_generated/dataModel';
-import { requirePermission } from './lib/rbac';
+import { hasGranularPermission, requirePermission, scopeAuthContextToProperty } from './lib/rbac';
 import { resolveBeverageUnitCost } from './lib/barStock';
 
 const recipeLineValidator = v.object({
@@ -68,6 +68,29 @@ async function recipeLinesFor(ctx: QueryCtx | MutationCtx, beverageId: Id<'bever
   );
 }
 
+function publicMenuBeverage(beverage: Doc<'beverages'>) {
+  return {
+    _id: beverage._id,
+    _creationTime: beverage._creationTime,
+    propertyId: beverage.propertyId,
+    name: beverage.name,
+    category: beverage.category,
+    unitOfMeasure: beverage.unitOfMeasure,
+    size: beverage.size,
+    unitPrice: beverage.unitPrice,
+    isActive: beverage.isActive,
+    imageUrl: beverage.imageUrl,
+  };
+}
+
+function isMenuOnlyReader(
+  auth: Awaited<ReturnType<typeof requirePermission>>,
+  propertyId: Id<'properties'> | undefined,
+) {
+  const scoped = propertyId ? scopeAuthContextToProperty(auth, propertyId) : auth;
+  return !hasGranularPermission(scoped, 'fnb.read');
+}
+
 async function enrichBeverage(ctx: QueryCtx, beverage: Doc<'beverages'>) {
   const [inventoryItem, recipeLines, resolvedUnitCost] = await Promise.all([
     beverage.inventoryItemId ? ctx.db.get(beverage.inventoryItemId) : null,
@@ -115,14 +138,20 @@ export const getCostCatalog = query({
 export const getBeverages = query({
   args: { propertyId: v.optional(v.id('properties')) },
   handler: async (ctx, args) => {
-    await requirePermission(ctx, 'fnb.read', args.propertyId);
+    const auth = await requirePermission(ctx, 'fnb.menu.read', args.propertyId);
+    const menuOnly = isMenuOnlyReader(auth, args.propertyId);
+    if (menuOnly && !args.propertyId) {
+      return { success: false, data: [], message: 'Property is required' };
+    }
     try {
       let beveragesQuery = ctx.db.query('beverages');
       if (args.propertyId) {
         beveragesQuery = beveragesQuery.filter((q: any) => q.eq(q.field('propertyId'), args.propertyId));
       }
       const beverages = await beveragesQuery.collect();
-      const data = await Promise.all(beverages.map((beverage) => enrichBeverage(ctx, beverage)));
+      const data = menuOnly
+        ? beverages.map(publicMenuBeverage)
+        : await Promise.all(beverages.map((beverage) => enrichBeverage(ctx, beverage)));
       return { success: true, data };
     } catch (error) {
       console.log(`Failed to fetch beverages: ${error}`);
@@ -134,13 +163,16 @@ export const getBeverages = query({
 export const getAllBeverages = query({
   args: { propertyId: v.id('properties') },
   handler: async (ctx, args) => {
-    await requirePermission(ctx, 'fnb.read', args.propertyId);
+    const auth = await requirePermission(ctx, 'fnb.menu.read', args.propertyId);
+    const menuOnly = isMenuOnlyReader(auth, args.propertyId);
     try {
       const beverages = await ctx.db
         .query('beverages')
         .withIndex('by_propertyId', (q) => q.eq('propertyId', args.propertyId))
         .collect();
-      const data = await Promise.all(beverages.map((beverage) => enrichBeverage(ctx, beverage)));
+      const data = menuOnly
+        ? beverages.map(publicMenuBeverage)
+        : await Promise.all(beverages.map((beverage) => enrichBeverage(ctx, beverage)));
       return { success: true, data };
     } catch (error) {
       console.log(`Failed to fetch beverages: ${error}`);
@@ -285,11 +317,14 @@ export const updateBeverage = mutation({
 export const getPropertyWithCurrency = query({
   args: { propertyId: v.id('properties') },
   handler: async (ctx, args) => {
-    await requirePermission(ctx, 'fnb.read', args.propertyId);
+    const auth = await requirePermission(ctx, 'fnb.menu.read', args.propertyId);
     try {
       const property = await ctx.db.get(args.propertyId);
       if (!property) {
         return { success: false, data: null, message: 'Property not found' };
+      }
+      if (isMenuOnlyReader(auth, args.propertyId)) {
+        return { success: true, data: { currency: property.currency } };
       }
       return { success: true, data: property };
     } catch (error) {

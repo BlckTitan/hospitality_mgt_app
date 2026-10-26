@@ -636,6 +636,8 @@ export const PERMISSION_GROUPS = [
     category: "Food & Beverage",
     permissions: [
       { key: "fnb.read", label: "View F&B" },
+      { key: "fnb.menu.read", label: "View drink menu" },
+      { key: "restaurant.menu.read", label: "View restaurant menu" },
       { key: "fnb.create", label: "Create Orders" },
       { key: "fnb.update", label: "Update Orders" },
       { key: "fnb.delete", label: "Delete Orders" },

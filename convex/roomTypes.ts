@@ -1,6 +1,20 @@
-import { mutation, query } from './_generated/server';
+import { mutation, query, MutationCtx, QueryCtx } from './_generated/server';
 import { v } from 'convex/values';
-import { requirePermission } from './lib/rbac';
+import { Id } from './_generated/dataModel';
+import { requirePermission, tryRequirePermission } from './lib/rbac';
+import { replaceShortStayRates } from './lib/stays';
+
+const shortStayPriceArgs = v.array(v.object({
+  hours: v.number(),
+  amount: v.number(),
+}));
+
+async function ratesForRoomType(ctx: QueryCtx | MutationCtx, roomTypeId: Id<'roomTypes'>) {
+  return await ctx.db
+    .query('shortStayRates')
+    .withIndex('by_roomTypeId', (q) => q.eq('roomTypeId', roomTypeId))
+    .collect();
+}
 
 export const getAllRoomTypes = query({
   args: { propertyId: v.id('properties') },
@@ -11,7 +25,13 @@ export const getAllRoomTypes = query({
         .query('roomTypes')
         .withIndex('by_propertyId', (q) => q.eq('propertyId', args.propertyId))
         .collect();
-      return { success: true, data: roomTypes };
+      const withRates = await Promise.all(
+        roomTypes.map(async (roomType) => ({
+          ...roomType,
+          shortStayRates: await ratesForRoomType(ctx, roomType._id),
+        })),
+      );
+      return { success: true, data: withRates };
     } catch (error) {
       console.log(`Failed to fetch room types: ${error}`);
       return { success: false, data: [], message: 'Failed to fetch room types' };
@@ -28,7 +48,8 @@ export const getRoomType = query({
     }
     await requirePermission(ctx, 'rooms.read', roomType.propertyId);
     try {
-      return { success: true, data: roomType };
+      const shortStayRates = await ratesForRoomType(ctx, roomType._id);
+      return { success: true, data: { ...roomType, shortStayRates } };
     } catch (error) {
       console.log(`Failed to fetch room type: ${error}`);
       return { success: false, data: null, message: 'Failed to fetch room type' };
@@ -46,6 +67,7 @@ export const createRoomType = mutation({
     amenities: v.array(v.string()),
     isActive: v.boolean(),
     imageUrl: v.optional(v.union(v.string(), v.null())),
+    shortStayPrices: v.optional(shortStayPriceArgs),
   },
   handler: async (ctx, args) => {
     await requirePermission(ctx, 'rooms.update', args.propertyId);
@@ -76,6 +98,18 @@ export const createRoomType = mutation({
         updatedAt: now,
       });
 
+      if (args.shortStayPrices) {
+        const priceError = await replaceShortStayRates(ctx, {
+          propertyId: args.propertyId,
+          roomTypeId,
+          prices: args.shortStayPrices,
+        });
+        if (priceError) {
+          await ctx.db.delete(roomTypeId);
+          return { success: false, message: priceError };
+        }
+      }
+
       return { success: true, message: 'Room type created successfully', id: roomTypeId };
     } catch (error) {
       console.log(`Failed to create room type: ${error}`);
@@ -94,6 +128,7 @@ export const updateRoomType = mutation({
     amenities: v.array(v.string()),
     isActive: v.boolean(),
     imageUrl: v.optional(v.union(v.string(), v.null())),
+    shortStayPrices: v.optional(shortStayPriceArgs),
   },
   handler: async (ctx, args) => {
     const existingRoomType = await ctx.db.get(args.roomTypeId);
@@ -136,6 +171,15 @@ export const updateRoomType = mutation({
         updatedAt: now,
       });
 
+      if (args.shortStayPrices) {
+        const priceError = await replaceShortStayRates(ctx, {
+          propertyId: existingRoomType.propertyId,
+          roomTypeId: args.roomTypeId,
+          prices: args.shortStayPrices,
+        });
+        if (priceError) return { success: false, message: priceError };
+      }
+
       return { success: true, message: 'Room type updated successfully' };
     } catch (error) {
       console.log(`Failed to update room type: ${error}`);
@@ -166,11 +210,31 @@ export const deleteRoomType = mutation({
         return { success: false, message: 'Cannot delete room type - rooms are using this type' };
       }
 
+      const rates = await ratesForRoomType(ctx, args.roomTypeId);
+      for (const rate of rates) {
+        await ctx.db.delete(rate._id);
+      }
       await ctx.db.delete(args.roomTypeId);
       return { success: true, message: 'Room type deleted successfully' };
     } catch (error) {
       console.log(`Failed to delete room type: ${error}`);
       return { success: false, message: 'Failed to delete room type' };
     }
+  },
+});
+
+export const listShortStayRates = query({
+  args: { propertyId: v.id('properties') },
+  handler: async (ctx, args) => {
+    const canRooms = await tryRequirePermission(ctx, 'rooms.read', args.propertyId);
+    const canReservations = await tryRequirePermission(ctx, 'reservations.read', args.propertyId);
+    if (!canRooms && !canReservations) {
+      return { success: false, data: [], message: 'Unauthorized' };
+    }
+    const rates = await ctx.db
+      .query('shortStayRates')
+      .withIndex('by_propertyId', (q) => q.eq('propertyId', args.propertyId))
+      .collect();
+    return { success: true, data: rates };
   },
 });

@@ -32,6 +32,7 @@ import type * as lib_barStock from "../lib/barStock.js";
 import type * as lib_billingPeriods from "../lib/billingPeriods.js";
 import type * as lib_clockMethod from "../lib/clockMethod.js";
 import type * as lib_dutyContext from "../lib/dutyContext.js";
+import type * as lib_fieldText from "../lib/fieldText.js";
 import type * as lib_inventoryStock from "../lib/inventoryStock.js";
 import type * as lib_payrollHelpers from "../lib/payrollHelpers.js";
 import type * as lib_payrollPacks from "../lib/payrollPacks.js";
@@ -45,6 +46,7 @@ import type * as lib_rolePermissionCatalog from "../lib/rolePermissionCatalog.js
 import type * as lib_searchNames from "../lib/searchNames.js";
 import type * as lib_shiftHelpers from "../lib/shiftHelpers.js";
 import type * as lib_staffAccess from "../lib/staffAccess.js";
+import type * as lib_stays from "../lib/stays.js";
 import type * as lib_systemRoles from "../lib/systemRoles.js";
 import type * as lib_taskAssignment from "../lib/taskAssignment.js";
 import type * as lib_userIdentity from "../lib/userIdentity.js";
@@ -119,6 +121,7 @@ declare const fullApi: ApiFromModules<{
   "lib/billingPeriods": typeof lib_billingPeriods;
   "lib/clockMethod": typeof lib_clockMethod;
   "lib/dutyContext": typeof lib_dutyContext;
+  "lib/fieldText": typeof lib_fieldText;
   "lib/inventoryStock": typeof lib_inventoryStock;
   "lib/payrollHelpers": typeof lib_payrollHelpers;
   "lib/payrollPacks": typeof lib_payrollPacks;
@@ -132,6 +135,7 @@ declare const fullApi: ApiFromModules<{
   "lib/searchNames": typeof lib_searchNames;
   "lib/shiftHelpers": typeof lib_shiftHelpers;
   "lib/staffAccess": typeof lib_staffAccess;
+  "lib/stays": typeof lib_stays;
   "lib/systemRoles": typeof lib_systemRoles;
   "lib/taskAssignment": typeof lib_taskAssignment;
   "lib/userIdentity": typeof lib_userIdentity;

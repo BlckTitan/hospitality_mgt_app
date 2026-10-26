@@ -8,6 +8,7 @@ import { api } from "../../../../../convex/_generated/api";
 import { formSchema } from "./validation";
 import InputComponent from "../../../../../shared/input";
 import ImageUpload from "../../../../../shared/imageUpload";
+import { ShortStayPriceFields, pricesFromRates, pricesToPayload } from "./shortStayPriceFields";
 
 type FormData = {
   name: string;
@@ -30,6 +31,7 @@ export function EditFormComponent({ roomTypeData, onSuccess, onClose, roomTypeId
   const updateRoomType = useMutation(api.roomTypes.updateRoomType);
   const [amenities, setAmenities] = useState<string[]>(roomTypeData?.amenities || []);
   const [amenityInput, setAmenityInput] = useState('');
+  const [shortStayPrices, setShortStayPrices] = useState<number[]>(pricesFromRates(roomTypeData?.shortStayRates));
 
   const { register, handleSubmit, formState: { errors }, reset, setValue, watch } = useForm<FormData>({
     resolver: yupResolver(formSchema) as any,
@@ -48,6 +50,7 @@ export function EditFormComponent({ roomTypeData, onSuccess, onClose, roomTypeId
 
   useEffect(() => {
     setAmenities(roomTypeData?.amenities || []);
+    setShortStayPrices(pricesFromRates(roomTypeData?.shortStayRates));
   }, [roomTypeData]);
 
   const handleAddAmenity = () => {
@@ -72,6 +75,7 @@ export function EditFormComponent({ roomTypeData, onSuccess, onClose, roomTypeId
         amenities: amenities,
         isActive: data.isActive,
         imageUrl: data.imageUrl ? data.imageUrl : null,
+        shortStayPrices: pricesToPayload(shortStayPrices),
       });
 
       if (response.success === false) {
@@ -150,6 +154,11 @@ export function EditFormComponent({ roomTypeData, onSuccess, onClose, roomTypeId
           />
         </div>
       </div>
+
+      <ShortStayPriceFields
+        prices={shortStayPrices}
+        onChange={(index, amount) => setShortStayPrices((prev) => prev.map((value, i) => i === index ? amount : value))}
+      />
 
       <div className="w-full mb-4">
         <label className="block mb-2 font-semibold text-sm">Amenities</label>

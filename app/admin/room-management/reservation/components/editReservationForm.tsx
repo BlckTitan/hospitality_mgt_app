@@ -12,12 +12,16 @@ import { useState, useEffect } from "react";
 import { ReservationLifecycleActions, ReservationPaymentHistory } from "./reservationLifecycle";
 import { formatPropertyMoney, usePropertyCurrency } from "../../../inventory-management/components/money";
 import { useFrontOfficeDuty } from "../../components/useFrontOfficeDuty";
+import { RetainerActions } from "../../components/deskReminders";
 
 type FormData = {
   id: Id<'reservations'>;
   roomId: string;
+  stayKind: 'overnight' | 'short';
+  durationHours?: number;
+  mayExtend?: boolean;
   checkInDate: string;
-  checkOutDate: string;
+  checkOutDate?: string;
   numberOfGuests: number;
   rate: number;
   totalAmount: number;
@@ -29,6 +33,9 @@ type FormData = {
 export function FormComponent({
   id,
   roomId,
+  stayKind = 'overnight',
+  durationHours,
+  mayExtend = false,
   checkInDate,
   checkOutDate,
   numberOfGuests,
@@ -38,6 +45,10 @@ export function FormComponent({
   status,
   source,
   specialRequests,
+  retainerFollowUp,
+  retainerNote,
+  retainerFollowedUpAt,
+  retainerFollowedUpBy,
   propertyId,
   paidTotal = 0,
   payments = [],
@@ -47,6 +58,13 @@ export function FormComponent({
 }: {
   id: Id<'reservations'>;
   roomId: string;
+  stayKind?: 'overnight' | 'short';
+  durationHours?: number;
+  mayExtend?: boolean;
+  retainerFollowUp?: string;
+  retainerNote?: string | null;
+  retainerFollowedUpAt?: number | null;
+  retainerFollowedUpBy?: string | null;
   checkInDate: number;
   checkOutDate: number;
   numberOfGuests: number;
@@ -86,6 +104,10 @@ export function FormComponent({
 
   const formatDateForInput = (timestamp: number) => {
     const date = new Date(timestamp);
+    if (stayKind === 'short') {
+      const pad = (value: number) => String(value).padStart(2, '0');
+      return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    }
     return date.toISOString().split('T')[0];
   };
 
@@ -93,6 +115,9 @@ export function FormComponent({
     resolver: yupResolver(editFormSchema) as any,
     defaultValues: {
       roomId: roomId,
+      stayKind,
+      durationHours: durationHours ?? 1,
+      mayExtend,
       checkInDate: formatDateForInput(checkInDate),
       checkOutDate: formatDateForInput(checkOutDate),
       numberOfGuests: numberOfGuests,
@@ -110,6 +135,7 @@ export function FormComponent({
 
   // Calculate nights and total when dates or rate change
   useEffect(() => {
+    if (stayKind === 'short') return;
     if (watchCheckIn && watchCheckOut && watchRate) {
       const checkIn = new Date(watchCheckIn);
       const checkOut = new Date(watchCheckOut);
@@ -123,12 +149,14 @@ export function FormComponent({
         setValue('totalAmount', total);
       }
     }
-  }, [watchCheckIn, watchCheckOut, watchRate, setValue]);
+  }, [stayKind, watchCheckIn, watchCheckOut, watchRate, setValue]);
 
   const onSubmit: SubmitHandler<FormData | FieldValues> = async (data) => {
     try {
       const checkInTimestamp = new Date(data.checkInDate as string).getTime();
-      const checkOutTimestamp = new Date(data.checkOutDate as string).getTime();
+      const checkOutTimestamp = stayKind === 'short' || !data.checkOutDate
+        ? checkInTimestamp
+        : new Date(data.checkOutDate as string).getTime();
 
       const response = await updateReservation({
         reservationId: id,
@@ -139,6 +167,8 @@ export function FormComponent({
         rate: data.rate as number,
         totalAmount: data.totalAmount as number,
         depositAmount: data.depositAmount,
+        durationHours: stayKind === 'short' ? Number(data.durationHours) : undefined,
+        mayExtend: stayKind === 'overnight' ? Boolean(data.mayExtend) : false,
         source: data.source as 'direct' | 'ota' | 'walk-in' | 'phone' | 'other' | undefined,
         specialRequests: data.specialRequests || undefined,
       });
@@ -247,26 +277,69 @@ export function FormComponent({
         className='w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-1 
         [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4'
       >
-        <InputComponent
-          id='checkInDate'
-          label='Check-in Date *'
-          type='date'
-          inputWidth='w-1/2'
-          register={register('checkInDate', { required: true })}
-          error={errors.checkInDate}
-        />
-
-        <InputComponent
-          id='checkOutDate'
-          label='Check-out Date *'
-          type='date'
-          inputWidth='w-1/2'
-          register={register('checkOutDate', { required: true })}
-          error={errors.checkOutDate}
-        />
+        {stayKind === 'short' ? (
+          <>
+            <InputComponent
+              id='checkInDate'
+              label='Starts *'
+              type='datetime-local'
+              inputWidth='w-1/2'
+              register={register('checkInDate', { required: true })}
+              error={errors.checkInDate}
+            />
+            <div className="flex-1">
+              <label htmlFor="durationHours" className="block text-sm font-medium mb-1">Length *</label>
+              <select id="durationHours" {...register('durationHours', { valueAsNumber: true })} className="w-full border rounded p-2">
+                {[1, 2, 3, 4, 5, 6, 7].map((hours) => (
+                  <option key={hours} value={hours}>{hours} hour{hours === 1 ? '' : 's'}</option>
+                ))}
+              </select>
+            </div>
+          </>
+        ) : (
+          <>
+            <InputComponent
+              id='checkInDate'
+              label='Check-in Date *'
+              type='date'
+              inputWidth='w-1/2'
+              register={register('checkInDate', { required: true })}
+              error={errors.checkInDate}
+            />
+            <InputComponent
+              id='checkOutDate'
+              label='Check-out Date *'
+              type='date'
+              inputWidth='w-1/2'
+              register={register('checkOutDate', { required: true })}
+              error={errors.checkOutDate}
+            />
+          </>
+        )}
       </div>
 
-      {nights > 0 && (
+      {stayKind === 'overnight' && (
+        <label className="mb-4 flex items-center gap-2 text-sm">
+          <input type="checkbox" {...register('mayExtend')} />
+          May extend
+        </label>
+      )}
+
+      {stayKind === 'overnight' && status === 'checked-in' && (
+        <div className="mb-4 rounded border p-3">
+          <p className="mb-2 text-sm font-medium">Retainer follow-up</p>
+          <RetainerActions
+            reservationId={id}
+            followUp={retainerFollowUp ?? 'not-contacted'}
+            note={retainerNote}
+            followedUpAt={retainerFollowedUpAt}
+            followedUpBy={retainerFollowedUpBy}
+            reloadOnSuccess
+          />
+        </div>
+      )}
+
+      {stayKind !== 'short' && nights > 0 && (
         <div className="w-full mb-4 p-2 bg-blue-50 rounded">
           <p className="text-sm text-gray-700">
             <strong>Nights:</strong> {nights} | <strong>Rate per night:</strong> {formatPropertyMoney(watchRate, currency)} | <strong>Total:</strong> {formatPropertyMoney(calculatedTotal, currency)}

@@ -89,10 +89,11 @@ Money: format with the selected property’s `currency` (same pattern as invento
 
 **Revenue**
 
-- Rooms: overlapping nights of `confirmed` / `checked-in` / `checked-out` reservations in the period. Nightly amount is `rate` when `rate > 0`, otherwise `totalAmount / stay nights`.
+- Rooms: overlapping nights of `confirmed` / `checked-in` / `checked-out` **overnight** reservations in the period. Nightly amount is `rate` when `rate > 0`, otherwise `totalAmount / stay nights`. Short stays are excluded from sold nights.
+- Short stays: `totalAmount` of `confirmed` / `checked-in` / `checked-out` reservations with `stayKind: "short"` whose clock interval overlaps the period (`shortStayRevenue`). Not part of ADR or sold nights.
 - Beverages: settled beverage POS `orders.totalAmount` (plus `amountPaid` on `open_tab`) whose `openedAtDateKey` is in `[start, end)` property-local keys. Stock-implied `userStockLogs.salesValue` is **not** included (avoids double count); it remains on the bar hub as control.
 - Restaurant: settled / open_tab `restaurantOrders` totals (`restaurantRevenue`) — do not merge with beverage `orders`.
-- Total revenue = rooms + Beverages (POS) + Restaurant.
+- Total revenue = rooms + short stays + Beverages (POS) + Restaurant.
 
 **Expenses**
 

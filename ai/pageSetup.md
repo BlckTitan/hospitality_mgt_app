@@ -269,8 +269,11 @@ This document outlines which entities should have dedicated pages and the data f
 
 **Create booking UX:**
 - Search existing guests (`searchGuests`: name search index + phone/email match) or **New guest** (first/last + optional email/phone)
+- Stay kind: **Overnight** (dates, nightly rate) or **Short stay** (start time, 1–7 hours). Short-stay total comes from `shortStayRates` for that room type and length. The server rejects a length with no price, a room reserved overnight on that day, and a room with an open checkout clean.
+- Overnight form can mark **May extend**
 - One submit → `createReservation` with either `guestId` or `newGuest`; server sets `bookedByUserId` from auth
 - Optional deep link `?guest_id=` from Guests **Book stay**
+- List shows Stay: Overnight, or Short plus hours
 
 **Related Entities to Include:**
 - `Guest` (joined)
@@ -293,6 +296,7 @@ This document outlines which entities should have dedicated pages and the data f
 - Fetch `Order` records (room service orders linked to this reservation)
 - Fetch related `Document` / evidence records (if any)
 - Display read-only **Booked by** (receptionist); lifecycle actions Confirm / Check in / Check out / Cancel
+- Checked-in overnight stays show retainer follow-up: +1 night, +2 nights (`extendOvernightStay`), and a follow-up state (`recordRetainerFollowUp`)
 
 **Related Entities to Include:**
 - `Guest` (joined)
@@ -1618,6 +1622,7 @@ Sidebar: **Dashboard** (`/admin/dashboard`, `reports.read` — hidden without it
 - Summaries are tabs. P&L / RevPAR is always listed. Other tabs appear only if the module read key is present; the active tab’s query runs:
   - P&L / RevPAR: `getFinancialReport` (`reports.read`) — day / week / month / year via `cashPeriod`; rooms + Beverages revenue + Restaurant revenue (`restaurantRevenue`), expenses by category, occupancy, ADR, RevPAR, TRevPAR, GOP, GOPPAR
   - Rooms: `getRoomsSnapshot` (`rooms.read` or `reservations.read`) — occupancy counts; today’s arrivals / departures / in-house (max 5 each)
+  - Front desk reminders (`getDeskReminders`, on `/admin/room-management`): short stays ending within an hour, and retainer follow-ups for checked-in overnight guests
   - Housekeeping: `getHousekeepingSnapshot` (`housekeeping.task.read`) — open / overdue / unassigned; up to 5 overdue titles
   - Inventory: `getInventoryDashboard` (`inventory.read`)
   - Beverages today: stock-implied today snapshot (`beverages.read`) from today’s `userStockLogs`; open reorder count if `inventory.read`. Drill-through: `/admin/bar-management`. (Live query may still be named `getFnBTodaySnapshot` until rename.)

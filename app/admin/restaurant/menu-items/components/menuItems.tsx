@@ -33,6 +33,8 @@ export default function MenuItems({
   const { hasGranularPermission } = usePermissions()
   const canUpdate = hasGranularPermission('restaurant.update')
   const canDeactivate = hasGranularPermission('restaurant.delete')
+  const canChooseProperty = hasGranularPermission('restaurant.read') && properties.length > 1
+  const canSeeCost = hasGranularPermission('restaurant.read')
   const currency = usePropertyCurrency(propertyId || undefined)
 
   const list = useQuery(
@@ -69,6 +71,7 @@ export default function MenuItems({
   return (
     <div className="w-full h-full">
       <div className="flex flex-wrap gap-3 mb-4 items-end py-2">
+        {canChooseProperty && (
         <label className="flex flex-col text-sm">
           Property
           <select
@@ -83,6 +86,7 @@ export default function MenuItems({
             ))}
           </select>
         </label>
+        )}
         <label className="flex flex-col text-sm">
           Station
           <select
@@ -106,15 +110,15 @@ export default function MenuItems({
               <th className="p-2">Category</th>
               <th className="p-2">Station</th>
               <th className="p-2">Price</th>
-              <th className="p-2">Cost</th>
+              {canSeeCost && <th className="p-2">Cost</th>}
               <th className="p-2">Status</th>
-              <th className="p-2">Action</th>
+              {(canUpdate || canDeactivate) && <th className="p-2">Action</th>}
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 && (
               <tr>
-                <td className="p-3" colSpan={7}>
+                <td className="p-3" colSpan={canSeeCost ? 7 : 5}>
                   No menu items found.
                 </td>
               </tr>
@@ -129,7 +133,9 @@ export default function MenuItems({
                   </span>
                 </td>
                 <td className="p-2">{money(row.price)}</td>
-                <td className="p-2">{row.cost !== undefined ? money(row.cost) : '—'}</td>
+                {canSeeCost && (
+                  <td className="p-2">{row.cost !== undefined ? money(row.cost) : '—'}</td>
+                )}
                 <td className="p-2">
                   <span
                     className={`px-2 py-1 rounded text-white ${row.isAvailable ? 'bg-green-600' : 'bg-red-400'}`}
@@ -137,6 +143,7 @@ export default function MenuItems({
                     {row.isAvailable ? 'Available' : 'Unavailable'}
                   </span>
                 </td>
+                {(canUpdate || canDeactivate) && (
                 <td className="p-2">
                   <div className="flex items-center gap-2">
                     {canUpdate && (
@@ -158,6 +165,7 @@ export default function MenuItems({
                     )}
                   </div>
                 </td>
+                )}
               </tr>
             ))}
           </tbody>

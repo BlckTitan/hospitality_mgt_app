@@ -317,6 +317,7 @@ export function FormComponent() {
           inputWidth="w-1/3"
           type="string"
           register={register("position")}
+          error={errors.position}
         />
         <SelectComponent
           id="managerId"

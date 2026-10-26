@@ -1,4 +1,5 @@
 import * as yup from "yup";
+import { optionalPhone, personName } from "../../../../lib/yupFields";
 
 export const formSchema = yup.object().shape({
   email: yup
@@ -24,16 +25,9 @@ export const formSchema = yup.object().shape({
     )
     .required('Email is required'),
 
-  name: yup
-    .string()
-    .trim()
-    .min(2, "Name must be at least 2 characters")
-    .matches(/^[A-Za-z\s]+$/, "Name must contain only letters")
-    .required("Name is required"),
+  name: personName("Name"),
 
-  phone: yup
-    .string()
-    .matches(/^\+?\d{10,15}$/, "Enter a valid phone number"),
+  phone: optionalPhone(),
 
   isActive: yup
     .mixed<boolean | string>()

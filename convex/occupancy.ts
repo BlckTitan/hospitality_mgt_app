@@ -2,6 +2,7 @@ import { query } from './_generated/server';
 import { v } from 'convex/values';
 import { requirePermission, tryRequirePermission } from './lib/rbac';
 import { localDayBounds, propertyTimeZone } from './lib/billingPeriods';
+import { isShortStay, rangesOverlap } from './lib/stays';
 
 const BLOCKING_STATUSES = new Set(['pending', 'confirmed', 'checked-in']);
 const SOLD_STATUSES = new Set(['confirmed', 'checked-in', 'checked-out']);
@@ -178,33 +179,46 @@ export const getOccupancyCalendar = query({
 
         const cells = days.map((day) => {
           const stay = stays.find((row) =>
-            coversNight(row.checkInDate, row.checkOutDate, day.start, day.end),
+            !isShortStay(row) && coversNight(row.checkInDate, row.checkOutDate, day.start, day.end),
+          );
+          const dayUse = stays.filter((row) =>
+            isShortStay(row) && rangesOverlap(row.checkInDate, row.checkOutDate, day.start, day.end),
           );
           const guest = stay ? guestById.get(stay.guestId) : null;
-          const guestName = guest ? `${guest.firstName} ${guest.lastName}`.trim() : null;
+          const shortGuest = dayUse[0] ? guestById.get(dayUse[0].guestId) : null;
+          const guestName = guest
+            ? `${guest.firstName} ${guest.lastName}`.trim()
+            : dayUse.length > 1
+              ? `${dayUse.length} short stays`
+              : shortGuest
+                ? `${shortGuest.firstName} ${shortGuest.lastName}`.trim()
+                : null;
           const hkOnDay = hk.find((task) => task.dateKey === day.dateKey);
           const blockedByOrder = maintenanceDays?.has(day.dateKey) ?? false;
 
-          let kind: 'occupied' | 'confirmed' | 'pending' | 'blocked' | 'vacant' = 'vacant';
+          let kind: 'occupied' | 'confirmed' | 'pending' | 'blocked' | 'short' | 'vacant' = 'vacant';
           if (stay?.status === 'checked-in') kind = 'occupied';
           else if (stay?.status === 'confirmed' || stay?.status === 'checked-out') kind = 'confirmed';
           else if (stay?.status === 'pending') kind = 'pending';
+          else if (dayUse.length > 0) kind = 'short';
           else if (structurallyBlocked || blockedByOrder) kind = 'blocked';
 
           if (stay && SOLD_STATUSES.has(stay.status) && room.isActive && !structurallyBlocked) {
             soldNights += 1;
           }
 
-          if (day.isToday && kind === 'occupied') occupiedToday += 1;
+          if (day.isToday && (kind === 'occupied' || dayUse.some((row) => row.status === 'checked-in'))) {
+            occupiedToday += 1;
+          }
           if (day.isToday && hasOpenCheckout) notReadyToday += 1;
 
           return {
             dateKey: day.dateKey,
             kind,
-            reservationId: stay?._id ?? null,
-            confirmationNumber: stay?.confirmationNumber ?? null,
+            reservationId: stay?._id ?? dayUse[0]?._id ?? null,
+            confirmationNumber: stay?.confirmationNumber ?? dayUse[0]?.confirmationNumber ?? null,
             guestName,
-            status: stay?.status ?? null,
+            status: stay?.status ?? (dayUse[0] ? 'short' : null),
             housekeeping: hkOnDay?.taskType ?? (hasOpenCheckout && day.isToday ? 'checkout' : null),
           };
         });

@@ -153,6 +153,16 @@ interface Reservation {
   status: 'pending' | 'confirmed' | 'checked-in' | 'checked-out' | 'cancelled';
   source: 'direct' | 'ota' | 'walk-in' | 'phone' | 'other';
   specialRequests?: string;
+  /** Missing means overnight. */
+  stayKind?: 'overnight' | 'short';
+  /** Short stay only. End is checkInDate plus this many hours. */
+  durationHours?: number;
+  /** Uncertain overnight length. Surfaces the guest on the retainer list early. */
+  mayExtend?: boolean;
+  retainerFollowUp?: 'not-contacted' | 'contacted' | 'extending' | 'departing';
+  retainerFollowedUpAt?: Date;
+  retainerFollowedUpByUserId?: string;
+  retainerNote?: string;
   /** Signed-in receptionist (User) who created the booking; set on create */
   bookedByUserId?: string;
   createdAt: Date;

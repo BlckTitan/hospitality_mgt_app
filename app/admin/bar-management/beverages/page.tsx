@@ -8,16 +8,19 @@ import Beverages from './components/beverages';
 import { FormComponent } from './components/createBeverageForm';
 import { useQuery } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
+import { Id } from '../../../../convex/_generated/dataModel';
 import BootstrapModal from '../../../../shared/modal';
 import { BarManagementPageGuide } from '../components/barManagementPageGuide';
+import { usePermissions } from '../../../../hooks/usePermissions';
 
 export default function BeveragePage() {
   const [modalShow, setModalShow] = useState(false);
-  const [propertyId, setPropertyId] = useState<string>('');
+  const { hasGranularPermission } = usePermissions();
+  const canCreate = hasGranularPermission('fnb.create');
 
-  const propertiesResponse = useQuery(api.property.getAllProperties);
-  const properties = propertiesResponse?.data || [];
-  const currentPropertyId = propertyId || properties?.[0]?._id || '';
+  const propertiesResponse = useQuery(api.property.listAccessibleProperties, {});
+  const properties = propertiesResponse?.data ?? [];
+  const currentPropertyId = (properties[0]?._id || '') as Id<'properties'> | '';
 
   if (!propertiesResponse?.data) {
     return (
@@ -44,6 +47,7 @@ export default function BeveragePage() {
       </div>
         <div className="flex items-center gap-3">
           <BackLink />
+        {canCreate && currentPropertyId && (
         <Button
           variant="light"
           className="cursor-pointer"
@@ -52,6 +56,7 @@ export default function BeveragePage() {
         >
           <FcPlus className="w-8 h-8" />
         </Button>
+        )}
       
         </div>
       </header>

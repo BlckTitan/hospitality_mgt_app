@@ -258,12 +258,12 @@ export const ROLE_PERMISSION_MATRIX: Record<string, UserPermissions> = {
     staff: "NONE",
     reservations: "FULL",
     rooms: "FULL",
-    fnb: "LIMITED",
-    restaurant: "LIMITED",
+    fnb: "NONE",
+    restaurant: "NONE",
     inventory: "NONE",
-    finance: "LIMITED",
-    financial: "LIMITED",
-    reports: "LIMITED",
+    finance: "NONE",
+    financial: "NONE",
+    reports: "NONE",
     system: "NONE",
     maintenance: "NONE",
     security: "NONE",
@@ -437,11 +437,14 @@ export const GRANULAR_PERMISSIONS: Record<string, Record<string, string>> = {
     "fnb.order.create": "fnb.create",
     "fnb.order.manage": "fnb.update",
     "fnb.menu.update": "fnb.update",
+    // Menu list only. Does not grant bars, stock, POS, or cost.
+    "fnb.menu.read": "fnb.read",
   },
   restaurant: {
     "restaurant.order.create": "restaurant.create",
     "restaurant.order.manage": "restaurant.update",
     "restaurant.menu.update": "restaurant.update",
+    "restaurant.menu.read": "restaurant.read",
   },
   payroll: {
     "payroll.employee.read": "payroll.read",
@@ -467,10 +470,9 @@ export const GRANULAR_PERMISSIONS: Record<string, Record<string, string>> = {
     "staff.self.read": "staff.read",
   },
   housekeeping: {
+    // Read follows front-desk reservation access. Assign, update, and complete
+    // stay explicit so a receptionist with reservations FULL cannot open templates.
     "housekeeping.task.read": "reservations.read",
-    "housekeeping.task.assign": "reservations.update",
-    "housekeeping.task.update": "reservations.update",
-    "housekeeping.task.complete": "reservations.update",
   },
   rooms: {
     "rooms.read": "reservations.read",

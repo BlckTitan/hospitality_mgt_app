@@ -1,8 +1,9 @@
 import * as yup from 'yup'
+import { recordName } from '../../../../../lib/yupFields'
 
 export const formSchema = yup.object().shape({
   menuItemId: yup.string().required('Select a menu item'),
-  name: yup.string().trim().required('Recipe name is required'),
+  name: recordName('Recipe name', { max: 120 }),
   servings: yup
     .number()
     .typeError('Enter servings')

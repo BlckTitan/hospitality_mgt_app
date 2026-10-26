@@ -1,4 +1,5 @@
 import * as yup from "yup";
+import { recordName } from "../../../../../lib/yupFields";
 
 export const formSchema = yup.object().shape({
   sku: yup
@@ -8,19 +9,9 @@ export const formSchema = yup.object().shape({
     .max(50, "SKU must not exceed 50 characters")
     .required("SKU is required"),
 
-  name: yup
-    .string()
-    .trim()
-    .min(2, "Name must be at least 2 characters")
-    .max(200, "Name must not exceed 200 characters")
-    .required("Name is required"),
+  name: recordName("Name"),
 
-  category: yup
-    .string()
-    .trim()
-    .min(1, "Category is required")
-    .max(100, "Category must not exceed 100 characters")
-    .required("Category is required"),
+  category: recordName("Category", { min: 1, max: 100 }),
 
   unit: yup
     .string()

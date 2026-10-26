@@ -1,4 +1,5 @@
 import * as yup from "yup";
+import { recordName } from "../../../../../lib/yupFields";
 
 export const beverageCategories = [
   "spirits", "wine", "Lager beer", "cocktails", "non-alcoholic", 
@@ -7,12 +8,7 @@ export const beverageCategories = [
 ] as const;
 
 export const formSchema = yup.object().shape({
-  name: yup
-    .string()
-    .trim()
-    .min(1, "Beverage name must be at least 1 character")
-    .max(120, "Beverage name must not exceed 120 characters")
-    .required("Beverage name is required"),
+  name: recordName("Beverage name", { min: 1, max: 120 }),
 
   category: yup
     .string()

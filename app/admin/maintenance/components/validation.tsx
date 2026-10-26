@@ -1,4 +1,5 @@
 import * as yup from "yup";
+import { recordName } from "../../../../lib/yupFields";
 
 const optionalMoney = yup
   .number()
@@ -7,11 +8,7 @@ const optionalMoney = yup
   .optional();
 
 export const formSchema = yup.object().shape({
-  title: yup
-    .string()
-    .trim()
-    .min(2, "Title must be at least 2 characters")
-    .required("Title is required"),
+  title: recordName("Title", { max: 200 }),
 
   description: yup
     .string()

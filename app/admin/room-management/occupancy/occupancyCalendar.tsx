@@ -16,6 +16,7 @@ const KIND_CLASS: Record<string, string> = {
   occupied: 'bg-blue-600 text-white',
   confirmed: 'bg-sky-400 text-white',
   pending: 'bg-yellow-500 text-white',
+  short: 'bg-violet-600 text-white',
   blocked: 'bg-red-600 text-white',
   vacant: 'bg-slate-100 text-slate-500',
 };
@@ -124,6 +125,7 @@ export function OccupancyCalendar({ propertyId }: { propertyId: Id<'properties'>
         <Legend swatch="bg-blue-600" label="Checked in" />
         <Legend swatch="bg-sky-400" label="Confirmed / stayed" />
         <Legend swatch="bg-yellow-500" label="Pending" />
+        <Legend swatch="bg-violet-600" label="Short stay" />
         <Legend swatch="bg-red-600" label="OOO / maintenance" />
         <Legend swatch="bg-slate-100 border" label="Vacant" />
         <span className="flex items-center gap-1">

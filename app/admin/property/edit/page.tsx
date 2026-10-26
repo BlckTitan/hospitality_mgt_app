@@ -27,7 +27,7 @@ export default function Page() {
         <h1 className="text-2xl font-bold text-gray-800 min-w-0 truncate m-0">
           Update {`${response && 'name' in response ? response.name : undefined}`}
         </h1>
-        <p className="text-gray-600">Update this property’s name, address, contact details, timezone, currency, and images.</p>
+        <p className="text-gray-600">Update this property’s name, address, contact details, timezone, retainer reminder, currency, and images.</p>
       </div>
         <BackLink />
       </header>
@@ -39,6 +39,7 @@ export default function Page() {
         phone={response && '_id' in response ? response.phone : undefined}
         email={response && '_id' in response ? response.email : undefined}
         timezone={response && '_id' in response ? response.timezone : undefined}
+        retainerReminderDays={response && '_id' in response ? response.retainerReminderDays : undefined}
         currency={response && '_id' in response ? response.currency : undefined}
         taxId={response && '_id' in response ? response.taxId : undefined}
         country={response && '_id' in response ? response.country : undefined}

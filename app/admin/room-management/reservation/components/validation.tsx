@@ -1,20 +1,52 @@
 import * as yup from "yup";
 
+const startOfToday = () => {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  return start;
+};
+
 const sharedReservationFields = {
+  stayKind: yup
+    .string()
+    .oneOf(["overnight", "short"], "Choose overnight or short stay")
+    .required(),
+
+  durationHours: yup
+    .number()
+    .transform((value, original) => (original === "" || original == null || Number.isNaN(value) ? undefined : value))
+    .when("stayKind", {
+      is: "short",
+      then: (schema) => schema
+        .integer("Choose a whole number of hours")
+        .min(1, "Short stay is at least 1 hour")
+        .max(7, "Short stay is at most 7 hours")
+        .required("Choose how many hours"),
+      otherwise: (schema) => schema.notRequired(),
+    }),
+
+  mayExtend: yup.boolean().optional(),
+
   roomId: yup
     .string()
     .required("Room is required"),
 
   checkOutDate: yup
     .date()
-    .required("Check-out date is required")
-    .typeError("Please enter a valid date")
+    .transform((value, original) => (original === "" || original == null ? undefined : value))
+    .when("stayKind", {
+      is: "short",
+      then: (schema) => schema.notRequired().nullable(),
+      otherwise: (schema) => schema
+        .required("Check-out date is required")
+        .typeError("Please enter a valid date"),
+    })
     .test(
       "is-after-checkIn",
       "Check-out date must be after check-in date",
       function (value) {
-        const { checkInDate } = this.parent;
-        if (!value || !checkInDate) return true;
+        const { checkInDate, stayKind } = this.parent;
+        if (stayKind === "short" || !value || !checkInDate) return true;
         return new Date(value) > new Date(checkInDate);
       }
     ),
@@ -121,12 +153,19 @@ export const formSchema = yup.object().shape({
     .date()
     .required("Check-in date is required")
     .typeError("Please enter a valid date")
-    .min(new Date(), "Check-in date cannot be in the past"),
+    .when("stayKind", {
+      is: "short",
+      then: (schema) => schema.min(startOfToday(), "Start time cannot be before today"),
+      otherwise: (schema) => schema.min(new Date(), "Check-in date cannot be in the past"),
+    }),
 
   ...sharedReservationFields,
 });
 
 export const editFormSchema = yup.object().shape({
+  stayKind: sharedReservationFields.stayKind,
+  durationHours: sharedReservationFields.durationHours,
+  mayExtend: sharedReservationFields.mayExtend,
   checkInDate: yup
     .date()
     .required("Check-in date is required")

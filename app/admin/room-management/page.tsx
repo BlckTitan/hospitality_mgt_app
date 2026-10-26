@@ -5,6 +5,7 @@ import { useQuery } from 'convex/react';
 import { api } from '../../../convex/_generated/api';
 import { OccupancyCalendar } from './occupancy/occupancyCalendar';
 import { RoomPageGuide } from './components/roomPageGuide';
+import { DeskReminders } from './components/deskReminders';
 
 export default function RoomManagementPage() {
   const propertiesResponse = useQuery(api.property.getAllProperties);
@@ -42,6 +43,7 @@ export default function RoomManagementPage() {
       </div>
         <BackLink />
       </header>
+      <DeskReminders propertyId={currentPropertyId} />
       <OccupancyCalendar propertyId={currentPropertyId} />
     </div>
   );

@@ -118,7 +118,7 @@ Defines categories of rooms (e.g., Standard, Deluxe, Suite).
 - `createdAt`: Timestamp of creation
 - `updatedAt`: Timestamp of last update
 
-**Purpose**: Standardizes room categorization and pricing structure.
+**Purpose**: Standardizes room categorization and pricing structure. Nightly price is `baseRate`. Day-use prices are separate `ShortStayRate` rows (1–7 hours), one package amount per length.
 
 ---
 
@@ -174,11 +174,16 @@ Represents room bookings/reservations.
 - `roomId` (FK): Reference to Room
 - `guestId` (FK): Reference to Guest
 - `confirmationNumber`: Unique confirmation code
-- `checkInDate`: Check-in date
-- `checkOutDate`: Check-out date
+- `checkInDate`: Check-in date. For a short stay this is the clock start.
+- `checkOutDate`: Check-out date. For a short stay this is start plus `durationHours`.
+- `stayKind`: `overnight` (default when missing) or `short`
+- `durationHours`: Short stay length, 1–7. Empty on overnight stays.
+- `mayExtend`: Overnight guest whose length of stay is uncertain. Shows on the retainer list up to 7 days before checkout.
+- `retainerFollowUp`: `not-contacted`, `contacted`, `extending`, or `departing`
+- `retainerFollowedUpAt`, `retainerFollowedUpByUserId`, `retainerFollowedUpByEmployeeId`, `retainerNote`: Last follow-up, for the next shift
 - `numberOfGuests`: Number of guests
-- `rate`: Nightly rate
-- `totalAmount`: Total reservation amount
+- `rate`: Nightly rate, or the short-stay package price
+- `totalAmount`: Total reservation amount. A short stay total is the package price, not nights × rate.
 - `depositAmount`: Deposit paid
 - `status`: Status (pending, confirmed, checked-in, checked-out, cancelled)
 - `source`: Booking source (direct, OTA, walk-in, phone, other)
@@ -190,6 +195,10 @@ Represents room bookings/reservations.
 - `checkedOutAt`: Check-out timestamp
 
 **Purpose**: Core entity for room revenue tracking, occupancy management, and guest service coordination. Front desk creates stays via find-or-create: search an existing guest or supply new guest fields in the same booking mutation; the signed-in receptionist is recorded on `bookedByUserId`.
+
+A **short stay** is a day-use visit of 1–7 hours. It does not take the night, does not add a sold night, and uses the room type’s package price for that length. A room with a pending, confirmed, or checked-in overnight reservation is closed to short stays on every reserved night (check-in inclusive, check-out exclusive), including the morning before an evening arrival. While that overnight guest is still checked in, the checkout morning is closed too. After checkout, a short stay also waits until the open checkout clean is finished.
+
+A **retainer** is not a separate stay. It is a checked-in overnight guest whose checkout falls inside the property’s `retainerReminderDays` window (default 1, so today and tomorrow), or who is marked `mayExtend` and checks out within 7 days. The desk records follow-up and can add 1 or 2 nights at the nightly rate. The stay does not extend by itself.
 
 ---
 
@@ -1811,6 +1820,10 @@ Tracks all system actions for compliance and security auditing.
 #### Property → RoomType (One-to-Many)
 - **Relationship**: A Property has many RoomTypes.
 - **Explanation**: Each property defines its own room categories (e.g., "Standard", "Deluxe", "Suite"). RoomTypes are property-specific to allow different properties to have different categorization schemes.
+
+#### RoomType → ShortStayRate (One-to-Many)
+- **Relationship**: A RoomType has up to seven ShortStayRates, one per hour from 1 to 7.
+- **Explanation**: Each length is a package price. The booking server copies that amount onto the reservation. A length with no row cannot be sold.
 
 #### RoomType → Room (One-to-Many)
 - **Relationship**: A RoomType has many Rooms.

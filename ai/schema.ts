@@ -12,6 +12,8 @@ export default defineSchema({
     contactNumber: v.optional(v.string()),
     email: v.optional(v.string()),
     timezone: v.optional(v.string()),
+    // Days past today that a checked-in checkout stays on the retainer list. 0 = checkout day only. Default 1.
+    retainerReminderDays: v.optional(v.number()),
     country: v.string(), // ISO 3166-1 alpha-2; required at property setup
     currency: v.optional(v.string()),
     taxId: v.optional(v.string()),
@@ -100,6 +102,19 @@ export default defineSchema({
     .index("by_propertyId", ["propertyId"])
     .index("by_propertyId_isActive", ["propertyId", "isActive"]),
 
+  // Package price for a day-use visit. hours is 1–7. A missing row means that length is not sold.
+  shortStayRates: defineTable({
+    propertyId: v.id("properties"),
+    roomTypeId: v.id("roomTypes"),
+    hours: v.number(),
+    amount: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_roomTypeId", ["roomTypeId"])
+    .index("by_roomTypeId_and_hours", ["roomTypeId", "hours"]),
+
   rooms: defineTable({
     propertyId: v.id("properties"),
     roomTypeId: v.id("roomTypes"),
@@ -155,6 +170,22 @@ export default defineSchema({
     status: v.string(), // pending, confirmed, checked-in, checked-out, cancelled
     source: v.optional(v.string()),
     specialRequests: v.optional(v.string()),
+    // Missing on older rows, which are overnight stays.
+    stayKind: v.optional(v.union(v.literal("overnight"), v.literal("short"))),
+    // Short stay only: 1–7. End time is checkInDate plus this many hours.
+    durationHours: v.optional(v.number()),
+    // Checked-in overnight guest to show on the retainer list before the reminder window.
+    mayExtend: v.optional(v.boolean()),
+    retainerFollowUp: v.optional(v.union(
+      v.literal("not-contacted"),
+      v.literal("contacted"),
+      v.literal("extending"),
+      v.literal("departing"),
+    )),
+    retainerFollowedUpAt: v.optional(v.number()),
+    retainerFollowedUpByUserId: v.optional(v.id("users")),
+    retainerFollowedUpByEmployeeId: v.optional(v.id("staffs")),
+    retainerNote: v.optional(v.string()),
     checkedInAt: v.optional(v.number()),
     checkedOutAt: v.optional(v.number()),
     bookedByUserId: v.optional(v.id("users")),

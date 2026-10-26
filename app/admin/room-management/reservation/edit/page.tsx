@@ -33,6 +33,13 @@ export default function Page() {
       <FormComponent
         id={id as Id<'reservations'>}
         roomId={reservation.roomId}
+        stayKind={reservation.stayKind === 'short' ? 'short' : 'overnight'}
+        durationHours={reservation.durationHours}
+        mayExtend={reservation.mayExtend}
+        retainerFollowUp={reservation.retainerFollowUp}
+        retainerNote={reservation.retainerNote}
+        retainerFollowedUpAt={reservation.retainerFollowedUpAt}
+        retainerFollowedUpBy={reservation.retainerFollowedUpBy?.name ?? null}
         checkInDate={reservation.checkInDate}
         checkOutDate={reservation.checkOutDate}
         numberOfGuests={reservation.numberOfGuests}
