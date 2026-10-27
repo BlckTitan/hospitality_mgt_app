@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { SubmitHandler, useForm } from "react-hook-form";
 import { formSchema } from "./validation";
@@ -34,6 +35,9 @@ interface EditInventoryItemFormProps {
 
 export function EditInventoryItemForm({ inventoryItemData, inventoryItemId }: EditInventoryItemFormProps) {
   const updateInventoryItem = useMutation(api.inventoryItems.updateInventoryItem);
+  const correctUnitCost = useMutation(api.inventoryItems.correctInventoryUnitCost);
+  const [costDraft, setCostDraft] = useState(String(inventoryItemData.unitCost ?? ''));
+  const [costReason, setCostReason] = useState('');
   const currency = usePropertyCurrency(inventoryItemData.propertyId);
 
   const suppliersResponse = useQuery(api.suppliers.getAllSuppliers, {
@@ -73,7 +77,6 @@ export function EditInventoryItemForm({ inventoryItemData, inventoryItemId }: Ed
         unit: data.unit,
         reorderPoint: data.reorderPoint,
         reorderQuantity: data.reorderQuantity,
-        unitCost: data.unitCost,
         location: data.location,
         isActive: data.isActive,
         imageUrl: data.imageUrl ? data.imageUrl : null,
@@ -204,15 +207,45 @@ export function EditInventoryItemForm({ inventoryItemData, inventoryItemId }: Ed
           </p>
         </div>
         <div className="flex-1">
-          <InputComponent
-            id="unitCost"
-            label={`Unit Cost (${currency})`}
-            type="number"
-            inputWidth="w-full"
-            // step="0.01"
-            register={register('unitCost', { valueAsNumber: true, min: 0 })}
-            error={errors.unitCost}
-          />
+          <p className="text-sm font-medium mb-1">Unit cost ({currency})</p>
+          <p className="p-2 border rounded bg-slate-50">
+            {inventoryItemData.unitCost ?? '—'}
+          </p>
+          <p className="text-xs text-slate-500 mt-1">
+            Purchases update this average. Correct it only when the average is wrong.
+          </p>
+          <div className="mt-2 flex flex-col gap-2">
+            <input
+              className="border rounded p-2"
+              type="number"
+              min={0}
+              value={costDraft}
+              onChange={(event) => setCostDraft(event.target.value)}
+              aria-label="Corrected unit cost"
+            />
+            <input
+              className="border rounded p-2"
+              value={costReason}
+              onChange={(event) => setCostReason(event.target.value)}
+              placeholder="Why this cost is changing"
+            />
+            <Button
+              type="button"
+              variant="outline-dark"
+              size="sm"
+              onClick={async () => {
+                const corrected = await correctUnitCost({
+                  inventoryItemId: inventoryItemId as Id<'inventoryItems'>,
+                  unitCost: Number(costDraft),
+                  reason: costReason,
+                });
+                if (!corrected.success) toast.error(corrected.message);
+                else toast.success(corrected.message);
+              }}
+            >
+              Correct unit cost
+            </Button>
+          </div>
         </div>
       </div>
 

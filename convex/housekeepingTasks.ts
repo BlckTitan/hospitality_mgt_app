@@ -1,4 +1,4 @@
-import { mutation, query } from './_generated/server';
+import { mutation, query, MutationCtx } from './_generated/server';
 import { v } from 'convex/values';
 import { requirePermission, tryRequirePermission } from './lib/rbac';
 import {
@@ -17,6 +17,7 @@ import {
 } from './lib/taskAssignment';
 import { Id } from './_generated/dataModel';
 import { isActiveStatus } from './lib/staffAccess';
+import { postInventoryTransaction } from './lib/inventoryStock';
 
 const taskTypeValidator = v.union(
   v.literal('checkout'),
@@ -36,6 +37,60 @@ const priorityValidator = v.union(
   v.literal('high'),
   v.literal('urgent'),
 );
+const supplyValidator = v.object({
+  inventoryItemId: v.id('inventoryItems'),
+  quantity: v.number(),
+});
+
+async function replaceHousekeepingSupplies(
+  ctx: MutationCtx,
+  task: { _id: Id<'housekeepingTasks'>; propertyId: Id<'properties'> },
+  supplies: Array<{ inventoryItemId: Id<'inventoryItems'>; quantity: number }>,
+) {
+  const existing = await ctx.db
+    .query('housekeepingTaskSupplies')
+    .withIndex('by_housekeepingTaskId', (q) => q.eq('housekeepingTaskId', task._id))
+    .collect();
+  for (const row of existing) await ctx.db.delete(row._id);
+  const now = Date.now();
+  for (const supply of supplies) {
+    if (supply.quantity <= 0) continue;
+    const item = await ctx.db.get(supply.inventoryItemId);
+    if (!item || item.propertyId !== task.propertyId) {
+      throw new Error('A supply item is not in this property inventory');
+    }
+    await ctx.db.insert('housekeepingTaskSupplies', {
+      propertyId: task.propertyId,
+      housekeepingTaskId: task._id,
+      inventoryItemId: supply.inventoryItemId,
+      quantity: supply.quantity,
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
+}
+
+async function deductHousekeepingSupplies(ctx: MutationCtx, taskId: Id<'housekeepingTasks'>, taskType: string) {
+  const supplies = await ctx.db
+    .query('housekeepingTaskSupplies')
+    .withIndex('by_housekeepingTaskId', (q) => q.eq('housekeepingTaskId', taskId))
+    .collect();
+  let shortageQty = 0;
+  for (const supply of supplies) {
+    const posted = await postInventoryTransaction(ctx, {
+      inventoryItemId: supply.inventoryItemId,
+      transactionType: 'usage',
+      quantity: supply.quantity,
+      referenceType: 'HousekeepingTask',
+      referenceId: taskId,
+      reason: `Used on housekeeping ${taskType}`,
+      recordShortage: true,
+    });
+    if (posted.success === false) return posted;
+    shortageQty += posted.shortageQty ?? 0;
+  }
+  return { success: true as const, shortageQty };
+}
 
 async function enrichTask(ctx: Parameters<typeof enrichAssignments>[0], task: {
   _id: Id<'housekeepingTasks'>;
@@ -187,6 +242,24 @@ export const createHousekeepingTask = mutation({
   },
 });
 
+export const listHousekeepingSupplies = query({
+  args: { taskId: v.id('housekeepingTasks') },
+  handler: async (ctx, args) => {
+    const task = await ctx.db.get(args.taskId);
+    if (!task) return { success: false, data: [], message: 'Housekeeping task not found' };
+    await requirePermission(ctx, MODULE_PERMS.housekeeping.read, task.propertyId);
+    const rows = await ctx.db
+      .query('housekeepingTaskSupplies')
+      .withIndex('by_housekeepingTaskId', (q) => q.eq('housekeepingTaskId', args.taskId))
+      .collect();
+    const data = await Promise.all(rows.map(async (row) => {
+      const item = await ctx.db.get(row.inventoryItemId);
+      return { ...row, item };
+    }));
+    return { success: true, data };
+  },
+});
+
 export const updateHousekeepingTask = mutation({
   args: {
     taskId: v.id('housekeepingTasks'),
@@ -203,6 +276,7 @@ export const updateHousekeepingTask = mutation({
     actualDuration: v.optional(v.number()),
     notes: v.optional(v.string()),
     checklist: v.optional(v.any()),
+    supplies: v.optional(v.array(supplyValidator)),
   },
   handler: async (ctx, args) => {
     const existingTask = await ctx.db.get(args.taskId);
@@ -291,6 +365,13 @@ export const updateHousekeepingTask = mutation({
       if (args.actualDuration !== undefined) {
         updateData.actualDuration = args.actualDuration;
       }
+      if (args.supplies && existingTask.status !== 'completed') {
+        await replaceHousekeepingSupplies(ctx, existingTask, args.supplies);
+      }
+      if (args.status === 'completed' && existingTask.status !== 'completed') {
+        const deducted = await deductHousekeepingSupplies(ctx, args.taskId, args.taskType ?? existingTask.taskType);
+        if (deducted.success === false) return { success: false, message: deducted.message };
+      }
 
       await ctx.db.patch(args.taskId, updateData);
       return { success: true, message: 'Housekeeping task updated successfully' };
@@ -318,6 +399,11 @@ export const deleteHousekeepingTask = mutation({
       for (const row of assignments) {
         await ctx.db.delete(row._id);
       }
+      const supplies = await ctx.db
+        .query('housekeepingTaskSupplies')
+        .withIndex('by_housekeepingTaskId', (q) => q.eq('housekeepingTaskId', args.taskId))
+        .collect();
+      for (const row of supplies) await ctx.db.delete(row._id);
       await ctx.db.delete(args.taskId);
       return { success: true, message: 'Housekeeping task deleted successfully' };
     } catch (error) {

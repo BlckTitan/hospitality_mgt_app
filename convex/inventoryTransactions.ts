@@ -1,15 +1,7 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
 import { requirePermission } from './lib/rbac';
-import { maybeCreateRestockTask } from './lib/taskAssignment';
-import { MutationCtx } from './_generated/server';
-import { Id } from './_generated/dataModel';
-import { postInventoryTransaction, quantityChangeForType, weightedAverageCost } from './lib/inventoryStock';
-
-async function restockIfNeeded(ctx: MutationCtx, inventoryItemId: Id<'inventoryItems'>) {
-  const item = await ctx.db.get(inventoryItemId);
-  if (item) await maybeCreateRestockTask(ctx, item);
-}
+import { postInventoryTransaction, reapplyTransactionEffect, reverseTransactionEffect } from './lib/inventoryStock';
 
 export const getAllInventoryTransactions = query({
   args: { 
@@ -129,6 +121,9 @@ export const createInventoryTransaction = mutation({
     reason: v.optional(v.string()),
     performedBy: v.optional(v.id('staffs')),
     transactionDate: v.number(),
+    locationId: v.optional(v.id('stockLocations')),
+    fromLocationId: v.optional(v.id('stockLocations')),
+    toLocationId: v.optional(v.id('stockLocations')),
   },
   handler: async (ctx, args) => {
     const inventoryItem = await ctx.db.get(args.inventoryItemId);
@@ -148,11 +143,17 @@ export const createInventoryTransaction = mutation({
         reason: args.reason,
         performedBy: args.performedBy,
         transactionDate: args.transactionDate,
+        locationId: args.locationId,
+        fromLocationId: args.fromLocationId,
+        toLocationId: args.toLocationId,
       });
       if (posted.success === false) {
         return { success: false, message: posted.message };
       }
-      return { success: true, message: 'Inventory transaction created successfully', id: posted.id };
+      const shortage = posted.shortageQty && posted.shortageQty > 0
+        ? ` Shortage of ${posted.shortageQty} was recorded.`
+        : '';
+      return { success: true, message: `Inventory transaction created successfully.${shortage}`, id: posted.id };
     } catch (error) {
       console.log(`Failed to create inventory transaction: ${error}`);
       return { success: false, message: 'Failed to create inventory transaction' };
@@ -177,6 +178,9 @@ export const updateInventoryTransaction = mutation({
     reason: v.optional(v.string()),
     performedBy: v.optional(v.id('staffs')),
     transactionDate: v.number(),
+    locationId: v.optional(v.id('stockLocations')),
+    fromLocationId: v.optional(v.id('stockLocations')),
+    toLocationId: v.optional(v.id('stockLocations')),
   },
   handler: async (ctx, args) => {
     const existingTransaction = await ctx.db.get(args.transactionId);
@@ -189,64 +193,35 @@ export const updateInventoryTransaction = mutation({
       return { success: false, message: 'Inventory item does not exist' };
     }
     await requirePermission(ctx, 'inventory.update', inventoryItem.propertyId);
+    if (existingTransaction.referenceType === 'PurchaseOrderLine') {
+      return { success: false, message: 'Change a purchase-order receipt from Receive goods on the order' };
+    }
 
     try {
-      const oldQuantityChange = -quantityChangeForType(
-        existingTransaction.transactionType,
-        existingTransaction.quantity,
-      );
-      const newQuantityChange = quantityChangeForType(args.transactionType, args.quantity);
-      const netChange = oldQuantityChange + newQuantityChange;
-      const newQuantity = inventoryItem.currentQuantity + netChange;
+      const reversed = await reverseTransactionEffect(ctx, existingTransaction);
+      if (reversed.success === false) return { success: false, message: reversed.message };
 
-      // Check if new quantity would be negative
-      if (newQuantity < 0 && args.transactionType !== 'adjustment') {
-        return { 
-          success: false, 
-          message: `Insufficient inventory. Current quantity: ${inventoryItem.currentQuantity}, attempting to change by: ${netChange}` 
-        };
-      }
-
-      // Calculate total cost
       const totalCost = args.unitCost !== undefined && args.unitCost !== null
         ? args.unitCost * Math.abs(args.quantity)
         : undefined;
-
-      const now = Date.now();
       await ctx.db.patch(args.transactionId, {
         transactionType: args.transactionType,
         quantity: args.quantity,
         unitCost: args.unitCost,
-        totalCost: totalCost,
+        totalCost,
         referenceType: args.referenceType,
         referenceId: args.referenceId,
         reason: args.reason,
         performedBy: args.performedBy,
         transactionDate: args.transactionDate,
+        locationId: args.transactionType === 'transfer' ? undefined : args.locationId,
+        fromLocationId: args.transactionType === 'transfer' ? args.fromLocationId : undefined,
+        toLocationId: args.transactionType === 'transfer' ? args.toLocationId : undefined,
       });
-
-      const qtyAfterReverse = inventoryItem.currentQuantity + oldQuantityChange;
-      const itemPatch: {
-        currentQuantity: number;
-        updatedAt: number;
-        unitCost?: number;
-        lastCostUpdate?: number;
-      } = {
-        currentQuantity: newQuantity,
-        updatedAt: now,
-      };
-      if (args.transactionType === 'purchase' && args.unitCost !== undefined && args.unitCost !== null) {
-        itemPatch.unitCost = weightedAverageCost(
-          qtyAfterReverse,
-          inventoryItem.unitCost ?? 0,
-          Math.abs(args.quantity),
-          args.unitCost,
-        );
-        itemPatch.lastCostUpdate = now;
-      }
-      await ctx.db.patch(existingTransaction.inventoryItemId, itemPatch);
-      await restockIfNeeded(ctx, existingTransaction.inventoryItemId);
-
+      const updated = await ctx.db.get(args.transactionId);
+      if (!updated) return { success: false, message: 'Inventory transaction does not exist' };
+      const applied = await reapplyTransactionEffect(ctx, updated);
+      if (applied.success === false) throw new Error(applied.message);
       return { success: true, message: 'Inventory transaction updated successfully' };
     } catch (error) {
       console.log(`Failed to update inventory transaction: ${error}`);
@@ -269,31 +244,13 @@ export const deleteInventoryTransaction = mutation({
     }
     await requirePermission(ctx, 'inventory.delete', inventoryItem.propertyId);
 
+    if (existingTransaction.referenceType === 'PurchaseOrderLine') {
+      return { success: false, message: 'Change a purchase-order receipt from Receive goods on the order' };
+    }
     try {
-      const quantityChange = -quantityChangeForType(
-        existingTransaction.transactionType,
-        existingTransaction.quantity,
-      );
-      const newQuantity = inventoryItem.currentQuantity + quantityChange;
-
-      // Check if reverting would make quantity negative
-      if (newQuantity < 0) {
-        return { 
-          success: false, 
-          message: `Cannot delete transaction - would result in negative inventory quantity` 
-        };
-      }
-
-      const now = Date.now();
+      const reversed = await reverseTransactionEffect(ctx, existingTransaction);
+      if (reversed.success === false) return { success: false, message: reversed.message };
       await ctx.db.delete(args.transactionId);
-
-      // Update inventory item quantity
-      await ctx.db.patch(existingTransaction.inventoryItemId, {
-        currentQuantity: newQuantity,
-        updatedAt: now,
-      });
-      await restockIfNeeded(ctx, existingTransaction.inventoryItemId);
-
       return { success: true, message: 'Inventory transaction deleted successfully' };
     } catch (error) {
       console.log(`Failed to delete inventory transaction: ${error}`);

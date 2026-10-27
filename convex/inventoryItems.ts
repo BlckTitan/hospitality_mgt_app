@@ -1,4 +1,5 @@
-import { mutation, query } from './_generated/server';
+import { mutation, query, QueryCtx } from './_generated/server';
+import { Id } from './_generated/dataModel';
 import { v } from 'convex/values';
 import { requirePermission } from './lib/rbac';
 import { maybeCreateRestockTask } from './lib/taskAssignment';
@@ -158,7 +159,6 @@ export const updateInventoryItem = mutation({
     unit: v.string(),
     reorderPoint: v.optional(v.number()),
     reorderQuantity: v.optional(v.number()),
-    unitCost: v.optional(v.number()),
     location: v.optional(v.string()),
     isActive: v.boolean(),
     imageUrl: v.optional(v.union(v.string(), v.null())),
@@ -208,14 +208,6 @@ export const updateInventoryItem = mutation({
         updatedAt: now,
       };
 
-      // Update unitCost and lastCostUpdate if unitCost is provided
-      const unitCostChanged =
-        args.unitCost !== undefined && args.unitCost !== existingItem.unitCost;
-      if (args.unitCost !== undefined) {
-        updateData.unitCost = args.unitCost;
-        updateData.lastCostUpdate = now;
-      }
-
       if (args.imageUrl === null || args.imageUrl === '') {
         updateData.imageUrl = undefined;
       } else if (args.imageUrl !== undefined) {
@@ -223,10 +215,6 @@ export const updateInventoryItem = mutation({
       }
 
       await ctx.db.patch(args.inventoryItemId, updateData);
-
-      if (unitCostChanged) {
-        await recalculateRecipesForInventoryItem(ctx, args.inventoryItemId);
-      }
 
       const updatedItem = await ctx.db.get(args.inventoryItemId);
       if (updatedItem) await maybeCreateRestockTask(ctx, updatedItem);
@@ -236,6 +224,36 @@ export const updateInventoryItem = mutation({
       console.log(`Failed to update inventory item: ${error}`);
       return { success: false, message: 'Failed to update inventory item' };
     }
+  },
+});
+
+export const correctInventoryUnitCost = mutation({
+  args: {
+    inventoryItemId: v.id('inventoryItems'),
+    unitCost: v.number(),
+    reason: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const item = await ctx.db.get(args.inventoryItemId);
+    if (!item) return { success: false, message: 'Inventory item does not exist' };
+    await requirePermission(ctx, 'inventory.update', item.propertyId);
+    const reason = args.reason.trim();
+    if (reason.length < 5) {
+      return { success: false, message: 'Explain why this cost is being corrected (at least 5 characters)' };
+    }
+    if (!Number.isFinite(args.unitCost) || args.unitCost < 0) {
+      return { success: false, message: 'Unit cost cannot be negative' };
+    }
+    const now = Date.now();
+    await ctx.db.patch(item._id, {
+      unitCost: args.unitCost,
+      lastCostUpdate: now,
+      unitCostCorrectionReason: reason,
+      unitCostCorrectedAt: now,
+      updatedAt: now,
+    });
+    await recalculateRecipesForInventoryItem(ctx, item._id);
+    return { success: true, message: 'Unit cost corrected' };
   },
 });
 
@@ -398,6 +416,8 @@ export const getInventoryDashboard = query({
           unit: item.unit,
           currentQuantity: item.currentQuantity,
           reorderPoint: item.reorderPoint,
+          reorderQuantity: item.reorderQuantity,
+          supplierId: item.supplierId,
           location: item.location,
         })),
         openOrders: openOrders.slice(0, 8).map((order) => ({
@@ -409,7 +429,29 @@ export const getInventoryDashboard = query({
         })),
         overdueTasks: overdueWithItems,
         incoming,
+        shortages: await recentShortages(ctx, args.propertyId),
       },
     };
   },
 });
+
+async function recentShortages(ctx: QueryCtx, propertyId: Id<'properties'>) {
+  const rows = await ctx.db
+    .query('inventoryShortages')
+    .withIndex('by_propertyId', (q) => q.eq('propertyId', propertyId))
+    .collect();
+  const latest = rows.sort((a, b) => b.createdAt - a.createdAt).slice(0, 8);
+  return await Promise.all(latest.map(async (row) => {
+    const item = await ctx.db.get(row.inventoryItemId);
+    return {
+      _id: row._id,
+      itemName: item?.name ?? 'Item',
+      unit: item?.unit ?? '',
+      shortQty: row.shortQty,
+      neededQty: row.neededQty,
+      reason: row.reason,
+      referenceType: row.referenceType,
+      createdAt: row.createdAt,
+    };
+  }));
+}

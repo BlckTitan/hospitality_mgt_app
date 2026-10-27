@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { Button } from '../../../../../shared/button';
 import { api } from "../../../../../convex/_generated/api";
@@ -58,6 +59,20 @@ export function FormComponent({
   propertyId: string;
 }) {
   const updateTask = useMutation(api.housekeepingTasks.updateHousekeepingTask);
+  const suppliesResponse = useQuery(api.housekeepingTasks.listHousekeepingSupplies, { taskId: id });
+  const inventoryResponse = useQuery(api.inventoryItems.getAllInventoryItems, {
+    propertyId: propertyId as Id<'properties'>,
+  });
+  const [supplies, setSupplies] = useState<{ inventoryItemId: string; quantity: string }[]>([]);
+  const [suppliesReady, setSuppliesReady] = useState(false);
+  useEffect(() => {
+    if (suppliesReady || suppliesResponse === undefined) return;
+    setSupplies((suppliesResponse.data ?? []).map((row) => ({
+      inventoryItemId: row.inventoryItemId,
+      quantity: String(row.quantity),
+    })));
+    setSuppliesReady(true);
+  }, [suppliesReady, suppliesResponse]);
   const roomsResponse = useQuery(api.rooms.getAllRooms, { propertyId: propertyId as Id<'properties'> });
   const staffList = useQuery(api.housekeepingTasks.listAssignableStaff, { propertyId: propertyId as Id<'properties'> });
   
@@ -114,6 +129,16 @@ export function FormComponent({
         estimatedDuration: data.estimatedDuration,
         actualDuration: data.actualDuration,
         notes: data.notes || undefined,
+        ...(suppliesReady
+          ? {
+              supplies: supplies
+                .filter((supply) => supply.inventoryItemId && Number(supply.quantity) > 0)
+                .map((supply) => ({
+                  inventoryItemId: supply.inventoryItemId as Id<'inventoryItems'>,
+                  quantity: Number(supply.quantity),
+                })),
+            }
+          : {}),
       });
 
       if (response.success === false) {
@@ -168,6 +193,43 @@ export function FormComponent({
   return (
     <>
       <form onSubmit={handleSubmit(onSubmit)} className='mt-4'>
+        <div className="mb-4 border p-3">
+          <p className="font-medium mb-1">Supplies used</p>
+          <p className="text-sm text-slate-600 mb-2">
+            Example: 4 towels and 1 bottle of cleaner. Completing the task deducts these. If the shelf is short, the task still completes and the shortage is listed on the inventory hub.
+          </p>
+          {supplies.map((supply, index) => (
+            <div key={index} className="flex gap-2 mb-2">
+              <select
+                className="border rounded p-2 flex-1"
+                value={supply.inventoryItemId}
+                onChange={(event) => setSupplies((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, inventoryItemId: event.target.value } : row))}
+              >
+                <option value="">Select item</option>
+                {(inventoryResponse?.data ?? []).filter((item) => item.isActive).map((item) => (
+                  <option key={item._id} value={item._id}>{item.name}</option>
+                ))}
+              </select>
+              <input
+                className="border rounded p-2 w-24"
+                type="number"
+                min={0}
+                value={supply.quantity}
+                onChange={(event) => setSupplies((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, quantity: event.target.value } : row))}
+              />
+            </div>
+          ))}
+          {status !== 'completed' && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline-dark"
+              onClick={() => setSupplies((current) => [...current, { inventoryItemId: '', quantity: '1' }])}
+            >
+              Add supply
+            </Button>
+          )}
+        </div>
         <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-start gap-2 mb-2 lg:mb-4">
           <div className="flex-1">
             <label htmlFor="roomId" className="block mb-2">Room *</label>

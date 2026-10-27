@@ -26,6 +26,9 @@ export default defineSchema({
   // Roles table for RBAC (Role-Based Access Control)
   roles: defineTable({
     name: v.string(),
+    // Short line shown in the roles list. Empty string means the summary was cleared.
+    // Missing (undefined) means a legacy row whose text still lives in `description`.
+    summary: v.optional(v.string()),
     description: v.optional(v.string()),
     permissions: v.any(), // JSON object defining permissions
     isSystemRole: v.boolean(),
@@ -415,6 +418,8 @@ export default defineSchema({
     unitCost: v.optional(v.number()),
     lastCostUpdate: v.optional(v.number()),
     location: v.optional(v.string()),
+    unitCostCorrectionReason: v.optional(v.string()),
+    unitCostCorrectedAt: v.optional(v.number()),
     isActive: v.boolean(),
     imageUrl: v.optional(v.string()),
     createdAt: v.number(),
@@ -440,11 +445,15 @@ export default defineSchema({
     reason: v.optional(v.string()),
     performedBy: v.optional(v.id("staffs")),
     transactionDate: v.number(),
+    locationId: v.optional(v.id("stockLocations")),
+    fromLocationId: v.optional(v.id("stockLocations")),
+    toLocationId: v.optional(v.id("stockLocations")),
     createdAt: v.number(),
   })
     .index("by_inventoryItemId", ["inventoryItemId"])
     .index("by_transactionDate", ["transactionDate"])
-    .index("by_referenceType_referenceId", ["referenceType", "referenceId"]),
+    .index("by_referenceType_referenceId", ["referenceType", "referenceId"])
+    .index("by_locationId", ["locationId"]),
 
   suppliers: defineTable({
     propertyId: v.id("properties"),
@@ -888,6 +897,91 @@ export default defineSchema({
       "status",
     ]),
 
+  stockLocations: defineTable({
+    propertyId: v.id("properties"),
+    name: v.string(),
+    kind: v.union(
+      v.literal("storeroom"),
+      v.literal("outlet"),
+      v.literal("floor"),
+      v.literal("bar")
+    ),
+    isDefault: v.boolean(),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_propertyId_name", ["propertyId", "name"]),
+
+  inventoryBalances: defineTable({
+    propertyId: v.id("properties"),
+    inventoryItemId: v.id("inventoryItems"),
+    locationId: v.id("stockLocations"),
+    quantity: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_inventoryItemId", ["inventoryItemId"])
+    .index("by_locationId", ["locationId"])
+    .index("by_item_location", ["inventoryItemId", "locationId"]),
+
+  inventoryShortages: defineTable({
+    propertyId: v.id("properties"),
+    inventoryItemId: v.id("inventoryItems"),
+    locationId: v.optional(v.id("stockLocations")),
+    neededQty: v.number(),
+    filledQty: v.number(),
+    shortQty: v.number(),
+    referenceType: v.string(),
+    referenceId: v.string(),
+    reason: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_inventoryItemId", ["inventoryItemId"])
+    .index("by_referenceType_referenceId", ["referenceType", "referenceId"]),
+
+  inventoryCounts: defineTable({
+    propertyId: v.id("properties"),
+    locationId: v.id("stockLocations"),
+    countDateKey: v.string(),
+    status: v.union(v.literal("draft"), v.literal("posted")),
+    countedByUserId: v.id("users"),
+    notes: v.optional(v.string()),
+    netVarianceQty: v.optional(v.number()),
+    createdAt: v.number(),
+    postedAt: v.optional(v.number()),
+    postedByUserId: v.optional(v.id("users")),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_propertyId_status", ["propertyId", "status"]),
+
+  inventoryCountLines: defineTable({
+    propertyId: v.id("properties"),
+    countId: v.id("inventoryCounts"),
+    inventoryItemId: v.id("inventoryItems"),
+    bookQty: v.number(),
+    countedQty: v.optional(v.number()),
+    varianceQty: v.optional(v.number()),
+    notes: v.optional(v.string()),
+  })
+    .index("by_countId", ["countId"])
+    .index("by_propertyId", ["propertyId"])
+    .index("by_inventoryItemId", ["inventoryItemId"]),
+
+  housekeepingTaskSupplies: defineTable({
+    propertyId: v.id("properties"),
+    housekeepingTaskId: v.id("housekeepingTasks"),
+    inventoryItemId: v.id("inventoryItems"),
+    quantity: v.number(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_housekeepingTaskId", ["housekeepingTaskId"])
+    .index("by_inventoryItemId", ["inventoryItemId"]),
+
   // Bars table for bar outlets
   bars: defineTable({
     propertyId: v.id("properties"),
@@ -1089,6 +1183,7 @@ export default defineSchema({
     notes: v.optional(v.string()),
     stockRequestLineId: v.optional(v.id("stockRequestLines")),
     storeCountLineId: v.optional(v.id("storeCountLines")),
+    inventoryTransactionId: v.optional(v.id("inventoryTransactions")),
   })
     .index("by_propertyId", ["propertyId"])
     .index("by_beverageId", ["beverageId"])

@@ -223,7 +223,7 @@ export function EditPurchaseOrderForm({
         {' · '}
         {formatPropertyMoney(purchaseOrderData.totalAmount, currency)}
       </p>
-    ) : purchaseOrderData.status !== 'cancelled' && Number(purchaseOrderData.totalAmount) > 0 ? (
+    ) : purchaseOrderData.status === 'received' && Number(purchaseOrderData.totalAmount) > 0 ? (
       <form
         className="mt-4 border-t pt-4"
         onSubmit={handlePay(async (data) => {
@@ -239,6 +239,7 @@ export function EditPurchaseOrderForm({
         })}
       >
         <p className="mb-2 font-medium">Record payment</p>
+        <p className="text-sm text-slate-600 mb-2">The delivery is received. This records the order total as a supplies expense.</p>
         <SelectComponent
           id="poPaymentMethod"
           label="Payment method *"
@@ -252,6 +253,8 @@ export function EditPurchaseOrderForm({
           </Button>
         </div>
       </form>
+    ) : purchaseOrderData.status !== 'cancelled' ? (
+      <p className="mt-4 text-sm text-slate-600">Receive the delivery before recording payment.</p>
     ) : null}
     </>
   );

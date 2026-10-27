@@ -10,16 +10,17 @@ type GuidePage =
   | 'suppliers-edit'
   | 'orders'
   | 'orders-edit'
-  | 'tasks';
+  | 'tasks'
+  | 'count';
 
 const DESCRIPTIONS: Record<GuidePage, string> = {
-  hub: 'This page is the property inventory position: on-hand value, items at or below reorder point, open purchase orders, goods still due in, and overdue restock or putaway tasks. Add catalog items first, then record movements or receive a purchase order. Completing an inventory task does not change stock — receive goods or log a transaction to do that.',
+  hub: 'This page is the property inventory position: on-hand value, items at or below reorder point, open purchase orders, goods still due in, overdue tasks, and shortages. Draft order creates a purchase for the reorder quantity. A shortage means a sale or task needed more than was on the shelf. On-hand stops at zero.',
   items:
     'Create a catalog item with +. Opening quantity posts an adjustment transaction so the ledger matches on-hand. Use Reorder point to flag low stock on this list and the hub. Change quantity later with a stock movement, not by editing the item.',
   'items-edit':
-    'Update SKU, name, category, supplier, location, or reorder settings. On-hand quantity is read-only here. Record a purchase, usage, waste, or adjustment on Stock movements to change it.',
+    'Update SKU, name, category, supplier, or reorder settings. On-hand quantity is read-only. Unit cost is the average from receipts. Use Correct unit cost only when that average is wrong, and say why.',
   transactions:
-    'Record a stock movement with +. Purchase adds stock. Usage and waste remove it. Adjustment can be positive or negative. Purchase-order receipts and maintenance parts also post here automatically.',
+    'Record a stock movement with +. Purchase, usage, and waste apply to one location. Transfer moves the same quantity from one location to another and leaves the property total unchanged. A count posts adjustments when the shelf does not match the book.',
   'transactions-edit':
     'Correct the type, quantity, cost, or reason. Saving reverses the old effect on on-hand and applies the new one. Linked purchase-order receipts should be changed from the purchase order Receive goods action instead.',
   suppliers:
@@ -27,11 +28,13 @@ const DESCRIPTIONS: Record<GuidePage, string> = {
   'suppliers-edit':
     'Change contact details, payment terms, or active status. Existing items and purchase orders keep this supplier until you reassign them.',
   orders:
-    'Create a purchase order header with +, then open it to add lines and receive goods. Receiving posts purchase movements to stock and can start a putaway task. Mark as paid records the cash outflow on Expenses. Lines are not a separate area.',
+    'Create a purchase order header with +, then open it to add lines and receive goods into a location. Receiving posts purchase movements. Mark as paid is available after the order is received, and it records the cash outflow on Expenses.',
   'orders-edit':
-    'Edit the header, add lines, then enter received quantities and click Receive goods. That is the only way receipt increases on-hand. Mark as received when the delivery is complete. Putaway is a task to shelf the goods, not a second stock increase.',
+    'Edit the header, add lines, choose where the goods go, then enter received quantities and click Receive goods. Mark as received when the delivery is complete. Record payment only after that. Putaway shelves the goods. It does not add stock again.',
   tasks:
-    'Restock tasks open when on-hand falls to the reorder point. Putaway tasks open after a purchase order is received. Start and complete work here. Completing a task does not change quantity — receive the order or log a movement first.',
+    'Restock tasks open when on-hand falls to the reorder point. Putaway tasks open after a purchase order is received. Completing a task does not change quantity. Draft or receive the order, or log a movement.',
+  count:
+    'Pick a location and count every active item there. Book is what the system has at that shelf. Posting sets that shelf to the counted quantity and records the difference as an adjustment.',
 };
 
 export function InventoryPageGuide({ page }: { page: GuidePage }) {

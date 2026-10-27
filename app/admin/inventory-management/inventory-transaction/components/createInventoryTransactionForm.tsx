@@ -21,6 +21,9 @@ type FormData = {
   reason?: string;
   performedBy?: string;
   transactionDate: number;
+  locationId?: string;
+  fromLocationId?: string;
+  toLocationId?: string;
 };
 
 export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: () => void; onClose: () => void; propertyId: string }) {
@@ -28,6 +31,8 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
   const currency = usePropertyCurrency(propertyId);
   const inventoryItemsResponse = useQuery(api.inventoryItems.getAllInventoryItems, { propertyId: propertyId as Id<'properties'> });
   const inventoryItems = inventoryItemsResponse?.data || [];
+  const locationsResponse = useQuery(api.stockLocations.getStockLocations, { propertyId: propertyId as Id<'properties'> });
+  const locations = locationsResponse?.data || [];
 
   // Get all staffs for dropdown
   const staffsResponse = useQuery(api.staff.getAllStaffs);
@@ -62,6 +67,9 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
         reason: data.reason || undefined,
         performedBy: data.performedBy ? (data.performedBy as Id<'staffs'>) : undefined,
         transactionDate: data.transactionDate,
+        locationId: data.transactionType !== 'transfer' && data.locationId ? (data.locationId as Id<'stockLocations'>) : undefined,
+        fromLocationId: data.transactionType === 'transfer' && data.fromLocationId ? (data.fromLocationId as Id<'stockLocations'>) : undefined,
+        toLocationId: data.transactionType === 'transfer' && data.toLocationId ? (data.toLocationId as Id<'stockLocations'>) : undefined,
       });
 
       if (response.success === false) {
@@ -82,7 +90,7 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
     { value: 'usage', label: 'Usage (Remove from inventory)' },
     { value: 'adjustment', label: 'Adjustment (Can be positive or negative)' },
     { value: 'waste', label: 'Waste (Remove from inventory)' },
-    { value: 'transfer', label: 'Transfer (Move between locations)' },
+    { value: 'transfer', label: 'Transfer (Move from one location to another)' },
   ];
 
   const inventoryItemOptions = inventoryItems
@@ -145,6 +153,40 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
           {errors.transactionType && <span className="text-red-500 text-sm">{errors.transactionType.message}</span>}
         </div>
       </div>
+
+      {transactionType === 'transfer' ? (
+        <div className="w-full h-fit flex flex-col lg:flex-row gap-2 mb-4">
+          <div className="flex-1">
+            <label className="block mb-2">From location *</label>
+            <select {...register('fromLocationId')} className="w-full border rounded p-2">
+              <option value="">Select source</option>
+              {locations.map((location) => (
+                <option key={location._id} value={location._id}>{location.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex-1">
+            <label className="block mb-2">To location *</label>
+            <select {...register('toLocationId')} className="w-full border rounded p-2">
+              <option value="">Select destination</option>
+              {locations.map((location) => (
+                <option key={location._id} value={location._id}>{location.name}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      ) : (
+        <div className="mb-4">
+          <label className="block mb-2">Location</label>
+          <select {...register('locationId')} className="w-full border rounded p-2">
+            <option value="">Main stock location</option>
+            {locations.map((location) => (
+              <option key={location._id} value={location._id}>{location.name}</option>
+            ))}
+          </select>
+          <p className="text-xs text-slate-500 mt-1">Leave this blank to use the location that currently holds the item.</p>
+        </div>
+      )}
 
       <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-start gap-2 mb-2 lg:mb-4">
         <div className="flex-1">

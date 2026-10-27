@@ -3,13 +3,14 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { Button } from '../../../../shared/button';
-import { useQuery } from 'convex/react';
+import { useMutation, useQuery } from 'convex/react';
+import { toast } from 'sonner';
 import { api } from '../../../../convex/_generated/api';
 import { Id } from '../../../../convex/_generated/dataModel';
 import { usePermissions } from '../../../../hooks/usePermissions';
 import { formatPropertyMoney, usePropertyCurrency } from './money';
 
-const TABS = ['Low stock', 'Open purchase orders', 'Incoming goods', 'Overdue tasks'] as const;
+const TABS = ['Low stock', 'Open purchase orders', 'Incoming goods', 'Overdue tasks', 'Shortages'] as const;
 
 function formatDate(value?: number) {
   if (!value) return '—';
@@ -18,6 +19,7 @@ function formatDate(value?: number) {
 
 export function InventoryOverview({ propertyId }: { propertyId: Id<'properties'> }) {
   const dashboard = useQuery(api.inventoryItems.getInventoryDashboard, { propertyId });
+  const draftOrder = useMutation(api.purchaseOrders.createDraftPurchaseOrderForItem);
   const currency = usePropertyCurrency(propertyId);
   const { hasGranularPermission } = usePermissions();
   const canRead = hasGranularPermission('inventory.read');
@@ -51,6 +53,9 @@ export function InventoryOverview({ propertyId }: { propertyId: Id<'properties'>
             </Link>
             <Link href="/admin/inventory-management/tasks" className="border px-3 py-2">
               Inventory tasks
+            </Link>
+            <Link href="/admin/inventory-management/count" className="border px-3 py-2">
+              Stock count
             </Link>
           </>
         )}
@@ -97,12 +102,13 @@ export function InventoryOverview({ propertyId }: { propertyId: Id<'properties'>
                 <th className="p-2">Item</th>
                 <th className="p-2">On hand</th>
                 <th className="p-2">Reorder</th>
+                <th className="p-2"></th>
               </tr>
             </thead>
             <tbody>
               {data.lowStock.length === 0 && (
                 <tr>
-                  <td className="p-3" colSpan={3}>No items are at or below reorder point.</td>
+                  <td className="p-3" colSpan={4}>No items are at or below reorder point.</td>
                 </tr>
               )}
               {data.lowStock.map((row) => (
@@ -115,6 +121,25 @@ export function InventoryOverview({ propertyId }: { propertyId: Id<'properties'>
                   </td>
                   <td className="p-2">{row.currentQuantity} {row.unit}</td>
                   <td className="p-2">{row.reorderPoint ?? '—'}</td>
+                  <td className="p-2">
+                    {hasGranularPermission('inventory.create') && (
+                      <Button
+                        size="sm"
+                        variant="outline-dark"
+                        onClick={async () => {
+                          const drafted = await draftOrder({ inventoryItemId: row._id });
+                          if (!drafted.success || !drafted.id) {
+                            toast.error(drafted.message);
+                            return;
+                          }
+                          toast.success(drafted.message);
+                          window.location.href = `/admin/inventory-management/purchase-order/edit?purchase_order_id=${drafted.id}`;
+                        }}
+                      >
+                        Draft order{row.reorderQuantity ? ` (${row.reorderQuantity})` : ''}
+                      </Button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -213,6 +238,39 @@ export function InventoryOverview({ propertyId }: { propertyId: Id<'properties'>
                   </td>
                   <td className="p-2">{row.itemName}</td>
                   <td className="p-2">{formatDate(row.dueAt)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {tab === 'Shortages' && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm border">
+            <thead>
+              <tr className="bg-slate-50 text-left">
+                <th className="p-2">Item</th>
+                <th className="p-2">Short</th>
+                <th className="p-2">Needed</th>
+                <th className="p-2">When</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.shortages.length === 0 && (
+                <tr>
+                  <td className="p-3" colSpan={4}>No shortages recorded.</td>
+                </tr>
+              )}
+              {data.shortages.map((row) => (
+                <tr key={row._id} className="border-t">
+                  <td className="p-2">
+                    {row.itemName}
+                    {row.reason ? <div className="text-xs text-slate-500">{row.reason}</div> : null}
+                  </td>
+                  <td className="p-2">{row.shortQty} {row.unit}</td>
+                  <td className="p-2">{row.neededQty} {row.unit}</td>
+                  <td className="p-2">{formatDate(row.createdAt)}</td>
                 </tr>
               ))}
             </tbody>

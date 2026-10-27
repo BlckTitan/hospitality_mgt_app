@@ -719,6 +719,15 @@ List screens above are live. The following keep target fetch/permission contract
 
 ## Inventory Management Pages
 
+Live routes are under `/admin/inventory-management` (items, stock movements, suppliers, purchase orders, tasks, and stock count). The sections below describe the original page plan. Current stock behavior:
+
+- Quantity is held per location (`stockLocations` and `inventoryBalances`). `currentQuantity` is the sum.
+- A transfer moves quantity between two locations. A count at one location posts an adjustment for the difference.
+- Restaurant settlement, maintenance completion, and housekeeping completion deduct usage. If the location does not have enough, on-hand stops at zero and an `inventoryShortages` row records the gap.
+- Low stock can create a draft purchase order. Payment is allowed after the order status is `received`.
+- Unit cost is the weighted average of purchases. A manual change uses `correctInventoryUnitCost` and stores a reason.
+- A beverage linked to a catalog item is received into the bar by transferring that item from the main storeroom to the Bar store location. The bar shelf quantity then follows that balance.
+
 ### 26. Inventory Items Page (`/inventory`)
 **Purpose**: Manage inventory stock
 

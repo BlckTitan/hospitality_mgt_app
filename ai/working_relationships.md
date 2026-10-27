@@ -337,139 +337,31 @@ When the table pays:
 
 ## Inventory Management: From Purchase to Consumption {#inventory-management}
 
-### The Procurement Cycle
+Catalog stock is property-scoped. Each item has a total on-hand quantity, and that total is the sum of balances at named locations (main storeroom, a floor, an outlet, or the bar).
 
-**Step 1: Low Stock Alert**
+### Buying stock
 
-The system monitors **InventoryItem** records. When `currentQuantity` falls below `reorderPoint`:
-- `inventoryItemId: 2001` (Salmon Fillet):
-  - `currentQuantity: 2.5` kg
-  - `reorderPoint: 5.0` kg
-  - **Alert**: Stock is low!
+When salmon falls to its reorder point, the hub lists it. Draft order creates a purchase order for the reorder quantity, for example 20 kg, using the item's supplier and current unit cost. Receiving those goods into the main storeroom posts a purchase movement at that location and updates the weighted-average unit cost. Mark the order received when the delivery is complete. Record payment only after that. A putaway task reminds staff to shelf the goods. Completing the task does not add stock a second time.
 
-**Step 2: Purchase Order Creation**
+A manual change to unit cost is a correction with a written reason. Ordinary item edits do not overwrite the receipt average.
 
-The purchasing manager (Employee `employeeId: 205`) creates a **PurchaseOrder**:
-- `purchaseOrderId: 8001`
-- `propertyId: 1`
-- `supplierId: 50` (Fresh Seafood Co.)
-- `orderNumber: "PO-2024-8001"`
-- `orderDate: 2024-07-18`
-- `expectedDeliveryDate: 2024-07-20`
-- `status: "draft"`
-- `createdBy: 205`
+### Counting and moving stock
 
-**PurchaseOrderLine** records:
-- Line 1: `inventoryItemId: 2001` (Salmon), `quantity: 20` kg, `unitPrice: $15/kg`, `totalPrice: $300`
-- Line 2: `inventoryItemId: 2002` (Olive Oil), `quantity: 10` L, `unitPrice: $8/L`, `totalPrice: $80`
+The screen says the storeroom holds 20 bottles of olive oil. A count of 17 posts an adjustment at that location, and on-hand becomes 17.
 
-**Step 3: Approval Workflow**
+A transfer asks for two locations. Ten toilet rolls leave the storeroom and arrive on floor 2. The property total stays the same.
 
-The purchase order requires approval:
-1. **PurchaseOrder** updated: `status: "sent"` (sent to supplier)
-2. Finance Manager (Sarah, `employeeId: 206`) reviews and approves:
-   - `status: "confirmed"`
-   - `approvedBy: 206`
-   - `approvedAt: 2024-07-18 14:00:00`
+### Using stock
 
-**Step 4: Delivery and Receipt**
+Settling a restaurant check deducts each recipe from the location that holds the ingredient. If a plate needs 200 g of salmon and only 100 g is there, 100 g is deducted and a shortage of 100 g is recorded. The check still settles. On-hand does not go negative.
 
-On July 20th, the delivery arrives:
-1. Receiving clerk checks items against **PurchaseOrderLine** records
-2. Updates **PurchaseOrderLine**: `receivedQuantity: 20` kg (for salmon)
-3. Updates **PurchaseOrder**: `status: "received"`, `receivedAt: 2024-07-20 10:00:00`
+Completing a maintenance job deducts catalog parts the same way. Completing a housekeeping task deducts the supplies listed on that task, such as 4 towels. A missing supply is a shortage, and the task still completes.
 
-4. System creates **InventoryTransaction** records:
-   - `transactionId: 6005`:
-     - `inventoryItemId: 2001` (Salmon)
-     - `transactionType: "purchase"`
-     - `quantity: +20` (kg)
-     - `unitCost: $15`
-     - `totalCost: $300`
-     - `referenceType: "PurchaseOrder"`
-     - `referenceId: 8001`
-     - `performedBy: 205`
+### Bar stock that is linked to the catalog
 
-5. **InventoryItem** updated: `currentQuantity: 22.5` kg (was 2.5, now +20)
+A beverage can point at a catalog item. Receiving that beverage into the bar moves the item from the main storeroom into the Bar store location. The bar shelf then shows that balance. Issuing bottles to a bartender, or posting a bar count, updates the same balance. If the storeroom does not have the bottles, the receipt is refused until a purchase order is received there.
 
-**Step 5: Document Attachment**
-
-The purchasing manager uploads documents:
-- **Document** `documentId: 9001`:
-  - `documentType: "invoice"`
-  - `referenceType: "PurchaseOrder"`
-  - `referenceId: 8001`
-  - `fileUrl: "s3://documents/PO-8001-invoice.pdf"`
-  - `amount: $380` (matches PO total)
-  - `uploadedBy: 205`
-
-- **Document** `documentId: 9002`:
-  - `documentType: "delivery-note"`
-  - `referenceType: "PurchaseOrder"`
-  - `referenceId: 8001`
-  - `fileUrl: "s3://documents/PO-8001-delivery.pdf"`
-
-These documents enable three-way matching (PO, invoice, receipt) for audit compliance.
-
-**Step 6: Payment Processing**
-
-When the invoice is due:
-1. **Expense** record created:
-   - `expenseId: 7001`
-   - `propertyId: 1`
-   - `category: "supplies"`
-   - `amount: $380`
-   - `vendor: "Fresh Seafood Co."`
-   - `invoiceNumber: "INV-2024-789"`
-   - `glAccountId: 5100` (Cost of Goods Sold - Food)
-   - `status: "submitted"`
-   - `submittedBy: 205`
-
-2. Finance Manager approves: `status: "approved"`, `approvedBy: 206`
-
-3. **Payment** created:
-   - `paymentId: 3004`
-   - `paymentType: "expense"`
-   - `referenceType: "Expense"`
-   - `referenceId: 7001`
-   - `amount: $380`
-   - `paymentMethod: "bank_transfer"`
-   - `status: "completed"`
-
-4. **Expense** updated: `status: "paid"`
-
-5. **JournalEntry** automatically created:
-   - `entryId: 5003`
-   - `referenceType: "Expense"`
-   - `referenceId: 7001`
-   - **JournalEntryLine** records:
-     - `accountId: 5100` (COGS - Food), `debitAmount: $380`
-     - `accountId: 2100` (Accounts Payable), `creditAmount: $380`
-
-### Inventory Usage Tracking
-
-**Recipe-Based Deduction**
-
-When a menu item is sold (see [Restaurant](#restaurant) section), the system:
-1. Looks up the **Recipe** for the **RestaurantMenuItem**
-2. Finds all **RecipeLine** records
-3. Creates **InventoryTransaction** records for each ingredient
-4. Updates **InventoryItem** `currentQuantity` accordingly
-
-**Housekeeping Usage**
-
-When housekeeping uses supplies (see [Room Operations](#room-operations) section), **InventoryTransaction** records are created with `referenceType: "HousekeepingTask"`.
-
-**Waste and Adjustments**
-
-If inventory is damaged or expires:
-1. **InventoryTransaction** created:
-   - `transactionType: "waste"`
-   - `quantity: -2` (kg of spoiled salmon)
-   - `reason: "Expired - past use-by date"`
-   - `performedBy: 205`
-
-2. **InventoryItem** updated: `currentQuantity` reduced
+Beverages with no catalog item stay on the bar book only.
 
 ---
 

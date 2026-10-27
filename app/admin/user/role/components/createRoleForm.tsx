@@ -8,9 +8,11 @@ import InputComponent from "../../../../../shared/input";
 import { Button } from '../../../../../shared/button';
 import { useState, useEffect } from "react";
 import { PERMISSION_GROUPS } from "../../../../../lib/data";
+import { ROLE_DESCRIPTION_MAX, ROLE_SUMMARY_MAX } from "../../../../../convex/lib/roleText";
 
 type FormData = {
   name: string;
+  summary?: string;
   description?: string;
   isSystemRole: boolean;
   permissions: Record<string, boolean>;
@@ -24,6 +26,7 @@ export function FormComponent({ onSuccess, onClose }: { onSuccess: () => void; o
     resolver: yupResolver(formSchema) as any,
     defaultValues: {
       name: '',
+      summary: '',
       description: '',
       isSystemRole: false,
       permissions: {},
@@ -42,6 +45,7 @@ export function FormComponent({ onSuccess, onClose }: { onSuccess: () => void; o
       // Use the permissions state instead of form data
       const response = await createRole({
         name: data.name,
+        summary: data.summary,
         description: data.description,
         permissions: permissions,
         isSystemRole: data.isSystemRole,
@@ -77,15 +81,29 @@ export function FormComponent({ onSuccess, onClose }: { onSuccess: () => void; o
         />
       </div>
 
+      <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-1 [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4">
+        <InputComponent
+          id="summary"
+          label="Summary"
+          type="text"
+          inputWidth="w-full"
+          placeholder="Short summary for the roles list (optional)"
+          maxLength={ROLE_SUMMARY_MAX}
+          register={register('summary')}
+          error={errors.summary}
+        />
+      </div>
+
       <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-start lg:items-center gap-1 [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4">
         <div className="w-full">
           <label htmlFor="description">Description</label>
           <textarea
             id="description"
             {...register('description')}
-            rows={3}
+            rows={6}
+            maxLength={ROLE_DESCRIPTION_MAX}
             className="w-full border rounded p-2"
-            placeholder="Enter role description (optional)"
+            placeholder="Longer description (optional)"
           />
           {errors.description && <span className="text-red-500 text-sm">{errors.description.message}</span>}
         </div>

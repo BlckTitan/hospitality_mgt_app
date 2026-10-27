@@ -242,6 +242,8 @@ upsert a beverage's inventory record within a single indexed query.
 
 All three writes shall occur within the same Convex mutation to guarantee atomicity.
 
+When the beverage is linked to a catalog item, a receive does not create new bottles. It transfers that item from the main storeroom (or the location outside the bar that has enough) into the Bar store location, and `qtyInStore` follows that catalog balance. If the storeroom is short, the receive is refused until a purchase order is received there. Issuing to a bartender and posting a bar count update the same catalog balance. A beverage with no catalog item still increments `qtyInStore` only.
+
 **FR-INV-003** — When a user collects stock from the store, a Convex mutation
 shall:
 1. Insert a `storeTransactions` document with `txnType: "issue"`, including
@@ -543,6 +545,12 @@ new shift.
 backed by a corresponding `storeTransactions` issue record created in the same
 mutation. The `issueStock` mutation shall atomically create the transaction,
 decrement store inventory, and patch or create the matching day's stock log.
+
+**BR-003a** — When a beverage has `inventoryItemId`, receiving it into the bar
+moves that catalog item from the main storeroom to the Bar store location.
+The bar shelf quantity (`qtyInStore`) follows the Bar store balance. Issuing
+or counting the shelf updates that same catalog balance. Buy the product once,
+on a purchase order into the storeroom, then receive it into the bar.
 
 **BR-004** — A `reorderAlerts` document of status `"open"` shall be created at
 most once per beverage. The mutation shall check `by_beverageId_status` before

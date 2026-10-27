@@ -12,6 +12,7 @@ import {
   propertyDateKey,
   resolveBeverageUnitCost,
 } from './lib/barStock';
+import { moveCatalogStockToBar, reverseTransactionEffect } from './lib/inventoryStock';
 export const getAllStoreTransactions = query({
   args: { propertyId: v.id('properties') },
   handler: async (ctx, args) => {
@@ -105,6 +106,37 @@ export const createStoreTransaction = mutation({
       return { success: true, message: 'Store transaction created successfully', id: issued.transactionId };
     }
 
+    if (beverage.inventoryItemId) {
+      const item = await ctx.db.get(beverage.inventoryItemId);
+      if (!item || item.propertyId !== args.propertyId) {
+        return { success: false, message: 'The linked catalog item is not on this property' };
+      }
+      const posted = await moveCatalogStockToBar(ctx, {
+        item,
+        quantity: args.qty,
+        reason: args.notes || `Moved ${beverage.name} from the storeroom into the bar`,
+        transactionDate: now,
+      });
+      if (posted.success === false || !posted.id) {
+        return { success: false, message: posted.success === false ? posted.message : 'Could not move catalog stock into the bar' };
+      }
+      const transactionId = await ctx.db.insert('storeTransactions', {
+        propertyId: args.propertyId,
+        beverageId: args.beverageId,
+        txnType: 'receive',
+        qty: args.qty,
+        txnDate: now,
+        txnDateKey,
+        notes: args.notes,
+        inventoryTransactionId: posted.id,
+      });
+      return {
+        success: true,
+        message: `Moved ${args.qty} from the storeroom into the bar. Buy more on a purchase order if the storeroom is short.`,
+        id: transactionId,
+      };
+    }
+
     const inventory = await ensureStoreInventoryForReceive(ctx, {
       propertyId: args.propertyId,
       beverageId: args.beverageId,
@@ -145,6 +177,9 @@ export const updateStoreTransaction = mutation({
     await requirePermission(ctx, 'inventory.update', existing.propertyId);
     if (existing.txnType === 'count_adjust') {
       return { success: false, message: 'Count adjustments cannot be edited. Run a new store count instead.' };
+    }
+    if (existing.inventoryTransactionId) {
+      return { success: false, message: 'This receipt moved catalog stock. Delete it and enter a new receipt.' };
     }
 
     if (args.qty <= 0) {
@@ -306,6 +341,15 @@ export const deleteStoreTransaction = mutation({
     await requirePermission(ctx, 'inventory.delete', existing.propertyId);
     if (existing.txnType === 'count_adjust') {
       return { success: false, message: 'Count adjustments cannot be deleted. Run a new store count instead.' };
+    }
+    if (existing.inventoryTransactionId) {
+      const linked = await ctx.db.get(existing.inventoryTransactionId);
+      if (!linked) return { success: false, message: 'The catalog transfer for this receipt is missing' };
+      const reversed = await reverseTransactionEffect(ctx, linked);
+      if (reversed.success === false) return { success: false, message: reversed.message };
+      await ctx.db.delete(existing.inventoryTransactionId);
+      await ctx.db.delete(args.transactionId);
+      return { success: true, message: 'Receipt removed and stock returned to the storeroom' };
     }
 
     const inventory = await findStoreInventory(

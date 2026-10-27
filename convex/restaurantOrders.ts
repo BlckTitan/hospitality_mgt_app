@@ -245,7 +245,7 @@ export async function deductInventoryForOrder(
         referenceType: 'RestaurantOrderLine',
         referenceId: line._id,
         reason: `Restaurant order ${checkSuffixFromId(orderId)}: ${line.nameSnapshot}`,
-        allowNegative: true,
+        recordShortage: true,
         transactionDate: now,
       });
       if (posted.success === false) {

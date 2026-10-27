@@ -11,20 +11,23 @@ import { Button } from '../../../../../shared/button';
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { useState, useEffect } from "react";
 import { PERMISSION_GROUPS } from "../../../../../lib/data";
+import { ROLE_DESCRIPTION_MAX, ROLE_SUMMARY_MAX } from "../../../../../convex/lib/roleText";
 
 type FormData = {
   id: Id<'roles'>;
   name: string;
+  summary?: string;
   description?: string;
   isSystemRole: boolean;
   permissions: Record<string, boolean>;
 };
 
 export function FormComponent({
-  id, name, description, permissions: initialPermissions, isSystemRole
+  id, name, summary, description, permissions: initialPermissions, isSystemRole
 }: {
   id: Id<'roles'>;
   name: string;
+  summary?: string;
   description?: string;
   permissions: any;
   isSystemRole: boolean;
@@ -43,6 +46,7 @@ export function FormComponent({
     resolver: yupResolver(formSchema) as any,
     defaultValues: {
       name: name,
+      summary: summary || '',
       description: description || '',
       isSystemRole: isSystemRole,
       permissions: initialPermissions || {},
@@ -62,6 +66,7 @@ export function FormComponent({
       const response = await updateRole({
         role_id: id,
         name: data.name,
+        summary: data.summary,
         description: data.description,
         permissions: permissions,
         isSystemRole: data.isSystemRole,
@@ -95,15 +100,29 @@ export function FormComponent({
         />
       </div>
 
+      <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-1 [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4">
+        <InputComponent
+          id="summary"
+          label="Summary"
+          type="text"
+          inputWidth="w-full"
+          placeholder="Short summary for the roles list (optional)"
+          maxLength={ROLE_SUMMARY_MAX}
+          register={register('summary')}
+          error={errors.summary}
+        />
+      </div>
+
       <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-start lg:items-center gap-1 [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4">
         <div className="w-full">
           <label htmlFor="description">Description</label>
           <textarea
             id="description"
             {...register('description')}
-            rows={3}
+            rows={6}
+            maxLength={ROLE_DESCRIPTION_MAX}
             className="w-full border rounded p-2"
-            placeholder="Enter role description (optional)"
+            placeholder="Longer description (optional)"
           />
           {errors.description && <span className="text-red-500 text-sm">{errors.description.message}</span>}
         </div>
@@ -156,7 +175,7 @@ export function FormComponent({
       </div>
 
       <div className="flex gap-2 justify-end">
-        <Button variant="secondary" onClick={() => window.location.href = '/admin/role'}>
+        <Button variant="secondary" onClick={() => window.location.href = '/admin/user/role'}>
           Cancel
         </Button>
         <Button variant="dark" type="submit">

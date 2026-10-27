@@ -667,6 +667,7 @@ export const updateMaintenanceOrder = mutation({
           referenceId: part._id,
           reason: `Used on maintenance: ${existing.title}`,
           performedBy: staff?._id,
+          recordShortage: true,
         });
         if (posted.success === false) {
           return { success: false, message: posted.message };

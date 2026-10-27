@@ -21,6 +21,9 @@ type FormData = {
   reason?: string;
   performedBy?: string;
   transactionDate: number;
+  locationId?: string;
+  fromLocationId?: string;
+  toLocationId?: string;
 };
 
 interface EditInventoryTransactionFormProps {
@@ -36,6 +39,13 @@ export function EditInventoryTransactionForm({ transactionData, transactionId }:
     propertyId: transactionData.inventoryItem?.propertyId as Id<'properties'>,
   });
   const inventoryItems = inventoryItemsResponse?.data || [];
+  const locationsResponse = useQuery(
+    api.stockLocations.getStockLocations,
+    transactionData.inventoryItem?.propertyId
+      ? { propertyId: transactionData.inventoryItem.propertyId as Id<'properties'> }
+      : 'skip',
+  );
+  const locations = locationsResponse?.data || [];
 
   // Get all staffs for dropdown
   const staffsResponse = useQuery(api.staff.getAllStaffs);
@@ -53,6 +63,9 @@ export function EditInventoryTransactionForm({ transactionData, transactionId }:
       reason: transactionData.reason || '',
       performedBy: transactionData.performedBy || '',
       transactionDate: transactionData.transactionDate || Date.now(),
+      locationId: transactionData.locationId || '',
+      fromLocationId: transactionData.fromLocationId || '',
+      toLocationId: transactionData.toLocationId || '',
     },
   });
 
@@ -72,6 +85,9 @@ export function EditInventoryTransactionForm({ transactionData, transactionId }:
         transactionDate: typeof data.transactionDate === 'number'
           ? data.transactionDate
           : new Date(data.transactionDate).getTime(),
+        locationId: data.transactionType !== 'transfer' && data.locationId ? (data.locationId as Id<'stockLocations'>) : undefined,
+        fromLocationId: data.transactionType === 'transfer' && data.fromLocationId ? (data.fromLocationId as Id<'stockLocations'>) : undefined,
+        toLocationId: data.transactionType === 'transfer' && data.toLocationId ? (data.toLocationId as Id<'stockLocations'>) : undefined,
       });
 
       if (response.success === false) {
@@ -161,6 +177,39 @@ export function EditInventoryTransactionForm({ transactionData, transactionId }:
           {errors.transactionType && <span className="text-red-500 text-sm">{errors.transactionType.message}</span>}
         </div>
       </div>
+
+      {transactionType === 'transfer' ? (
+        <div className="w-full flex flex-col lg:flex-row gap-2 mb-4">
+          <div className="flex-1">
+            <label className="block mb-2">From location *</label>
+            <select {...register('fromLocationId')} className="w-full border rounded p-2">
+              <option value="">Select source</option>
+              {locations.map((location) => (
+                <option key={location._id} value={location._id}>{location.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex-1">
+            <label className="block mb-2">To location *</label>
+            <select {...register('toLocationId')} className="w-full border rounded p-2">
+              <option value="">Select destination</option>
+              {locations.map((location) => (
+                <option key={location._id} value={location._id}>{location.name}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      ) : (
+        <div className="mb-4">
+          <label className="block mb-2">Location</label>
+          <select {...register('locationId')} className="w-full border rounded p-2">
+            <option value="">Location that held this movement</option>
+            {locations.map((location) => (
+              <option key={location._id} value={location._id}>{location.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-start gap-2 mb-2 lg:mb-4">
         <div className="flex-1">

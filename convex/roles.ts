@@ -1,7 +1,13 @@
 import { mutation, query, internalMutation } from './_generated/server';
 import { v } from 'convex/values';
 import { requirePermission, tryRequirePermission } from './lib/rbac';
-import { ensureAllSystemRoles } from './lib/systemRoles';
+import { ensureAllSystemRoles, migrateLegacyRoleDescriptions } from './lib/systemRoles';
+import {
+  ROLE_DESCRIPTION_MAX,
+  ROLE_SUMMARY_MAX,
+  roleDescriptionToStore,
+  roleSummaryToStore,
+} from './lib/roleText';
 export const getAllRoles = query({
   handler: async (ctx) => {
     await requirePermission(ctx, 'roles.read');
@@ -41,9 +47,20 @@ export const getRole = query({
   },
 });
 
+function roleTextError(summary: string, description: string | undefined): string | null {
+  if (summary.length > ROLE_SUMMARY_MAX) {
+    return `Summary must not exceed ${ROLE_SUMMARY_MAX} characters`;
+  }
+  if (description && description.length > ROLE_DESCRIPTION_MAX) {
+    return `Description must not exceed ${ROLE_DESCRIPTION_MAX} characters`;
+  }
+  return null;
+}
+
 export const createRole = mutation({
   args: {
     name: v.string(),
+    summary: v.optional(v.string()),
     description: v.optional(v.string()),
     permissions: v.any(), // JSON object
     isSystemRole: v.boolean(),
@@ -64,10 +81,16 @@ export const createRole = mutation({
         return { success: false, message: 'Role with this name already exists' };
       }
 
+      const summary = roleSummaryToStore(args.summary);
+      const description = roleDescriptionToStore(args.description);
+      const textError = roleTextError(summary, description);
+      if (textError) return { success: false, message: textError };
+
       const now = Date.now();
       const role_id = await ctx.db.insert('roles', {
         name: args.name,
-        description: args.description,
+        summary,
+        ...(description !== undefined ? { description } : {}),
         permissions: args.permissions || {},
         isSystemRole: false,
         createdAt: now,
@@ -86,6 +109,7 @@ export const updateRole = mutation({
   args: {
     role_id: v.id('roles'),
     name: v.string(),
+    summary: v.optional(v.string()),
     description: v.optional(v.string()),
     permissions: v.any(), // JSON object
     isSystemRole: v.boolean(),
@@ -120,9 +144,15 @@ export const updateRole = mutation({
         }
       }
 
+      const summary = roleSummaryToStore(args.summary);
+      const description = roleDescriptionToStore(args.description);
+      const textError = roleTextError(summary, description);
+      if (textError) return { success: false, message: textError };
+
       await ctx.db.patch(args.role_id, {
         name: args.name,
-        description: args.description,
+        summary,
+        description,
         permissions: args.permissions || {},
         isSystemRole: false,
         updatedAt: Date.now(),
@@ -184,6 +214,14 @@ export const getRoleByName = query({
       console.log(`Failed to fetch role by name: ${error}`);
       return { success: false, data: null, message: 'Failed to fetch role' };
     }
+  },
+});
+
+export const migrateRoleDescriptionsToSummaries = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const moved = await migrateLegacyRoleDescriptions(ctx);
+    return { success: true, moved, message: `Moved ${moved} role descriptions to summary` };
   },
 });
 

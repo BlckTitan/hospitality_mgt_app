@@ -1,4 +1,5 @@
 import { MutationCtx, QueryCtx } from "../_generated/server";
+import { mirrorStoreQtyToBarLocation } from "./inventoryStock";
 import { Doc, Id } from "../_generated/dataModel";
 import { localDayBounds, propertyTimeZone } from "./billingPeriods";
 import { findOrCreateFnBShift } from "./shiftHelpers";
@@ -390,6 +391,8 @@ export async function applyStoreQtyChange(
     qtyInStore: newQty,
     lastUpdated: Date.now(),
   });
+  const beverage = await ctx.db.get(inventory.beverageId);
+  if (beverage) await mirrorStoreQtyToBarLocation(ctx, beverage, newQty);
   return newQty;
 }
 

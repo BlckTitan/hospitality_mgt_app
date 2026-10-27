@@ -12,6 +12,7 @@ async function receiveLinesIntoStock(
   order: Doc<'purchaseOrders'>,
   performedBy?: Id<'staffs'>,
   requested?: Array<{ purchaseOrderLineId: Id<'purchaseOrderLines'>; receivedQuantity: number }>,
+  locationId?: Id<'stockLocations'>,
 ) {
   const lines = await ctx.db
     .query('purchaseOrderLines')
@@ -40,6 +41,7 @@ async function receiveLinesIntoStock(
         referenceId: line._id,
         reason: `Received on PO ${order.orderNumber}`,
         performedBy,
+        locationId,
       });
       if (posted.success === false) {
         return posted;
@@ -331,6 +333,9 @@ export const markPurchaseOrderPaid = mutation({
     if (order.status === 'cancelled') {
       return { success: false, message: 'Cannot pay a cancelled purchase order' };
     }
+    if (order.status !== 'received') {
+      return { success: false, message: 'Receive the delivery before recording payment' };
+    }
     if (order.expenseId && order.paidAt) {
       return { success: true, message: 'Purchase order already marked as paid' };
     }
@@ -423,6 +428,7 @@ export const receivePurchaseOrder = mutation({
       receivedQuantity: v.number(),
     }))),
     markReceived: v.optional(v.boolean()),
+    locationId: v.optional(v.id('stockLocations')),
   },
   handler: async (ctx, args) => {
     const order = await ctx.db.get(args.purchaseOrderId);
@@ -434,7 +440,7 @@ export const receivePurchaseOrder = mutation({
       return { success: false, message: 'Cannot receive a cancelled purchase order' };
     }
     const staff = await currentUsersStaff(ctx, auth.user._id);
-    const received = await receiveLinesIntoStock(ctx, order, staff?._id, args.lines);
+    const received = await receiveLinesIntoStock(ctx, order, staff?._id, args.lines, args.locationId);
     if (received.success === false) {
       return { success: false, message: received.message };
     }
@@ -462,5 +468,69 @@ export const receivePurchaseOrder = mutation({
     return { success: true, message: fullyReceived || args.markReceived
       ? 'Goods received and stock updated'
       : 'Partial receipt posted to stock' };
+  },
+});
+
+export const createDraftPurchaseOrderForItem = mutation({
+  args: {
+    inventoryItemId: v.id('inventoryItems'),
+    quantity: v.optional(v.number()),
+    inventoryTaskId: v.optional(v.id('inventoryTasks')),
+  },
+  handler: async (ctx, args) => {
+    const item = await ctx.db.get(args.inventoryItemId);
+    if (!item) return { success: false, message: 'Inventory item does not exist' };
+    const auth = await requirePermission(ctx, 'inventory.create', item.propertyId);
+    if (!item.supplierId) {
+      return { success: false, message: 'Set a supplier on the item before drafting an order' };
+    }
+    const quantity = args.quantity ?? item.reorderQuantity ?? 0;
+    if (quantity <= 0) {
+      return { success: false, message: 'Set a reorder quantity greater than 0, or enter a quantity' };
+    }
+    const staff = await currentUsersStaff(ctx, auth.user._id);
+    if (!staff) {
+      return { success: false, message: 'Link your login to a staff record before creating a purchase order' };
+    }
+    const now = Date.now();
+    const unitPrice = item.unitCost ?? 0;
+    const lineTotal = quantity * unitPrice;
+    const orderNumber = `PO-${now}`;
+    const purchaseOrderId = await ctx.db.insert('purchaseOrders', {
+      propertyId: item.propertyId,
+      supplierId: item.supplierId,
+      orderNumber,
+      orderDate: now,
+      status: 'draft',
+      subtotal: lineTotal,
+      taxAmount: 0,
+      shippingAmount: 0,
+      totalAmount: lineTotal,
+      createdBy: staff._id,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await ctx.db.insert('purchaseOrderLines', {
+      propertyId: item.propertyId,
+      purchaseOrderId,
+      inventoryItemId: item._id,
+      quantity,
+      unitPrice,
+      totalPrice: lineTotal,
+      receivedQuantity: 0,
+      createdAt: now,
+      updatedAt: now,
+    });
+    if (args.inventoryTaskId) {
+      const task = await ctx.db.get(args.inventoryTaskId);
+      if (task && task.propertyId === item.propertyId && task.inventoryItemId === item._id) {
+        await ctx.db.patch(task._id, { purchaseOrderId, updatedAt: now });
+      }
+    }
+    return {
+      success: true,
+      message: `Draft order ${orderNumber} created for ${quantity} ${item.unit}`,
+      id: purchaseOrderId,
+    };
   },
 });

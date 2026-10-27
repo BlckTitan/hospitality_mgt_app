@@ -1,5 +1,6 @@
 import * as yup from "yup";
 import { hasLetter } from "../../../../../convex/lib/fieldText";
+import { ROLE_DESCRIPTION_MAX, ROLE_SUMMARY_MAX } from "../../../../../convex/lib/roleText";
 
 export const formSchema = yup.object().shape({
   name: yup
@@ -11,10 +12,16 @@ export const formSchema = yup.object().shape({
     .test("has-letter", "Role name cannot be numbers only", (value) => hasLetter(value))
     .required("Role name is required"),
 
+  summary: yup
+    .string()
+    .trim()
+    .max(ROLE_SUMMARY_MAX, `Summary must not exceed ${ROLE_SUMMARY_MAX} characters`)
+    .optional(),
+
   description: yup
     .string()
     .trim()
-    .max(5000, "Description must not exceed 5000 characters")
+    .max(ROLE_DESCRIPTION_MAX, `Description must not exceed ${ROLE_DESCRIPTION_MAX} characters`)
     .optional(),
 
   isSystemRole: yup

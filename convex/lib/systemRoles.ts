@@ -5,6 +5,7 @@ import {
   SYSTEM_ROLE_DEFINITIONS,
   buildRolePermissions,
 } from "./rolePermissionCatalog";
+import { roleSummaryToStore } from "./roleText";
 
 export { ADMINISTRATOR_PERMISSIONS };
 
@@ -56,7 +57,7 @@ export async function assignAdministratorRoleForProperty(
 async function upsertSystemRole(
   ctx: MutationCtx,
   name: string,
-  description: string,
+  summary: string,
   permissions: Record<string, boolean>,
 ): Promise<Id<"roles">> {
   const now = Date.now();
@@ -68,7 +69,7 @@ async function upsertSystemRole(
 
   if (existing) {
     await ctx.db.patch(existing._id, {
-      description: existing.description ?? description,
+      ...summaryPatch(existing, summary),
       permissions,
       isSystemRole: true,
       updatedAt: now,
@@ -82,7 +83,7 @@ async function upsertSystemRole(
     if (legacyAdminRole) {
       await ctx.db.patch(legacyAdminRole._id, {
         name: ADMINISTRATOR_ROLE_NAME,
-        description: legacyAdminRole.description ?? description,
+        ...summaryPatch(legacyAdminRole, summary),
         permissions,
         isSystemRole: true,
         updatedAt: now,
@@ -93,12 +94,29 @@ async function upsertSystemRole(
 
   return await ctx.db.insert("roles", {
     name,
-    description,
+    summary,
     permissions,
     isSystemRole: true,
     createdAt: now,
     updatedAt: now,
   });
+}
+
+/**
+ * Keep a summary that was already saved. On a legacy row, move `description`
+ * into `summary` and clear `description` so the new long field starts empty.
+ */
+function summaryPatch(
+  existing: { summary?: string; description?: string },
+  catalogSummary: string,
+): { summary: string; description?: undefined } {
+  if (existing.summary !== undefined) {
+    return { summary: existing.summary };
+  }
+  return {
+    summary: roleSummaryToStore(existing.description ?? catalogSummary),
+    description: undefined,
+  };
 }
 
 export async function ensureAdministratorRole(ctx: MutationCtx): Promise<Id<"roles">> {
@@ -110,6 +128,21 @@ export async function ensureAdministratorRole(ctx: MutationCtx): Promise<Id<"rol
   );
 }
 
+/** One-shot copy of the old role description into summary. Safe to re-run. */
+export async function migrateLegacyRoleDescriptions(ctx: MutationCtx): Promise<number> {
+  const roles = await ctx.db.query("roles").collect();
+  let moved = 0;
+  for (const role of roles) {
+    if (role.summary !== undefined || !role.description) continue;
+    await ctx.db.patch(role._id, {
+      summary: role.description,
+      description: undefined,
+    });
+    moved += 1;
+  }
+  return moved;
+}
+
 /**
  * Upserts every RBAC system role with the permission map from ai/RBAC.md.
  * Safe to re-run; refreshes permissions on existing system roles.
@@ -117,11 +150,13 @@ export async function ensureAdministratorRole(ctx: MutationCtx): Promise<Id<"rol
 export async function ensureAllSystemRoles(
   ctx: MutationCtx,
 ): Promise<{ name: string; roleId: Id<"roles"> }[]> {
+  await migrateLegacyRoleDescriptions(ctx);
+
   const results: { name: string; roleId: Id<"roles"> }[] = [];
 
   for (const def of SYSTEM_ROLE_DEFINITIONS) {
     const permissions = buildRolePermissions(def.name);
-    const roleId = await upsertSystemRole(ctx, def.name, def.description, permissions);
+    const roleId = await upsertSystemRole(ctx, def.name, def.summary, permissions);
     results.push({ name: def.name, roleId });
   }
 

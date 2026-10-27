@@ -8,10 +8,12 @@ import { useMutation } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { toast } from "sonner";
+import { roleSummaryText } from "../../../../../convex/lib/roleText";
 
 interface RoleProps {
   _id: string;
   name: string;
+  summary?: string;
   description?: string;
   permissions: any; // JSON object
   isSystemRole: boolean;
@@ -48,7 +50,14 @@ const Roles = () => {
 
   const tableColumns: TableColumn<RoleProps>[] = [
     { label: 'Role Name', key: 'name' },
-    // { label: 'Description', key: 'description' },
+    {
+      label: 'Summary',
+      key: 'summary',
+      render: (_value, row) => {
+        const summary = roleSummaryText(row);
+        return <span>{summary || '—'}</span>;
+      },
+    },
     {
       label: 'System Role',
       key: 'isSystemRole',

@@ -18,6 +18,7 @@ export function OrderLines({
 }) {
   const order = useQuery(api.purchaseOrders.getPurchaseOrder, { purchaseOrderId });
   const items = useQuery(api.inventoryItems.getAllInventoryItems, { propertyId });
+  const locationsResponse = useQuery(api.stockLocations.getStockLocations, { propertyId });
   const addLine = useMutation(api.purchaseOrderLines.createPurchaseOrderLine);
   const deleteLine = useMutation(api.purchaseOrderLines.deletePurchaseOrderLine);
   const receive = useMutation(api.purchaseOrders.receivePurchaseOrder);
@@ -31,6 +32,7 @@ export function OrderLines({
   const [quantity, setQuantity] = useState('1');
   const [unitPrice, setUnitPrice] = useState('0');
   const [receivedDraft, setReceivedDraft] = useState<Record<string, string>>({});
+  const [locationId, setLocationId] = useState('');
 
   const lines = order?.data?.lines ?? [];
   const catalog = (items?.data ?? []).filter((item) => item.isActive);
@@ -73,6 +75,7 @@ export function OrderLines({
       purchaseOrderId,
       lines: payload,
       markReceived,
+      locationId: locationId ? (locationId as Id<'stockLocations'>) : undefined,
     });
     if (!response.success) {
       toast.error(response.message);
@@ -189,7 +192,20 @@ export function OrderLines({
       )}
 
       {canUpdate && lines.length > 0 && order.data?.status !== 'cancelled' && (
-        <div className="flex flex-wrap gap-2 mt-4">
+        <div className="flex flex-wrap gap-2 mt-4 items-end">
+          <label className="flex flex-col text-sm">
+            Receive into
+            <select
+              className="border rounded px-2 py-1 mt-1 min-w-48"
+              value={locationId}
+              onChange={(event) => setLocationId(event.target.value)}
+            >
+              <option value="">Main stock location</option>
+              {(locationsResponse?.data ?? []).map((location) => (
+                <option key={location._id} value={location._id}>{location.name}</option>
+              ))}
+            </select>
+          </label>
           <Button variant="dark" onClick={() => handleReceive(false)}>Receive goods</Button>
           {order.data?.status !== 'received' && (
             <Button variant="outline-dark" onClick={() => handleReceive(true)}>

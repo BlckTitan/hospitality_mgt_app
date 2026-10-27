@@ -17,30 +17,30 @@ import {
 
 export type SystemRoleDefinition = {
   name: string;
-  description: string;
+  summary: string;
 };
 
 /** Roles from ai/RBAC.md — names must match ROLE_PERMISSION_MATRIX keys. */
 export const SYSTEM_ROLE_DEFINITIONS: SystemRoleDefinition[] = [
-  { name: "Administrator", description: "Full system access for property owners and IT administrators" },
-  { name: "Director", description: "Executive oversight across property operations and finance" },
-  { name: "General Manager", description: "Overall property management with full operational access" },
-  { name: "Operations Manager", description: "Day-to-day operations across rooms, F&B, inventory, and maintenance" },
-  { name: "Finance Manager", description: "Financial management, billing, expenses, and payroll" },
-  { name: "HR Manager", description: "Staff, payroll, and limited user administration" },
-  { name: "IT Manager", description: "Users, roles, system settings, and cross-module support access" },
-  { name: "Manager", description: "Department manager with broad operational access" },
-  { name: "Assistant Manager", description: "Supports managers on reservations, F&B, and team oversight" },
-  { name: "Supervisor", description: "Floor supervisor for F&B, tasks, hours, and direct reports" },
-  { name: "Receptionist", description: "Front desk reservations, guests, rooms, and read-only food and drink menus" },
-  { name: "Concierge", description: "Guest services with limited reservation access" },
-  { name: "Housekeeping", description: "Housekeeping tasks and limited room / reservation visibility" },
-  { name: "Waiter", description: "F&B service orders" },
-  { name: "Bartender", description: "Bar operations, POS, and limited store inventory" },
-  { name: "Cook / Chef", description: "Kitchen operations and limited inventory" },
-  { name: "Kitchen Assistant", description: "Kitchen support with limited F&B and inventory access" },
-  { name: "Maintenance Staff", description: "Maintenance work orders and facilities" },
-  { name: "Security Officer", description: "Security and access logs" },
+  { name: "Administrator", summary: "Full system access for property owners and IT administrators" },
+  { name: "Director", summary: "Executive oversight across property operations and finance" },
+  { name: "General Manager", summary: "Overall property management with full operational access" },
+  { name: "Operations Manager", summary: "Day-to-day operations across rooms, F&B, inventory, and maintenance" },
+  { name: "Finance Manager", summary: "Financial management, billing, expenses, and payroll" },
+  { name: "HR Manager", summary: "Staff, payroll, and limited user administration" },
+  { name: "IT Manager", summary: "Users, roles, system settings, and cross-module support access" },
+  { name: "Manager", summary: "Department manager with broad operational access" },
+  { name: "Assistant Manager", summary: "Supports managers on reservations, F&B, and team oversight" },
+  { name: "Supervisor", summary: "Floor supervisor for F&B, tasks, hours, and direct reports" },
+  { name: "Receptionist", summary: "Front desk reservations, guests, rooms, and read-only food and drink menus" },
+  { name: "Concierge", summary: "Guest services with limited reservation access" },
+  { name: "Housekeeping", summary: "Housekeeping tasks and limited room / reservation visibility" },
+  { name: "Waiter", summary: "F&B service orders" },
+  { name: "Bartender", summary: "Bar operations, POS, and limited store inventory" },
+  { name: "Cook / Chef", summary: "Kitchen operations and limited inventory" },
+  { name: "Kitchen Assistant", summary: "Kitchen support with limited F&B and inventory access" },
+  { name: "Maintenance Staff", summary: "Maintenance work orders and facilities" },
+  { name: "Security Officer", summary: "Security and access logs" },
 ];
 
 const COMPENSATION_ROLES = new Set([

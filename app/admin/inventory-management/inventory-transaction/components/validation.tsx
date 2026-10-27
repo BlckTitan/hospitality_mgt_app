@@ -55,4 +55,8 @@ export const formSchema = yup.object().shape({
   transactionDate: yup
     .mixed()
     .required("Transaction date is required"),
+
+  locationId: yup.string().optional().nullable(),
+  fromLocationId: yup.string().optional().nullable(),
+  toLocationId: yup.string().optional().nullable(),
 });
