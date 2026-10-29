@@ -866,7 +866,7 @@ export default defineSchema({
     .index("by_propertyId", ["propertyId"])
     .index("by_propertyId_kind", ["propertyId", "kind"]),
 
-  // Department default hours. Beverages templates require barId when department is beverages.
+  // Department hours. barId is legacy and is not set on new rows. A bar belongs on an F&B worked shift.
   shiftTemplates: defineTable({
     propertyId: v.id("properties"),
     department: v.union(

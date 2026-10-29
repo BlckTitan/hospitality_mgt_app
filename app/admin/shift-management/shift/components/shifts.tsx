@@ -108,13 +108,11 @@ const Shifts = ({ currentPropertyId }: { currentPropertyId: Id<"properties"> }) 
     {
       label: 'Department',
       key: 'department',
-      render: (_value, row) => <span>{departmentLabel(row.department)}</span>
-    },
-    {
-      label: 'Bar',
-      key: 'bar',
       render: (_value, row) => (
-        <span>{row.bar?.name || '—'}</span>
+        <span>
+          {departmentLabel(row.department)}
+          {row.department === 'fnb' && row.bar?.name ? ` · ${row.bar.name}` : ''}
+        </span>
       )
     },
     {

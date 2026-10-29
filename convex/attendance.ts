@@ -14,6 +14,7 @@ import {
   findAnyShiftForStaffDate,
   getRosterSlotForScheduled,
   getRosterSlotForWorking,
+  resolveFnBBarId,
   resolveStaffTemplate,
   staffDisplayName,
 } from "./lib/shiftHelpers";
@@ -254,9 +255,10 @@ async function startStaffShift(
   }
 
   const template = ensured.template;
-  if (template.department === "fnb" && !template.barId) {
-    return { success: false as const, message: "This F&B shift has no default bar. Ask an admin to set one." };
-  }
+  const barId =
+    template.department === "fnb"
+      ? await resolveFnBBarId(ctx, args.propertyId, template.barId)
+      : undefined;
 
   const punctuality = await punctualityFieldsForClock(ctx, {
     propertyId: args.propertyId,
@@ -267,7 +269,7 @@ async function startStaffShift(
     propertyId: args.propertyId,
     employeeId: args.staff._id,
     userId: args.staff.userId,
-    barId: template.barId,
+    ...(barId ? { barId } : {}),
     department: template.department,
     shiftDate,
     startTime: currentUtcHHmm(),

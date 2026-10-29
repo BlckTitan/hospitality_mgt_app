@@ -18,11 +18,6 @@ export const formSchema = yup.object().shape({
     .string()
     .matches(/^([01]?[0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$/, 'End time must be in HH:MM format')
     .required('End time is required'),
-  barId: yup.string().when('department', {
-    is: 'fnb',
-    then: (schema) => schema.required('Bar is required for F&B shifts'),
-    otherwise: (schema) => schema.optional(),
-  }),
   isDefault: yup.boolean().required(),
   isActive: yup.boolean().optional(),
 });

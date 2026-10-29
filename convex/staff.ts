@@ -155,7 +155,6 @@ function publicStaffFields(staff: Doc<'staffs'>, canSeePay: boolean) {
 
 async function enrichStaff(ctx: DbCtx, staff: Doc<'staffs'>, canSeePay: boolean) {
   const template = staff.shiftTemplateId ? await ctx.db.get(staff.shiftTemplateId) : null;
-  const templateBar = template?.barId ? await ctx.db.get(template.barId) : null;
   const linkedUser = staff.userId ? await ctx.db.get(staff.userId) : null;
   const manager = staff.managerId ? await ctx.db.get(staff.managerId) : null;
   const pendingRequests = await ctx.db
@@ -167,11 +166,7 @@ async function enrichStaff(ctx: DbCtx, staff: Doc<'staffs'>, canSeePay: boolean)
     ...publicStaffFields(staff, canSeePay),
     employmentStatus: normalizeEmploymentStatus(staff.employmentStatus),
     onLeave,
-    shiftTemplateName: template
-      ? templateBar?.name
-        ? `${template.name} · ${templateBar.name}`
-        : template.name
-      : null,
+    shiftTemplateName: template?.name ?? null,
     clockMethod: resolveStaffClockMethod(staff),
     managerName: manager ? `${manager.firstName} ${manager.lastName}` : null,
     linkedLogin: linkedUser
@@ -1202,7 +1197,6 @@ export const getMyStaffDetail = query({
       .collect();
 
     const template = staff.shiftTemplateId ? await ctx.db.get(staff.shiftTemplateId) : null;
-    const templateBar = template?.barId ? await ctx.db.get(template.barId) : null;
     const onLeave = await approvedTimeOffOverlapsToday(ctx, staff._id);
     const timeOffTypeOptions = staff.propertyId
       ? (
@@ -1223,11 +1217,7 @@ export const getMyStaffDetail = query({
       accountNumber: maskAccountNumber(staff.accountNumber),
       employmentStatus: normalizeEmploymentStatus(staff.employmentStatus),
       onLeave,
-      shiftTemplateName: template
-        ? templateBar?.name
-          ? `${template.name} · ${templateBar.name}`
-          : template.name
-        : null,
+      shiftTemplateName: template?.name ?? null,
       hours,
       timeOff: timeOffTypes,
       timeOffTypes: timeOffTypeOptions.map((row) => ({

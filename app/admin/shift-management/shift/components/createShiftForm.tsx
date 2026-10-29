@@ -115,6 +115,7 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
           {errors.department && (
             <p className="text-red-500 text-sm mt-1">{errors.department.message}</p>
           )}
+          <p className="text-sm text-gray-600 mt-1">A bar is only for food &amp; beverage. Other departments do not use one.</p>
         </label>
       </div>
 

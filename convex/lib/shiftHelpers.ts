@@ -58,46 +58,54 @@ export function staffDisplayName(staff: { firstName: string; lastName: string } 
   return `${staff.firstName} ${staff.lastName}`;
 }
 
-/** Active employed staff with a login, assigned to an F&B shift template for the bar. */
+/** Bar for an F&B worked shift. Uses a legacy template bar, or the property's only active bar. */
+export async function resolveFnBBarId(
+  ctx: DbCtx,
+  propertyId: Id<"properties">,
+  templateBarId?: Id<"bars">,
+): Promise<Id<"bars"> | undefined> {
+  if (templateBarId) {
+    const bar = await ctx.db.get(templateBarId);
+    if (bar?.isActive && bar.propertyId === propertyId) return templateBarId;
+  }
+  const bars = await ctx.db
+    .query("bars")
+    .withIndex("by_propertyId", (q) => q.eq("propertyId", propertyId))
+    .collect();
+  const active = bars.filter((bar) => bar.isActive);
+  return active.length === 1 ? active[0]._id : undefined;
+}
+
+/** Active employed F&B staff with a login. A department shift does not assign a bar. */
 export async function listActiveUsersTiedToBar(
   ctx: DbCtx,
   args: { propertyId: Id<"properties">; barId?: Id<"bars"> },
 ) {
-  const templates = await ctx.db
-    .query("shiftTemplates")
-    .withIndex("by_propertyId_department", (q) =>
-      q.eq("propertyId", args.propertyId).eq("department", "fnb"),
-    )
+  const staffRows = await ctx.db
+    .query("staffs")
+    .withIndex("by_propertyId", (q) => q.eq("propertyId", args.propertyId))
     .collect();
-
-  const relevant = templates.filter(
-    (row) => row.isActive && row.barId && (!args.barId || row.barId === args.barId),
-  );
 
   const byUserId = new Map<
     string,
-    { _id: Id<"users">; name: string; email: string; barId: Id<"bars"> }
+    { _id: Id<"users">; name: string; email: string; barId?: Id<"bars"> }
   >();
 
-  for (const template of relevant) {
-    if (!template.barId) continue;
-    const staffRows = await ctx.db
-      .query("staffs")
-      .withIndex("by_shiftTemplateId", (q) => q.eq("shiftTemplateId", template._id))
-      .collect();
-
-    for (const staff of staffRows) {
-      if (!isActiveStatus(staff.employmentStatus) || !staff.userId) continue;
-      if (byUserId.has(staff.userId)) continue;
-      const user = await ctx.db.get(staff.userId);
-      if (!user?.isActive) continue;
-      byUserId.set(staff.userId, {
-        _id: user._id,
-        name: user.name || staffDisplayName(staff),
-        email: user.email,
-        barId: template.barId,
-      });
-    }
+  for (const staff of staffRows) {
+    if (!isActiveStatus(staff.employmentStatus) || !staff.userId) continue;
+    if (byUserId.has(staff.userId)) continue;
+    const template = staff.shiftTemplateId ? await ctx.db.get(staff.shiftTemplateId) : null;
+    const worksFoodAndBeverage =
+      normalizeDepartment(staff.department) === "fnb" || template?.department === "fnb";
+    if (!worksFoodAndBeverage) continue;
+    const user = await ctx.db.get(staff.userId);
+    if (!user?.isActive) continue;
+    byUserId.set(staff.userId, {
+      _id: user._id,
+      name: user.name || staffDisplayName(staff),
+      email: user.email,
+      barId: args.barId,
+    });
   }
 
   return [...byUserId.values()].sort((a, b) => a.name.localeCompare(b.name));

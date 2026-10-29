@@ -1,5 +1,6 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
+import type { Doc } from './_generated/dataModel';
 import { hasGranularPermission, requirePermission, scopeAuthContextToProperty } from './lib/rbac';
 
 const stationValidator = v.union(
@@ -7,6 +8,12 @@ const stationValidator = v.union(
   v.literal('grill'),
   v.literal('other'),
 );
+
+function listRowWithoutCost(row: Doc<'restaurantMenuItems'>): Doc<'restaurantMenuItems'> {
+  const copy = { ...row };
+  delete copy.cost;
+  return copy;
+}
 
 export const listMenuItems = query({
   args: {
@@ -39,7 +46,7 @@ export const listMenuItems = query({
     }
 
     rows.sort((a, b) => a.name.localeCompare(b.name));
-    const data = menuOnly ? rows.map(({ cost: _cost, ...item }) => item) : rows;
+    const data = menuOnly ? rows.map(listRowWithoutCost) : rows;
     return { success: true, data };
   },
 });

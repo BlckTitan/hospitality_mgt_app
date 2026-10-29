@@ -30,7 +30,7 @@ export default function BeveragePage() {
     );
   }
 
-  if (propertiesResponse.data?.length === 0) {
+  if (propertiesResponse.data?.length === 0 || !currentPropertyId) {
     return (
       <div className='w-full h-full flex justify-center items-center'>
         <p className='text-xl'>No properties yet!</p>

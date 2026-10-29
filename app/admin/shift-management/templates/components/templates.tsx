@@ -15,7 +15,6 @@ type TemplateRow = {
   department: string;
   startTime: string;
   endTime: string;
-  barName?: string;
   isDefault: boolean;
   isActive: boolean;
   assignedCount: number;
@@ -45,11 +44,6 @@ export default function Templates({ currentPropertyId }: { currentPropertyId: Id
       label: 'Hours',
       key: 'startTime',
       render: (_value, row) => <span>{row.startTime}–{row.endTime}</span>,
-    },
-    {
-      label: 'Bar',
-      key: 'barName',
-      render: (_value, row) => <span>{row.barName || '—'}</span>,
     },
     {
       label: 'Default',
@@ -85,7 +79,7 @@ export default function Templates({ currentPropertyId }: { currentPropertyId: Id
   }
 
   if (!templates.data?.length) {
-    return <p className="text-sm text-gray-600">No department shifts yet. Use + to add one for F&amp;B, housekeeping, and so on.</p>;
+    return <p className="text-sm text-gray-600">No department shifts yet. Use + to add the hours for a department.</p>;
   }
 
   return (

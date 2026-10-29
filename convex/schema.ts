@@ -1034,8 +1034,8 @@ export default defineSchema({
     .index("by_beverageId", ["beverageId"])
     .index("by_inventoryItemId", ["inventoryItemId"]),
 
-  // Shifts table: property-wide working sessions (any department).
-  // barId is required only for F&B. userId is denormalized from staff when they have a login.
+  // One person's worked session on a date, for any department.
+  // barId is set only for food & beverage. userId is denormalized from staff when they have a login.
   shifts: defineTable({
     propertyId: v.id("properties"),
     employeeId: v.optional(v.id("staffs")),
@@ -1081,7 +1081,8 @@ export default defineSchema({
     .index("by_propertyId_date", ["propertyId", "shiftDate"])
     .index("by_rosterSlotId", ["rosterSlotId"]),
 
-  // Department shift definitions (default working hours). Admin/owner owned.
+  // Hours a department works (name, start, end). Not a person, a date, or a bar.
+  // barId is legacy. New department shifts omit it; a bar belongs on an F&B worked shift.
   shiftTemplates: defineTable({
     propertyId: v.id("properties"),
     department: v.union(

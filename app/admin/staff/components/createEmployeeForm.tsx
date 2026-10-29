@@ -281,12 +281,11 @@ export function FormComponent() {
               .map((row) => (
                 <option key={row._id} value={row._id}>
                   {row.name}
-                  {row.barName ? ` · ${row.barName}` : ""}
                   {` · ${row.department}`}
                 </option>
               ))}
           </select>
-          <p className="text-xs text-slate-500 mt-1">F&amp;B shifts carry the bar. Front office is the reception desk.</p>
+          <p className="text-xs text-slate-500 mt-1">Expected hours for this department.</p>
         </div>
         <SelectComponent
           id="employmentType"

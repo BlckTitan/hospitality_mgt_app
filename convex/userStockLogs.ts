@@ -409,7 +409,7 @@ export const createUserStockLog = mutation({
     if (!tiedToBar) {
       return {
         success: false,
-        message: 'User must be actively employed and assigned to this bar via an F&B shift',
+        message: 'User must be actively employed in food & beverage',
       };
     }
 

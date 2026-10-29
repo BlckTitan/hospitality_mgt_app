@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { SubmitHandler, useForm } from "react-hook-form";
-import { DEPARTMENT_LABELS, formSchema, SHIFT_DEPARTMENTS } from "./validation";
+import { clockInputValue, DEPARTMENT_LABELS, formSchema, SHIFT_DEPARTMENTS } from "./validation";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { toast } from "sonner";
 import { Button } from '../../../../../shared/button';
@@ -37,8 +37,15 @@ function asDepartment(value?: string): (typeof SHIFT_DEPARTMENTS)[number] {
 
 export default function EditShiftForm({ shiftData, shiftId, onSuccess, onClose, propertyId }: EditShiftFormProps) {
   const updateShift = useMutation(api.shifts.updateShift);
-  const staffResponse = useQuery(api.shifts.listStaffForShifts, { propertyId: propertyId as Id<'properties'> });
-  const barsResponse = useQuery(api.shifts.getActiveBars, { propertyId: propertyId as Id<'properties'> });
+  const propertyReady = Boolean(propertyId);
+  const staffResponse = useQuery(
+    api.shifts.listStaffForShifts,
+    propertyReady ? { propertyId: propertyId as Id<'properties'> } : 'skip',
+  );
+  const barsResponse = useQuery(
+    api.shifts.getActiveBars,
+    propertyReady ? { propertyId: propertyId as Id<'properties'> } : 'skip',
+  );
   const staff = staffResponse?.data || [];
   const bars = barsResponse?.data || [];
 
@@ -47,10 +54,10 @@ export default function EditShiftForm({ shiftData, shiftId, onSuccess, onClose, 
     defaultValues: {
       employeeId: shiftData.employeeId || shiftData.staff?._id || '',
       department: asDepartment(shiftData.department),
-      barId: shiftData.barId || '',
+      barId: shiftData.department === 'fnb' ? (shiftData.barId || '') : '',
       shiftDate: shiftData.shiftDate || '',
-      startTime: shiftData.startTime || '',
-      endTime: shiftData.endTime || '',
+      startTime: clockInputValue(shiftData.startTime),
+      endTime: clockInputValue(shiftData.endTime),
     },
   });
 
@@ -70,22 +77,20 @@ export default function EditShiftForm({ shiftData, shiftId, onSuccess, onClose, 
         department: data.department,
         barId: data.department === 'fnb' && data.barId ? data.barId as Id<'bars'> : undefined,
         shiftDate: data.shiftDate,
-        startTime: data.startTime,
-        endTime: data.endTime || undefined,
+        startTime: clockInputValue(data.startTime) || data.startTime,
+        endTime: clockInputValue(data.endTime),
       });
 
       if (response.success === false) {
         toast.error(response.message);
       } else {
         toast.success('Shift updated successfully!');
-        setTimeout(() => {
-          onSuccess();
-          window.location.href = '/admin/shift-management/shift';
-        }, 1500);
+        onSuccess();
+        window.location.href = '/admin/shift-management/shift';
       }
     } catch (error: any) {
       console.error('Update shift failed:', error);
-      toast.error('Failed to update shift. Please try again.');
+      toast.error(error?.message || 'Failed to update shift. Please try again.');
     }
   };
 
@@ -99,7 +104,13 @@ export default function EditShiftForm({ shiftData, shiftId, onSuccess, onClose, 
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="editShiftForm">
+    <form
+      onSubmit={handleSubmit(onSubmit, (formErrors) => {
+        const first = Object.values(formErrors).find((item) => item?.message);
+        toast.error(first?.message || 'Check the form and try again.');
+      })}
+      className="editShiftForm"
+    >
       <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-1 mb-4">
         <label className="w-full">
           <span className="block text-sm font-medium text-gray-700 mb-1">Staff *</span>
@@ -136,6 +147,7 @@ export default function EditShiftForm({ shiftData, shiftId, onSuccess, onClose, 
           {errors.department && (
             <p className="text-red-500 text-sm mt-1">{errors.department.message}</p>
           )}
+          <p className="text-sm text-gray-600 mt-1">A bar is only for food &amp; beverage. Other departments do not use one.</p>
         </label>
       </div>
 

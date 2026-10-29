@@ -297,10 +297,11 @@ export const updateShift = mutation({
       }
 
       const startTime = args.startTime ?? existingShift.startTime;
+      const endTime = args.endTime === "" ? undefined : (args.endTime ?? existingShift.endTime);
       const template = staff
         ? await resolveStaffTemplate(ctx, staff, existingShift.propertyId)
         : null;
-      const typedClock = args.startTime
+      const typedClock = args.startTime && args.startTime !== existingShift.startTime
         ? punctualityInsertFields({
             expectedStart: existingShift.expectedStart ?? template?.startTime,
             expectedEnd: existingShift.expectedEnd ?? template?.endTime,
@@ -317,7 +318,7 @@ export const updateShift = mutation({
         department,
         shiftDate,
         startTime,
-        endTime: args.endTime ?? existingShift.endTime,
+        endTime,
         ...typedClock,
       });
       return { success: true, message: 'Shift updated successfully' };

@@ -12,7 +12,6 @@ import { ShiftPageGuide } from '../../components/shiftPageGuide';
 export default function EditTemplatePage() {
   const [modalShow, setModalShow] = useState(true);
   const [templateId, setTemplateId] = useState<string>('');
-  const [propertyId, setPropertyId] = useState<string>('');
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -20,21 +19,12 @@ export default function EditTemplatePage() {
     if (id) setTemplateId(id);
   }, []);
 
-  const propertiesResponse = useQuery(api.property.getAllProperties);
-  const properties = propertiesResponse?.data || [];
-  const currentPropertyId = propertyId || properties?.[0]?._id || '';
   const templateResponse = useQuery(
     api.shiftTemplates.getShiftTemplate,
     templateId ? { templateId: templateId as any } : 'skip',
   );
 
-  useEffect(() => {
-    if (templateResponse?.success && templateResponse?.data) {
-      setPropertyId(templateResponse.data.propertyId);
-    }
-  }, [templateResponse]);
-
-  if (!propertiesResponse?.data || !templateResponse?.data) {
+  if (!templateId || templateResponse === undefined) {
     return (
       <div className="w-full h-full flex justify-center items-center">
         Loading...
@@ -42,15 +32,7 @@ export default function EditTemplatePage() {
     );
   }
 
-  if (propertiesResponse.data?.length === 0) {
-    return (
-      <div className="w-full h-full flex justify-center items-center">
-        <p className="text-xl">No properties yet!</p>
-      </div>
-    );
-  }
-
-  if (!templateResponse?.success) {
+  if (!templateResponse.success || !templateResponse.data) {
     return (
       <div className="w-full h-full flex justify-center items-center">
         <p className="text-xl">Department shift not found!</p>
@@ -80,7 +62,6 @@ export default function EditTemplatePage() {
       <ModalComponent
         modalShow={modalShow}
         setModalShow={setModalShow}
-        propertyId={currentPropertyId}
         templateData={templateResponse.data}
         templateId={templateId}
       />
@@ -91,7 +72,6 @@ export default function EditTemplatePage() {
 function ModalComponent(props: {
   modalShow: boolean;
   setModalShow: (show: boolean) => void;
-  propertyId: string;
   templateData: any;
   templateId: string;
 }) {
@@ -106,7 +86,6 @@ function ModalComponent(props: {
         <EditTemplateForm
           onSuccess={() => props.setModalShow(false)}
           onClose={() => { window.location.href = '/admin/shift-management/templates'; }}
-          propertyId={props.propertyId}
           templateData={props.templateData}
           templateId={props.templateId}
         />
