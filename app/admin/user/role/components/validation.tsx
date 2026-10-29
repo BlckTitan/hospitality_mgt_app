@@ -1,6 +1,12 @@
 import * as yup from "yup";
 import { hasLetter } from "../../../../../convex/lib/fieldText";
-import { ROLE_DESCRIPTION_MAX, ROLE_SUMMARY_MAX } from "../../../../../convex/lib/roleText";
+import {
+  ROLE_DESCRIPTION_SUMMARY_MAX,
+  ROLE_QUALIFICATIONS_MAX,
+  ROLE_REPORTS_TO_MAX,
+  ROLE_RESPONSIBILITIES_MAX,
+  ROLE_SUMMARY_MAX,
+} from "../../../../../convex/lib/roleText";
 
 export const formSchema = yup.object().shape({
   name: yup
@@ -18,10 +24,37 @@ export const formSchema = yup.object().shape({
     .max(ROLE_SUMMARY_MAX, `Summary must not exceed ${ROLE_SUMMARY_MAX} characters`)
     .optional(),
 
-  description: yup
+  reportsTo: yup
     .string()
     .trim()
-    .max(ROLE_DESCRIPTION_MAX, `Description must not exceed ${ROLE_DESCRIPTION_MAX} characters`)
+    .max(ROLE_REPORTS_TO_MAX, `Reports to must not exceed ${ROLE_REPORTS_TO_MAX} characters`)
+    .optional(),
+
+  descriptionSummary: yup
+    .string()
+    .trim()
+    .max(
+      ROLE_DESCRIPTION_SUMMARY_MAX,
+      `Description summary must not exceed ${ROLE_DESCRIPTION_SUMMARY_MAX} characters`,
+    )
+    .optional(),
+
+  responsibilities: yup
+    .string()
+    .trim()
+    .max(
+      ROLE_RESPONSIBILITIES_MAX,
+      `Responsibilities must not exceed ${ROLE_RESPONSIBILITIES_MAX} characters`,
+    )
+    .optional(),
+
+  qualifications: yup
+    .string()
+    .trim()
+    .max(
+      ROLE_QUALIFICATIONS_MAX,
+      `Qualifications must not exceed ${ROLE_QUALIFICATIONS_MAX} characters`,
+    )
     .optional(),
 
   isSystemRole: yup

@@ -11,24 +11,31 @@ import { Button } from '../../../../../shared/button';
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { useState, useEffect } from "react";
 import { PERMISSION_GROUPS } from "../../../../../lib/data";
-import { ROLE_DESCRIPTION_MAX, ROLE_SUMMARY_MAX } from "../../../../../convex/lib/roleText";
+import { ROLE_SUMMARY_MAX } from "../../../../../convex/lib/roleText";
+import { DescriptionFields } from "./descriptionFields";
 
 type FormData = {
   id: Id<'roles'>;
   name: string;
   summary?: string;
-  description?: string;
+  reportsTo?: string;
+  descriptionSummary?: string;
+  responsibilities?: string;
+  qualifications?: string;
   isSystemRole: boolean;
   permissions: Record<string, boolean>;
 };
 
 export function FormComponent({
-  id, name, summary, description, permissions: initialPermissions, isSystemRole
+  id, name, summary, reportsTo, descriptionSummary, responsibilities, qualifications, permissions: initialPermissions, isSystemRole
 }: {
   id: Id<'roles'>;
   name: string;
   summary?: string;
-  description?: string;
+  reportsTo?: string;
+  descriptionSummary?: string;
+  responsibilities?: string;
+  qualifications?: string;
   permissions: any;
   isSystemRole: boolean;
 }) {
@@ -47,7 +54,10 @@ export function FormComponent({
     defaultValues: {
       name: name,
       summary: summary || '',
-      description: description || '',
+      reportsTo: reportsTo || '',
+      descriptionSummary: descriptionSummary || '',
+      responsibilities: responsibilities || '',
+      qualifications: qualifications || '',
       isSystemRole: isSystemRole,
       permissions: initialPermissions || {},
     },
@@ -67,7 +77,12 @@ export function FormComponent({
         role_id: id,
         name: data.name,
         summary: data.summary,
-        description: data.description,
+        description: {
+          reportsTo: data.reportsTo,
+          summary: data.descriptionSummary,
+          responsibilities: data.responsibilities,
+          qualifications: data.qualifications,
+        },
         permissions: permissions,
         isSystemRole: data.isSystemRole,
       });
@@ -78,7 +93,7 @@ export function FormComponent({
         toast.success('Role updated successfully!');
         reset();
         setTimeout(() => {
-          window.location.href = '/admin/role';
+          window.location.href = '/admin/user/role';
         }, 1500);
       }
     } catch (error: any) {
@@ -97,6 +112,7 @@ export function FormComponent({
           inputWidth="w-full"
           register={register('name', { required: true })}
           error={errors.name}
+          disabled={isSystemRole}
         />
       </div>
 
@@ -113,20 +129,7 @@ export function FormComponent({
         />
       </div>
 
-      <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-start lg:items-center gap-1 [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4">
-        <div className="w-full">
-          <label htmlFor="description">Description</label>
-          <textarea
-            id="description"
-            {...register('description')}
-            rows={6}
-            maxLength={ROLE_DESCRIPTION_MAX}
-            className="w-full border rounded p-2"
-            placeholder="Longer description (optional)"
-          />
-          {errors.description && <span className="text-red-500 text-sm">{errors.description.message}</span>}
-        </div>
-      </div>
+      <DescriptionFields register={register} errors={errors} />
 
       <div className="w-full h-fit flex flex-col lg:flex-row lg:items-center gap-4 mb-4">
         <label className="flex items-center gap-2 cursor-pointer">
@@ -140,7 +143,7 @@ export function FormComponent({
           <span className='p-1 ml-2'>System Role</span>
         </label>
         {isSystemRole && (
-          <span className="text-sm text-gray-500">System roles cannot be modified or deleted</span>
+          <span className="text-sm text-gray-500">Name and permissions stay on the RBAC config. Summary and description can be edited here.</span>
         )}
       </div>
 
@@ -161,6 +164,7 @@ export function FormComponent({
                     <input
                       type="checkbox"
                       checked={permissions[permission.key] || false}
+                      disabled={isSystemRole}
                       onChange={(e) => handlePermissionChange(permission.key, e.target.checked)}
                       className="!w-4 !h-3 !mr-2"
                     />
@@ -171,7 +175,11 @@ export function FormComponent({
             </div>
           ))}
         </div>
-        <p className="text-xs text-gray-500 mt-2">Select the permissions this role should have</p>
+        <p className="text-xs text-gray-500 mt-2">
+          {isSystemRole
+            ? 'Permissions for a system role are set from the RBAC config.'
+            : 'Select the permissions this role should have'}
+        </p>
       </div>
 
       <div className="flex gap-2 justify-end">

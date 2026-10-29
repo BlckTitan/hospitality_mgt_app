@@ -8,7 +8,7 @@ import { api } from '../../../../../convex/_generated/api';
 import { Id } from '../../../../../convex/_generated/dataModel';
 import Spinner from '../../../../../shared/spinner';
 import { FormComponent } from '../components/editRoleForm';
-import { roleDescriptionText, roleSummaryText } from '../../../../../convex/lib/roleText';
+import { roleDescriptionParts, roleSummaryText } from '../../../../../convex/lib/roleText';
 
 export default function Page() {
   const { isAuthenticated, isLoading } = useConvexAuth();
@@ -27,13 +27,14 @@ export default function Page() {
   }
 
   const role = response.data;
+  const description = roleDescriptionParts(role);
 
   return (
     <div className='w-full p-4 bg-white'>
       <header className="w-full border-b mb-4 pb-3 flex justify-between items-start gap-3">
       <div className="min-w-0">
         <h1 className="text-2xl font-bold text-gray-800">Update {role.name}</h1>
-        <p className="text-gray-600">Update this role’s name, summary, description, and permissions. People with this role pick up the change on their next request.</p>
+        <p className="text-gray-600">Update this role’s summary and description. People with this role pick up a permission change on their next request.</p>
       </div>
         <BackLink />
       </header>
@@ -42,7 +43,10 @@ export default function Page() {
         id={role._id}
         name={role.name}
         summary={roleSummaryText(role) ?? ''}
-        description={roleDescriptionText(role) ?? ''}
+        reportsTo={description.reportsTo ?? ''}
+        descriptionSummary={description.summary ?? ''}
+        responsibilities={description.responsibilities ?? ''}
+        qualifications={description.qualifications ?? ''}
         permissions={role.permissions}
         isSystemRole={role.isSystemRole}
       />

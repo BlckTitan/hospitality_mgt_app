@@ -8,12 +8,16 @@ import InputComponent from "../../../../../shared/input";
 import { Button } from '../../../../../shared/button';
 import { useState, useEffect } from "react";
 import { PERMISSION_GROUPS } from "../../../../../lib/data";
-import { ROLE_DESCRIPTION_MAX, ROLE_SUMMARY_MAX } from "../../../../../convex/lib/roleText";
+import { ROLE_SUMMARY_MAX } from "../../../../../convex/lib/roleText";
+import { DescriptionFields } from "./descriptionFields";
 
 type FormData = {
   name: string;
   summary?: string;
-  description?: string;
+  reportsTo?: string;
+  descriptionSummary?: string;
+  responsibilities?: string;
+  qualifications?: string;
   isSystemRole: boolean;
   permissions: Record<string, boolean>;
 };
@@ -27,7 +31,10 @@ export function FormComponent({ onSuccess, onClose }: { onSuccess: () => void; o
     defaultValues: {
       name: '',
       summary: '',
-      description: '',
+      reportsTo: '',
+      descriptionSummary: '',
+      responsibilities: '',
+      qualifications: '',
       isSystemRole: false,
       permissions: {},
     },
@@ -46,7 +53,12 @@ export function FormComponent({ onSuccess, onClose }: { onSuccess: () => void; o
       const response = await createRole({
         name: data.name,
         summary: data.summary,
-        description: data.description,
+        description: {
+          reportsTo: data.reportsTo,
+          summary: data.descriptionSummary,
+          responsibilities: data.responsibilities,
+          qualifications: data.qualifications,
+        },
         permissions: permissions,
         isSystemRole: data.isSystemRole,
       });
@@ -59,7 +71,7 @@ export function FormComponent({ onSuccess, onClose }: { onSuccess: () => void; o
         setPermissions({});
         setTimeout(() => {
           onSuccess();
-          window.location.href = '/admin/role';
+          window.location.href = '/adminuser/role';
         }, 1500);
       }
     } catch (error: any) {
@@ -94,20 +106,7 @@ export function FormComponent({ onSuccess, onClose }: { onSuccess: () => void; o
         />
       </div>
 
-      <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-start lg:items-center gap-1 [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4">
-        <div className="w-full">
-          <label htmlFor="description">Description</label>
-          <textarea
-            id="description"
-            {...register('description')}
-            rows={6}
-            maxLength={ROLE_DESCRIPTION_MAX}
-            className="w-full border rounded p-2"
-            placeholder="Longer description (optional)"
-          />
-          {errors.description && <span className="text-red-500 text-sm">{errors.description.message}</span>}
-        </div>
-      </div>
+      <DescriptionFields register={register} errors={errors} />
 
       <div className="w-full h-fit flex flex-col lg:flex-row lg:items-center gap-4 mb-4">
         <label className="flex !items-center gap-2 cursor-pointer">

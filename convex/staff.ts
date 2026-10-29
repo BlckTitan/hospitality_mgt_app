@@ -30,6 +30,7 @@ import {
   staffClockMethodValidator,
 } from './lib/clockMethod';
 import { changeRequestError, firstError, payDetailErrors, staffProfileError } from './lib/fieldText';
+import { loadRoleBrief } from './lib/roleBrief';
 
 type DbCtx = MutationCtx | QueryCtx;
 
@@ -446,6 +447,7 @@ export const getStaffDetail = query({
       availablePayItemTypes,
       documents: documentsWithUrl,
       onboarding,
+      roleBrief: await loadRoleBrief(ctx, staff.role),
       changeRequests,
     };
   },
@@ -1060,6 +1062,76 @@ export const completeOnboardingItem = mutation({
   },
 });
 
+export const ensureOnboardingItems = mutation({
+  args: { employeeId: v.optional(v.id('staffs')) },
+  handler: async (ctx, args) => {
+    const auth = await requireAuthenticated(ctx);
+    const staff = args.employeeId
+      ? await ctx.db.get(args.employeeId)
+      : await ctx.db
+          .query('staffs')
+          .withIndex('by_userId', (q) => q.eq('userId', auth.user._id))
+          .first();
+    if (!staff?.propertyId) return { success: false, message: 'Staff record not found' };
+    if (staff.userId !== auth.user._id) {
+      await requirePermission(ctx, 'staff.read', staff.propertyId);
+    }
+    await seedOnboardingItems(ctx, {
+      propertyId: staff.propertyId,
+      employeeId: staff._id,
+      employmentType: staff.employmentType ?? 'full-time',
+      userId: staff.userId,
+      shiftTemplateId: staff.shiftTemplateId,
+    });
+    return { success: true, message: 'Onboarding checklist is up to date' };
+  },
+});
+
+export const acknowledgeRoleResponsibilities = mutation({
+  args: { employeeId: v.optional(v.id('staffs')) },
+  handler: async (ctx, args) => {
+    const auth = await requireAuthenticated(ctx);
+    const staff = args.employeeId
+      ? await ctx.db.get(args.employeeId)
+      : await ctx.db
+          .query('staffs')
+          .withIndex('by_userId', (q) => q.eq('userId', auth.user._id))
+          .first();
+    if (!staff?.propertyId) return { success: false, message: 'Staff record not found' };
+    const isSelf = staff.userId === auth.user._id;
+    if (!isSelf) {
+      await requirePermission(ctx, 'staff.update', staff.propertyId);
+    }
+
+    await seedOnboardingItems(ctx, {
+      propertyId: staff.propertyId,
+      employeeId: staff._id,
+      employmentType: staff.employmentType ?? 'full-time',
+      userId: staff.userId,
+      shiftTemplateId: staff.shiftTemplateId,
+    });
+
+    const item = await ctx.db
+      .query('staffOnboardingItems')
+      .withIndex('by_employeeId_code', (q) =>
+        q.eq('employeeId', staff._id).eq('code', 'role_responsibilities'),
+      )
+      .first();
+    if (!item) return { success: false, message: 'Role responsibilities step was not found' };
+    if (item.completedAt && !item.skipped) {
+      return { success: true, message: 'Role responsibilities already acknowledged' };
+    }
+
+    await ctx.db.patch(item._id, {
+      skipped: false,
+      completedAt: Date.now(),
+      completedBy: auth.user._id,
+      updatedAt: Date.now(),
+    });
+    return { success: true, message: 'Role responsibilities acknowledged' };
+  },
+});
+
 export const getMyStaff = query({
   args: {},
   handler: async (ctx) => {
@@ -1165,6 +1237,7 @@ export const getMyStaffDetail = query({
       })),
       payslips,
       onboarding,
+      roleBrief: await loadRoleBrief(ctx, staff.role),
       changeRequests,
     };
   },

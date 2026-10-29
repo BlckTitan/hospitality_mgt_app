@@ -43,6 +43,8 @@ import type * as lib_postCashOutflow from "../lib/postCashOutflow.js";
 import type * as lib_punctuality from "../lib/punctuality.js";
 import type * as lib_rbac from "../lib/rbac.js";
 import type * as lib_restaurantCost from "../lib/restaurantCost.js";
+import type * as lib_roleBrief from "../lib/roleBrief.js";
+import type * as lib_roleJobDescriptions from "../lib/roleJobDescriptions.js";
 import type * as lib_rolePermissionCatalog from "../lib/rolePermissionCatalog.js";
 import type * as lib_roleText from "../lib/roleText.js";
 import type * as lib_searchNames from "../lib/searchNames.js";
@@ -135,6 +137,8 @@ declare const fullApi: ApiFromModules<{
   "lib/punctuality": typeof lib_punctuality;
   "lib/rbac": typeof lib_rbac;
   "lib/restaurantCost": typeof lib_restaurantCost;
+  "lib/roleBrief": typeof lib_roleBrief;
+  "lib/roleJobDescriptions": typeof lib_roleJobDescriptions;
   "lib/rolePermissionCatalog": typeof lib_rolePermissionCatalog;
   "lib/roleText": typeof lib_roleText;
   "lib/searchNames": typeof lib_searchNames;

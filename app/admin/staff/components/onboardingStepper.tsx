@@ -13,6 +13,7 @@ type OnboardingItem = {
 }
 
 const STEP_ORDER = [
+  'role_responsibilities',
   'personal_details',
   'emergency_contact',
   'id_document',

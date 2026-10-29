@@ -14,6 +14,7 @@ interface FormInputProps{
     maxLength?: number
     inputMode?: React.HTMLAttributes<HTMLInputElement>['inputMode']
     step?: number | string
+    disabled?: boolean
 }
 
 export default function InputComponent({
@@ -27,6 +28,7 @@ export default function InputComponent({
   maxLength,
   inputMode,
   step,
+  disabled,
 }: FormInputProps) {
   return (
     <Field id={id} label={label} widthClass={fieldWidthClass(inputWidth)}>
@@ -37,6 +39,7 @@ export default function InputComponent({
         maxLength={maxLength}
         inputMode={inputMode}
         step={step}
+        disabled={disabled}
         {...register}
       />
       {error && <span className="text-red-500 text-sm">{error.message}</span>}

@@ -5,7 +5,8 @@ import {
   SYSTEM_ROLE_DEFINITIONS,
   buildRolePermissions,
 } from "./rolePermissionCatalog";
-import { roleSummaryToStore } from "./roleText";
+import { RoleDescription, roleSummaryToStore } from "./roleText";
+import { ROLE_JOB_DESCRIPTIONS } from "./roleJobDescriptions";
 
 export { ADMINISTRATOR_PERMISSIONS };
 
@@ -59,6 +60,7 @@ async function upsertSystemRole(
   name: string,
   summary: string,
   permissions: Record<string, boolean>,
+  description?: RoleDescription,
 ): Promise<Id<"roles">> {
   const now = Date.now();
 
@@ -70,6 +72,7 @@ async function upsertSystemRole(
   if (existing) {
     await ctx.db.patch(existing._id, {
       ...summaryPatch(existing, summary),
+      ...jobDescriptionPatch(existing, description),
       permissions,
       isSystemRole: true,
       updatedAt: now,
@@ -84,6 +87,7 @@ async function upsertSystemRole(
       await ctx.db.patch(legacyAdminRole._id, {
         name: ADMINISTRATOR_ROLE_NAME,
         ...summaryPatch(legacyAdminRole, summary),
+        ...jobDescriptionPatch(legacyAdminRole, description),
         permissions,
         isSystemRole: true,
         updatedAt: now,
@@ -95,6 +99,7 @@ async function upsertSystemRole(
   return await ctx.db.insert("roles", {
     name,
     summary,
+    ...(description ? { description } : {}),
     permissions,
     isSystemRole: true,
     createdAt: now,
@@ -106,17 +111,31 @@ async function upsertSystemRole(
  * Keep a summary that was already saved. On a legacy row, move `description`
  * into `summary` and clear `description` so the new long field starts empty.
  */
+/** Fill a job description once. Later edits on the roles page are kept. */
+function jobDescriptionPatch(
+  existing: { description?: string | object },
+  description?: RoleDescription,
+): { description?: RoleDescription } {
+  if (!description || (existing.description && typeof existing.description === "object")) {
+    return {};
+  }
+  return { description };
+}
+
 function summaryPatch(
-  existing: { summary?: string; description?: string },
+  existing: { summary?: string; description?: string | { summary?: string } },
   catalogSummary: string,
 ): { summary: string; description?: undefined } {
   if (existing.summary !== undefined) {
     return { summary: existing.summary };
   }
-  return {
-    summary: roleSummaryToStore(existing.description ?? catalogSummary),
-    description: undefined,
-  };
+  if (typeof existing.description === "string" && existing.description) {
+    return {
+      summary: roleSummaryToStore(existing.description),
+      description: undefined,
+    };
+  }
+  return { summary: catalogSummary };
 }
 
 export async function ensureAdministratorRole(ctx: MutationCtx): Promise<Id<"roles">> {
@@ -133,7 +152,7 @@ export async function migrateLegacyRoleDescriptions(ctx: MutationCtx): Promise<n
   const roles = await ctx.db.query("roles").collect();
   let moved = 0;
   for (const role of roles) {
-    if (role.summary !== undefined || !role.description) continue;
+    if (role.summary !== undefined || typeof role.description !== "string" || !role.description) continue;
     await ctx.db.patch(role._id, {
       summary: role.description,
       description: undefined,
@@ -156,7 +175,13 @@ export async function ensureAllSystemRoles(
 
   for (const def of SYSTEM_ROLE_DEFINITIONS) {
     const permissions = buildRolePermissions(def.name);
-    const roleId = await upsertSystemRole(ctx, def.name, def.summary, permissions);
+    const roleId = await upsertSystemRole(
+      ctx,
+      def.name,
+      def.summary,
+      permissions,
+      ROLE_JOB_DESCRIPTIONS[def.name],
+    );
     results.push({ name: def.name, roleId });
   }
 

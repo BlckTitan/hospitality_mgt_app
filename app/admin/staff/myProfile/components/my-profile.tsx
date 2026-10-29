@@ -1,12 +1,14 @@
 'use client'
 
-import { useQuery, useConvexAuth } from 'convex/react'
-import React, { useMemo, useState } from 'react'
+import { useMutation, useQuery, useConvexAuth } from 'convex/react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { api } from '../../../../../convex/_generated/api'
 import { Button } from '../../../../../shared/button';
 import Spinner from '../../../../../shared/spinner'
 import BootstrapModal from '../../../../../shared/modal'
 import { OnboardingStepper } from '../../components/onboardingStepper'
+import { RoleBrief } from '../../components/roleBrief'
+import { toast } from 'sonner'
 import {
   BankChangeForm,
   ContactChangeForm,
@@ -28,6 +30,13 @@ const TABS = ['Hours', 'Time off', 'Punctuality', 'Payslips', 'Change requests']
 export default function MyProfileComponent() {
   const { isAuthenticated } = useConvexAuth()
   const detail = useQuery(api.staff.getMyStaffDetail, isAuthenticated ? {} : 'skip')
+  const ensureOnboarding = useMutation(api.staff.ensureOnboardingItems)
+  const acknowledgeRole = useMutation(api.staff.acknowledgeRoleResponsibilities)
+  const [acknowledging, setAcknowledging] = useState(false)
+  useEffect(() => {
+    if (!isAuthenticated) return
+    void ensureOnboarding({})
+  }, [isAuthenticated, ensureOnboarding])
   const [modal, setModal] = useState<ProfileModal>(null)
   const [tab, setTab] = useState<(typeof TABS)[number]>('Hours')
   const [period, setPeriod] = useState<PunctualityPeriod>('month')
@@ -68,6 +77,23 @@ export default function MyProfileComponent() {
         <h5>Onboarding</h5>
         <OnboardingStepper compact items={detail.onboarding} />
       </section>
+
+      <RoleBrief
+        brief={detail.roleBrief}
+        acknowledged={detail.onboarding.some(
+          (item) => item.code === 'role_responsibilities' && Boolean(item.completedAt) && !item.skipped,
+        )}
+        acknowledging={acknowledging}
+        onAcknowledge={async () => {
+          setAcknowledging(true)
+          try {
+            const result = await acknowledgeRole({})
+            result.success ? toast.success(result.message) : toast.error(result.message)
+          } finally {
+            setAcknowledging(false)
+          }
+        }}
+      />
 
       <section className='flex flex-wrap gap-2 mb-4'>
         <Button variant='dark' size='sm' onClick={() => setModal('contact')}>Request a contact change</Button>

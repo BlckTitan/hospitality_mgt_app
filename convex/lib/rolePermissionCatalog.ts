@@ -41,6 +41,7 @@ export const SYSTEM_ROLE_DEFINITIONS: SystemRoleDefinition[] = [
   { name: "Kitchen Assistant", summary: "Kitchen support with limited F&B and inventory access" },
   { name: "Maintenance Staff", summary: "Maintenance work orders and facilities" },
   { name: "Security Officer", summary: "Security and access logs" },
+  { name: "Laundry Attendant", summary: "Laundry processing for hotel linens, towels, and guest items" },
 ];
 
 const COMPENSATION_ROLES = new Set([

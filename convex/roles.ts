@@ -3,11 +3,19 @@ import { v } from 'convex/values';
 import { requirePermission, tryRequirePermission } from './lib/rbac';
 import { ensureAllSystemRoles, migrateLegacyRoleDescriptions } from './lib/systemRoles';
 import {
-  ROLE_DESCRIPTION_MAX,
   ROLE_SUMMARY_MAX,
+  roleDescriptionError,
   roleDescriptionToStore,
   roleSummaryToStore,
 } from './lib/roleText';
+
+const roleDescription = v.object({
+  reportsTo: v.optional(v.string()),
+  summary: v.optional(v.string()),
+  responsibilities: v.optional(v.string()),
+  qualifications: v.optional(v.string()),
+});
+
 export const getAllRoles = query({
   handler: async (ctx) => {
     await requirePermission(ctx, 'roles.read');
@@ -47,21 +55,21 @@ export const getRole = query({
   },
 });
 
-function roleTextError(summary: string, description: string | undefined): string | null {
+function roleTextError(
+  summary: string,
+  description: ReturnType<typeof roleDescriptionToStore>,
+): string | null {
   if (summary.length > ROLE_SUMMARY_MAX) {
     return `Summary must not exceed ${ROLE_SUMMARY_MAX} characters`;
   }
-  if (description && description.length > ROLE_DESCRIPTION_MAX) {
-    return `Description must not exceed ${ROLE_DESCRIPTION_MAX} characters`;
-  }
-  return null;
+  return roleDescriptionError(description);
 }
 
 export const createRole = mutation({
   args: {
     name: v.string(),
     summary: v.optional(v.string()),
-    description: v.optional(v.string()),
+    description: v.optional(roleDescription),
     permissions: v.any(), // JSON object
     isSystemRole: v.boolean(),
   },
@@ -110,7 +118,7 @@ export const updateRole = mutation({
     role_id: v.id('roles'),
     name: v.string(),
     summary: v.optional(v.string()),
-    description: v.optional(v.string()),
+    description: v.optional(roleDescription),
     permissions: v.any(), // JSON object
     isSystemRole: v.boolean(),
   },
@@ -124,10 +132,20 @@ export const updateRole = mutation({
     await requirePermission(ctx, 'roles.update');
 
     if (existingRole.isSystemRole || args.isSystemRole) {
-      return {
-        success: false,
-        message: 'System roles are updated from the RBAC config',
-      };
+      if (!existingRole.isSystemRole) {
+        return { success: false, message: 'System roles cannot be created from this action' };
+      }
+      const summary = roleSummaryToStore(args.summary);
+      const description = roleDescriptionToStore(args.description);
+      const textError = roleTextError(summary, description);
+      if (textError) return { success: false, message: textError };
+
+      await ctx.db.patch(args.role_id, {
+        summary,
+        description,
+        updatedAt: Date.now(),
+      });
+      return { success: true, message: 'Role description updated' };
     }
 
     try {

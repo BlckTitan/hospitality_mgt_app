@@ -38,6 +38,7 @@ export const ONBOARDING_TEMPLATE: Array<{
   label: string;
   requiredFor?: EmploymentType[];
 }> = [
+  { code: "role_responsibilities", label: "Role responsibilities" },
   { code: "personal_details", label: "Personal details complete" },
   { code: "emergency_contact", label: "Emergency contact" },
   { code: "id_document", label: "ID uploaded" },
@@ -129,9 +130,10 @@ export async function seedOnboardingItems(
     .query("staffOnboardingItems")
     .withIndex("by_employeeId", (q) => q.eq("employeeId", args.employeeId))
     .collect();
-  if (existing.length > 0) return;
+  const existingCodes = new Set(existing.map((item) => item.code));
 
   for (const item of ONBOARDING_TEMPLATE) {
+    if (existingCodes.has(item.code)) continue;
     const required = item.requiredFor
       ? item.requiredFor.includes(args.employmentType)
       : true;

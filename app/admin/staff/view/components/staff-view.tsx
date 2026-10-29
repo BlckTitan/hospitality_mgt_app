@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useConvexAuth } from 'convex/react'
 import { useSearchParams } from 'next/navigation'
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { api } from '../../../../../convex/_generated/api'
 import { Button } from '../../../../../shared/button';
 import Spinner from '../../../../../shared/spinner'
@@ -13,6 +13,7 @@ import { toast } from 'sonner'
 import { usePermissions } from '../../../../../hooks/usePermissions'
 import { fieldWidthClass } from '../../../../../shared/field'
 import { OnboardingStepper } from '../../components/onboardingStepper'
+import { RoleBrief } from '../../components/roleBrief'
 import {
   PunctualityDaysTable,
   PunctualityPeriod,
@@ -65,6 +66,14 @@ export default function StaffViewComponent() {
     isAuthenticated && id ? { staff_id: id as Id<'staffs'> } : 'skip'
   )
   const completeItem = useMutation(api.staff.completeOnboardingItem)
+  const ensureOnboarding = useMutation(api.staff.ensureOnboardingItems)
+  const acknowledgeRole = useMutation(api.staff.acknowledgeRoleResponsibilities)
+  const [acknowledging, setAcknowledging] = useState(false)
+
+  useEffect(() => {
+    if (!isAuthenticated || !id) return
+    void ensureOnboarding({ employeeId: id as Id<'staffs'> })
+  }, [isAuthenticated, id, ensureOnboarding])
   const reviewRequest = useMutation(api.staff.reviewChangeRequest)
   const generateUploadUrl = useMutation(api.staff.generateStaffDocumentUploadUrl)
   const attachDocument = useMutation(api.staff.attachStaffDocument)
@@ -120,6 +129,22 @@ export default function StaffViewComponent() {
 
       {tab === 'Profile' && (
         <div>
+          <RoleBrief
+            brief={staffData.roleBrief}
+            acknowledged={staffData.onboarding.some(
+              (item) => item.code === 'role_responsibilities' && Boolean(item.completedAt) && !item.skipped,
+            )}
+            acknowledging={acknowledging}
+            onAcknowledge={canUpdate ? async () => {
+              setAcknowledging(true)
+              try {
+                const result = await acknowledgeRole({ employeeId: id as Id<'staffs'> })
+                result.success ? toast.success(result.message) : toast.error(result.message)
+              } finally {
+                setAcknowledging(false)
+              }
+            } : undefined}
+          />
           {row('Hire date', staffData.dateRecruited?.substring(0, 10))}
           {row('Employment type', staffData.employmentType)}
           {row('Status', staffData.employmentStatus)}
@@ -368,6 +393,23 @@ export default function StaffViewComponent() {
       )}
 
       {tab === 'Onboarding' && (
+        <div>
+        <RoleBrief
+          brief={staffData.roleBrief}
+          acknowledged={staffData.onboarding.some(
+            (item) => item.code === 'role_responsibilities' && Boolean(item.completedAt) && !item.skipped,
+          )}
+          acknowledging={acknowledging}
+          onAcknowledge={canUpdate ? async () => {
+            setAcknowledging(true)
+            try {
+              const result = await acknowledgeRole({ employeeId: id as Id<'staffs'> })
+              result.success ? toast.success(result.message) : toast.error(result.message)
+            } finally {
+              setAcknowledging(false)
+            }
+          } : undefined}
+        />
         <OnboardingStepper
           items={staffData.onboarding}
           actions={canUpdate ? (item) => (
@@ -385,6 +427,7 @@ export default function StaffViewComponent() {
             ) : null
           ) : undefined}
         />
+        </div>
       )}
     </div>
   )

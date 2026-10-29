@@ -29,7 +29,18 @@ export default defineSchema({
     // Short line shown in the roles list. Empty string means the summary was cleared.
     // Missing (undefined) means a legacy row whose text still lives in `description`.
     summary: v.optional(v.string()),
-    description: v.optional(v.string()),
+    // String is the old free-text description. New rows store the job-description sections.
+    description: v.optional(
+      v.union(
+        v.string(),
+        v.object({
+          reportsTo: v.optional(v.string()),
+          summary: v.optional(v.string()),
+          responsibilities: v.optional(v.string()),
+          qualifications: v.optional(v.string()),
+        }),
+      ),
+    ),
     permissions: v.any(), // JSON object defining permissions
     isSystemRole: v.boolean(),
     createdAt: v.number(),
