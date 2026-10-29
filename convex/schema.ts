@@ -1056,6 +1056,9 @@ export default defineSchema({
     shiftDate: v.string(),
     startTime: v.string(),
     endTime: v.optional(v.string()),
+    // Absolute clock-in and clock-out. Set for rotation duties that run longer than a day.
+    clockInAt: v.optional(v.number()),
+    clockOutAt: v.optional(v.number()),
     isFinalized: v.boolean(),
     shiftTemplateId: v.optional(v.id("shiftTemplates")),
     rosterSlotId: v.optional(v.id("rosterSlots")),
@@ -1098,6 +1101,8 @@ export default defineSchema({
     name: v.string(),
     startTime: v.string(),
     endTime: v.string(),
+    // Length of one duty. 1,440 is one day, 2,160 is one and a half days. endTime stays the clock time that length lands on.
+    durationMinutes: v.optional(v.number()),
     barId: v.optional(v.id("bars")),
     isDefault: v.boolean(),
     isActive: v.boolean(),
@@ -1108,7 +1113,52 @@ export default defineSchema({
     .index("by_propertyId_department", ["propertyId", "department"])
     .index("by_propertyId_department_default", ["propertyId", "department", "isDefault"]),
 
-  // One scheduled day for a staff member. Cover changes workingEmployeeId only.
+  // Property-defined on/off cycle. Segments live in rotationSegments.
+  rotations: defineTable({
+    propertyId: v.id("properties"),
+    department: v.union(
+      v.literal("front-office"),
+      v.literal("housekeeping"),
+      v.literal("fnb"),
+      v.literal("restaurant"),
+      v.literal("maintenance"),
+      v.literal("finance"),
+      v.literal("admin"),
+      v.literal("other")
+    ),
+    name: v.string(),
+    shiftTemplateId: v.optional(v.id("shiftTemplates")),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_propertyId_department", ["propertyId", "department"])
+    .index("by_shiftTemplateId", ["shiftTemplateId"]),
+
+  rotationSegments: defineTable({
+    rotationId: v.id("rotations"),
+    position: v.number(),
+    kind: v.union(v.literal("on"), v.literal("off")),
+    durationMinutes: v.number(),
+  }).index("by_rotationId", ["rotationId"]),
+
+  // Where a person sits on a rotation. anchorAt is the UTC instant their first "on" begins.
+  staffRotations: defineTable({
+    propertyId: v.id("properties"),
+    staffId: v.id("staffs"),
+    rotationId: v.id("rotations"),
+    anchorAt: v.number(),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_staffId", ["staffId"])
+    .index("by_rotationId", ["rotationId"]),
+
+  // One scheduled duty for a staff member. Cover changes workingEmployeeId only.
+  // startsAt/endsAt are set when the duty comes from a rotation and may span more than one date.
   rosterSlots: defineTable({
     propertyId: v.id("properties"),
     shiftDate: v.string(),
@@ -1118,6 +1168,9 @@ export default defineSchema({
     coveredAt: v.optional(v.number()),
     coveredBy: v.optional(v.id("users")),
     notes: v.optional(v.string()),
+    startsAt: v.optional(v.number()),
+    endsAt: v.optional(v.number()),
+    rotationId: v.optional(v.id("rotations")),
     createdAt: v.number(),
     updatedAt: v.number(),
   })

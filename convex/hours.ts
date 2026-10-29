@@ -209,6 +209,8 @@ export async function draftHoursFromShift(
     startTime?: string;
     endTime?: string;
     shiftDate?: string;
+    clockInAt?: number;
+    clockOutAt?: number;
   }
 ): Promise<DraftHoursFromShiftResult> {
   let staff = shift.employeeId ? await ctx.db.get(shift.employeeId) : null;
@@ -240,13 +242,16 @@ export async function draftHoursFromShift(
   const dailyLimit = settings?.regularHoursLimitDaily ?? 8;
   const breakDuration = DEFAULT_BREAK_MINUTES;
 
-  const clockInTime = clockOnWorkDate(workDate, shift.startTime);
-  const parsedOut = clockOnWorkDate(workDate, shift.endTime);
-  const { clockOut, total } = hoursFromClockWithOvernight(
-    clockInTime,
-    parsedOut,
-    breakDuration
-  );
+  const clockInTime = shift.clockInAt ?? clockOnWorkDate(workDate, shift.startTime);
+  const parsedOut = shift.clockOutAt ?? clockOnWorkDate(workDate, shift.endTime);
+  const spanned = shift.clockInAt != null && shift.clockOutAt != null
+    ? {
+        clockOut: shift.clockOutAt,
+        total: hoursFromClock(shift.clockInAt, shift.clockOutAt, breakDuration),
+      }
+    : hoursFromClockWithOvernight(clockInTime, parsedOut, breakDuration);
+  const clockOut = spanned.clockOut;
+  const total = spanned.total;
   const now = Date.now();
   const regularHours = Math.min(total, dailyLimit);
   const overtimeHours = Math.max(0, total - dailyLimit);

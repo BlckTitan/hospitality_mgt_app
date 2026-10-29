@@ -44,7 +44,7 @@ Canonical **role names** stored on `roles.name` (must match `ROLE_PERMISSION_MAT
 1. Users & Roles
 2. Properties
 3. Staff Management
-4. Shift Management (Department shifts, Attendance Tracker, Cover, Shift, Hours)
+4. Shift Management (Department shifts, Rotations, Attendance Tracker, Cover, Shift, Hours)
 5. Payroll
 6. Reservations & Rooms
 7. Beverages (live bar / beverage POS)
@@ -192,6 +192,7 @@ Route access (`lib/proxy-permissions.ts`; `granular` may be a string or string[]
 |---|---|---|
 | Shift Management hub | `/admin/shift-management` | `staff.read` |
 | Department shifts | `/admin/shift-management/templates` | `staff.read` (edit: `staff.update`) |
+| Rotations | `/admin/shift-management/rotations` | `staff.read` |
 | Cover | `/admin/shift-management/cover` | `staff.update` |
 | Attendance Tracker | `/admin/shift-management/attendance` | `payroll.timesheet.create` or `beverages.read` or `staff.read` or `payroll.timesheet.approve` |
 | Shift list | `/admin/shift-management/shift` | `staff.read` or `payroll.timesheet.create` or `beverages.read` |

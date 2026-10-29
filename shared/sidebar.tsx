@@ -72,6 +72,7 @@ const navLinks = [
   ]},
   {id: 11, href: "/admin/shift-management", label: "Shift Management", icon: <MdOutlineBedroomChild />,  subLink: [
     {id: 1101, href: '/admin/shift-management/templates', label: 'Department shifts'},
+    {id: 1107, href: '/admin/shift-management/rotations', label: 'Rotations'},
     {id: 1102, href: '/admin/shift-management/attendance', label: 'Attendance Tracker'},
     {id: 1103, href: '/admin/shift-management/cover', label: 'Cover'},
     {id: 1104, href: '/admin/shift-management/shift', label: 'Shift'},

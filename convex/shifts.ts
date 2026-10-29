@@ -380,9 +380,11 @@ export const finalizeShift = mutation({
       }
 
       const endTime = shift.endTime || currentUtcHHmm();
+      const clockOutAt = Date.now();
       await ctx.db.patch(args.shiftId, {
         isFinalized: true,
         endTime,
+        ...(shift.clockInAt ? { clockOutAt } : {}),
       });
 
       if (shift.barId) {
@@ -419,6 +421,8 @@ export const finalizeShift = mutation({
         startTime: shift.startTime,
         endTime,
         shiftDate: shift.shiftDate,
+        clockInAt: shift.clockInAt,
+        clockOutAt: shift.clockInAt ? clockOutAt : undefined,
       });
 
       if (hoursResult.status === 'no_staff') {

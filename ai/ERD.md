@@ -700,27 +700,59 @@ Schema table: `shiftTemplates`. Default working hours for a department at a prop
 - `propertyId` (FK)
 - `department`: front-office | housekeeping | beverages | restaurant | maintenance | finance | admin | other
 - `name`: Display name
-- `startTime`, `endTime`: Expected hours (HH:MM). Not the actual clock.
-- `barId` (FK, optional): Required when department is Beverages
+- `startTime`, `endTime`: Clock the duty begins, and the clock time that length lands on (HH:MM, mod 24h). Not the actual clock-in.
+- `durationMinutes` (optional): Length of one duty. 1,440 is one day, 2,160 is one and a half days. When set, `endTime` is derived from `startTime` plus this length.
+- `barId` (FK, optional): Legacy. New department shifts do not store a bar. A bar belongs on a food & beverage worked Shift.
 - `isDefault`: One default per department (application-enforced)
 - `isActive`
 - `createdAt`, `updatedAt`
 
-**Purpose**: Admin-defined schedule template. New staff in that department inherit this shift. Screens: `/admin/shift-management/templates`.
+**Purpose**: Admin-defined duty for a department. New staff in that department inherit this shift. Screens: `/admin/shift-management/templates`.
+
+---
+
+#### Rotation
+Schema tables: `rotations`, `rotationSegments`, `staffRotations`. A property-named on/off cycle. Nothing about "1 day" or "1½ days" is hardcoded; both are durations in minutes.
+
+**Rotation attributes:**
+- `rotationId` (PK)
+- `propertyId` (FK)
+- `department`: Same closed set as Department shift
+- `name`
+- `shiftTemplateId` (FK, optional): Duty whose start clock and length apply while the person is on
+- `isActive`, `createdAt`, `updatedAt`
+
+**Segment attributes** (`rotationSegments`):
+- `rotationSegmentId` (PK)
+- `rotationId` (FK)
+- `position`: Order in the cycle
+- `kind`: on | off
+- `durationMinutes`: 15 minutes to 72 hours. 1,440 on then 1,440 off is one day on, one day off. 2,160 / 2,160 is one and a half days each.
+
+**Staff phase** (`staffRotations`):
+- `staffRotationId` (PK)
+- `propertyId` (FK), `staffId` (FK), `rotationId` (FK)
+- `anchorAt`: UTC instant that person's first on segment begins. Two people share a rotation and cover the desk by starting one segment apart.
+- `isActive`: Assigning a new rotation deactivates the previous active row for that staff member
+- `createdAt`, `updatedAt`
+
+**Purpose**: Place each person in the cycle. Staff with no active rotation keep the daily department shift. A person who is off cannot start a shift unless they are covering someone. Screen: `/admin/shift-management/rotations`.
 
 ---
 
 #### Roster day
-Schema table: `rosterSlots`. One scheduled day for a staff member.
+Schema table: `rosterSlots`. One scheduled duty for a staff member. A rotation occurrence may span more than one calendar date.
 
 **Attributes:**
 - `rosterSlotId` (PK)
 - `propertyId` (FK)
-- `shiftDate`: YYYY-MM-DD
+- `shiftDate`: YYYY-MM-DD of the span start
 - `shiftTemplateId` (FK)
 - `scheduledEmployeeId` (FK): Who is rostered
 - `workingEmployeeId` (FK): Who should attend (equals scheduled unless Cover)
 - `coveredAt`, `coveredBy` (FK User, optional), `notes`
+- `startsAt`, `endsAt` (optional): Absolute span when the duty comes from a rotation
+- `rotationId` (FK, optional)
 - `createdAt`, `updatedAt`
 
 **Purpose**: Cover changes `workingEmployeeId` only. Blocked if the scheduled person already started a Shift or has Hours for that date, or if the covering person already started a Shift that day. Never rewrites Hours.
@@ -735,10 +767,11 @@ Schema table: `shifts`. One actual working session (any department). Attendance 
 - `propertyId` (FK)
 - `employeeId` (FK, optional): Staff who worked (required for payroll Hours)
 - `userId` (FK, optional): Denormalized login when the staff member has one
-- `barId` (FK, optional): Required only for Beverages
+- `barId` (FK, optional): Set only for food & beverage worked shifts
 - `department`: Same closed set as Department shift
-- `shiftDate`: YYYY-MM-DD
-- `startTime`, `endTime` (optional): Actual clock (UTC HH:MM)
+- `shiftDate`: YYYY-MM-DD the session started (local date of the occurrence when the person is on a rotation)
+- `startTime`, `endTime` (optional): Actual clock in the property timezone (HH:MM)
+- `clockInAt`, `clockOutAt` (optional): Absolute instants. A duty longer than a day is one session; Hours uses these so the total is not capped at a 24-hour overnight wrap. An open session is found on this date or the previous three days.
 - `isFinalized`: True after End shift or Finalize
 - `shiftTemplateId` (FK, optional), `rosterSlotId` (FK, optional)
 - `expectedStart`, `expectedEnd` (optional): Snapshot of department-shift HH:MM at Start shift. Later template edits do not rewrite these.
@@ -748,7 +781,7 @@ Schema table: `shifts`. One actual working session (any department). Attendance 
 - `clockMethod` (optional): self | kiosk | proxy. How this session was started. Live Attendance Tracker start (self or proxy) uses server time now. Ad-hoc Shift create with a typed start time is `unscheduled`.
 - `recordedByUserId` (FK User, optional): Who pressed Start (the staff member for self-clock, the supervisor for proxy)
 
-**Purpose**: One session per staff per date (application-enforced). Logging in does not create a Shift. End shift or Finalize drafts Hours (`source = shift`) and, for Beverages, finalizes that shift’s `userStockLogs`. Employees see only their own rows; managers with `staff.read` see everyone. Punctuality is scored at live Start shift (property timezone vs snapshot expected start, plus Payroll settings grace minutes). Unscheduled means no expected start, or an ad-hoc typed clock. Punctuality does not change pay.
+**Purpose**: One open session per occurrence. Staff on a daily department shift still have one session per date. A rotation duty is one session that can cross dates and is ended on a later calendar day. Logging in does not create a Shift. End shift or Finalize drafts Hours (`source = shift`) and, for food & beverage, finalizes that shift’s `userStockLogs`. Employees see only their own rows; managers with `staff.read` see everyone. Punctuality is scored at live Start shift (property timezone vs the occurrence expected start, plus Payroll settings grace minutes). Unscheduled means no expected start, or an ad-hoc typed clock. Punctuality does not change pay. Covering someone allows clock-in even when the cover person's own rotation is off.
 
 ---
 
@@ -2046,11 +2079,20 @@ Beverages relationships: see Bar ERD/PRD.
 - **Relationship**: End shift or Finalize creates a draft Hours (`source = shift`). Does not overwrite submitted/approved/locked sheets.
 - **Explanation**: Attendance Tracker and ad-hoc Shift share the `shifts` table. Template times are expected hours; clock times on Shift feed Hours. Start shift also snapshots expected start and scores punctuality in the property timezone.
 
-#### Property → Department shift / Roster day / Shift (One-to-Many)
+#### Property → Department shift / Rotation / Roster day / Shift (One-to-Many)
 - **Relationship**: All scheduling is property-scoped.
 
 #### Employee → Department shift (Many-to-One, Optional)
 - **Relationship**: Staff inherit the department default template on onboard; department change reassigns the default.
+
+#### Rotation → Segment (One-to-Many)
+- **Relationship**: Ordered on and off segments. At least one of each. Durations are minutes, not named shift types.
+
+#### Employee → Staff rotation (One-to-Many, Optional)
+- **Relationship**: At most one active row. `anchorAt` is the phase. Staff with none keep the daily department shift.
+
+#### Department shift → Rotation (One-to-Many, Optional)
+- **Relationship**: A rotation may point at the duty used while the person is on.
 
 #### Employee → Roster day (One-to-Many)
 - **Relationship**: A staff member can be `scheduledEmployeeId` and/or `workingEmployeeId` on a date.
@@ -2058,8 +2100,11 @@ Beverages relationships: see Bar ERD/PRD.
 #### Department shift → Roster day / Shift (One-to-Many)
 - **Relationship**: Roster days and attendance sessions may point at the template.
 
+#### Rotation → Roster day (One-to-Many, Optional)
+- **Relationship**: An occurrence stores `rotationId` plus `startsAt` / `endsAt`. The span may cross calendar dates.
+
 #### Roster day → Shift (One-to-Many, Optional)
-- **Relationship**: Start shift attaches `rosterSlotId` on the session.
+- **Relationship**: Start shift attaches `rosterSlotId` on the session. Expected start and end for punctuality are the occurrence's local clock, not the template's daily start, when the slot comes from a rotation.
 
 #### Hours → Staff pay (Many-to-One, Optional)
 - **Relationship**: When a payroll is prepared, included Hours point at the Staff pay that paid them.
@@ -2375,7 +2420,7 @@ Beverages relationships: see Bar ERD/PRD.
 ### Cardinality Overview
 
 **One-to-Many Relationships:**
-- Property → Room, RoomType, Guest, Reservation, HousekeepingTask, TaskTemplate, TaskSlaDefault, TaskAssignment, RestaurantMenuItem, RestaurantTable, RestaurantOrder, InventoryItem, InventoryTask, Supplier, PurchaseOrder, Employee, Department shift, Roster day, Shift, Hours, Pay item type, Pay cycle, Time-off type, Extra pay rule, Payroll, Asset, MaintenanceOrder, MaintenanceOrderPart, Expense, BillAccount, BillPeriod, BillDocument, Payment, ChartOfAccounts, JournalEntry, Report, Document, Integration, AuditLog, Payroll settings (1:1), Holidays (1:1)
+- Property → Room, RoomType, Guest, Reservation, HousekeepingTask, TaskTemplate, TaskSlaDefault, TaskAssignment, RestaurantMenuItem, RestaurantTable, RestaurantOrder, InventoryItem, InventoryTask, Supplier, PurchaseOrder, Employee, Department shift, Rotation, Roster day, Shift, Hours, Pay item type, Pay cycle, Time-off type, Extra pay rule, Payroll, Asset, MaintenanceOrder, MaintenanceOrderPart, Expense, BillAccount, BillPeriod, BillDocument, Payment, ChartOfAccounts, JournalEntry, Report, Document, Integration, AuditLog, Payroll settings (1:1), Holidays (1:1)
 - RoomType → Room, RatePlan, TaskTemplate (optional)
 - Room → Reservation, HousekeepingTask, Asset, MaintenanceOrder
 - Guest → Reservation
@@ -2427,7 +2472,8 @@ Beverages relationships: see Bar ERD/PRD.
 - Document → Expense, PurchaseOrder, Payment, MaintenanceOrder, Payroll, Payslip, Payment file (via referenceType/referenceId)
 - BillPeriod → Payment (`referenceType = PropertyBill`)
 - Shift → Hours (draft created on End shift or Finalize)
-- Department shift → Employee (assigned default), Roster day, Shift
+- Department shift → Employee (assigned default), Roster day, Shift, Rotation (optional duty)
+- Rotation → Segment, Staff rotation, Roster day
 - Roster day → Shift (optional; Cover changes workingEmployeeId only)
 - Hours → Staff pay (when included in a run)
 - Hours → Payroll (lock after calculate)

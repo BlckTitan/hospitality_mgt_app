@@ -371,7 +371,7 @@ Beverages with no catalog item stay on the bar book only.
 
 **Start shift / End shift (Attendance Tracker)**
 
-Maria Garcia (housekeeper, `employeeId: 203`) is onboarded into housekeeping and inherits that department’s default **Department shift** (expected 07:00–15:00). She logs in at home — no `shifts` row is created.
+Maria Garcia (housekeeper, `employeeId: 203`) is onboarded into housekeeping and inherits that department’s default **Department shift** (expected 07:00–15:00). She has no **Rotation**, so each day follows that duty. She logs in at home — no `shifts` row is created. A colleague on a rotation (for example 1 day on, 1 day off, or 1½ days on, 1½ days off) can start only while their current segment is on, and that session stays open across calendar dates until End shift. Cover still lets someone clock in while their own rotation is off.
 
 On site she opens Attendance Tracker and clicks **Start shift**:
 1. System creates a **Shift** (`shifts`) for today:

@@ -8,13 +8,15 @@ import { Button } from '../../../../../shared/button';
 import InputComponent from '../../../../../shared/input';
 import { Id } from '../../../../../convex/_generated/dataModel';
 import { api } from '../../../../../convex/_generated/api';
-import { DEPARTMENT_LABELS, formSchema, SHIFT_DEPARTMENTS } from './validation';
+import { DEPARTMENT_LABELS, formSchema, SHIFT_DEPARTMENTS, splitDutyDuration } from './validation';
 
 type FormData = {
   department: (typeof SHIFT_DEPARTMENTS)[number];
   name: string;
   startTime: string;
   endTime: string;
+  durationHours: number;
+  durationMinutesPart: number;
   isDefault: boolean;
   isActive?: boolean;
 };
@@ -33,6 +35,7 @@ export default function EditTemplateForm({
     name: string;
     startTime: string;
     endTime: string;
+    durationMinutes?: number;
     isDefault: boolean;
     isActive: boolean;
   };
@@ -46,6 +49,7 @@ export default function EditTemplateForm({
       name: templateData.name,
       startTime: templateData.startTime,
       endTime: templateData.endTime,
+      ...splitDutyDuration(templateData.durationMinutes, templateData.startTime, templateData.endTime),
       isDefault: templateData.isDefault,
       isActive: templateData.isActive,
     },
@@ -58,6 +62,7 @@ export default function EditTemplateForm({
         name: data.name,
         startTime: data.startTime,
         endTime: data.endTime,
+        durationMinutes: Number(data.durationHours) * 60 + Number(data.durationMinutesPart),
         isDefault: data.isDefault,
         isActive: data.isActive,
       });
@@ -92,8 +97,9 @@ export default function EditTemplateForm({
       <div className="mb-3">
         <InputComponent id="startTime" label="Start *" type="time" inputWidth="w-full" register={register('startTime')} error={errors.startTime} />
       </div>
-      <div className="mb-3">
-        <InputComponent id="endTime" label="End *" type="time" inputWidth="w-full" register={register('endTime')} error={errors.endTime} />
+      <div className="mb-3 grid grid-cols-2 gap-2">
+        <InputComponent id="durationHours" label="Length (hours) *" type="number" inputWidth="w-full" register={register('durationHours', { valueAsNumber: true })} error={errors.durationHours} />
+        <InputComponent id="durationMinutesPart" label="Length (minutes)" type="number" inputWidth="w-full" register={register('durationMinutesPart', { valueAsNumber: true })} error={errors.durationMinutesPart} />
       </div>
       <label className="flex items-center gap-2 mb-3">
         <input type="checkbox" {...register('isDefault')} />

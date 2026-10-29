@@ -956,7 +956,7 @@ export function findBestAvailableRoom(
 
 Overtime and extra pay come from extra pay rules (holiday, night, weekend, daily/weekly OT), with Payroll settings `overtimeMultiplier` as fallback daily OT. Unpaid approved Time off days prorate salary. Compensation rates come from Pay history effective on the work date. See `ai/payroll-implementation.md`.
 
-End shift / Finalize drafts Hours from Shift `startTime` / `endTime` (UTC `HH:MM` on the shift calendar date). Overnight sessions wrap: if end is not after start, add 24 hours. Default break is 30 minutes. Daily OT uses Payroll settings `regularHoursLimitDaily` (fallback 8). Live helpers: `hoursFromClockWithOvernight` in `convex/lib/payrollHelpers.ts`. Do not import `convex/lib/shiftHelpers.ts` from the client.
+End shift / Finalize drafts Hours from the session. When `clockInAt` and `clockOutAt` are both set, Hours uses those absolute instants (`hoursFromClock`), so a duty longer than a day is not capped at 24 hours. Otherwise it uses Shift `startTime` / `endTime` on the shift calendar date and wraps overnight: if end is not after start, add 24 hours. Default break is 30 minutes. Daily OT uses Payroll settings `regularHoursLimitDaily` (fallback 8). Live helpers: `hoursFromClock` and `hoursFromClockWithOvernight` in `convex/lib/payrollHelpers.ts`. Rotation placement is `placeInCycle` / `placementForStaff` in `convex/lib/rotation.ts`. An open session is found on the shift date or the previous three days (`findOpenShiftNear`). Do not import `convex/lib/shiftHelpers.ts` from the client.
 
 ### Hours from Shift clock (overnight wrap)
 

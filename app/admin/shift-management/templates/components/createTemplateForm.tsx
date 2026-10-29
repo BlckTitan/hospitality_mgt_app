@@ -15,6 +15,8 @@ type FormData = {
   name: string;
   startTime: string;
   endTime: string;
+  durationHours: number;
+  durationMinutesPart: number;
   isDefault: boolean;
 };
 
@@ -36,6 +38,8 @@ export function FormComponent({
       name: '',
       startTime: '08:00',
       endTime: '16:00',
+      durationHours: 8,
+      durationMinutesPart: 0,
       isDefault: true,
     },
   });
@@ -48,6 +52,7 @@ export function FormComponent({
         name: data.name,
         startTime: data.startTime,
         endTime: data.endTime,
+        durationMinutes: Number(data.durationHours) * 60 + Number(data.durationMinutesPart),
         isDefault: data.isDefault,
       });
       if (response.success === false) {
@@ -79,9 +84,11 @@ export function FormComponent({
       <div className="mb-3">
         <InputComponent id="startTime" label="Start *" type="time" inputWidth="w-full" register={register('startTime')} error={errors.startTime} />
       </div>
-      <div className="mb-3">
-        <InputComponent id="endTime" label="End *" type="time" inputWidth="w-full" register={register('endTime')} error={errors.endTime} />
+      <div className="mb-3 grid grid-cols-2 gap-2">
+        <InputComponent id="durationHours" label="Length (hours) *" type="number" inputWidth="w-full" register={register('durationHours', { valueAsNumber: true })} error={errors.durationHours} />
+        <InputComponent id="durationMinutesPart" label="Length (minutes)" type="number" inputWidth="w-full" register={register('durationMinutesPart', { valueAsNumber: true })} error={errors.durationMinutesPart} />
       </div>
+      <p className="text-sm text-gray-600 mb-3">Use 24 hours for one day on, or 36 hours for one and a half days. End time is the clock when that length finishes.</p>
       <label className="flex items-center gap-2 mb-4">
         <input type="checkbox" {...register('isDefault')} />
         <span>Default for this department</span>

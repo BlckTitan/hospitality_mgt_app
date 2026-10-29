@@ -730,10 +730,49 @@ interface ShiftTemplate {
   propertyId: string;
   department: Department;
   name: string;
-  startTime: string; // expected HH:MM
-  endTime: string;
-  barId?: string; // required when department is beverages
+  startTime: string; // clock the duty begins, HH:MM
+  endTime: string; // clock time the duration lands on (mod 24h)
+  durationMinutes?: number; // length of one duty. 1440 = 1 day, 2160 = 1½ days
+  barId?: string; // legacy. New department shifts do not store a bar
   isDefault: boolean;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+```
+
+### Rotation
+UI: **Rotations**. Schema tables: `rotations`, `rotationSegments`, `staffRotations`. Interfaces: `Rotation`, `RotationSegment`, `StaffRotation`.
+
+A rotation is a property-defined on/off cycle. Each segment is a duration in minutes (15 minutes to 72 hours). "1 day on, 1 day off" is 1440 on then 1440 off. "1½ on, 1½ off" is 2160 then 2160. At least one on and one off segment are required. Staff without a rotation keep the daily department shift.
+
+`anchorAt` is the UTC instant that person's first on segment begins. Two people share a rotation and cover the desk by starting one segment apart.
+```typescript
+interface Rotation {
+  rotationId: string;
+  propertyId: string;
+  department: Department;
+  name: string;
+  shiftTemplateId?: string; // optional duty whose start clock and length apply while on
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface RotationSegment {
+  rotationSegmentId: string;
+  rotationId: string;
+  position: number;
+  kind: 'on' | 'off';
+  durationMinutes: number;
+}
+
+interface StaffRotation {
+  staffRotationId: string;
+  propertyId: string;
+  staffId: string;
+  rotationId: string;
+  anchorAt: Date;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -746,13 +785,16 @@ UI: **Cover**. Schema table: `rosterSlots`. Interface: `RosterSlot`.
 interface RosterSlot {
   rosterSlotId: string;
   propertyId: string;
-  shiftDate: string; // YYYY-MM-DD
+  shiftDate: string; // YYYY-MM-DD of the span start
   shiftTemplateId: string;
   scheduledEmployeeId: string;
   workingEmployeeId: string; // Cover changes this only
   coveredAt?: Date;
   coveredBy?: string; // User id
   notes?: string;
+  startsAt?: Date; // set for a rotation occurrence; may cross calendar dates
+  endsAt?: Date;
+  rotationId?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -767,11 +809,13 @@ interface Shift {
   propertyId: string;
   employeeId?: string;
   userId?: string;
-  barId?: string; // required only for Beverages
+  barId?: string; // food & beverage worked shifts only
   department?: Department;
   shiftDate: string;
-  startTime: string; // actual clock
+  startTime: string; // actual clock, property-local HH:MM
   endTime?: string;
+  clockInAt?: Date; // absolute instant. Set so a duty longer than a day is not capped at +24h
+  clockOutAt?: Date;
   isFinalized: boolean;
   shiftTemplateId?: string;
   rosterSlotId?: string;
@@ -780,7 +824,7 @@ interface Shift {
 
 ### Hours
 UI: **Hours**. Schema table: `hours`. Interface: `Hours`.
-End shift / Finalize copies Shift `startTime` / `endTime` into `clockInTime` / `clockOutTime` (overnight wrap; 30-minute default break).
+End shift / Finalize copies the session into Hours. When `clockInAt` and `clockOutAt` are set, Hours uses those absolute instants. Otherwise it copies `startTime` / `endTime` with an overnight wrap (add 24 hours when clock-out is not after clock-in). Default break is 30 minutes.
 ```typescript
 interface Hours {
   hoursId: string;

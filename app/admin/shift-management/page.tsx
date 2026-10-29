@@ -7,6 +7,7 @@ import { ShiftPageGuide } from './components/shiftPageGuide';
 
 const hubLinks = [
   { href: '/admin/shift-management/templates', label: 'Open Department shifts' },
+  { href: '/admin/shift-management/rotations', label: 'Open Rotations' },
   { href: '/admin/shift-management/attendance', label: 'Open Attendance Tracker' },
   { href: '/admin/shift-management/cover', label: 'Open Cover' },
   { href: '/admin/shift-management/shift', label: 'Open Shifts' },

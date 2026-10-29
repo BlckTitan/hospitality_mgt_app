@@ -12,6 +12,7 @@ import {
   ensureRosterSlot,
   findActiveShiftForStaffDate,
   findAnyShiftForStaffDate,
+  findOpenShiftNear,
   getRosterSlotForScheduled,
   getRosterSlotForWorking,
   resolveFnBBarId,
@@ -23,6 +24,7 @@ import { canSeeAllTeamRecords, currentUsersStaff, isActiveStatus } from "./lib/s
 import { resolveStaffClockMethod, type ShiftClockMethod } from "./lib/clockMethod";
 import { computeCogsSnapshot, propertyDateKey, refreshSalesSummariesForLogs } from "./lib/barStock";
 import { staffWorksFrontOffice } from "./lib/dutyContext";
+import { placementForStaff } from "./lib/rotation";
 
 type DbCtx = MutationCtx | QueryCtx;
 
@@ -85,17 +87,29 @@ async function buildDuty(
   const isCovered = Boolean(ownSlot && ownSlot.workingEmployeeId !== staff._id);
   const scheduled = slot ? await ctx.db.get(slot.scheduledEmployeeId) : staff;
   const working = slot ? await ctx.db.get(slot.workingEmployeeId) : staff;
+  const placement = await placementForStaff(ctx, staff, propertyId);
   const slotTemplate = slot ? await ctx.db.get(slot.shiftTemplateId) : template;
-  const hasTemplate = Boolean(slotTemplate ?? template);
-  const dayShift = await findAnyShiftForStaffDate(ctx, staff._id, shiftDate);
-  const activeShift = dayShift && !dayShift.isFinalized ? dayShift : null;
+  const dutyTemplate = placement.status === "on" && placement.shiftTemplateId
+    ? await ctx.db.get(placement.shiftTemplateId)
+    : slotTemplate ?? template;
+  const hasTemplate = Boolean(dutyTemplate ?? template) || placement.status === "on";
+  const openShift = await findOpenShiftNear(ctx, staff._id, shiftDate);
+  const dayShift = openShift ?? await findAnyShiftForStaffDate(ctx, staff._id, shiftDate);
+  const activeShift = openShift;
   const bar = dayShift?.barId ? await ctx.db.get(dayShift.barId) : null;
   const isSelf = actorStaffId === staff._id;
-  const expectedStart = slotTemplate?.startTime ?? template?.startTime;
-  const expectedEnd = slotTemplate?.endTime ?? template?.endTime;
+  const expectedStart = placement.status === "on"
+    ? placement.expectedStart
+    : dutyTemplate?.startTime ?? template?.startTime;
+  const expectedEnd = placement.status === "on"
+    ? placement.expectedEnd
+    : dutyTemplate?.endTime ?? template?.endTime;
+  const rotationOff = (placement.status === "off" || placement.status === "before") && !isCovering;
 
   let blockedReason: string | undefined;
-  if (!hasTemplate) {
+  if ((placement.status === "off" || placement.status === "before") && !isCovering && !activeShift) {
+    blockedReason = placement.message;
+  } else if (!hasTemplate) {
     blockedReason = isSelf
       ? "No department shift is assigned. An admin must define a shift for your department."
       : "No department shift is assigned.";
@@ -119,8 +133,8 @@ async function buildDuty(
     staffName: staffDisplayName(staff),
     propertyId,
     shiftDate,
-    department: slotTemplate?.department ?? staff.department,
-    templateName: slotTemplate?.name ?? template?.name,
+    department: dutyTemplate?.department ?? staff.department,
+    templateName: placement.status === "on" ? placement.rotationName : dutyTemplate?.name ?? template?.name,
     expectedStart,
     expectedEnd,
     hasTemplate,
@@ -130,9 +144,9 @@ async function buildDuty(
     isSelf,
     scheduledName: staffDisplayName(scheduled),
     workingName: staffDisplayName(working),
-    canStartShift: Boolean(hasTemplate && !isCovered && !dayShift && clockMethod === "self"),
+    canStartShift: Boolean(hasTemplate && !isCovered && !dayShift && !rotationOff && clockMethod === "self"),
     canEndShift: Boolean(activeShift && clockMethod === "self"),
-    canStartFor: Boolean(!isSelf && hasTemplate && !isCovered && !dayShift),
+    canStartFor: Boolean(!isSelf && hasTemplate && !isCovered && !dayShift && !rotationOff),
     canEndFor: Boolean(!isSelf && activeShift),
     activeShift: dayShift
       ? {
@@ -216,7 +230,18 @@ async function startStaffShift(
     };
   }
 
-  const shiftDate = await propertyDateKey(ctx, args.propertyId);
+  const today = await propertyDateKey(ctx, args.propertyId);
+  const placement = await placementForStaff(ctx, args.staff, args.propertyId);
+  const coveringSlotToday = await getRosterSlotForWorking(ctx, args.staff._id, today);
+  const isCoveringToday = Boolean(
+    coveringSlotToday &&
+      coveringSlotToday.workingEmployeeId === args.staff._id &&
+      coveringSlotToday.scheduledEmployeeId !== args.staff._id,
+  );
+  if (!isCoveringToday && (placement.status === "off" || placement.status === "before")) {
+    return { success: false as const, message: placement.message };
+  }
+  const shiftDate = placement.status === "on" ? placement.shiftDate : today;
   const coveringSlot = await getRosterSlotForWorking(ctx, args.staff._id, shiftDate);
   const ownCovered = await getRosterSlotForScheduled(ctx, args.staff._id, shiftDate);
   if (ownCovered && ownCovered.workingEmployeeId !== args.staff._id) {
@@ -236,6 +261,10 @@ async function startStaffShift(
     propertyId: args.propertyId,
     shiftDate,
     scheduledEmployeeId: scheduledId,
+    startsAt: placement.status === "on" ? placement.startsAt : undefined,
+    endsAt: placement.status === "on" ? placement.endsAt : undefined,
+    rotationId: placement.status === "on" ? placement.rotationId : undefined,
+    shiftTemplateId: placement.status === "on" ? placement.shiftTemplateId : undefined,
   });
   if ("error" in ensured) {
     return { success: false as const, message: ensured.error };
@@ -244,7 +273,8 @@ async function startStaffShift(
     return { success: false as const, message: "This roster day is assigned to someone else." };
   }
 
-  const existing = await findAnyShiftForStaffDate(ctx, args.staff._id, shiftDate);
+  const existing = await findOpenShiftNear(ctx, args.staff._id, shiftDate)
+    ?? await findAnyShiftForStaffDate(ctx, args.staff._id, shiftDate);
   if (existing) {
     return {
       success: false as const,
@@ -255,6 +285,8 @@ async function startStaffShift(
   }
 
   const template = ensured.template;
+  const expectedStart = placement.status === "on" ? placement.expectedStart : template.startTime;
+  const expectedEnd = placement.status === "on" ? placement.expectedEnd : template.endTime;
   const barId =
     template.department === "fnb"
       ? await resolveFnBBarId(ctx, args.propertyId, template.barId)
@@ -262,8 +294,8 @@ async function startStaffShift(
 
   const punctuality = await punctualityFieldsForClock(ctx, {
     propertyId: args.propertyId,
-    expectedStart: template.startTime,
-    expectedEnd: template.endTime,
+    expectedStart,
+    expectedEnd,
   });
   const shiftId = await ctx.db.insert("shifts", {
     propertyId: args.propertyId,
@@ -273,6 +305,7 @@ async function startStaffShift(
     department: template.department,
     shiftDate,
     startTime: currentUtcHHmm(),
+    clockInAt: Date.now(),
     isFinalized: false,
     shiftTemplateId: template._id,
     rosterSlotId: ensured.slot._id,
@@ -293,15 +326,17 @@ async function endStaffShift(ctx: MutationCtx, staff: Doc<"staffs">) {
     return { success: false as const, message: "Staff is not assigned to a property." };
   }
   const shiftDate = await propertyDateKey(ctx, staff.propertyId);
-  const shift = await findActiveShiftForStaffDate(ctx, staff._id, shiftDate);
+  const shift = await findOpenShiftNear(ctx, staff._id, shiftDate);
   if (!shift) {
     return { success: false as const, message: "This person has not started a shift." };
   }
 
   const endTime = currentUtcHHmm();
+  const clockOutAt = Date.now();
   await ctx.db.patch(shift._id, {
     isFinalized: true,
     endTime,
+    clockOutAt,
   });
 
   if (shift.barId) {
@@ -334,6 +369,8 @@ async function endStaffShift(ctx: MutationCtx, staff: Doc<"staffs">) {
     startTime: shift.startTime,
     endTime,
     shiftDate: shift.shiftDate,
+    clockInAt: shift.clockInAt,
+    clockOutAt,
   });
   if (hoursResult.status === "skipped") {
     return { success: true as const, message: hoursResult.message };

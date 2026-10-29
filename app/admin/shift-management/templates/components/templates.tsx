@@ -7,7 +7,7 @@ import { api } from '../../../../../convex/_generated/api';
 import { Id } from '../../../../../convex/_generated/dataModel';
 import { TableColumn } from '../../../../../shared/table';
 import PaginationComponent from '../../../../../shared/pagination';
-import { DEPARTMENT_LABELS, SHIFT_DEPARTMENTS } from './validation';
+import { DEPARTMENT_LABELS, formatDutyLength, SHIFT_DEPARTMENTS } from './validation';
 
 type TemplateRow = {
   _id: string;
@@ -15,6 +15,7 @@ type TemplateRow = {
   department: string;
   startTime: string;
   endTime: string;
+  durationMinutes?: number;
   isDefault: boolean;
   isActive: boolean;
   assignedCount: number;
@@ -43,7 +44,13 @@ export default function Templates({ currentPropertyId }: { currentPropertyId: Id
     {
       label: 'Hours',
       key: 'startTime',
-      render: (_value, row) => <span>{row.startTime}–{row.endTime}</span>,
+      render: (_value, row) => (
+        <span>
+          {formatDutyLength(row.durationMinutes)
+            ? `${row.startTime} · ${formatDutyLength(row.durationMinutes)}`
+            : `${row.startTime}–${row.endTime}`}
+        </span>
+      ),
     },
     {
       label: 'Default',

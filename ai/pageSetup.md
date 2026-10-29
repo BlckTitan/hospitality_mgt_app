@@ -884,7 +884,7 @@ Live routes are under `/admin/inventory-management` (items, stock movements, sup
 
 ## Staff, Shift Management, and Payroll Pages
 
-Sidebar: **Dashboard** (`/admin/dashboard`, `reports.read` — hidden without it); **Staff** (`staff.read`); **My profile** (`/admin/staff/myProfile`, linked login; post-login home without `reports.read`); **Shift Management** → Department shifts, Attendance Tracker, Cover, Shift, Hours, Punctuality; **Payroll** → Payroll, Time off, Payroll settings.
+Sidebar: **Dashboard** (`/admin/dashboard`, `reports.read` — hidden without it); **Staff** (`staff.read`); **My profile** (`/admin/staff/myProfile`, linked login; post-login home without `reports.read`); **Shift Management** → Department shifts, Rotations, Attendance Tracker, Cover, Shift, Hours, Punctuality; **Payroll** → Payroll, Time off, Payroll settings.
 
 ### 33. Staff Page (`/admin/staff`)
 **Purpose**: Manage staff records (Convex table `staffs`; no `employees` table)
@@ -932,7 +932,7 @@ Sidebar: **Dashboard** (`/admin/dashboard`, `reports.read` — hidden without it
 ---
 
 ### 34a. Shift Management hub (`/admin/shift-management`)
-**Purpose**: Landing page with links to Department shifts, Attendance Tracker, Cover, Shift, Hours, and Punctuality.
+**Purpose**: Landing page with links to Department shifts, Rotations, Attendance Tracker, Cover, Shift, Hours, and Punctuality.
 
 **Data Fetching:**
 - No list query. Filter hub links by route access (`staff.read` for the hub).
@@ -942,16 +942,32 @@ Sidebar: **Dashboard** (`/admin/dashboard`, `reports.read` — hidden without it
 ---
 
 ### 34b. Department shifts (`/admin/shift-management/templates`)
-**Purpose**: Define default working hours per department (`shiftTemplates`)
+**Purpose**: Define the duty for a department (`shiftTemplates`): name, start clock, and length. `endTime` is the clock that length lands on. A bar is not chosen here.
 
 **Data Fetching:**
 - Fetch Department shifts for current property
-- Include assigned staff count and default bar name (Beverages)
-- **+** creates a template (Beverages requires a default bar). Edit is `/admin/shift-management/templates/edit?template_id=`
+- Include assigned staff count
+- **+** creates a template (start clock plus duration in hours and minutes, 15 minutes to 72 hours). Edit is `/admin/shift-management/templates/edit?template_id=`
 
-**Related Entities:** `Property`, `Bar` (optional), `staffs` (by `shiftTemplateId`)
+**Related Entities:** `Property`, `staffs` (by `shiftTemplateId`)
 
 **Rendering Strategy: SSR** — HR/supervisors with `staff.read` / `staff.update`
+
+---
+
+### 34b2. Rotations (`/admin/shift-management/rotations`)
+**Purpose**: Define an on/off cycle and place each person in it (`rotations`, `rotationSegments`, `staffRotations`).
+
+**Data Fetching:**
+- List rotations for the current property with segments, cycle length, linked duty, and assignment count
+- Create a rotation: name, department, optional department shift, and ordered on/off segments (presets: 1 day on / 1 day off, and 1½ days on / 1½ days off). Each segment is 15 minutes to 72 hours. At least one on and one off.
+- Assign a staff member: rotation plus the local date and time their first on segment begins (`anchorAt`, stored as UTC in the property timezone)
+- Remove an assignment (deactivates that `staffRotations` row). Staff with no rotation keep the daily department shift.
+- Delete removes a rotation and its segments when nobody is actively assigned.
+
+**Related Entities:** `rotations`, `rotationSegments`, `staffRotations`, `shiftTemplates`, `staffs`, `Property`
+
+**Rendering Strategy: SSR** — `staff.read` (same as Department shifts)
 
 ---
 
@@ -962,10 +978,10 @@ Sidebar: **Dashboard** (`/admin/dashboard`, `reports.read` — hidden without it
 - **My duty**: resolve linked `staffs` for the logged-in User; honour `clockMethod` (`self` may Start/End; `supervisor` / `kiosk` cannot self-clock)
 - **Today’s floor**: rostered / templated staff for today (`staff.read` to view; `staff.update` or `payroll.timesheet.approve` to proxy). Direct reports only when the actor cannot see all team records. Exclude proxying yourself (use My duty).
 - After live **Start**, show on time / late (minutes) against the snapshot expected start. Store `clockMethod` (`self` | `proxy`) and `recordedByUserId`.
-- **Start shift** / **Start for** inserts `shifts` with **server time now**. **End shift** / **End for** finalizes and drafts Hours.
+- **Start shift** / **Start for** inserts `shifts` with **server time now**. A person on a rotation can start only while their current segment is on, unless they are covering someone. The roster slot stores the occurrence span (`startsAt`, `endsAt`, `rotationId`). **End shift** / **End for** finalizes an open session from today or the previous three days and drafts Hours from `clockInAt` / `clockOutAt` when both are set.
 - Staff profile **Clock them now** calls the same proxy mutations (convenience, not the morning workflow).
 
-**Related Entities:** `staffs`, `shiftTemplates`, `rosterSlots`, `shifts`, `hours`
+**Related Entities:** `staffs`, `shiftTemplates`, `rotations`, `staffRotations`, `rosterSlots`, `shifts`, `hours`
 
 **Rendering Strategy: SSR** — My duty (`payroll.timesheet.create` or `beverages.read`); floor (`staff.read` / `staff.update` / `payroll.timesheet.approve`)
 
@@ -990,9 +1006,9 @@ Sidebar: **Dashboard** (`/admin/dashboard`, `reports.read` — hidden without it
 **Data Fetching:**
 - Managers (`staff.read`): all property shifts. Employees (`payroll.timesheet.create` or `beverages.read`): own rows only (`employeeId` / `userId`)
 - Employees cannot add, edit, delete, or Finalize
-- **+** is the unscheduled path (`staff.create`). Edit is `/admin/shift-management/shift/edit?shift_id=` (`staff.update`). **Finalize** (or End shift) drafts Hours. One session per staff per date.
+- **+** is the unscheduled path (`staff.create`). Edit is `/admin/shift-management/shift/edit?shift_id=` (`staff.update`). **Finalize** (or End shift) drafts Hours. A daily duty is one session per date. A rotation duty is one session that may have started on an earlier date. Food & beverage rows show the bar beside the department.
 
-**Related Entities:** `staffs`, `bars` (Beverages), `hours`, `shiftTemplates`, `rosterSlots`
+**Related Entities:** `staffs`, `bars` (food & beverage worked shifts), `hours`, `shiftTemplates`, `rosterSlots`
 
 **Rendering Strategy: SSR**
 
@@ -1658,7 +1674,7 @@ Sidebar: **Dashboard** (`/admin/dashboard`, `reports.read` — hidden without it
 
 ## Summary
 
-### Total Pages: 77
+### Total Pages: 78
 
 **Breakdown by Category:**
 - Core Platform: 6 pages
@@ -1667,7 +1683,7 @@ Sidebar: **Dashboard** (`/admin/dashboard`, `reports.read` — hidden without it
 - Restaurant (live): hub, menu, recipes, tables, POS, orders, kitchen under `/admin/restaurant/...` (permissions `restaurant.*`)
 - Inventory Management: 8 pages (includes inventory tasks)
 - Staff: 2 pages
-- Shift Management: 8 pages (hub, Department shifts, Attendance Tracker, Cover, Shift, Hours, Hours edit, Punctuality)
+- Shift Management: 9 pages (hub, Department shifts, Rotations, Attendance Tracker, Cover, Shift, Hours, Hours edit, Punctuality)
 - Payroll Management: 6 pages (Time off, Payroll, Payroll detail, Payslip, Payment files, Payroll settings)
 - Maintenance Management: 4 pages
 - Task Assignment: 3 pages (My tasks, templates, SLA defaults)

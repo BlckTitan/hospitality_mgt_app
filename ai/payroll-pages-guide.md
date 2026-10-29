@@ -2,7 +2,7 @@
 
 Operator guide for the screens under **Payroll**. Schema and design rules live in [payroll-implementation.md](./payroll-implementation.md).
 
-Sidebar: **Payroll** → Payroll, Time off, Payroll settings. **Shift Management** → Department shifts, Attendance Tracker, Cover, Shift, Hours, Punctuality.
+Sidebar: **Payroll** → Payroll, Time off, Payroll settings. **Shift Management** → Department shifts, Rotations, Attendance Tracker, Cover, Shift, Hours, Punctuality.
 
 ---
 
@@ -40,16 +40,24 @@ Country cannot change after an approved or paid Payroll.
 
 Who: HR / supervisors who can update staff.
 
-- One default working-hours template per department (Beverages also needs a default bar).
+- One default duty per department: a name, the clock it starts, and a length (8 hours, 12 hours, 24 hours, 36 hours, or anything from 15 minutes to 72 hours). A bar is not part of the department shift.
 - New staff inherit the default template for their department. If none exists yet, create the shift first.
+
+### Rotations — `/admin/shift-management/rotations`
+
+Who: HR / supervisors who can read staff. Saving a rotation or an assignment needs staff update.
+
+- A rotation is an on/off cycle the property names. Each segment is a length in minutes. Presets cover 1 day on / 1 day off and 1½ days on / 1½ days off.
+- Place a person by choosing when their first on-duty begins. A second person on the same rotation starts one segment later so the desk stays covered.
+- Staff with no rotation keep their daily department shift. Someone who is off cannot start a shift unless they are covering another person.
 
 ### Attendance Tracker — `/admin/shift-management/attendance`
 
 Who: staff with a User login linked to their `staffs` row (My duty); supervisors with `staff.read` / `staff.update` / Hours approve (Today’s floor).
 
-- **My duty** shows today’s expected department shift. Logging in does not start work. **Start shift** is allowed only when clock method is **Self**.
+- **My duty** shows today’s expected department shift, or the current rotation occurrence when the person is on one. Logging in does not start work. **Start shift** is allowed only when clock method is **Self**, and only while a rotation is on (covering someone is the exception).
 - **Today’s floor** lists who should attend today. **Start for** / **End for** uses server time (same punctuality snapshot). Staff without a phone are clocked here.
-- **End shift** finalizes the session and creates **draft** Hours.
+- **End shift** finalizes the open session, including one that started on an earlier day, and creates **draft** Hours. A long duty is one session.
 - Staff whose clock method is Supervisor or Kiosk cannot start from My duty. Self-clock requires a linked login.
 
 ### Cover — `/admin/shift-management/cover`
@@ -81,7 +89,7 @@ Who: supervisors (`payroll.timesheet.read` or `staff.read`); staff see their own
 
 Who: employees (own rows) and managers with `staff.read` (every staff member).
 
-- Attendance Tracker Start shift and ad-hoc **+** both write the same `shifts` table. One session per staff per date.
+- Attendance Tracker Start shift and ad-hoc **+** both write the same `shifts` table. A daily duty is one session per date. A rotation duty is one session that can run across dates. Food & beverage sessions show the bar beside the department.
 - Employees see only their own shifts and cannot add, edit, delete, or Finalize.
 - Managers see all property shifts. **Finalize** (or End shift) creates draft Hours.
 

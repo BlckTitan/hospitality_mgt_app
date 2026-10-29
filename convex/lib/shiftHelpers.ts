@@ -3,6 +3,7 @@ import { Doc, Id } from "../_generated/dataModel";
 import { currentUtcHHmm } from "./payrollHelpers";
 import { punctualityFieldsForClock, punctualityInsertFields } from "./punctuality";
 import { isActiveStatus } from "./staffAccess";
+import { addIsoDays } from "./rotation";
 
 type DbCtx = MutationCtx | QueryCtx;
 
@@ -160,6 +161,24 @@ export async function findActiveShiftForStaffDate(
   return rows.find((row) => !row.isFinalized) ?? null;
 }
 
+/** Open session on this date or the previous three, so a duty up to 72 hours can still be ended. */
+export async function findOpenShiftNear(
+  ctx: DbCtx,
+  employeeId: Id<"staffs">,
+  shiftDate: string,
+) {
+  for (const date of [
+    shiftDate,
+    addIsoDays(shiftDate, -1),
+    addIsoDays(shiftDate, -2),
+    addIsoDays(shiftDate, -3),
+  ]) {
+    const open = await findActiveShiftForStaffDate(ctx, employeeId, date);
+    if (open) return open;
+  }
+  return null;
+}
+
 export async function findAnyShiftForStaffDate(
   ctx: DbCtx,
   employeeId: Id<"staffs">,
@@ -267,18 +286,37 @@ export async function ensureRosterSlot(
     propertyId: Id<"properties">;
     shiftDate: string;
     scheduledEmployeeId: Id<"staffs">;
+    startsAt?: number;
+    endsAt?: number;
+    rotationId?: Id<"rotations">;
+    shiftTemplateId?: Id<"shiftTemplates">;
   }
 ): Promise<{ slot: Doc<"rosterSlots">; template: Doc<"shiftTemplates"> } | { error: string }> {
   const existing = await getRosterSlotForScheduled(ctx, args.scheduledEmployeeId, args.shiftDate);
   if (existing) {
-    const template = await ctx.db.get(existing.shiftTemplateId);
+    const templateId = args.shiftTemplateId ?? existing.shiftTemplateId;
+    const template = await ctx.db.get(templateId);
     if (!template) return { error: "Shift template is missing for this roster day" };
+    if (args.startsAt && args.endsAt) {
+      await ctx.db.patch(existing._id, {
+        startsAt: args.startsAt,
+        endsAt: args.endsAt,
+        ...(args.rotationId ? { rotationId: args.rotationId } : {}),
+        shiftTemplateId: template._id,
+        updatedAt: Date.now(),
+      });
+      const slot = await ctx.db.get(existing._id);
+      if (!slot) return { error: "Failed to update roster duty" };
+      return { slot, template };
+    }
     return { slot: existing, template };
   }
 
   const staff = await ctx.db.get(args.scheduledEmployeeId);
   if (!staff) return { error: "Staff member not found" };
-  const template = await resolveStaffTemplate(ctx, staff, args.propertyId);
+  const template = args.shiftTemplateId
+    ? await ctx.db.get(args.shiftTemplateId)
+    : await resolveStaffTemplate(ctx, staff, args.propertyId);
   if (!template) {
     return { error: "No shift is defined for this staff member's department. An admin must create a department shift first." };
   }
@@ -290,6 +328,13 @@ export async function ensureRosterSlot(
     shiftTemplateId: template._id,
     scheduledEmployeeId: args.scheduledEmployeeId,
     workingEmployeeId: args.scheduledEmployeeId,
+    ...(args.startsAt != null && args.endsAt != null
+      ? {
+          startsAt: args.startsAt,
+          endsAt: args.endsAt,
+          ...(args.rotationId ? { rotationId: args.rotationId } : {}),
+        }
+      : {}),
     createdAt: now,
     updatedAt: now,
   });
