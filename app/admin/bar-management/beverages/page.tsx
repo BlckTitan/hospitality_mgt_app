@@ -16,6 +16,7 @@ import { usePermissions } from '../../../../hooks/usePermissions';
 
 export default function BeveragePage() {
   const [modalShow, setModalShow] = useState(false);
+  const [searchResetKey, setSearchResetKey] = useState(0);
   const { hasGranularPermission } = usePermissions();
   const canCreate = hasGranularPermission('fnb.create');
   const canManageCategories = hasGranularPermission('fnb.read');
@@ -40,8 +41,14 @@ export default function BeveragePage() {
     );
   }
 
+  const closeCreate = () => {
+    setModalShow(false);
+    setSearchResetKey((key) => key + 1);
+  };
+
   return (
     <div className="w-full p-4 bg-white">
+      <div inert={modalShow ? true : undefined}>
       <header className="w-full border-b mb-4 pb-3 flex justify-between items-start gap-3">
       <div className="min-w-0">
         <h1 className="text-2xl font-bold text-gray-800">Beverages</h1>
@@ -67,14 +74,13 @@ export default function BeveragePage() {
       
         </div>
       </header>
-      <Beverages currentPropertyId={currentPropertyId}/>
+      <Beverages currentPropertyId={currentPropertyId} searchResetKey={searchResetKey} />
+      </div>
 
       <ModalComponent
         modalShow={modalShow}
-        setModalShow={setModalShow}
-        onSuccess={() => {
-          setModalShow(false);
-        }}
+        onClose={closeCreate}
+        onSuccess={closeCreate}
         propertyId={currentPropertyId}
       />
     </div>
@@ -83,21 +89,21 @@ export default function BeveragePage() {
 
 function ModalComponent(props: {
   modalShow: boolean;
-  setModalShow: (show: boolean) => void;
+  onClose: () => void;
   onSuccess: () => void;
   propertyId: string;
 }) {
   return (
     <BootstrapModal
       show={props.modalShow}
-      onHide={() => props.setModalShow(false)}
+      onHide={props.onClose}
       backdrop="static"
       keyboard={false}
       heading="Add New Beverage"
       body={
         <FormComponent
           onSuccess={props.onSuccess}
-          onClose={() => props.setModalShow(false)}
+          onClose={props.onClose}
           propertyId={props.propertyId}
         />
       }

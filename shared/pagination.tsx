@@ -57,11 +57,14 @@ export default function PaginationComponent({
   columns,
   jointTableData,
   propertyId,
+  searchResetKey = 0,
 }: {
   collectionName: string;
   columns: TableColumn<any>[];
   jointTableData?: any;
   propertyId?: string;
+  /** Bump this after dismissing a create dialog so a leftover search cannot hide the list. */
+  searchResetKey?: number;
 }) {
   const limit = 10;
   const [cursorHistory, setCursorHistory] = useState<(string | null)[]>([null]);
@@ -69,11 +72,14 @@ export default function PaginationComponent({
   const [pageCache, setPageCache] = useState<Record<number, any[]>>({});
   const [searchQuery, setSearchQuery] = useState('');
   const [query] = useDebounce(searchQuery, 300);
-  const searchTerm = query.trim().length >= 2 ? query.trim() : undefined;
+  const debouncedQuery = typeof query === 'string' ? query.trim() : '';
+  const searchTerm = debouncedQuery.length >= 2 ? debouncedQuery : undefined;
   const showSearch = supportsNameSearch(collectionName);
   const usesClientData = Array.isArray(jointTableData);
   const pagesClientRows = usesClientData && CLIENT_PAGE_TABLES.has(collectionName);
-  const clientQuery = pagesClientRows ? query.trim().toLowerCase() : '';
+  const clientQuery = !pagesClientRows || searchQuery.trim() === ''
+    ? ''
+    : debouncedQuery.toLowerCase();
   const filteredClientRows = useMemo(() => {
     if (!pagesClientRows) return [];
     if (!clientQuery) return jointTableData;
@@ -98,6 +104,10 @@ export default function PaginationComponent({
           ...(propertyId ? { propertyId: propertyId as Id<'properties'> } : {}),
         },
   );
+
+  useEffect(() => {
+    setSearchQuery('');
+  }, [searchResetKey]);
 
   useEffect(() => {
     setCursorHistory([null]);
@@ -219,8 +229,14 @@ function SearchComponent({ setSearchQuery, placeholder, value }: SearchComponent
           </span>
           <input
             type="search"
+            name="tableSearch"
+            autoComplete="off"
             value={value}
             placeholder={placeholder}
+            ref={(node) => {
+              if (!node) return;
+              node.onsearch = () => setSearchQuery(node.value);
+            }}
             onChange={(event) => setSearchQuery(event.target.value)}
           />
         </div>

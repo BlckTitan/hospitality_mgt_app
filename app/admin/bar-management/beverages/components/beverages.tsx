@@ -33,7 +33,13 @@ interface BeverageProps {
   _creationTime: number;
 }
 
-const Beverages = ({ currentPropertyId }: { currentPropertyId: Id<"properties"> }) => {
+const Beverages = ({
+  currentPropertyId,
+  searchResetKey = 0,
+}: {
+  currentPropertyId: Id<"properties">;
+  searchResetKey?: number;
+}) => {
   const { hasGranularPermission } = usePermissions();
   const canOperate = hasGranularPermission('fnb.read');
   const beverageData = useQuery(
@@ -178,6 +184,7 @@ const Beverages = ({ currentPropertyId }: { currentPropertyId: Id<"properties"> 
           collectionName='beverages'
           columns={tableColumns}
           jointTableData={beverageData.success === true ? beverageData.data ?? [] : []}
+          searchResetKey={searchResetKey}
         />
       </Suspense>
     </div>

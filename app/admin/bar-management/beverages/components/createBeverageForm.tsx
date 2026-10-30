@@ -1,7 +1,7 @@
 'use client'
 
 import { useMutation, useQuery } from "convex/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { SubmitHandler, useForm } from "react-hook-form";
 import { formSchema } from "./validation";
 import { BeverageCategoryField } from "./beverageCategoryField";
@@ -48,6 +48,10 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
   });
 
   const imageUrl = watch('imageUrl');
+
+  useEffect(() => {
+    document.getElementById('name')?.focus();
+  }, []);
 
   const onSubmit: SubmitHandler<FormData> = async (data) => {
     try {
@@ -146,7 +150,16 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
       </div>
 
       <div className="flex gap-2 justify-end">
-        <Button variant="secondary" onClick={onClose}>Cancel</Button>
+        <Button
+          variant="secondary"
+          type="button"
+          onClick={(event) => {
+            event.preventDefault();
+            onClose();
+          }}
+        >
+          Cancel
+        </Button>
         <Button variant="dark" type="submit">Create Beverage</Button>
       </div>
     </form>
