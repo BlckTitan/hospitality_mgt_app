@@ -1,6 +1,6 @@
 import type { FunctionArgs } from 'convex/server';
 import { useQuery } from 'convex/react';
-import { Dispatch, SetStateAction, useEffect, useMemo, useState } from 'react';
+import { Dispatch, SetStateAction, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../convex/_generated/api';
 import { Id } from '../convex/_generated/dataModel';
 import TableComponent, { TableColumn } from './table';
@@ -220,6 +220,18 @@ export default function PaginationComponent({
 }
 
 function SearchComponent({ setSearchQuery, placeholder, value }: SearchComponentProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const node = inputRef.current;
+    if (!node) return;
+
+    // The clear button on type="search" fires `search`, which is not on the DOM typings.
+    const handleSearch = () => setSearchQuery(node.value);
+    node.addEventListener('search', handleSearch);
+    return () => node.removeEventListener('search', handleSearch);
+  }, [setSearchQuery]);
+
   return (
     <div className="w-full h-fit py-2 flex items-start justify-end">
       <div className="w-full lg:w-1/3 h-fit flex flex-col items-end">
@@ -228,15 +240,12 @@ function SearchComponent({ setSearchQuery, placeholder, value }: SearchComponent
             <FcSearch />
           </span>
           <input
+            ref={inputRef}
             type="search"
             name="tableSearch"
             autoComplete="off"
             value={value}
             placeholder={placeholder}
-            ref={(node) => {
-              if (!node) return;
-              node.onsearch = () => setSearchQuery(node.value);
-            }}
             onChange={(event) => setSearchQuery(event.target.value)}
           />
         </div>
