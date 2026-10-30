@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation } from 'convex/react';
-import { SubmitHandler, useForm } from 'react-hook-form';
+import { Resolver, SubmitHandler, useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import { toast } from 'sonner';
@@ -11,9 +11,9 @@ import { api } from '../../../../../convex/_generated/api';
 import { Id } from '../../../../../convex/_generated/dataModel';
 import { recordName } from '../../../../../lib/yupFields';
 
-type FormData = { name: string };
+type CategoryFormData = { name: string };
 
-const formSchema = yup.object({
+const formSchema: yup.ObjectSchema<CategoryFormData> = yup.object({
   name: recordName('Category name', { min: 2, max: 40 }),
 });
 
@@ -25,12 +25,12 @@ export function CreateExpenseCategoryForm({
   onClose: () => void;
 }) {
   const createCategory = useMutation(api.expenseCategories.createExpenseCategory);
-  const { register, handleSubmit, formState: { errors }, reset } = useForm<FormData>({
-    resolver: yupResolver(formSchema),
+  const { register, handleSubmit, formState: { errors }, reset } = useForm<CategoryFormData>({
+    resolver: yupResolver(formSchema) as Resolver<CategoryFormData>,
     defaultValues: { name: '' },
   });
 
-  const onSubmit: SubmitHandler<FormData> = async (data) => {
+  const onSubmit: SubmitHandler<CategoryFormData> = async (data) => {
     const response = await createCategory({ propertyId, name: data.name });
     if (!response.success) {
       toast.error(response.message);

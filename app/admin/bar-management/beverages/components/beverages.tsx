@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { api } from "../../../../../convex/_generated/api";
 import { TableColumn } from "../../../../../shared/table";
 import PaginationComponent from "../../../../../shared/pagination";
+import Spinner from "../../../../../shared/spinner";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import ImageThumbnail from "../../../../../shared/imageThumbnail";
 import { usePermissions } from "../../../../../hooks/usePermissions";
@@ -162,13 +163,21 @@ const Beverages = ({ currentPropertyId }: { currentPropertyId: Id<"properties"> 
       : []),
   ];
 
+  if (beverageData === undefined) {
+    return (
+      <div className="w-full h-full flex justify-center items-center">
+        <Spinner size="sm" />
+      </div>
+    );
+  }
+
   return (
     <div className='w-full h-full overflow-x-scroll lg:!overflow-x-hidden'>
       <Suspense>
         <PaginationComponent
           collectionName='beverages'
           columns={tableColumns}
-          jointTableData={(beverageData?.success === true) && beverageData?.data}
+          jointTableData={beverageData.success === true ? beverageData.data ?? [] : []}
         />
       </Suspense>
     </div>

@@ -1,6 +1,6 @@
 import type { FunctionArgs } from 'convex/server';
 import { useQuery } from 'convex/react';
-import { Dispatch, SetStateAction, useEffect, useState } from 'react';
+import { Dispatch, SetStateAction, useEffect, useMemo, useState } from 'react';
 import { api } from '../convex/_generated/api';
 import { Id } from '../convex/_generated/dataModel';
 import TableComponent, { TableColumn } from './table';
@@ -13,6 +13,7 @@ type PaginatedArgs = FunctionArgs<typeof api.functions.paginated.getPaginatedDat
 
 const PEOPLE_SEARCH_TABLES = new Set(['staffs', 'guests']);
 const LOGIN_SEARCH_TABLES = new Set(['users']);
+const CLIENT_SEARCH_TABLES = new Set(['beverages']);
 const CLIENT_DATA_TABLES = new Set(['housekeepingTasks', 'maintenanceOrders', 'inventoryTasks']);
 
 function searchPlaceholder(collectionName: string) {
@@ -22,11 +23,26 @@ function searchPlaceholder(collectionName: string) {
   if (LOGIN_SEARCH_TABLES.has(collectionName)) {
     return 'Search by name or email';
   }
+  if (collectionName === 'beverages') {
+    return 'Search by name or category';
+  }
   return '';
 }
 
 function supportsNameSearch(collectionName: string) {
-  return PEOPLE_SEARCH_TABLES.has(collectionName) || LOGIN_SEARCH_TABLES.has(collectionName);
+  return (
+    PEOPLE_SEARCH_TABLES.has(collectionName) ||
+    LOGIN_SEARCH_TABLES.has(collectionName) ||
+    CLIENT_SEARCH_TABLES.has(collectionName)
+  );
+}
+
+function matchesClientSearch(row: Record<string, unknown>, term: string) {
+  const haystack = [row.name, row.category, row.unitOfMeasure, row.size]
+    .filter((value) => typeof value === 'string' && value.length > 0)
+    .join(' ')
+    .toLowerCase();
+  return haystack.includes(term);
 }
 
 interface SearchComponentProps {
@@ -55,6 +71,16 @@ export default function PaginationComponent({
   const searchTerm = query.trim().length >= 2 ? query.trim() : undefined;
   const showSearch = supportsNameSearch(collectionName);
   const usesClientData = Array.isArray(jointTableData);
+  const pagesClientRows = usesClientData && CLIENT_SEARCH_TABLES.has(collectionName);
+  const clientQuery = pagesClientRows ? query.trim().toLowerCase() : '';
+  const filteredClientRows = useMemo(() => {
+    if (!pagesClientRows) return [];
+    if (!clientQuery) return jointTableData;
+    return jointTableData.filter((row) => matchesClientSearch(row, clientQuery));
+  }, [pagesClientRows, jointTableData, clientQuery]);
+  const clientPageCount = pagesClientRows ? Math.ceil(filteredClientRows.length / limit) : 0;
+  const activePage =
+    pagesClientRows && clientPageCount > 0 ? Math.min(currentPage, clientPageCount) : currentPage;
   const skipPaginated =
     usesClientData || CLIENT_DATA_TABLES.has(collectionName) || !collectionName;
   const currentCursor = cursorHistory[currentPage - 1] ?? undefined;
@@ -98,28 +124,36 @@ export default function PaginationComponent({
     });
   }, [response, currentPage]);
 
-  const hasNextPage =
-    Boolean(response) &&
-    !response.isDone &&
-    Boolean(response.continueCursor) &&
-    cursorHistory.length > currentPage;
+  const hasNextPage = pagesClientRows
+    ? activePage < clientPageCount
+    : Boolean(response) &&
+      !response.isDone &&
+      Boolean(response.continueCursor) &&
+      cursorHistory.length > currentPage;
 
   const handlePageClick = (page: number) => {
     setCurrentPage(page);
   };
 
   const handlePrev = () => {
-    if (currentPage > 1) setCurrentPage((prev) => prev - 1);
+    if (activePage > 1) setCurrentPage(activePage - 1);
   };
 
   const handleNext = () => {
-    if (hasNextPage) {
-      setCurrentPage((prev) => prev + 1);
-    }
+    if (hasNextPage) setCurrentPage(activePage + 1);
   };
 
-  const currentData = pageCache[currentPage] || [];
-  const emptyMessage = searchTerm ? 'No matching results were found.' : 'No data available!';
+  const currentData = pagesClientRows
+    ? filteredClientRows.slice((activePage - 1) * limit, activePage * limit)
+    : usesClientData
+      ? jointTableData
+      : pageCache[currentPage] || [];
+  const pageIndexes = pagesClientRows
+    ? Array.from({ length: clientPageCount }, (_, index) => index)
+    : cursorHistory.map((_, index) => index);
+  const emptyMessage = (pagesClientRows ? clientQuery : searchTerm)
+    ? 'No matching results were found.'
+    : 'No data available!';
 
   if (!usesClientData && (skipPaginated || response === undefined)) {
     return (
@@ -129,9 +163,11 @@ export default function PaginationComponent({
     );
   }
 
-  const isEmpty = usesClientData
-    ? jointTableData.length === 0
-    : !response?.page || response.page.length === 0;
+  const isEmpty = pagesClientRows
+    ? filteredClientRows.length === 0
+    : usesClientData
+      ? jointTableData.length === 0
+      : !response?.page || response.page.length === 0;
 
   return (
     <>
@@ -148,18 +184,18 @@ export default function PaginationComponent({
         </div>
       ) : (
         <TableComponent
-          data={usesClientData ? jointTableData : currentData}
+          data={currentData}
           columns={columns}
         />
       )}
 
       {!isEmpty && (
         <Pagination className="justify-content-left mt-3">
-          <Pagination.Prev onClick={handlePrev} disabled={currentPage === 1} />
-          {cursorHistory.map((_, index) => (
+          <Pagination.Prev onClick={handlePrev} disabled={activePage === 1} />
+          {pageIndexes.map((index) => (
             <Pagination.Item
               key={index}
-              active={currentPage === index + 1}
+              active={activePage === index + 1}
               onClick={() => handlePageClick(index + 1)}
             >
               {index + 1}
