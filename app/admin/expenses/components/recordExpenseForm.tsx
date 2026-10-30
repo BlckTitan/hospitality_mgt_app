@@ -1,6 +1,6 @@
 'use client';
 
-import { useMutation } from 'convex/react';
+import { useMutation, useQuery } from 'convex/react';
 import { Button } from '../../../../shared/button';
 import { toast } from 'sonner';
 import { useForm } from 'react-hook-form';
@@ -11,6 +11,7 @@ import SelectComponent from '../../../../shared/select';
 import { PAYMENT_METHOD_OPTIONS } from '../../billing/components/labels';
 import { cashPeriodBounds } from '../../../../lib/cashPeriod';
 import { EXPENSE_CATEGORY_OPTIONS } from './categoryLabels';
+import { isSystemExpenseCategory } from '../../../../convex/lib/expenseCategoryCatalog';
 import { hasLetter } from '../../../../convex/lib/fieldText';
 
 const EXPENSE_NAME_MAX_LENGTH = 80;
@@ -20,7 +21,7 @@ type FormData = {
   name: string;
   amount: string;
   expenseDate: string;
-  category: 'utilities' | 'supplies' | 'staff' | 'maintenance' | 'other';
+  category: string;
   vendor: string;
   description: string;
   invoiceNumber: string;
@@ -48,6 +49,11 @@ export function RecordExpenseForm({
   onClose: () => void;
 }) {
   const createPaidExpense = useMutation(api.expenses.createPaidExpense);
+  const listed = useQuery(api.expenseCategories.listExpenseCategories, { propertyId });
+  const categoryOptions = (listed?.data ?? [])
+    .filter((item) => item.isActive || isSystemExpenseCategory(item.name))
+    .map((item) => ({ value: item.name, label: item.label }));
+  const options = categoryOptions.length > 0 ? categoryOptions : [...EXPENSE_CATEGORY_OPTIONS];
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     defaultValues: {
       name: '',
@@ -124,7 +130,7 @@ export function RecordExpenseForm({
         id='category'
         label='Category *'
         selectWidth='w-full'
-        options={[...EXPENSE_CATEGORY_OPTIONS]}
+        options={options}
         register={register('category')}
       />
       <InputComponent

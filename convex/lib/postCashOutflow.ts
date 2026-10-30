@@ -1,13 +1,7 @@
 import { MutationCtx } from "../_generated/server";
 import { Id } from "../_generated/dataModel";
 
-export const EXPENSE_CATEGORIES = [
-  "utilities",
-  "supplies",
-  "staff",
-  "maintenance",
-  "other",
-] as const;
+export { EXPENSE_CATEGORIES, type ExpenseCategory } from "./expenseCategoryCatalog";
 
 export const EXPENSE_SOURCE_TYPES = [
   "PropertyBill",
@@ -17,7 +11,6 @@ export const EXPENSE_SOURCE_TYPES = [
   "Manual",
 ] as const;
 
-export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];
 export type ExpenseSourceType = (typeof EXPENSE_SOURCE_TYPES)[number];
 
 export type PostCashOutflowArgs = {
@@ -25,7 +18,7 @@ export type PostCashOutflowArgs = {
   sourceType: ExpenseSourceType;
   sourceId: string;
   amount: number;
-  category: ExpenseCategory;
+  category: string;
   subcategory?: string;
   name?: string;
   description?: string;

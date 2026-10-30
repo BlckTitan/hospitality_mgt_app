@@ -1,6 +1,7 @@
 'use client';
 
 import { BackLink } from '../../../../shared/pageHeader';
+import Link from 'next/link';
 import React, { useState } from 'react';
 import { Button } from '../../../../shared/button';
 import { FcPlus } from 'react-icons/fc';
@@ -17,6 +18,7 @@ export default function BeveragePage() {
   const [modalShow, setModalShow] = useState(false);
   const { hasGranularPermission } = usePermissions();
   const canCreate = hasGranularPermission('fnb.create');
+  const canManageCategories = hasGranularPermission('fnb.read');
 
   const propertiesResponse = useQuery(api.property.listAccessibleProperties, {});
   const properties = propertiesResponse?.data ?? [];
@@ -46,6 +48,11 @@ export default function BeveragePage() {
         <BarManagementPageGuide page="beverages" />
       </div>
         <div className="flex items-center gap-3">
+          {canManageCategories && (
+            <Link href="/admin/bar-management/beverage-categories" className="text-sm font-medium text-blue-700 underline">
+              Categories
+            </Link>
+          )}
           <BackLink />
         {canCreate && currentPropertyId && (
         <Button

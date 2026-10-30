@@ -3,6 +3,7 @@ import { v } from 'convex/values';
 import { Doc, Id } from './_generated/dataModel';
 import { hasGranularPermission, requirePermission, scopeAuthContextToProperty } from './lib/rbac';
 import { resolveBeverageUnitCost } from './lib/barStock';
+import { resolveBeverageCategory } from './beverageCategories';
 
 const recipeLineValidator = v.object({
   inventoryItemId: v.id('inventoryItems'),
@@ -205,7 +206,7 @@ export const createBeverage = mutation({
   args: {
     propertyId: v.id('properties'),
     name: v.string(),
-    category: v.union(v.literal("spirits"), v.literal("wine"), v.literal("Lager beer"), v.literal("cocktails"), v.literal("non-alcoholic"), v.literal("liqueurs"), v.literal("whiskey"), v.literal("vodka"), v.literal("rum"), v.literal("gin"), v.literal("tequila"), v.literal("brandy"), v.literal("cognac"), v.literal("champagne"), v.literal("other")),
+    category: v.string(),
     unitOfMeasure: v.string(),
     size: v.optional(v.string()),
     unitPrice: v.number(),
@@ -219,6 +220,9 @@ export const createBeverage = mutation({
   handler: async (ctx, args) => {
     await requirePermission(ctx, 'fnb.create', args.propertyId);
     try {
+      const category = await resolveBeverageCategory(ctx, args.propertyId, args.category);
+      if (!category.success) return category;
+
       const existingBeverage = await ctx.db
         .query('beverages')
         .filter((q: any) => q.eq(q.field('propertyId'), args.propertyId))
@@ -234,7 +238,7 @@ export const createBeverage = mutation({
         if (!checked.success) return checked;
       }
 
-      const { unitCost, inventoryItemId, recipeLines, size, imageUrl, ...rest } = args;
+      const { unitCost, inventoryItemId, recipeLines, size, imageUrl, category: _category, ...rest } = args;
       const trimmedSize = size?.trim();
       const trimmedImage = imageUrl.trim();
       if (!trimmedImage) {
@@ -242,6 +246,7 @@ export const createBeverage = mutation({
       }
       const beverageId = await ctx.db.insert('beverages', {
         ...rest,
+        category: category.name,
         imageUrl: trimmedImage,
         ...(trimmedSize ? { size: trimmedSize } : {}),
         ...(unitCost !== undefined ? { unitCost } : {}),
@@ -264,7 +269,7 @@ export const updateBeverage = mutation({
     beverageId: v.id('beverages'),
     propertyId: v.optional(v.id('properties')),
     name: v.optional(v.string()),
-    category: v.optional(v.union(v.literal("spirits"), v.literal("wine"), v.literal("Lager beer"), v.literal("cocktails"), v.literal("non-alcoholic"), v.literal("liqueurs"), v.literal("whiskey"), v.literal("vodka"), v.literal("rum"), v.literal("gin"), v.literal("tequila"), v.literal("brandy"), v.literal("cognac"), v.literal("champagne"), v.literal("other"))),
+    category: v.optional(v.string()),
     unitOfMeasure: v.optional(v.string()),
     size: v.optional(v.union(v.string(), v.null())),
     unitPrice: v.optional(v.number()),
@@ -289,7 +294,13 @@ export const updateBeverage = mutation({
       if (args.imageUrl !== undefined && !args.imageUrl.trim()) {
         return { success: false, message: 'Beverage image is required' };
       }
-      const { beverageId, recipeLines, inventoryItemId, size, imageUrl, ...updates } = args;
+      let categoryName: string | undefined;
+      if (args.category !== undefined) {
+        const category = await resolveBeverageCategory(ctx, beverage.propertyId, args.category);
+        if (!category.success) return category;
+        categoryName = category.name;
+      }
+      const { beverageId, recipeLines, inventoryItemId, size, imageUrl, category: _category, ...updates } = args;
       const sizePatch =
         size === null || size === ''
           ? { size: undefined }
@@ -298,6 +309,7 @@ export const updateBeverage = mutation({
             : {};
       await ctx.db.patch(beverageId, {
         ...updates,
+        ...(categoryName !== undefined ? { category: categoryName } : {}),
         ...sizePatch,
         ...(imageUrl !== undefined ? { imageUrl: imageUrl.trim() } : {}),
         ...(inventoryItemId ? { inventoryItemId } : {}),

@@ -3,6 +3,7 @@
 type GuidePage =
   | 'bars'
   | 'beverages'
+  | 'beverage-categories'
   | 'my-stock'
   | 'stock-requests'
   | 'user-stock-logs'
@@ -13,7 +14,9 @@ type GuidePage =
 const DESCRIPTIONS: Record<GuidePage, string> = {
   bars: 'Create each service point with + (Main, Lounge, or Seat Out). Bars are where stock is issued and where staff close the day. Keep inactive bars off the issue and stock-log lists; do not delete a bar that still has transactions or logs.',
   beverages:
-    'Add sellable drinks with +. Set category, unit, sell price, cost (or link inventory / recipe lines), and reorder level. Reorder level drives hub alerts when store stock is low. Create beverages before store inventory or issues.',
+    'Add sellable drinks with +. Set category, unit, sell price, cost (or link inventory / recipe lines), and reorder level. Reorder level drives hub alerts when store stock is low. Create beverages before store inventory or issues. Add a missing drink category from Beverage categories.',
+  'beverage-categories':
+    'Built-in drink categories stay available. Use + to add a category for this property, such as Craft beer. Deactivate a custom category to hide it from new drinks. Drinks already using it keep that category.',
   'my-stock':
     'Your float ledger for today. Opening comes from the last finalized close; Received updates when the store issues stock (including approved requests). Enter Closing, Waste, and Comps, then Save — Sales is Total − Closing − Waste − Comps. Request stock when you need replenishment. Finalize today when counts are done.',
   'stock-requests':

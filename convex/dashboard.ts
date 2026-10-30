@@ -4,6 +4,7 @@ import { requirePermission, tryRequirePermission } from './lib/rbac';
 import { localDayBounds, propertyTimeZone } from './lib/billingPeriods';
 import { isOpenStatus, MODULE_PERMS } from './lib/taskAssignment';
 import { EXPENSE_CATEGORIES } from './lib/postCashOutflow';
+import { isSystemExpenseCategory } from './lib/expenseCategoryCatalog';
 import { sumPosGuestRevenue } from './posOrders';
 import { sumRestaurantGuestRevenue } from './restaurantOrders';
 import { isShortStay } from './lib/stays';
@@ -515,17 +516,19 @@ export const getFinancialReport = query({
       maintenance: 0,
       other: 0,
     };
+    const customTotals = new Map<string, number>();
+    let totalExpenses = 0;
     for (const row of expenses) {
-      if (row.category in expenseByCategory) {
+      totalExpenses += row.amount;
+      if (isSystemExpenseCategory(row.category)) {
         expenseByCategory[row.category] += row.amount;
       } else {
-        expenseByCategory.other += row.amount;
+        customTotals.set(row.category, (customTotals.get(row.category) ?? 0) + row.amount);
       }
     }
-    const totalExpenses = EXPENSE_CATEGORIES.reduce(
-      (sum, key) => sum + expenseByCategory[key],
-      0,
-    );
+    const customExpenses = [...customTotals.entries()]
+      .map(([name, amount]) => ({ name, amount }))
+      .sort((a, b) => a.name.localeCompare(b.name));
 
     const LABOR_STATUSES = ['approved', 'processed', 'paid'] as const;
     let laborCost = 0;
@@ -577,6 +580,7 @@ export const getFinancialReport = query({
         stockImpliedQty,
         totalRevenue,
         expenses: expenseByCategory,
+        customExpenses,
         totalExpenses,
         gop,
       },

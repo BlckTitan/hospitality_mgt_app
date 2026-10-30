@@ -1,6 +1,7 @@
 'use client';
 
 import { BackLink } from '../../../shared/pageHeader';
+import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { useQuery } from 'convex/react';
 import { Button } from '../../../shared/button';
@@ -21,11 +22,7 @@ import {
   type CashPeriodKind,
 } from '../../../lib/cashPeriod';
 import { EXPENSE_CATEGORY_OPTIONS } from './components/categoryLabels';
-
-const CATEGORY_FILTERS = [
-  { value: '', label: 'All' },
-  ...EXPENSE_CATEGORY_OPTIONS,
-] as const;
+import { isSystemExpenseCategory } from '../../../convex/lib/expenseCategoryCatalog';
 
 export default function ExpensesPage() {
   const propertiesResponse = useQuery(api.property.getAllProperties);
@@ -39,6 +36,10 @@ export default function ExpensesPage() {
   const [recordOpen, setRecordOpen] = useState(false);
   const { hasGranularPermission } = usePermissions();
   const canCreate = hasGranularPermission('expenses.create');
+  const listedCategories = useQuery(
+    api.expenseCategories.listExpenseCategories,
+    currentPropertyId ? { propertyId: currentPropertyId } : 'skip',
+  );
 
   const range = useMemo(
     () => cashPeriodBounds(anchor, kind, timeZone),
@@ -60,12 +61,31 @@ export default function ExpensesPage() {
           propertyId: currentPropertyId,
           start: range.start,
           end: range.end,
-          category: category
-            ? (category as 'utilities' | 'supplies' | 'staff' | 'maintenance' | 'other')
-            : undefined,
+          category: category || undefined,
         }
       : 'skip',
   );
+
+  const totals = summary?.data;
+  const categoryChoices = useMemo(() => {
+    const fromServer = (listedCategories?.data ?? [])
+      .filter((item) => item.isActive)
+      .map((item) => ({ value: item.name, label: item.label }));
+    const base = fromServer.length > 0
+      ? fromServer
+      : EXPENSE_CATEGORY_OPTIONS.map((item) => ({ value: item.value, label: item.label }));
+    const known = new Set(base.map((item) => item.value));
+    const extras = (totals?.custom ?? [])
+      .filter((item) => item.amount > 0 && !known.has(item.name))
+      .map((item) => ({ value: item.name, label: item.name }));
+    return [...base, ...extras];
+  }, [listedCategories?.data, totals?.custom]);
+
+  const amountFor = (name: string) => {
+    if (!totals) return undefined;
+    if (isSystemExpenseCategory(name)) return totals[name];
+    return totals.custom?.find((item) => item.name === name)?.amount ?? 0;
+  };
 
   if (!propertiesResponse?.data) {
     return (
@@ -81,8 +101,6 @@ export default function ExpensesPage() {
     );
   }
 
-  const totals = summary?.data;
-
   return (
     <div className='w-full p-4 bg-white'>
       <header className="w-full border-b mb-4 pb-3 flex justify-between items-start gap-3">
@@ -92,6 +110,9 @@ export default function ExpensesPage() {
       </div>
         <div className='flex items-center gap-3'>
           <BackLink />
+          <Link href='/admin/expenses/categories' className='text-sm font-medium text-blue-700 underline'>
+            Categories
+          </Link>
           {canCreate && (
             <Button
               variant='light'
@@ -145,11 +166,11 @@ export default function ExpensesPage() {
         </Button>
       </div>
 
-      <div className='grid grid-cols-2 lg:grid-cols-6 gap-2 mb-4'>
-        {EXPENSE_CATEGORY_OPTIONS.map((item) => (
+      <div className='grid grid-cols-2 lg:grid-cols-4 gap-2 mb-4'>
+        {categoryChoices.map((item) => (
           <div key={item.value} className='border p-3'>
             <p className='text-sm text-gray-600 mb-1'>{item.label}</p>
-            <p className='text-lg font-semibold'>{formatMoney(totals?.[item.value])}</p>
+            <p className='text-lg font-semibold'>{formatMoney(amountFor(item.value))}</p>
           </div>
         ))}
         <div className='border p-3'>
@@ -168,7 +189,7 @@ export default function ExpensesPage() {
       />
 
       <div className='flex flex-wrap items-center gap-2 mb-3'>
-        {CATEGORY_FILTERS.map((item) => (
+        {[{ value: '', label: 'All' }, ...categoryChoices].map((item) => (
           <Button
             key={item.value || 'all'}
             size='sm'

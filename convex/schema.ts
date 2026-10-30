@@ -297,7 +297,7 @@ export default defineSchema({
   // Expenses table for tracking expenses
   expenses: defineTable({
     propertyId: v.id("properties"),
-    category: v.union(v.literal("utilities"), v.literal("supplies"), v.literal("staff"), v.literal("maintenance"), v.literal("other")),
+    category: v.string(),
     subcategory: v.optional(v.string()),
     name: v.optional(v.string()),
     amount: v.number(),
@@ -326,6 +326,16 @@ export default defineSchema({
     .index("by_propertyId_expenseDate", ["propertyId", "expenseDate"])
     .index("by_category", ["category"])
     .index("by_sourceType_sourceId", ["sourceType", "sourceId"]),
+
+  expenseCategories: defineTable({
+    propertyId: v.id("properties"),
+    name: v.string(),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_propertyId_and_name", ["propertyId", "name"]),
 
   billAccounts: defineTable({
     propertyId: v.id("properties"),
@@ -1008,7 +1018,7 @@ export default defineSchema({
   beverages: defineTable({
     propertyId: v.id("properties"),
     name: v.string(),
-    category: v.union(v.literal("spirits"), v.literal("wine"), v.literal("Lager beer"), v.literal("cocktails"), v.literal("non-alcoholic"), v.literal("liqueurs"), v.literal("whiskey"), v.literal("vodka"), v.literal("rum"), v.literal("gin"), v.literal("tequila"), v.literal("brandy"), v.literal("cognac"), v.literal("champagne"), v.literal("other")),
+    category: v.string(),
     unitOfMeasure: v.string(),
     // e.g. "330ml", "750ml", "1L" — optional for older catalog rows
     size: v.optional(v.string()),
@@ -1024,6 +1034,16 @@ export default defineSchema({
     .index("by_category", ["category"])
     .index("by_isActive", ["isActive"])
     .index("by_inventoryItemId", ["inventoryItemId"]),
+
+  beverageCategories: defineTable({
+    propertyId: v.id("properties"),
+    name: v.string(),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_propertyId_and_name", ["propertyId", "name"]),
 
   beverageRecipeLines: defineTable({
     beverageId: v.id("beverages"),

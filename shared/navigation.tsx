@@ -21,6 +21,7 @@ const navItems = [
     subLink: [
       {id: 401, href: '/admin/bar-management/bar', label: 'Bars'},
       { id: 402, href: '/admin/bar-management/beverages', label: 'Beverages'},
+      { id: 413, href: '/admin/bar-management/beverage-categories', label: 'Beverage categories'},
       { id: 409, href: '/admin/pos', label: 'POS'},
       { id: 410, href: '/admin/pos/orders', label: 'POS orders'},
       { id: 411, href: '/admin/pos/cash-up', label: 'POS cash-up'},
@@ -43,7 +44,9 @@ const navItems = [
       { id: 1406, href: '/admin/restaurant/kitchen', label: 'Kitchen board' },
     ]
   },
-  {id: 5, href: "/admin/expenses", label: "Expense Tracker", icon: <FcMoneyTransfer /> },
+  {id: 5, href: "/admin/expenses", label: "Expense Tracker", icon: <FcMoneyTransfer />, subLink: [
+    {id: 502, href: '/admin/expenses/categories', label: 'Categories'},
+  ]},
   // {id: 6, href: "/admin/dashboard", label: "Report and Analytics", icon: <FcSalesPerformance /> },
   {id: 7, href: "/admin/staff", label: "Staff", icon: <FcConferenceCall />, subLink: [
     {id: 701, href: '/admin/staff/myProfile', label: 'My profile'},

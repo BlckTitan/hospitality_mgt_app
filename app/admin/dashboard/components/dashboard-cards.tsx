@@ -188,6 +188,12 @@ export function FinancialReportCard({
                   <td className="p-2 text-right text-red-600">{money(data.expenses[item.value])}</td>
                 </tr>
               ))}
+              {(data.customExpenses ?? []).map((item) => (
+                <tr key={item.name} className="border-t">
+                  <td className="p-2">{item.name}</td>
+                  <td className="p-2 text-right text-red-600">{money(item.amount)}</td>
+                </tr>
+              ))}
               <tr className="border-t font-semibold">
                 <td className="p-2">Total expenses</td>
                 <td className="p-2 text-right text-red-600">{money(data.totalExpenses)}</td>

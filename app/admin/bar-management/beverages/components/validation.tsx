@@ -1,11 +1,8 @@
 import * as yup from "yup";
 import { recordName } from "../../../../../lib/yupFields";
+import { BUILTIN_BEVERAGE_CATEGORIES } from "../../../../../convex/lib/beverageCategoryCatalog";
 
-export const beverageCategories = [
-  "spirits", "wine", "Lager beer", "cocktails", "non-alcoholic", 
-  "liqueurs", "whiskey", "vodka", "rum", "gin", "tequila", 
-  "brandy", "cognac", "champagne", "other"
-] as const;
+export const beverageCategories = BUILTIN_BEVERAGE_CATEGORIES;
 
 export const formSchema = yup.object().shape({
   name: recordName("Beverage name", { min: 1, max: 120 }),
@@ -13,7 +10,7 @@ export const formSchema = yup.object().shape({
   category: yup
     .string()
     .trim()
-    .oneOf(beverageCategories, "Please select a valid category")
+    .min(1, "Category is required")
     .required("Category is required"),
 
   unitOfMeasure: yup

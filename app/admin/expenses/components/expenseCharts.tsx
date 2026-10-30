@@ -22,8 +22,8 @@ import {
   type CashPeriodKind,
 } from '../../../../lib/cashPeriod';
 import {
-  EXPENSE_CATEGORY_COLORS,
   EXPENSE_CATEGORY_OPTIONS,
+  expenseCategoryColor,
 } from './categoryLabels';
 
 ChartJS.register(
@@ -45,6 +45,7 @@ type ExpenseTotals = {
   staff?: number;
   maintenance?: number;
   other?: number;
+  custom?: { name: string; amount: number }[];
   total?: number;
 };
 
@@ -101,7 +102,18 @@ export function ExpenseCharts({
     grain: window.grain,
   });
 
-  const pieSlices = EXPENSE_CATEGORY_OPTIONS.filter((item) => (totals?.[item.value] ?? 0) > 0);
+  const pieSlices = [
+    ...EXPENSE_CATEGORY_OPTIONS.map((item) => ({
+      key: item.value,
+      label: item.label,
+      amount: totals?.[item.value] ?? 0,
+    })),
+    ...(totals?.custom ?? []).map((item) => ({
+      key: item.name,
+      label: item.name,
+      amount: item.amount,
+    })),
+  ].filter((item) => item.amount > 0);
   const pieTotal = totals?.total ?? 0;
   const pieData =
     pieSlices.length > 0
@@ -109,24 +121,25 @@ export function ExpenseCharts({
           labels: pieSlices.map((item) => item.label),
           datasets: [
             {
-              data: pieSlices.map((item) => totals?.[item.value] ?? 0),
-              backgroundColor: pieSlices.map((item) => EXPENSE_CATEGORY_COLORS[item.value].fill),
-              borderColor: pieSlices.map((item) => EXPENSE_CATEGORY_COLORS[item.value].stroke),
+              data: pieSlices.map((item) => item.amount),
+              backgroundColor: pieSlices.map((item, index) => expenseCategoryColor(item.key, index).fill),
+              borderColor: pieSlices.map((item, index) => expenseCategoryColor(item.key, index).stroke),
               borderWidth: 1,
             },
           ],
         }
       : null;
 
+  const seriesData = series?.success ? series.data : null;
   const lineData =
-    series?.success && series.data
+    seriesData
       ? {
-          labels: series.data.map((point) => bucketLabel(point.start, window.grain)),
-          datasets: EXPENSE_CATEGORY_OPTIONS.map((item) => ({
+          labels: seriesData.points.map((point) => bucketLabel(point.start, window.grain)),
+          datasets: seriesData.categories.map((item, index) => ({
             label: item.label,
-            data: series.data.map((point) => point[item.value]),
-            borderColor: EXPENSE_CATEGORY_COLORS[item.value].stroke,
-            backgroundColor: EXPENSE_CATEGORY_COLORS[item.value].fill,
+            data: seriesData.points.map((point) => point.amounts[item.key] ?? 0),
+            borderColor: expenseCategoryColor(item.key, index).stroke,
+            backgroundColor: expenseCategoryColor(item.key, index).fill,
             tension: 0.3,
             fill: false,
           })),

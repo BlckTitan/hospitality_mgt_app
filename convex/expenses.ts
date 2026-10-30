@@ -7,14 +7,8 @@ import {
   postCashOutflow,
   type ExpenseCategory,
 } from "./lib/postCashOutflow";
-
-const categoryValidator = v.union(
-  v.literal("utilities"),
-  v.literal("supplies"),
-  v.literal("staff"),
-  v.literal("maintenance"),
-  v.literal("other"),
-);
+import { isSystemExpenseCategory, SYSTEM_EXPENSE_CATEGORIES } from "./lib/expenseCategoryCatalog";
+import { resolveExpenseCategory } from "./expenseCategories";
 
 const paymentMethodValidator = v.union(
   v.literal("cash"),
@@ -71,7 +65,7 @@ async function expensesInRange(
   propertyId: Id<"properties">,
   start: number,
   end: number,
-  category?: ExpenseCategory,
+  category?: string,
 ) {
   const rows: Doc<"expenses">[] = await ctx.db
     .query("expenses")
@@ -89,7 +83,7 @@ export const listExpensesInRange = query({
     propertyId: v.id("properties"),
     start: v.number(),
     end: v.number(),
-    category: v.optional(categoryValidator),
+    category: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     await requirePermission(ctx, "expenses.read", args.propertyId);
@@ -120,27 +114,28 @@ export const summarizeExpensesInRange = query({
       maintenance: 0,
       other: 0,
     };
+    const customTotals = new Map<string, number>();
     for (const row of rows) {
-      if (row.category in byCategory) {
+      if (isSystemExpenseCategory(row.category)) {
         byCategory[row.category] += row.amount;
       } else {
-        byCategory.other += row.amount;
+        customTotals.set(row.category, (customTotals.get(row.category) ?? 0) + row.amount);
       }
     }
-    const total = EXPENSE_CATEGORIES.reduce((sum, key) => sum + byCategory[key], 0);
+    const custom = [...customTotals.entries()]
+      .map(([name, amount]) => ({ name, amount }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    const systemTotal = EXPENSE_CATEGORIES.reduce((sum, key) => sum + byCategory[key], 0);
+    const customTotal = custom.reduce((sum, item) => sum + item.amount, 0);
     return {
       success: true,
-      data: { ...byCategory, total, count: rows.length },
+      data: { ...byCategory, custom, total: systemTotal + customTotal, count: rows.length },
     };
   },
 });
 
 const grainValidator = v.union(v.literal("day"), v.literal("week"), v.literal("month"));
 const DAY_MS = 24 * 60 * 60 * 1000;
-
-function emptyCategoryTotals(): Record<ExpenseCategory, number> {
-  return { utilities: 0, supplies: 0, staff: 0, maintenance: 0, other: 0 };
-}
 
 function bucketStart(timestamp: number, grain: "day" | "week" | "month") {
   const date = new Date(timestamp);
@@ -170,7 +165,20 @@ export const seriesExpensesByCategory = query({
   handler: async (ctx, args) => {
     await requirePermission(ctx, "expenses.read", args.propertyId);
     const rows = await expensesInRange(ctx, args.propertyId, args.start, args.end);
-    const points: Array<{ start: number } & Record<ExpenseCategory, number>> = [];
+    const customNames = new Set<string>();
+    for (const row of rows) {
+      if (!isSystemExpenseCategory(row.category)) customNames.add(row.category);
+    }
+    const categories = [
+      ...SYSTEM_EXPENSE_CATEGORIES.map((item) => ({ key: item.key, label: item.label })),
+      ...[...customNames].sort().map((name) => ({ key: name, label: name })),
+    ];
+    const emptyAmounts = () => {
+      const amounts: Record<string, number> = {};
+      for (const item of categories) amounts[item.key] = 0;
+      return amounts;
+    };
+    const points: Array<{ start: number; amounts: Record<string, number> }> = [];
     const indexByStart = new Map<number, number>();
     for (
       let cursor = bucketStart(args.start, args.grain);
@@ -178,19 +186,16 @@ export const seriesExpensesByCategory = query({
       cursor = nextBucket(cursor, args.grain)
     ) {
       indexByStart.set(cursor, points.length);
-      points.push({ start: cursor, ...emptyCategoryTotals() });
+      points.push({ start: cursor, amounts: emptyAmounts() });
     }
     for (const row of rows) {
       const key = bucketStart(row.expenseDate, args.grain);
       const index = indexByStart.get(key);
       if (index === undefined) continue;
-      if (row.category in points[index]) {
-        points[index][row.category] += row.amount;
-      } else {
-        points[index].other += row.amount;
-      }
+      const bucket = points[index].amounts;
+      if (row.category in bucket) bucket[row.category] += row.amount;
     }
-    return { success: true, data: points };
+    return { success: true, data: { categories, points } };
   },
 });
 
@@ -203,7 +208,7 @@ export const createPaidExpense = mutation({
     name: v.string(),
     amount: v.number(),
     expenseDate: v.number(),
-    category: categoryValidator,
+    category: v.string(),
     vendor: v.string(),
     description: v.optional(v.string()),
     invoiceNumber: v.optional(v.string()),
@@ -233,13 +238,15 @@ export const createPaidExpense = mutation({
         message: `Invoice number must be ${INVOICE_NUMBER_MAX_LENGTH} characters or fewer`,
       };
     }
+    const category = await resolveExpenseCategory(ctx, args.propertyId, args.category);
+    if (!category.success) return category;
     const sourceId = crypto.randomUUID();
     const posted = await postCashOutflow(ctx, {
       propertyId: args.propertyId,
       sourceType: "Manual",
       sourceId,
       amount: args.amount,
-      category: args.category,
+      category: category.name,
       subcategory: args.subcategory?.trim() || undefined,
       name,
       description: args.description?.trim() || undefined,

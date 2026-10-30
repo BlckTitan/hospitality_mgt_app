@@ -23,6 +23,7 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermission> = {
   '/admin/bar-management': { granular: 'fnb.read' },
   '/admin/bar-management/bar': { granular: 'fnb.read' },
   '/admin/bar-management/beverages': { granular: ['fnb.read', 'fnb.menu.read'] },
+  '/admin/bar-management/beverage-categories': { granular: 'fnb.read' },
   '/admin/bar-management/user-stock-logs': { granular: 'fnb.read' },
   '/admin/bar-management/my-stock': { granular: 'fnb.read' },
   '/admin/bar-management/stock-requests': { granular: 'fnb.read' },
@@ -178,4 +179,5 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermission> = {
   '/admin/billing/accounts/edit': { granular: 'billing.account.update' },
   '/admin/billing/bills': { granular: 'billing.period.read' },
   '/admin/expenses': { granular: 'expenses.read' },
+  '/admin/expenses/categories': { granular: 'expenses.read' },
 };
