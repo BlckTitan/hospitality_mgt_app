@@ -14,6 +14,7 @@ type PaginatedArgs = FunctionArgs<typeof api.functions.paginated.getPaginatedDat
 const PEOPLE_SEARCH_TABLES = new Set(['staffs', 'guests']);
 const LOGIN_SEARCH_TABLES = new Set(['users']);
 const CLIENT_SEARCH_TABLES = new Set(['beverages']);
+const CLIENT_PAGE_TABLES = new Set(['beverages', 'beverageCategories']);
 const CLIENT_DATA_TABLES = new Set(['housekeepingTasks', 'maintenanceOrders', 'inventoryTasks']);
 
 function searchPlaceholder(collectionName: string) {
@@ -71,7 +72,7 @@ export default function PaginationComponent({
   const searchTerm = query.trim().length >= 2 ? query.trim() : undefined;
   const showSearch = supportsNameSearch(collectionName);
   const usesClientData = Array.isArray(jointTableData);
-  const pagesClientRows = usesClientData && CLIENT_SEARCH_TABLES.has(collectionName);
+  const pagesClientRows = usesClientData && CLIENT_PAGE_TABLES.has(collectionName);
   const clientQuery = pagesClientRows ? query.trim().toLowerCase() : '';
   const filteredClientRows = useMemo(() => {
     if (!pagesClientRows) return [];

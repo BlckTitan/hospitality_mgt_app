@@ -8,7 +8,9 @@ import { FcPlus } from 'react-icons/fc';
 import { BackLink } from '../../../../shared/pageHeader';
 import { Button } from '../../../../shared/button';
 import BootstrapModal from '../../../../shared/modal';
-import TableComponent, { TableColumn } from '../../../../shared/table';
+import { TableColumn } from '../../../../shared/table';
+import PaginationComponent from '../../../../shared/pagination';
+import Spinner from '../../../../shared/spinner';
 import { api } from '../../../../convex/_generated/api';
 import { Id } from '../../../../convex/_generated/dataModel';
 import { usePermissions } from '../../../../hooks/usePermissions';
@@ -109,7 +111,18 @@ export default function BeverageCategoriesPage() {
           )}
         </div>
       </header>
-      <TableComponent columns={columns} data={rows} />
+      {listed === undefined ? (
+        <div className="w-full flex justify-center py-16">
+          <Spinner size="sm" />
+        </div>
+      ) : (
+        <PaginationComponent
+          collectionName="beverageCategories"
+          columns={columns}
+          jointTableData={rows}
+          propertyId={currentPropertyId}
+        />
+      )}
       <BootstrapModal
         show={modalShow}
         onHide={() => setModalShow(false)}
