@@ -137,13 +137,12 @@ main{
 /* footer{
   @apply w-full h-10;
 } */
-input:not([type="checkbox"]):not([type="radio"]), select{
+input:not([type="checkbox"]):not([type="radio"]) {
   @apply w-full max-w-full min-w-0 h-10 p-2 border rounded-sm;
   field-sizing: fixed;
 }
 select {
-  overflow: hidden;
-  text-overflow: ellipsis;
+  @apply w-full max-w-full min-w-0 h-10 p-2 border rounded-sm;
 }
 .field-w-2,
 .field-w-3,

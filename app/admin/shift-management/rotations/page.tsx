@@ -26,6 +26,20 @@ function toMinutes(segment: SegmentDraft) {
   return Number(segment.hours) * 60 + Number(segment.minutes);
 }
 
+function canonicalDepartment(value?: string) {
+  if (!value) return '';
+  const normalized = value.trim().toLowerCase();
+  const byCode = SHIFT_DEPARTMENTS.find((item) => item === normalized);
+  if (byCode) return byCode;
+  const byLabel = SHIFT_DEPARTMENTS.find((item) => DEPARTMENT_LABELS[item].toLowerCase() === normalized);
+  return byLabel ?? normalized;
+}
+
+function staffLabel(row: { firstName: string; lastName: string; department?: string }) {
+  const department = row.department ? DEPARTMENT_LABELS[row.department as (typeof SHIFT_DEPARTMENTS)[number]] ?? row.department : '';
+  return department ? `${row.firstName} ${row.lastName} · ${department}` : `${row.firstName} ${row.lastName}`;
+}
+
 export default function RotationsPage() {
   const userContext = useQuery(api.authContext.getCurrentUserContext);
   const propertyId = userContext?.propertyId || '';
@@ -62,6 +76,20 @@ export default function RotationsPage() {
   }
 
   const dutyOptions = (templates?.data ?? []).filter((row) => row.isActive && row.department === department);
+  const selectedRotation = (rotations?.data ?? []).find((item) => item._id === rotationId);
+  const staffRows = [...(staffResponse?.data ?? [])].sort((a, b) =>
+    `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`),
+  );
+  const rotationDepartment = selectedRotation ? canonicalDepartment(selectedRotation.department) : '';
+  const staffInDepartment = rotationDepartment
+    ? staffRows.filter((row) => !row.department || canonicalDepartment(row.department) === rotationDepartment)
+    : staffRows;
+  const staffInOtherDepartments = rotationDepartment
+    ? staffRows.filter((row) => row.department && canonicalDepartment(row.department) !== rotationDepartment)
+    : [];
+  const assignableStaff = rotationDepartment
+    ? [...staffInDepartment, ...staffInOtherDepartments]
+    : staffRows;
 
   const saveRotation = async (event: FormEvent) => {
     event.preventDefault();
@@ -253,21 +281,42 @@ export default function RotationsPage() {
 
       <form onSubmit={saveAssignment} className="max-w-xl border p-4 mb-6">
         <h2 className="font-semibold mb-3">Place a person on a rotation</h2>
-        <p className="text-sm text-gray-600 mb-3">The anchor is when their first on-duty begins. A second person on the same rotation starts one segment later, so the desk stays covered.</p>
-        <label className="block mb-3">
-          <span className="block text-sm mb-1">Staff *</span>
-          <select className="w-full border rounded p-2" value={staffId} onChange={(event) => setStaffId(event.target.value)} required>
-            <option value="">Select staff</option>
-            {(staffResponse?.data ?? [])
-              .filter((row) => {
-                const selected = (rotations?.data ?? []).find((item) => item._id === rotationId);
-                return !selected || !row.department || row.department === selected.department;
-              })
-              .map((row) => (
-                <option key={row._id} value={row._id}>{row.firstName} {row.lastName}</option>
+        <p className="text-sm text-gray-600 mb-3">The anchor is when their first on-duty begins. A second person on the same rotation starts one segment later, so the desk stays covered. Everyone at this property is listed below. People in the rotation&apos;s department come first.</p>
+        <fieldset className="block mb-3 border-0 p-0 m-0 min-w-0">
+          <legend className="block text-sm mb-1">Staff *</legend>
+          {staffResponse === undefined ? (
+            <p className="text-sm text-gray-600">Loading staff...</p>
+          ) : assignableStaff.length === 0 ? (
+            <p className="text-sm text-gray-600">No staff at this property yet.</p>
+          ) : (
+            <div className="max-h-60 overflow-y-auto border rounded bg-white" role="radiogroup" aria-label="Staff">
+              {assignableStaff.map((row, index) => (
+                <div key={row._id}>
+                  {rotationDepartment && index === 0 && staffInDepartment.length > 0 && (
+                    <p className="px-2 pt-2 text-xs text-gray-500">This department</p>
+                  )}
+                  {rotationDepartment && index === staffInDepartment.length && staffInOtherDepartments.length > 0 && (
+                    <p className="px-2 pt-2 text-xs text-gray-500 border-t">Other departments</p>
+                  )}
+                  <label className={`flex items-center gap-2 px-2 py-1.5 text-sm cursor-pointer ${staffId === row._id ? 'bg-slate-100' : ''}`}>
+                    <input
+                      type="radio"
+                      name="rotationStaffId"
+                      value={row._id}
+                      checked={staffId === row._id}
+                      onChange={() => setStaffId(row._id)}
+                      required
+                    />
+                    <span>{staffLabel(row)}</span>
+                  </label>
+                </div>
               ))}
-          </select>
-        </label>
+            </div>
+          )}
+          {staffResponse !== undefined && (
+            <p className="text-xs text-gray-500 mt-1">{assignableStaff.length} staff</p>
+          )}
+        </fieldset>
         <label className="block mb-3">
           <span className="block text-sm mb-1">Rotation *</span>
           <select

@@ -201,9 +201,6 @@ export const assignStaffRotation = mutation({
     if (!rotation || rotation.propertyId !== args.propertyId || !rotation.isActive) {
       return { success: false, message: "Rotation was not found or is inactive" };
     }
-    if (staff.department && staff.department !== rotation.department) {
-      return { success: false, message: "This rotation is for a different department" };
-    }
     const property = await ctx.db.get(args.propertyId);
     const anchorAt = zonedWallTimeToUtc(args.anchorLocal, propertyTimeZone(property));
     if (anchorAt == null) return { success: false, message: "Enter the date and time the first on-duty starts" };

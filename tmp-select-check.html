@@ -1,0 +1,40 @@
+<!doctype html>
+<html>
+<head>
+  <style>
+    body { font-family: sans-serif; display: flex; gap: 24px; padding: 24px; }
+    .old input, .old select {
+      width: 280px; max-width: 100%; min-width: 0; height: 40px; padding: 8px; border: 1px solid #ccc; border-radius: 2px;
+      field-sizing: fixed;
+    }
+    .old select { overflow: hidden; text-overflow: ellipsis; }
+    .new select {
+      width: 280px; max-width: 100%; min-width: 0; height: 40px; padding: 8px; border: 1px solid #ccc; border-radius: 2px;
+    }
+  </style>
+</head>
+<body>
+  <label class="old">Old styles
+    <select id="old">
+      <option value="">Select staff</option>
+      <option>Ada Lovelace</option>
+      <option>Grace Hopper</option>
+      <option>Katherine Johnson</option>
+      <option>Margaret Hamilton</option>
+      <option>Radia Perlman</option>
+      <option>Barbara Liskov</option>
+    </select>
+  </label>
+  <label class="new">New styles
+    <select id="new">
+      <option value="">Select staff</option>
+      <option>Ada Lovelace</option>
+      <option>Grace Hopper</option>
+      <option>Katherine Johnson</option>
+      <option>Margaret Hamilton</option>
+      <option>Radia Perlman</option>
+      <option>Barbara Liskov</option>
+    </select>
+  </label>
+</body>
+</html>

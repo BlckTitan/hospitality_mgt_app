@@ -370,7 +370,7 @@ export default function PosTerminal() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 items-start">
         <section className="lg:col-span-3 border rounded-md p-3">
           <div className="flex flex-wrap gap-2 mb-3">
             {categories.map((c) => (
@@ -412,7 +412,7 @@ export default function PosTerminal() {
           </div>
         </section>
 
-        <section className="lg:col-span-2 border rounded-md p-3 flex flex-col gap-3">
+        <section className="lg:col-span-2 border rounded-md p-3 flex flex-col gap-3 self-start">
           <div className="flex justify-between items-center">
             <h4 className="text-base font-semibold m-0">
               {orderId ? `Check ${String(orderId).slice(-6)}` : 'New check'}
@@ -436,7 +436,7 @@ export default function PosTerminal() {
             {order?.status ? ` · ${order.status}` : ''}
           </p>
 
-          <ul className="space-y-2 flex-1 min-h-[8rem]">
+          <ul className="space-y-2 min-h-[8rem]">
             {activeLines.map((line) => (
               <li key={line._id} className="flex justify-between gap-2 text-sm border-b pb-1">
                 <span>
