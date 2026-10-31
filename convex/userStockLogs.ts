@@ -1,5 +1,6 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
+import { posPouredQtyByBarBeverage } from './posOrders';
 import { requirePermission } from './lib/rbac';
 import {
   findOrCreateFnBShift,
@@ -676,13 +677,20 @@ export const getMyTodayStock = query({
           )
           .collect();
 
+    const poured = await posPouredQtyByBarBeverage(ctx, {
+      propertyId: args.propertyId,
+      userId: auth.user._id,
+      dateKey: logDate,
+    });
+
     const stockLogsWithData = await Promise.all(
       logs.map(async (log) => {
         const [beverage, bar] = await Promise.all([
           ctx.db.get(log.beverageId),
           log.barId ? ctx.db.get(log.barId) : null,
         ]);
-        return { ...log, beverage, bar };
+        const posQuantity = log.barId ? (poured.get(`${log.barId}:${log.beverageId}`) ?? 0) : 0;
+        return { ...log, beverage, bar, posQuantity };
       }),
     );
 

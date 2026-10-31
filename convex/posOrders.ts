@@ -2,7 +2,7 @@ import { mutation, query, MutationCtx, QueryCtx } from './_generated/server';
 import { v } from 'convex/values';
 import { Doc, Id } from './_generated/dataModel';
 import { requirePermission } from './lib/rbac';
-import { propertyDateKey } from './lib/barStock';
+import { lastFinalizedClosingStock, propertyDateKey, remainingSellableQty } from './lib/barStock';
 import { requireFnBSaleShift } from './lib/dutyContext';
 
 const orderTypeValidator = v.union(
@@ -199,28 +199,155 @@ async function applyRoomChargeToReservation(
   return { success: true as const };
 }
 
+function formatStockQty(quantity: number): string {
+  const rounded = Math.round(quantity * 1000) / 1000;
+  return String(rounded);
+}
+
+function latestStockLog(
+  logs: Array<Doc<'userStockLogs'>>,
+  propertyId: Id<'properties'>,
+): Doc<'userStockLogs'> | null {
+  let latest: Doc<'userStockLogs'> | null = null;
+  for (const log of logs) {
+    if (log.propertyId !== propertyId) continue;
+    if (!latest || log.lastUpdatedAt > latest.lastUpdatedAt) latest = log;
+  }
+  return latest;
+}
+
+async function availableQtyForUserBarBeverage(
+  ctx: DbCtx,
+  args: {
+    propertyId: Id<'properties'>;
+    userId: Id<'users'>;
+    barId: Id<'bars'>;
+    beverageId: Id<'beverages'>;
+    logDate: string;
+    pouredByBarBeverage: Map<string, number>;
+    todayLog?: Doc<'userStockLogs'> | null;
+  },
+): Promise<{ availableQty: number; closed: boolean }> {
+  const pouredQuantity = args.pouredByBarBeverage.get(`${args.barId}:${args.beverageId}`) ?? 0;
+  const log =
+    args.todayLog !== undefined
+      ? args.todayLog
+      : latestStockLog(
+          await ctx.db
+            .query('userStockLogs')
+            .withIndex('by_userId_barId_bev_date', (q) =>
+              q
+                .eq('userId', args.userId)
+                .eq('barId', args.barId)
+                .eq('beverageId', args.beverageId)
+                .eq('logDate', args.logDate),
+            )
+            .collect(),
+          args.propertyId,
+        );
+
+  if (log) {
+    return {
+      closed: log.isFinalized,
+      availableQty: remainingSellableQty({
+        totalStock: log.totalStock,
+        wasteQuantity: log.wasteQuantity,
+        compQuantity: log.compQuantity,
+        pouredQuantity,
+        isFinalized: log.isFinalized,
+      }),
+    };
+  }
+
+  const openingStock = await lastFinalizedClosingStock(ctx, {
+    userId: args.userId,
+    barId: args.barId,
+    beverageId: args.beverageId,
+    beforeDate: args.logDate,
+  });
+  return {
+    closed: false,
+    availableQty: remainingSellableQty({
+      totalStock: openingStock,
+      pouredQuantity,
+    }),
+  };
+}
+
+function stockRefusalMessage(name: string, availableQty: number, closed: boolean): string {
+  if (closed) return `${name} is closed for today.`;
+  if (availableQty <= 0) return `${name} is out of stock.`;
+  return `Only ${formatStockQty(availableQty)} ${name} left in your stock.`;
+}
+
 export const listSellableBeverages = query({
   args: { propertyId: v.id('properties') },
   handler: async (ctx, args) => {
-    await requirePermission(ctx, 'fnb.read', args.propertyId);
-    const beverages = await ctx.db
-      .query('beverages')
-      .withIndex('by_propertyId', (q) => q.eq('propertyId', args.propertyId))
-      .collect();
-    return {
-      success: true,
-      data: beverages
-        .filter((b) => b.isActive)
-        .map((b) => ({
-          _id: b._id,
-          name: b.name,
-          category: b.category,
-          unitPrice: b.unitPrice,
-          unitOfMeasure: b.unitOfMeasure,
-          imageUrl: b.imageUrl,
-        }))
-        .sort((a, b) => a.name.localeCompare(b.name)),
-    };
+    const auth = await requirePermission(ctx, 'fnb.read', args.propertyId);
+    const duty = await requireFnBSaleShift(ctx, {
+      userId: auth.user._id,
+      propertyId: args.propertyId,
+    });
+    if (duty.ok === false) {
+      return { success: true, data: [], message: duty.message };
+    }
+
+    const logDate = await propertyDateKey(ctx, args.propertyId);
+    const [beverages, todayLogs, poured] = await Promise.all([
+      ctx.db
+        .query('beverages')
+        .withIndex('by_propertyId', (q) => q.eq('propertyId', args.propertyId))
+        .collect(),
+      ctx.db
+        .query('userStockLogs')
+        .withIndex('by_userId_barId_date', (q) =>
+          q.eq('userId', auth.user._id).eq('barId', duty.barId).eq('logDate', logDate),
+        )
+        .collect(),
+      posPouredQtyByBarBeverage(ctx, {
+        propertyId: args.propertyId,
+        userId: auth.user._id,
+        dateKey: logDate,
+      }),
+    ]);
+
+    const logByBeverage = new Map<Id<'beverages'>, Doc<'userStockLogs'>>();
+    for (const log of todayLogs) {
+      const current = logByBeverage.get(log.beverageId);
+      if (log.propertyId !== args.propertyId) continue;
+      if (!current || log.lastUpdatedAt > current.lastUpdatedAt) {
+        logByBeverage.set(log.beverageId, log);
+      }
+    }
+
+    const data = (
+      await Promise.all(
+        beverages.map(async (beverage) => {
+          if (!beverage.isActive) return null;
+          const stock = await availableQtyForUserBarBeverage(ctx, {
+            propertyId: args.propertyId,
+            userId: auth.user._id,
+            barId: duty.barId,
+            beverageId: beverage._id,
+            logDate,
+            pouredByBarBeverage: poured,
+            todayLog: logByBeverage.get(beverage._id) ?? null,
+          });
+          if (stock.availableQty <= 0) return null;
+          return {
+            _id: beverage._id,
+            name: beverage.name,
+            category: beverage.category,
+            unitPrice: beverage.unitPrice,
+            unitOfMeasure: beverage.unitOfMeasure,
+            imageUrl: beverage.imageUrl,
+            availableQty: stock.availableQty,
+          };
+        }),
+      )
+    ).flatMap((row) => (row ? [row] : []));
+    data.sort((a, b) => a.name.localeCompare(b.name));
+    return { success: true, data, message: null };
   },
 });
 
@@ -531,6 +658,35 @@ export async function sumPosGuestRevenue(
   return { totalRevenue, totalQtySold, orderCount };
 }
 
+/** Active check quantities for one server on one property date, keyed by `barId:beverageId`. */
+export async function posPouredQtyByBarBeverage(
+  ctx: DbCtx,
+  args: {
+    propertyId: Id<'properties'>;
+    userId: Id<'users'>;
+    dateKey: string;
+  },
+): Promise<Map<string, number>> {
+  const orders = await ctx.db
+    .query('orders')
+    .withIndex('by_propertyId_openedAtDateKey', (q) =>
+      q.eq('propertyId', args.propertyId).eq('openedAtDateKey', args.dateKey),
+    )
+    .collect();
+
+  const totals = new Map<string, number>();
+  for (const order of orders) {
+    if (order.serverUserId !== args.userId || order.status === 'voided' || !order.barId) continue;
+    const lines = await linesForOrder(ctx, order._id);
+    for (const line of lines) {
+      if (line.status !== 'active') continue;
+      const key = `${order.barId}:${line.beverageId}`;
+      totals.set(key, (totals.get(key) ?? 0) + line.quantity);
+    }
+  }
+  return totals;
+}
+
 function nextDateKey(dateKey: string): string {
   const d = new Date(`${dateKey}T12:00:00.000Z`);
   d.setUTCDate(d.getUTCDate() + 1);
@@ -650,6 +806,41 @@ export const addLine = mutation({
     const beverage = await ctx.db.get(args.beverageId);
     if (!beverage || beverage.propertyId !== order.propertyId || !beverage.isActive) {
       return { success: false, message: 'Beverage not available' };
+    }
+    const duty = await requireFnBSaleShift(ctx, {
+      userId: auth.user._id,
+      propertyId: order.propertyId,
+    });
+    if (duty.ok === false) return { success: false, message: duty.message };
+    const barId = order.barId ?? duty.barId;
+    if (order.barId && order.barId !== duty.barId) {
+      return { success: false, message: 'This check belongs to another bar.' };
+    }
+    const logDate = await propertyDateKey(ctx, order.propertyId);
+    if (order.openedAtDateKey !== logDate) {
+      return {
+        success: false,
+        message: "This check is from another day. Open a new check to sell from today's stock.",
+      };
+    }
+    const poured = await posPouredQtyByBarBeverage(ctx, {
+      propertyId: order.propertyId,
+      userId: auth.user._id,
+      dateKey: logDate,
+    });
+    const stock = await availableQtyForUserBarBeverage(ctx, {
+      propertyId: order.propertyId,
+      userId: auth.user._id,
+      barId,
+      beverageId: args.beverageId,
+      logDate,
+      pouredByBarBeverage: poured,
+    });
+    if (stock.availableQty + 1e-9 < qty) {
+      return {
+        success: false,
+        message: stockRefusalMessage(beverage.name, stock.availableQty, stock.closed),
+      };
     }
 
     const existing = (await linesForOrder(ctx, args.orderId)).find(

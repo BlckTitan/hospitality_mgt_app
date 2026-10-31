@@ -1,16 +1,19 @@
 'use client'
 
 import { useMutation, useQuery } from 'convex/react'
-import { FormEvent, useMemo, useState } from 'react'
+import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { Button } from '../../../../../shared/button'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { api } from '../../../../../convex/_generated/api'
 import { Id } from '../../../../../convex/_generated/dataModel'
+import Pagination from '../../../../../shared/ui-pagination'
+import { formatPropertyMoney } from '../../../inventory-management/components/money'
 import { DailySalesSummary } from './dailySalesSummary'
 
 const selectClassName = 'w-full px-3 py-2 border border-gray-300 rounded-md';
 const qtyInputClassName = 'w-20! max-w-[1.75rem] border rounded p-1 text-right';
+const PAGE_SIZE = 10;
 
 export default function MyStock() {
   const propertiesResponse = useQuery(api.property.getAllProperties)
@@ -22,6 +25,7 @@ export default function MyStock() {
   const [wasteEdits, setWasteEdits] = useState<Record<string, string>>({})
   const [compEdits, setCompEdits] = useState<Record<string, string>>({})
   const [savingId, setSavingId] = useState<string | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
 
   const currentPropertyId = propertyId || properties[0]?._id || ''
   const today = useQuery(
@@ -38,6 +42,13 @@ export default function MyStock() {
   const selectedBarId = barId || bars[0]?._id || ''
   const logs = (data?.logs ?? []).filter((log) => !selectedBarId || log.barId === selectedBarId)
   const selectedProperty = properties.find((property: any) => property._id === currentPropertyId)
+  const pageCount = Math.max(1, Math.ceil(logs.length / PAGE_SIZE))
+  const safePage = Math.min(currentPage, pageCount)
+  const pageLogs = logs.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [selectedBarId, currentPropertyId])
 
   const availableBeverages = useMemo(() => {
     const used = new Set(logs.map((log) => log.beverageId))
@@ -233,13 +244,23 @@ export default function MyStock() {
                 <th className="p-2 text-left text-sm">Waste</th>
                 <th className="p-2 text-left text-sm">Comps</th>
                 <th className="p-2 text-left text-sm">Sales</th>
+                <th className="p-2 text-left text-sm">Amount</th>
+                <th className="p-2 text-left text-sm" title="Quantity rung on your checks opened today">
+                  POS
+                </th>
+                <th
+                  className="p-2 text-left text-sm"
+                  title="Sales minus POS. Positive means bottles left that were not rung."
+                >
+                  Variance
+                </th>
                 <th className="p-2 text-left text-sm">Status</th>
                 <th className="p-2 text-left text-sm">Action</th>
               </tr>
             </thead>
             
             <tbody>
-              {logs.map((log) => {
+              {pageLogs.map((log) => {
                 const closingValue = closingEdits[log._id] ?? String(log.closingStock)
                 const wasteValue = wasteEdits[log._id] ?? String(log.wasteQuantity ?? 0)
                 const compValue = compEdits[log._id] ?? String(log.compQuantity ?? 0)
@@ -253,6 +274,10 @@ export default function MyStock() {
                   disappeared -
                   (Number.isNaN(wasteNumber) ? 0 : wasteNumber) -
                   (Number.isNaN(compNumber) ? 0 : compNumber)
+                const unitPrice = log.beverage?.unitPrice ?? 0
+                const salesAmount = sales * unitPrice
+                const posQuantity = log.posQuantity ?? 0
+                const variance = sales - posQuantity
                 return (
                   <tr key={log._id} className="border-t">
                     <td className="p-2">{log.beverage?.name || 'Unknown'}</td>
@@ -305,6 +330,15 @@ export default function MyStock() {
                       />
                     </td>
                     <td className={`p-2 ${sales < 0 ? 'text-red-600' : ''}`}>{sales}</td>
+                    <td className="p-2 whitespace-nowrap">
+                      {formatPropertyMoney(salesAmount, selectedProperty?.currency)}
+                    </td>
+                    <td className="p-2">{posQuantity}</td>
+                    <td
+                      className={`p-2 ${variance > 0 ? 'text-red-600' : variance < 0 ? 'text-amber-700' : ''}`}
+                    >
+                      {variance}
+                    </td>
                     <td className="p-2">{log.isFinalized ? 'Finalized' : 'Open'}</td>
                     <td className="p-2">
                       {!log.isFinalized && (
@@ -325,6 +359,27 @@ export default function MyStock() {
             </tbody>
           </table>
         </div>
+        {logs.length > 0 && (
+          <Pagination>
+            <Pagination.Prev
+              onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+              disabled={safePage === 1}
+            />
+            {Array.from({ length: pageCount }, (_, index) => (
+              <Pagination.Item
+                key={index}
+                active={safePage === index + 1}
+                onClick={() => setCurrentPage(index + 1)}
+              >
+                {index + 1}
+              </Pagination.Item>
+            ))}
+            <Pagination.Next
+              onClick={() => setCurrentPage((page) => Math.min(pageCount, page + 1))}
+              disabled={safePage >= pageCount}
+            />
+          </Pagination>
+        )}
         </>
       )}
 

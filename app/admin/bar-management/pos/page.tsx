@@ -12,8 +12,8 @@ export default function Page() {
           <h1 className="text-2xl font-bold text-gray-800">POS</h1>
           <p className="text-gray-600">
             Bar and room-service checks from one terminal. Record cash, card, room charge, or open tab —
-            no payment gateway. Guest F&amp;B revenue uses settled POS totals; My Stock Today stays stock
-            control.
+            no payment gateway. A drink can be sold only while it is still in your stock for this property
+            and bar.
           </p>
         </div>
         <BackLink />

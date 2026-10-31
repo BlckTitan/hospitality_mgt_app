@@ -385,29 +385,39 @@ export default function PosTerminal() {
             ))}
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            {menu.map((item) => (
-              <button
-                key={item._id}
-                type="button"
-                disabled={busy || !canSell || (isRoom && !reservationId && !orderId)}
-                onClick={() => void handleAddBeverage(item._id)}
-                className="text-left border rounded-md p-2 hover:bg-gray-50 disabled:opacity-50 flex items-center gap-2"
-              >
-                <ImageThumbnail
-                  src={item.imageUrl}
-                  alt={item.name}
-                  size={48}
-                  className="shrink-0"
-                />
-                <div className="min-w-0">
-                  <div className="font-medium text-sm">{item.name}</div>
-                  <div className="text-xs text-gray-500">{item.category}</div>
-                  <div className="text-sm mt-1">{money(item.unitPrice)}</div>
-                </div>
-              </button>
-            ))}
-            {menu.length === 0 && (
-              <p className="text-sm text-gray-500 col-span-full">No active beverages for this property.</p>
+            {beverages === undefined ? (
+              <p className="text-sm text-gray-500 col-span-full">Loading drinks…</p>
+            ) : (
+              menu.map((item) => (
+                <button
+                  key={item._id}
+                  type="button"
+                  disabled={busy || !canSell || item.availableQty <= 0 || (isRoom && !reservationId && !orderId)}
+                  onClick={() => void handleAddBeverage(item._id)}
+                  className="text-left border rounded-md p-2 hover:bg-gray-50 disabled:opacity-50 flex items-center gap-2"
+                >
+                  <ImageThumbnail
+                    src={item.imageUrl}
+                    alt={item.name}
+                    size={48}
+                    className="shrink-0"
+                  />
+                  <div className="min-w-0">
+                    <div className="font-medium text-sm">{item.name}</div>
+                    <div className="text-xs text-gray-500">{item.category}</div>
+                    <div className="text-sm mt-1">{money(item.unitPrice)}</div>
+                    <div className="text-xs text-gray-600">{item.availableQty} in stock</div>
+                  </div>
+                </button>
+              ))
+            )}
+            {beverages && menu.length === 0 && (
+              <p className="text-sm text-gray-500 col-span-full">
+                {beverages.message ??
+                  (canSell
+                    ? 'Nothing left in your stock at this bar.'
+                    : dutyMessage)}
+              </p>
             )}
           </div>
         </section>

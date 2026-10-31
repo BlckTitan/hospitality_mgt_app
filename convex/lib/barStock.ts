@@ -195,6 +195,22 @@ export function derivedSales(
   };
 }
 
+/** Units left to sell from one user's bar float: opening + received − waste − comps − already rung. */
+export function remainingSellableQty(args: {
+  totalStock: number;
+  wasteQuantity?: number;
+  compQuantity?: number;
+  pouredQuantity: number;
+  isFinalized?: boolean;
+}): number {
+  if (args.isFinalized) return 0;
+  const used =
+    Math.max(0, args.wasteQuantity ?? 0) +
+    Math.max(0, args.compQuantity ?? 0) +
+    Math.max(0, args.pouredQuantity);
+  return Math.max(0, Math.round((args.totalStock - used) * 1000) / 1000);
+}
+
 export async function computeCogsSnapshot(
   ctx: DbCtx,
   log: Pick<
