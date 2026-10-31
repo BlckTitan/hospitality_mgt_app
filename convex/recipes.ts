@@ -5,20 +5,23 @@ import { requirePermission } from './lib/rbac';
 import { recalculateRecipeAndMenuItem } from './lib/restaurantCost';
 
 const recipeLineInputValidator = v.object({
-  inventoryItemId: v.id('inventoryItems'),
+  restaurantInventoryItemId: v.id('restaurantInventoryItems'),
   quantity: v.number(),
   unit: v.string(),
   wastePercent: v.optional(v.number()),
 });
 
-async function validateInventoryItem(
+async function validateRestaurantIngredient(
   ctx: MutationCtx,
-  inventoryItemId: Id<'inventoryItems'>,
+  restaurantInventoryItemId: Id<'restaurantInventoryItems'>,
   propertyId: Id<'properties'>,
 ) {
-  const item = await ctx.db.get(inventoryItemId);
+  const item = await ctx.db.get(restaurantInventoryItemId);
   if (!item || item.propertyId !== propertyId) {
-    return { success: false as const, message: 'Inventory item does not belong to this property' };
+    return { success: false as const, message: 'Ingredient does not belong to this property' };
+  }
+  if (!item.isActive) {
+    return { success: false as const, message: `${item.name} is inactive` };
   }
   return { success: true as const, item };
 }
@@ -62,8 +65,15 @@ export const getRecipe = query({
 
     const lines = await Promise.all(
       rawLines.map(async (line) => {
-        const inventoryItem = await ctx.db.get(line.inventoryItemId);
-        return { ...line, inventoryItem };
+        const restaurantItem = line.restaurantInventoryItemId
+          ? await ctx.db.get(line.restaurantInventoryItemId)
+          : null;
+        const hotelItem = line.inventoryItemId ? await ctx.db.get(line.inventoryItemId) : null;
+        return {
+          ...line,
+          inventoryItem: restaurantItem ?? hotelItem,
+          legacyHotelName: restaurantItem ? null : (hotelItem?.name ?? null),
+        };
       }),
     );
 
@@ -170,12 +180,16 @@ export const replaceRecipeLines = mutation({
       if (!unit) {
         return { success: false, message: 'Recipe line unit is required' };
       }
-      const checked = await validateInventoryItem(ctx, line.inventoryItemId, recipe.propertyId);
+      const checked = await validateRestaurantIngredient(
+        ctx,
+        line.restaurantInventoryItemId,
+        recipe.propertyId,
+      );
       if (!checked.success) return checked;
 
       await ctx.db.insert('recipeLines', {
         recipeId: args.recipeId,
-        inventoryItemId: line.inventoryItemId,
+        restaurantInventoryItemId: line.restaurantInventoryItemId,
         quantity: line.quantity,
         unit,
         ...(line.wastePercent !== undefined ? { wastePercent: line.wastePercent } : {}),
@@ -211,13 +225,13 @@ export const recalculateRecipe = mutation({
   },
 });
 
-/** Minimal inventory catalog for recipe builders (restaurant.read only). */
+/** Restaurant ingredient catalog for recipe builders (restaurant.read only). */
 export const listInventoryForRecipes = query({
   args: { propertyId: v.id('properties') },
   handler: async (ctx, args) => {
     await requirePermission(ctx, 'restaurant.read', args.propertyId);
     const items = await ctx.db
-      .query('inventoryItems')
+      .query('restaurantInventoryItems')
       .withIndex('by_propertyId', (q) => q.eq('propertyId', args.propertyId))
       .collect();
     return {

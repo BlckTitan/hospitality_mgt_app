@@ -44,7 +44,7 @@ export default function OrderViewComponent() {
         {ORDER_TYPE_LABELS[order.orderType] ?? order.orderType}
         {' · '}
         {order.status.replace('_', ' ')}
-        {order.serverName ? ` · ${order.serverName}` : ''}
+        {order.waiterName || order.serverName ? ` · ${order.waiterName || order.serverName}` : ''}
         {order.table?.tableNumber ? ` · Table ${order.table.tableNumber}` : ''}
         {order.roomLabel ? ` · Room ${order.roomLabel}` : ''}
       </p>

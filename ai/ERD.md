@@ -369,7 +369,8 @@ Junction table linking recipes to inventory items with quantities.
 **Attributes:**
 - `recipeLineId` (PK): Unique identifier
 - `recipeId` (FK): Reference to Recipe
-- `inventoryItemId` (FK): Reference to InventoryItem
+- `restaurantInventoryItemId` (FK): Reference to RestaurantInventoryItem
+- `inventoryItemId` (FK, optional): Legacy reference to hotel InventoryItem
 - `quantity`: Quantity required
 - `unit`: Unit of measurement
 - `wastePercent`: Expected waste percentage
@@ -1940,8 +1941,12 @@ Beverages relationships: see Bar ERD/PRD.
 - **Relationship**: A Recipe has many RecipeLines.
 - **Explanation**: A recipe consists of multiple ingredients, each defined by a RecipeLine that specifies the inventory item and quantity required.
 
+#### RestaurantInventoryItem → RecipeLine (One-to-Many)
+- **Relationship**: A restaurant ingredient can be used in many RecipeLines.
+- **Explanation**: Recipe costing and sale deduction use restaurant inventory. Older lines may still reference a hotel InventoryItem until the recipe is saved again.
+
 #### InventoryItem → RecipeLine (One-to-Many)
-- **Relationship**: An InventoryItem can be used in many RecipeLines.
+- **Relationship**: A hotel InventoryItem can still appear on older RecipeLines.
 - **Explanation**: The same ingredient (e.g., "Flour") can be used in multiple recipes. This relationship enables automatic cost calculation when ingredient prices change.
 
 #### Property → RestaurantTable (One-to-Many)

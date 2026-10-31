@@ -7,7 +7,12 @@ export const HUB_LINKS = [
   {
     href: '/admin/restaurant/recipes',
     title: 'Recipes',
-    blurb: 'Ingredient costing from inventory',
+    blurb: 'Ingredient costing from restaurant inventory',
+  },
+  {
+    href: '/admin/restaurant/inventory',
+    title: 'Inventory',
+    blurb: 'Restaurant ingredients, on-hand quantity, and reorder',
   },
   {
     href: '/admin/restaurant/tables',

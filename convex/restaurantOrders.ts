@@ -4,6 +4,8 @@ import { Doc, Id } from './_generated/dataModel';
 import { requirePermission } from './lib/rbac';
 import { propertyDateKey } from './lib/barStock';
 import { postInventoryTransaction } from './lib/inventoryStock';
+import { requireRestaurantSaleShift } from './lib/dutyContext';
+import { applyRestaurantStockChange } from './lib/restaurantStock';
 
 const orderTypeValidator = v.union(
   v.literal('dine_in'),
@@ -52,6 +54,31 @@ function checkSuffixFromId(orderId: Id<'restaurantOrders'>): string {
   return String(orderId).slice(-6);
 }
 
+function normalizeCheckQuery(raw: string): string {
+  let value = raw.trim();
+  if (value.startsWith('#')) value = value.slice(1).trim();
+  const prefixed = value.match(/^check\s+(.+)$/i);
+  if (prefixed) value = prefixed[1].trim();
+  return value;
+}
+
+async function assertCanWorkOrder(
+  ctx: MutationCtx,
+  order: Doc<'restaurantOrders'>,
+  userId: Id<'users'>,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  if (!order.shiftId) return { ok: true };
+  const duty = await requireRestaurantSaleShift(ctx, {
+    userId,
+    propertyId: order.propertyId,
+  });
+  if (duty.ok === false) return duty;
+  if (order.serverUserId !== userId) {
+    return { ok: false, message: 'This check belongs to another waiter.' };
+  }
+  return { ok: true };
+}
+
 async function recomputeOrderTotals(ctx: MutationCtx, orderId: Id<'restaurantOrders'>) {
   const lines = await ctx.db
     .query('restaurantOrderLines')
@@ -86,10 +113,12 @@ async function linesForOrder(ctx: DbCtx, orderId: Id<'restaurantOrders'>) {
 }
 
 async function enrichOrder(ctx: DbCtx, order: Doc<'restaurantOrders'>) {
-  const [lines, table, reservation] = await Promise.all([
+  const [lines, table, reservation, employee, server] = await Promise.all([
     linesForOrder(ctx, order._id),
     order.tableId ? ctx.db.get(order.tableId) : null,
     order.reservationId ? ctx.db.get(order.reservationId) : null,
+    order.employeeId ? ctx.db.get(order.employeeId) : null,
+    ctx.db.get(order.serverUserId),
   ]);
   let roomLabel: string | null = null;
   let guestName: string | null = null;
@@ -108,6 +137,9 @@ async function enrichOrder(ctx: DbCtx, order: Doc<'restaurantOrders'>) {
     reservation,
     roomLabel,
     guestName,
+    waiterName: employee
+      ? `${employee.firstName} ${employee.lastName}`.trim()
+      : (server?.name ?? null),
   };
 }
 
@@ -236,6 +268,24 @@ export async function deductInventoryForOrder(
         (recipeLine.quantity * line.quantity * (1 + waste / 100)) / servings;
       if (deductQty <= 0) continue;
 
+      const reason = `Restaurant order ${checkSuffixFromId(orderId)}: ${line.nameSnapshot}`;
+      if (recipeLine.restaurantInventoryItemId) {
+        const posted = await applyRestaurantStockChange(ctx, {
+          itemId: recipeLine.restaurantInventoryItemId,
+          transactionType: 'usage',
+          quantity: deductQty,
+          reason,
+          referenceType: 'RestaurantOrderLine',
+          referenceId: line._id,
+          transactionDate: now,
+        });
+        if (posted.success === false) {
+          return { success: false, message: posted.message };
+        }
+        continue;
+      }
+
+      if (!recipeLine.inventoryItemId) continue;
       const inventoryItem = await ctx.db.get(recipeLine.inventoryItemId);
       const posted = await postInventoryTransaction(ctx, {
         inventoryItemId: recipeLine.inventoryItemId,
@@ -244,7 +294,7 @@ export async function deductInventoryForOrder(
         unitCost: inventoryItem?.unitCost,
         referenceType: 'RestaurantOrderLine',
         referenceId: line._id,
-        reason: `Restaurant order ${checkSuffixFromId(orderId)}: ${line.nameSnapshot}`,
+        reason,
         recordShortage: true,
         transactionDate: now,
       });
@@ -540,6 +590,90 @@ export const listKitchenTickets = query({
   },
 });
 
+export const findOrdersByCheckId = query({
+  args: {
+    propertyId: v.id('properties'),
+    checkId: v.string(),
+    status: v.optional(orderStatusValidator),
+    orderType: v.optional(orderTypeValidator),
+  },
+  handler: async (ctx, args) => {
+    await requirePermission(ctx, 'restaurant.read', args.propertyId);
+    const checkId = normalizeCheckQuery(args.checkId);
+    if (checkId.length < 6) {
+      return {
+        success: true,
+        data: [],
+        message: 'Enter the last 6 characters of the check ID, or the full ID',
+      };
+    }
+
+    const exactId = ctx.db.normalizeId('restaurantOrders', checkId);
+    if (exactId) {
+      const order = await ctx.db.get(exactId);
+      if (!order || order.propertyId !== args.propertyId) {
+        return { success: true, data: [], message: 'No check found for that ID' };
+      }
+      if (args.status && order.status !== args.status) {
+        return { success: true, data: [], message: 'No check found for that ID with the current filters' };
+      }
+      if (args.orderType && order.orderType !== args.orderType) {
+        return { success: true, data: [], message: 'No check found for that ID with the current filters' };
+      }
+      return { success: true, data: [await enrichOrder(ctx, order)], message: null };
+    }
+
+    if (checkId.length !== 6) {
+      return { success: true, data: [], message: 'No check found for that ID' };
+    }
+
+    const indexed = await ctx.db
+      .query('restaurantOrders')
+      .withIndex('by_propertyId_and_checkSuffix', (q) =>
+        q.eq('propertyId', args.propertyId).eq('checkSuffix', checkId),
+      )
+      .take(50);
+    let rows = indexed;
+    if (args.status) rows = rows.filter((row) => row.status === args.status);
+    if (args.orderType) rows = rows.filter((row) => row.orderType === args.orderType);
+    rows.sort((a, b) => b.openedAt - a.openedAt);
+    const data = await Promise.all(rows.map((order) => enrichOrder(ctx, order)));
+    return {
+      success: true,
+      data,
+      message:
+        data.length === 0
+          ? indexed.length > 0
+            ? 'No check found for that ID with the current filters'
+            : 'No check found for that ID'
+          : null,
+    };
+  },
+});
+
+export const backfillOrderCheckSuffix = mutation({
+  args: {
+    propertyId: v.id('properties'),
+    cursor: v.optional(v.union(v.string(), v.null())),
+  },
+  handler: async (ctx, args) => {
+    await requirePermission(ctx, 'restaurant.read', args.propertyId);
+    const page = await ctx.db
+      .query('restaurantOrders')
+      .withIndex('by_propertyId', (q) => q.eq('propertyId', args.propertyId))
+      .paginate({ numItems: 100, cursor: args.cursor ?? null });
+    let patched = 0;
+    for (const row of page.page) {
+      const checkSuffix = checkSuffixFromId(row._id);
+      if (row.checkSuffix !== checkSuffix) {
+        await ctx.db.patch(row._id, { checkSuffix });
+        patched += 1;
+      }
+    }
+    return { done: page.isDone, continueCursor: page.continueCursor, patched };
+  },
+});
+
 export const createOrder = mutation({
   args: {
     propertyId: v.id('properties'),
@@ -550,6 +684,11 @@ export const createOrder = mutation({
   },
   handler: async (ctx, args) => {
     const auth = await requirePermission(ctx, 'restaurant.create', args.propertyId);
+    const duty = await requireRestaurantSaleShift(ctx, {
+      userId: auth.user._id,
+      propertyId: args.propertyId,
+    });
+    if (duty.ok === false) return { success: false, message: duty.message };
 
     if (args.orderType === 'room_service' && !args.reservationId) {
       return { success: false, message: 'Room service requires a reservation' };
@@ -586,7 +725,9 @@ export const createOrder = mutation({
       reservationId: args.reservationId,
       orderType: args.orderType,
       status: 'open',
-      serverUserId: auth.user._id,
+      serverUserId: duty.shift.userId ?? auth.user._id,
+      shiftId: duty.shift._id,
+      employeeId: duty.staff._id,
       guestLabel: args.guestLabel?.trim() || undefined,
       subtotal: 0,
       taxAmount: 0,
@@ -619,7 +760,9 @@ export const addLine = mutation({
   },
   handler: async (ctx, args) => {
     const order = await loadOrderOrThrow(ctx, args.orderId);
-    await requirePermission(ctx, 'restaurant.update', order.propertyId);
+    const auth = await requirePermission(ctx, 'restaurant.update', order.propertyId);
+    const access = await assertCanWorkOrder(ctx, order, auth.user._id);
+    if (access.ok === false) return { success: false, message: access.message };
     if (order.status !== 'open') {
       return { success: false, message: 'Can only add lines to an open check' };
     }
@@ -686,7 +829,9 @@ export const voidLine = mutation({
     const line = await ctx.db.get(args.orderLineId);
     if (!line) return { success: false, message: 'Line not found' };
     const order = await loadOrderOrThrow(ctx, line.orderId);
-    await requirePermission(ctx, 'restaurant.update', order.propertyId);
+    const auth = await requirePermission(ctx, 'restaurant.update', order.propertyId);
+    const access = await assertCanWorkOrder(ctx, order, auth.user._id);
+    if (access.ok === false) return { success: false, message: access.message };
     if (order.status !== 'open') {
       return { success: false, message: 'Can only void lines on an open check' };
     }
@@ -747,7 +892,9 @@ export const voidOrder = mutation({
   args: { orderId: v.id('restaurantOrders') },
   handler: async (ctx, args) => {
     const order = await loadOrderOrThrow(ctx, args.orderId);
-    await requirePermission(ctx, 'restaurant.update', order.propertyId);
+    const auth = await requirePermission(ctx, 'restaurant.update', order.propertyId);
+    const access = await assertCanWorkOrder(ctx, order, auth.user._id);
+    if (access.ok === false) return { success: false, message: access.message };
     if (order.status !== 'open') {
       return { success: false, message: 'Only unpaid open checks can be voided' };
     }
@@ -786,6 +933,8 @@ async function settleWithTenders(
 ) {
   const order = await loadOrderOrThrow(ctx, args.orderId);
   const auth = await requirePermission(ctx, 'restaurant.update', order.propertyId);
+  const access = await assertCanWorkOrder(ctx, order, auth.user._id);
+  if (access.ok === false) return { success: false as const, message: access.message };
   if (args.allowOpenTabOnly) {
     if (order.status !== 'open_tab') {
       return { success: false as const, message: 'Order is not an open tab' };
@@ -902,7 +1051,9 @@ export const markOpenTab = mutation({
   args: { orderId: v.id('restaurantOrders') },
   handler: async (ctx, args) => {
     const order = await loadOrderOrThrow(ctx, args.orderId);
-    await requirePermission(ctx, 'restaurant.update', order.propertyId);
+    const auth = await requirePermission(ctx, 'restaurant.update', order.propertyId);
+    const access = await assertCanWorkOrder(ctx, order, auth.user._id);
+    if (access.ok === false) return { success: false, message: access.message };
     if (order.status !== 'open') {
       return { success: false, message: 'Only an open check can become an open tab' };
     }

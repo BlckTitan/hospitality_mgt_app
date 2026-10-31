@@ -49,10 +49,11 @@ export default function Page() {
         updatedAt={recipe.updatedAt}
         lines={recipe.lines.map((line) => ({
           _id: line._id,
-          inventoryItemId: line.inventoryItemId,
+          restaurantInventoryItemId: line.restaurantInventoryItemId,
           quantity: line.quantity,
           unit: line.unit,
           wastePercent: line.wastePercent,
+          legacyName: line.legacyHotelName ?? undefined,
         }))}
       />
     </div>

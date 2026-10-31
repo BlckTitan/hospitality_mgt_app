@@ -2,8 +2,10 @@
 
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery } from 'convex/react'
+import Link from 'next/link'
 import { toast } from 'sonner'
 import { Button } from '../../../../../shared/button'
+import ImageThumbnail from '../../../../../shared/imageThumbnail'
 import { api } from '../../../../../convex/_generated/api'
 import { Id } from '../../../../../convex/_generated/dataModel'
 import { formatPropertyMoney, usePropertyCurrency } from '../../../inventory-management/components/money'
@@ -46,6 +48,7 @@ export default function RestaurantPos() {
   const [tenderAmount, setTenderAmount] = useState('')
   const [busy, setBusy] = useState(false)
 
+  const duty = useQuery(api.attendance.getMyDuty, {})
   const menuItems = useQuery(
     api.restaurantOrders.listSellableMenuItems,
     currentPropertyId ? { propertyId: currentPropertyId } : 'skip',
@@ -75,7 +78,27 @@ export default function RestaurantPos() {
   const voidOrder = useMutation(api.restaurantOrders.voidOrder)
   const markOpenTab = useMutation(api.restaurantOrders.markOpenTab)
 
+  const dutyData = duty?.success ? duty.data : null
+  const openShift = dutyData?.activeShift
+  const onRestaurantShift = Boolean(
+    openShift &&
+      !openShift.isFinalized &&
+      openShift.department === 'restaurant' &&
+      dutyData?.propertyId === currentPropertyId,
+  )
   const order = orderResponse?.success ? orderResponse.data : null
+  const legacyCheck = Boolean(order && !order.shiftId)
+  const canSell = onRestaurantShift
+  const canAdd = orderId ? legacyCheck || canSell : canSell
+  const dutyMessage = !duty
+    ? 'Loading shift'
+    : duty.success === false
+      ? duty.message
+      : onRestaurantShift
+        ? `On duty: ${dutyData?.staffName} · Restaurant`
+        : openShift && !openShift.isFinalized && dutyData?.propertyId !== currentPropertyId
+          ? 'Your open shift is for another property.'
+          : 'Start your restaurant shift before selling.'
   const activeLines = (order?.lines ?? []).filter((line) => line.lineStatus === 'active')
   const openChecks = useMemo(
     () => [...(openList?.page ?? []), ...(tabList?.page ?? [])],
@@ -119,6 +142,10 @@ export default function RestaurantPos() {
   const ensureOrder = async (): Promise<Id<'restaurantOrders'> | null> => {
     if (orderId) return orderId
     if (!currentPropertyId) return null
+    if (!canSell) {
+      toast.error(dutyMessage)
+      return null
+    }
     if (orderType === 'dine_in' && !tableId) {
       toast.error('Select a table first')
       return null
@@ -266,6 +293,7 @@ export default function RestaurantPos() {
             ))}
           </select>
         </label>
+        <p className={`text-sm m-0 ${canSell ? 'text-gray-700' : 'text-amber-800'}`}>{dutyMessage}</p>
         <div className="flex gap-2">
           {(Object.keys(ORDER_TYPE_LABELS) as OrderType[]).map((type) => (
             <Button
@@ -278,6 +306,9 @@ export default function RestaurantPos() {
             </Button>
           ))}
         </div>
+        <Link href="/admin/restaurant/orders" className="text-sm underline ms-auto">
+          Orders list
+        </Link>
       </div>
 
       {orderType === 'dine_in' && (
@@ -346,6 +377,7 @@ export default function RestaurantPos() {
               #{row.checkSuffix || String(row._id).slice(-6)}
               {' · '}
               {ORDER_TYPE_LABELS[row.orderType as OrderType] ?? row.orderType}
+              {row.waiterName ? ` · ${row.waiterName}` : ''}
               {row.table?.tableNumber ? ` · T${row.table.tableNumber}` : ''}
               {row.roomLabel ? ` · R${row.roomLabel}` : ''}
               {row.status === 'open_tab' ? ' · tab' : ''}
@@ -389,13 +421,16 @@ export default function RestaurantPos() {
               <button
                 key={item._id}
                 type="button"
-                disabled={busy || !currentPropertyId}
+                disabled={busy || !canAdd}
                 onClick={() => void handleAddItem(item._id)}
-                className="border border-gray-200 rounded-md p-3 text-left hover:border-gray-400 disabled:opacity-50"
+                className="border border-gray-200 rounded-md p-3 text-left hover:border-gray-400 disabled:opacity-50 flex items-center gap-2"
               >
-                <div className="font-medium text-gray-900 text-sm">{item.name}</div>
-                <div className="text-xs text-gray-500 capitalize mt-1">{item.station}</div>
-                <div className="text-sm font-semibold mt-2">{money(item.price)}</div>
+                <ImageThumbnail src={item.imageUrl} alt={item.name} size={48} className="shrink-0" />
+                <div className="min-w-0">
+                  <div className="font-medium text-gray-900 text-sm">{item.name}</div>
+                  <div className="text-xs text-gray-500 capitalize mt-1">{item.station}</div>
+                  <div className="text-sm font-semibold mt-2">{money(item.price)}</div>
+                </div>
               </button>
             ))}
             {menu.length === 0 && <p className="text-sm text-gray-500 col-span-full">No sellable menu items.</p>}
@@ -419,7 +454,12 @@ export default function RestaurantPos() {
                 New
               </Button>
               {orderId && order?.status === 'open' && (
-                <Button size="sm" variant="outline-danger" disabled={busy} onClick={() => void handleVoidOrder()}>
+                <Button
+                  size="sm"
+                  variant="outline-danger"
+                  disabled={busy || (!canSell && !legacyCheck)}
+                  onClick={() => void handleVoidOrder()}
+                >
                   Void
                 </Button>
               )}
@@ -427,6 +467,7 @@ export default function RestaurantPos() {
           </div>
           <p className="text-xs text-gray-500 m-0">
             {ORDER_TYPE_LABELS[orderType]}
+            {dutyData?.staffName ? ` · ${dutyData.staffName}` : ''}
             {order?.table?.tableNumber ? ` · Table ${order.table.tableNumber}` : ''}
             {order?.roomLabel ? ` · Room ${order.roomLabel}` : ''}
             {order?.guestName ? ` · ${order.guestName}` : ''}
@@ -510,14 +551,19 @@ export default function RestaurantPos() {
           <div className="flex gap-2">
             <Button
               variant="outline-dark"
-              disabled={busy || !orderId || order?.status !== 'open'}
+              disabled={busy || !orderId || order?.status !== 'open' || (!canSell && !legacyCheck)}
               onClick={() => void handleSettle(true)}
             >
               Open tab
             </Button>
             <Button
               variant="dark"
-              disabled={busy || !orderId || (order?.status !== 'open' && order?.status !== 'open_tab')}
+              disabled={
+                busy ||
+                !orderId ||
+                (order?.status !== 'open' && order?.status !== 'open_tab') ||
+                (!canSell && !legacyCheck)
+              }
               onClick={() => void handleSettle(false)}
             >
               Settle

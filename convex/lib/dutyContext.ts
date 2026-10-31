@@ -67,6 +67,37 @@ export async function requireFnBSaleShift(
 }
 
 /**
+ * Restaurant sales require a logged-in staff member with an open restaurant shift.
+ * Parallel to requireFnBSaleShift, without a bar.
+ */
+export async function requireRestaurantSaleShift(
+  ctx: DbCtx,
+  args: { userId: Id<"users">; propertyId: Id<"properties"> },
+): Promise<
+  | { ok: true; shift: Doc<"shifts">; staff: Doc<"staffs"> }
+  | { ok: false; message: string }
+> {
+  const { staff, shift } = await loadOpenShift(ctx, args);
+  if (!staff) {
+    return {
+      ok: false,
+      message: "No staff record is linked to your login. Ask an admin to connect your user to Staff.",
+    };
+  }
+  if (!shift) {
+    return { ok: false, message: "Start your shift before ringing a sale." };
+  }
+  if (shift.department !== "restaurant") {
+    return {
+      ok: false,
+      message:
+        "Your open shift is not a restaurant shift. Start your restaurant shift before selling.",
+    };
+  }
+  return { ok: true, shift, staff };
+}
+
+/**
  * Reservation changes require the reservations permission and an open front-office shift.
  * The permission is checked by the caller. This rejects every other department.
  */

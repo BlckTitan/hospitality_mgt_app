@@ -139,7 +139,8 @@ export default function RotationsPage() {
         <BackLink />
       </header>
 
-      <form onSubmit={saveRotation} className="max-w-xl border p-4 mb-6">
+      <div className="flex flex-col lg:flex-row lg:items-start gap-6 mb-6">
+      <form onSubmit={saveRotation} className="w-full lg:flex-1 min-w-0 border p-4">
         <h2 className="font-semibold mb-3">New rotation</h2>
         <label className="block mb-3">
           <span className="block text-sm mb-1">Name *</span>
@@ -237,7 +238,7 @@ export default function RotationsPage() {
         </div>
       </form>
 
-      <div className="mb-6 overflow-x-auto">
+      <div className="w-full lg:flex-1 min-w-0 overflow-x-auto">
         {!rotations?.data?.length ? (
           <p className="text-sm text-gray-600">No rotations yet.</p>
         ) : (
@@ -277,6 +278,7 @@ export default function RotationsPage() {
             </tbody>
           </table>
         )}
+      </div>
       </div>
 
       <div className="flex flex-col lg:flex-row lg:items-start gap-6">

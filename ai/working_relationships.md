@@ -257,11 +257,11 @@ The hotel restaurant serves "Grilled Salmon" (`menuItemId: 75`). The chef has de
 - `name: "Grilled Salmon Recipe"`
 - `servings: 1`
 
-The **Recipe** links to **RecipeLine** records that specify ingredients:
-- Line 1: `inventoryItemId: 2001` (Salmon Fillet), `quantity: 0.2` (kg), `unit: "kg"`
-- Line 2: `inventoryItemId: 2002` (Olive Oil), `quantity: 0.01` (liters), `unit: "liter"`
-- Line 3: `inventoryItemId: 2003` (Lemon), `quantity: 0.5` (pieces), `unit: "piece"`
-- Line 4: `inventoryItemId: 2004` (Herbs), `quantity: 0.05` (kg), `unit: "kg"`
+The **Recipe** links to **RecipeLine** records that specify restaurant ingredients (`restaurantInventoryItemId`), not hotel storeroom items:
+- Line 1: `restaurantInventoryItemId` Salmon Fillet, `quantity: 0.2` (kg), `unit: "kg"`
+- Line 2: `restaurantInventoryItemId` Olive Oil, `quantity: 0.01` (liters), `unit: "liter"`
+- Line 3: `restaurantInventoryItemId` Lemon, `quantity: 0.5` (pieces), `unit: "piece"`
+- Line 4: `restaurantInventoryItemId` Herbs, `quantity: 0.05` (kg), `unit: "kg"`
 
 The system calculates recipe cost:
 - Salmon: 0.2 kg × $15/kg = $3.00
@@ -274,11 +274,10 @@ The **RestaurantMenuItem** record is updated: `cost: $4.33`. The selling price i
 
 **Automatic Cost Updates**
 
-When the supplier increases salmon price from $15/kg to $16/kg:
-1. **InventoryItem** `inventoryItemId: 2001` updated: `unitCost: $16`
-2. **InventoryTransaction** created: `transactionType: "adjustment"`, `unitCost: $16`
-3. System automatically recalculates all **Recipe** records that use salmon
-4. **RestaurantMenuItem** `menuItemId: 75` updated: `cost: $4.43` (new cost)
+When salmon’s restaurant ingredient cost moves from $15/kg to $16/kg:
+1. **RestaurantInventoryItem** for salmon is updated: `unitCost: $16` (or a receive movement records the new cost)
+2. System recalculates every **Recipe** that uses that restaurant ingredient
+3. **RestaurantMenuItem** cost updates from the new recipe total
 
 ### Restaurant Operations
 
@@ -287,12 +286,13 @@ When the supplier increases salmon price from $15/kg to $16/kg:
 A party of 4 arrives at the restaurant:
 1. Hostess checks **RestaurantTable** records: Finds `tableId: 15`, `capacity: 4`, `status: "available"`
 2. Updates **RestaurantTable**: `status: "occupied"`
-3. Creates **RestaurantOrder**:
+3. The waiter is logged in and has started a restaurant shift. The system creates **RestaurantOrder**:
    - `orderId: 2002`
    - `tableId: 15`
-   - `orderType: "dine-in"`
-   - `serverId: 202` (Sarah, server)
-   - `status: "pending"`
+   - `orderType: "dine_in"`
+   - `serverUserId` and `employeeId` from that shift
+   - `shiftId` of the open restaurant shift
+   - `status: "open"`
 
 4. Updates **RestaurantTable**: `currentOrderId: 2002` (links active order to table)
 
@@ -311,13 +311,11 @@ The kitchen receives the order (kitchen + grill are stations under Restaurant):
 
 **Inventory Deduction**
 
-When the order is completed, the system automatically deducts inventory:
-- For each **RestaurantOrderLine** that has a **Recipe**:
+When the order is settled, the system deducts restaurant inventory once:
+- For each active **RestaurantOrderLine** that has a **Recipe**:
   - System looks up **RecipeLine** records
-  - Creates **InventoryTransaction** records:
-    - `transactionId: 6003`: `inventoryItemId: 2001` (Salmon), `quantity: -0.4` (kg) (2 orders × 0.2 kg), `referenceType: "RestaurantOrderLine"`, `referenceId: 5001`
-    - `transactionId: 6004`: `inventoryItemId: 2002` (Olive Oil), `quantity: -0.02` (L), `referenceType: "RestaurantOrderLine"`, `referenceId: 5002`
-    - And so on...
+  - Writes **RestaurantInventoryTransaction** `usage` rows and reduces `restaurantInventoryItems.currentQuantity`
+  - Example: salmon `quantity: -0.4` kg (2 orders × 0.2 kg), `referenceType: "RestaurantOrderLine"`
 
 **Payment and Financial Posting**
 

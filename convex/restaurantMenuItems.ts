@@ -94,6 +94,10 @@ export const createMenuItem = mutation({
     if (!Number.isFinite(args.price) || args.price < 0) {
       return { success: false, message: 'Price must be a non-negative number' };
     }
+    const imageUrl = args.imageUrl?.trim();
+    if (!imageUrl) {
+      return { success: false, message: 'A food image is required' };
+    }
 
     const now = Date.now();
     const menuItemId = await ctx.db.insert('restaurantMenuItems', {
@@ -106,7 +110,7 @@ export const createMenuItem = mutation({
       price: args.price,
       ...(args.cost !== undefined ? { cost: args.cost } : {}),
       isAvailable: args.isAvailable ?? true,
-      imageUrl: args.imageUrl?.trim() || undefined,
+      imageUrl,
       preparationTime: args.preparationTime,
       isActive: args.isActive ?? true,
       createdAt: now,
@@ -167,10 +171,9 @@ export const updateMenuItem = mutation({
     if (args.cost !== undefined) patch.cost = args.cost;
     if (args.isAvailable !== undefined) patch.isAvailable = args.isAvailable;
     if (args.imageUrl !== undefined) {
-      patch.imageUrl =
-        args.imageUrl === null || args.imageUrl.trim() === ''
-          ? undefined
-          : args.imageUrl.trim();
+      const imageUrl = args.imageUrl === null ? '' : args.imageUrl.trim();
+      if (!imageUrl) return { success: false, message: 'A food image is required' };
+      patch.imageUrl = imageUrl;
     }
     if (args.preparationTime !== undefined) {
       patch.preparationTime = args.preparationTime === null ? undefined : args.preparationTime;

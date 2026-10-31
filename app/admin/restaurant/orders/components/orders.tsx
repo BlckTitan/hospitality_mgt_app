@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { FormEvent, useEffect, useState } from 'react'
 import { useMutation, useQuery } from 'convex/react'
 import { toast } from 'sonner'
 import { FcDocument } from 'react-icons/fc'
@@ -9,6 +9,7 @@ import BootstrapModal from '../../../../../shared/modal'
 import Pagination from '../../../../../shared/ui-pagination'
 import { api } from '../../../../../convex/_generated/api'
 import { Id } from '../../../../../convex/_generated/dataModel'
+import Link from 'next/link'
 import { formatPropertyMoney, usePropertyCurrency } from '../../../inventory-management/components/money'
 import { usePermissions } from '../../../../../hooks/usePermissions'
 
@@ -42,6 +43,8 @@ export default function Orders() {
 
   const [status, setStatus] = useState<StatusFilter>('all')
   const [orderType, setOrderType] = useState<TypeFilter>('all')
+  const [checkInput, setCheckInput] = useState('')
+  const [activeCheckId, setActiveCheckId] = useState<string | null>(null)
   const [payOrderId, setPayOrderId] = useState<Id<'restaurantOrders'> | null>(null)
   const [payAmount, setPayAmount] = useState('')
   const [payMethod, setPayMethod] = useState<TenderMethod>('cash')
@@ -49,10 +52,36 @@ export default function Orders() {
   const [cursorHistory, setCursorHistory] = useState<(string | null)[]>([null])
   const [currentPage, setCurrentPage] = useState(1)
 
+  const backfillCheckSuffix = useMutation(api.restaurantOrders.backfillOrderCheckSuffix)
+
+  useEffect(() => {
+    if (!currentPropertyId) return
+    let cancelled = false
+    const run = async () => {
+      let cursor: string | null = null
+      try {
+        for (let page = 0; page < 100; page += 1) {
+          const result = await backfillCheckSuffix({
+            propertyId: currentPropertyId,
+            cursor,
+          })
+          if (cancelled || result.done) return
+          cursor = result.continueCursor
+        }
+      } catch {
+        // Newer checks are indexed on open. A failed backfill only delays lookup of older ones.
+      }
+    }
+    void run()
+    return () => {
+      cancelled = true
+    }
+  }, [currentPropertyId, backfillCheckSuffix])
+
   const listCursor = currentPage === 1 ? null : (cursorHistory[currentPage - 1] ?? null)
   const orders = useQuery(
     api.restaurantOrders.listOrders,
-    currentPropertyId
+    currentPropertyId && !activeCheckId
       ? {
           propertyId: currentPropertyId,
           cursor: listCursor,
@@ -62,31 +91,65 @@ export default function Orders() {
         }
       : 'skip',
   )
+  const found = useQuery(
+    api.restaurantOrders.findOrdersByCheckId,
+    currentPropertyId && activeCheckId
+      ? {
+          propertyId: currentPropertyId,
+          checkId: activeCheckId,
+          ...(status === 'all' ? {} : { status }),
+          ...(orderType === 'all' ? {} : { orderType }),
+        }
+      : 'skip',
+  )
   const payDownTab = useMutation(api.restaurantOrders.payDownTab)
 
   useEffect(() => {
-    if (!orders) return
+    if (activeCheckId || !orders) return
     setCursorHistory((prev) => {
       const knownPages = prev.slice(0, currentPage)
       if (orders.isDone || !orders.continueCursor) return knownPages
       if (knownPages[currentPage] === orders.continueCursor) return prev
       return [...knownPages, orders.continueCursor]
     })
-  }, [orders, currentPage])
+  }, [orders, currentPage, activeCheckId])
 
   if (propertiesResponse === undefined) return <p className="p-4">Loading</p>
   if (properties.length === 0) return <p className="p-4 text-xl">No properties yet!</p>
 
   const money = (n: number) => formatPropertyMoney(n, currency)
-  const rows = orders?.page ?? []
+  const searching = Boolean(activeCheckId)
+  const searchRows = found?.data ?? []
+  const searchPageCount = Math.ceil(searchRows.length / PAGE_SIZE)
+  const rows = searching
+    ? searchRows.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+    : (orders?.page ?? [])
+  const listLoading = !searching && orders === undefined
+  const searchLoading = searching && found === undefined
+  const searchMessage = searching ? found?.message : undefined
   const hasNextPage =
-    orders !== undefined && !orders.isDone && Boolean(orders.continueCursor) && cursorHistory.length > currentPage
-  const pageCount = cursorHistory.length
-  const showPager = rows.length > 0 || currentPage > 1
+    !searching &&
+    orders !== undefined &&
+    !orders.isDone &&
+    Boolean(orders.continueCursor) &&
+    cursorHistory.length > currentPage
+  const pageCount = searching ? searchPageCount : cursorHistory.length
+  const showPager = searching ? searchRows.length > 0 : rows.length > 0 || currentPage > 1
 
   const resetPages = () => {
     setCursorHistory([null])
     setCurrentPage(1)
+  }
+
+  const handleFind = (event?: FormEvent) => {
+    event?.preventDefault()
+    const next = checkInput.trim()
+    resetPages()
+    if (!next) {
+      setActiveCheckId(null)
+      return
+    }
+    setActiveCheckId(next)
   }
 
   const handlePayDown = async () => {
@@ -125,6 +188,8 @@ export default function Orders() {
             onChange={(event) => {
               setPropertyId(event.target.value)
               setPayOrderId(null)
+              setCheckInput('')
+              setActiveCheckId(null)
               resetPages()
             }}
           >
@@ -168,14 +233,53 @@ export default function Orders() {
             <option value="room_service">Room service</option>
           </select>
         </label>
+        <form className="flex flex-wrap items-end gap-2 text-sm" onSubmit={handleFind}>
+          <label className="flex flex-col">
+            Check ID
+            <input
+              className="border rounded px-2 mt-2"
+              value={checkInput}
+              placeholder="Last 6 or full ID"
+              onChange={(event) => setCheckInput(event.target.value)}
+            />
+          </label>
+          <Button type="submit" size="sm" variant="dark">
+            Find check
+          </Button>
+          {searching && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline-secondary"
+              onClick={() => {
+                setCheckInput('')
+                setActiveCheckId(null)
+                resetPages()
+              }}
+            >
+              Clear
+            </Button>
+          )}
+        </form>
+        <Link href="/admin/restaurant/pos" className="text-sm underline ms-auto">
+          Open POS
+        </Link>
       </div>
+
+      {searching && (
+        <p className="text-sm text-gray-600 mb-3">
+          {searchMessage || 'Matches are not limited to the current page.'}
+        </p>
+      )}
 
       <div className="overflow-x-auto">
         <table className="w-full text-sm border">
           <thead>
             <tr className="bg-slate-50 text-left">
               <th className="p-2">Order</th>
+              <th className="p-2">Opened</th>
               <th className="p-2">Type</th>
+              <th className="p-2">Waiter</th>
               <th className="p-2">Table / room</th>
               <th className="p-2">Status</th>
               <th className="p-2">Total</th>
@@ -184,24 +288,26 @@ export default function Orders() {
             </tr>
           </thead>
           <tbody>
-            {orders === undefined && (
+            {(listLoading || searchLoading) && (
               <tr>
-                <td className="p-3" colSpan={7}>
+                <td className="p-3" colSpan={9}>
                   Loading
                 </td>
               </tr>
             )}
-            {orders !== undefined && rows.length === 0 && (
+            {!listLoading && !searchLoading && rows.length === 0 && (
               <tr>
-                <td className="p-3" colSpan={7}>
-                  No orders found.
+                <td className="p-3" colSpan={9}>
+                  {searching ? searchMessage || 'No check found for that ID.' : 'No orders found.'}
                 </td>
               </tr>
             )}
             {rows.map((order) => (
               <tr key={order._id} className="border-t">
                 <td className="p-2">#{order.checkSuffix || String(order._id).slice(-6)}</td>
+                <td className="p-2 whitespace-nowrap">{order.openedAtDateKey}</td>
                 <td className="p-2">{ORDER_TYPE_LABELS[order.orderType] ?? order.orderType}</td>
+                <td className="p-2">{order.waiterName || '—'}</td>
                 <td className="p-2">
                   {order.table?.tableNumber
                     ? `Table ${order.table.tableNumber}`
@@ -221,6 +327,11 @@ export default function Orders() {
                     <a href={`/admin/restaurant/orders/view?order_id=${order._id}`} className="!no-underline">
                       <FcDocument />
                     </a>
+                    {order.status === 'open' && (
+                      <Link href="/admin/restaurant/pos" className="text-xs underline">
+                        Continue
+                      </Link>
+                    )}
                     {canUpdate && order.status === 'open_tab' && (
                       <Button
                         variant="outline-secondary"
@@ -259,9 +370,10 @@ export default function Orders() {
             ))}
             <Pagination.Next
               onClick={() => {
-                if (hasNextPage) setCurrentPage((page) => page + 1)
+                const canGoNext = searching ? currentPage < searchPageCount : hasNextPage
+                if (canGoNext) setCurrentPage((page) => page + 1)
               }}
-              disabled={!hasNextPage}
+              disabled={searching ? currentPage >= searchPageCount : !hasNextPage}
             />
           </Pagination>
         </div>

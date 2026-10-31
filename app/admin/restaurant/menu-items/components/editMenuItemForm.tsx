@@ -6,6 +6,7 @@ import { yupResolver } from '@hookform/resolvers/yup'
 import { toast } from 'sonner'
 import { Button } from '../../../../../shared/button'
 import InputComponent from '../../../../../shared/input'
+import ImageUpload from '../../../../../shared/imageUpload'
 import SelectComponent from '../../../../../shared/select'
 import { Modal } from '../../../../../shared/modal'
 import { api } from '../../../../../convex/_generated/api'
@@ -21,6 +22,7 @@ type FormData = {
   station: Station
   price: number
   isAvailable: boolean
+  imageUrl: string
 }
 
 export function FormComponent(props: {
@@ -30,6 +32,7 @@ export function FormComponent(props: {
   station: Station
   price: number
   isAvailable: boolean
+  imageUrl?: string
 }) {
   const updateMenuItem = useMutation(api.restaurantMenuItems.updateMenuItem)
 
@@ -37,6 +40,8 @@ export function FormComponent(props: {
     register,
     handleSubmit,
     formState: { errors },
+    setValue,
+    watch,
   } = useForm<FormData>({
     resolver: yupResolver(formSchema) as any,
     defaultValues: {
@@ -45,8 +50,11 @@ export function FormComponent(props: {
       station: props.station,
       price: props.price,
       isAvailable: props.isAvailable,
+      imageUrl: props.imageUrl ?? '',
     },
   })
+
+  const imageUrl = watch('imageUrl')
 
   const onSubmit: SubmitHandler<FormData> = async (data) => {
     try {
@@ -57,6 +65,7 @@ export function FormComponent(props: {
         station: data.station,
         price: data.price,
         isAvailable: data.isAvailable,
+        imageUrl: data.imageUrl,
       })
       if (response.success === false) {
         toast.error(response.message)
@@ -74,6 +83,17 @@ export function FormComponent(props: {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="editMenuItemForm">
+      <div className="w-full h-fit mb-4">
+        <ImageUpload
+          id="imageUrl"
+          label="Food image"
+          required
+          folder="restaurant-menu"
+          value={imageUrl || null}
+          onChange={(url) => setValue('imageUrl', url ?? '', { shouldValidate: true, shouldDirty: true })}
+          error={errors.imageUrl}
+        />
+      </div>
       <div className={fieldRowClassName}>
         <InputComponent
           id="name"

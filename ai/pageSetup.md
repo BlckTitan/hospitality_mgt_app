@@ -541,19 +541,25 @@ Independent dining module under `/admin/restaurant`. Permissions: `restaurant.*`
 KPIs from `getRestaurantTodaySnapshot` (`restaurant.read`) + links to child screens.
 
 ### Menu Items (`/admin/restaurant/menu-items`) — R1
-CRUD catalog with station filter (`kitchen` | `grill` | `other`).
+CRUD catalog with station filter (`kitchen` | `grill` | `other`) and a required food photo (`imageUrl`).
+
+### Restaurant inventory (`/admin/restaurant/inventory`) — R4
+Restaurant-owned ingredients (`restaurantInventoryItems`). Separate from hotel inventory and bar store stock.
+
+### Stock movements (`/admin/restaurant/inventory/movements`) — R4
+Receive, usage, waste, and adjustment. Settled checks also write usage from recipes.
 
 ### Recipes (`/admin/restaurant/recipes`) — R1
-Upsert recipe per menu item; ingredient lines from inventory; cost recalculation.
+Upsert recipe per menu item; ingredient lines from restaurant inventory; cost recalculation.
 
 ### Tables (`/admin/restaurant/tables`) — R2
 Status board; create/update; setStatus.
 
 ### Restaurant POS (`/admin/restaurant/pos`) — R2
-dine_in / takeout / room_service; settle cash/card/room charge (`restaurant_room_charge`) / open tab.
+Requires a logged-in staff member on an open `restaurant` shift (`requireRestaurantSaleShift`). dine_in / takeout / room_service; food photos on menu buttons; settle cash/card/room charge (`restaurant_room_charge`) / open tab. New checks store `shiftId` and `employeeId`.
 
 ### Orders (`/admin/restaurant/orders`) — R2
-List + pay down open tabs.
+Check ID lookup, waiter, opened date, pay down open tabs. Parallel to `/admin/pos/orders`, different table.
 
 ### Kitchen board (`/admin/restaurant/kitchen`) — R2
 Station filter; bump prep status pending → preparing → ready → served.
@@ -1693,7 +1699,7 @@ Sidebar: **Dashboard** (`/admin/dashboard`, `reports.read` — hidden without it
 - Core Platform: 6 pages
 - Room Management: 11 pages
 - Beverages: live Bar Management hub + My Stock Today + beverage POS (permissions `beverages.*`)
-- Restaurant (live): hub, menu, recipes, tables, POS, orders, kitchen under `/admin/restaurant/...` (permissions `restaurant.*`)
+- Restaurant (live): hub, menu, recipes, restaurant inventory, tables, POS, orders, kitchen under `/admin/restaurant/...` (permissions `restaurant.*`)
 - Inventory Management: 8 pages (includes inventory tasks)
 - Staff: 2 pages
 - Shift Management: 9 pages (hub, Department shifts, Rotations, Attendance Tracker, Cover, Shift, Hours, Hours edit, Punctuality)

@@ -64,7 +64,10 @@ export default function RecipeViewComponent() {
             )}
             {recipe.lines.map((line) => (
               <tr key={line._id} className="border-t">
-                <td className="p-2">{line.inventoryItem?.name ?? '—'}</td>
+                <td className="p-2">
+                  {line.inventoryItem?.name ?? '—'}
+                  {line.legacyHotelName ? ' (hotel stock)' : ''}
+                </td>
                 <td className="p-2">{line.quantity}</td>
                 <td className="p-2">{line.unit}</td>
                 <td className="p-2">{line.wastePercent ?? 0}</td>

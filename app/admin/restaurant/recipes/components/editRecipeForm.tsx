@@ -10,24 +10,26 @@ import { formatPropertyMoney, usePropertyCurrency } from '../../../inventory-man
 
 type LineDraft = {
   key: string
-  inventoryItemId: string
+  restaurantInventoryItemId: string
   quantity: string
   unit: string
   wastePercent: string
+  legacyName?: string
 }
 
 type LineProp = {
   _id: string
-  inventoryItemId: string
+  restaurantInventoryItemId?: string
   quantity: number
   unit: string
   wastePercent?: number
+  legacyName?: string
 }
 
 function newLineDraft(): LineDraft {
   return {
     key: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-    inventoryItemId: '',
+    restaurantInventoryItemId: '',
     quantity: '1',
     unit: '',
     wastePercent: '0',
@@ -62,10 +64,11 @@ export function FormComponent(props: {
       props.lines.length > 0
         ? props.lines.map((line) => ({
             key: line._id,
-            inventoryItemId: line.inventoryItemId,
+            restaurantInventoryItemId: line.restaurantInventoryItemId ?? '',
             quantity: String(line.quantity),
             unit: line.unit,
             wastePercent: String(line.wastePercent ?? 0),
+            legacyName: line.legacyName,
           }))
         : [newLineDraft()],
     )
@@ -76,8 +79,8 @@ export function FormComponent(props: {
   const handleSaveLines = async () => {
     const lines = []
     for (const draft of lineDrafts) {
-      if (!draft.inventoryItemId) {
-        toast.error('Select an inventory item for each line')
+      if (!draft.restaurantInventoryItemId) {
+        toast.error('Select a restaurant ingredient for each line')
         return
       }
       const quantity = Number(draft.quantity)
@@ -91,7 +94,7 @@ export function FormComponent(props: {
         return
       }
       lines.push({
-        inventoryItemId: draft.inventoryItemId as Id<'inventoryItems'>,
+        restaurantInventoryItemId: draft.restaurantInventoryItemId as Id<'restaurantInventoryItems'>,
         quantity,
         unit: draft.unit.trim(),
         wastePercent: Number.isFinite(wastePercent) ? wastePercent : 0,
@@ -164,14 +167,19 @@ export function FormComponent(props: {
               Ingredient
               <select
                 className="mt-1 w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm"
-                value={draft.inventoryItemId}
+                value={draft.restaurantInventoryItemId}
                 onChange={(event) => {
-                  const inventoryItemId = event.target.value
-                  const item = inventoryRows.find((row) => row._id === inventoryItemId)
+                  const restaurantInventoryItemId = event.target.value
+                  const item = inventoryRows.find((row) => row._id === restaurantInventoryItemId)
                   setLineDrafts((prev) =>
                     prev.map((row, i) =>
                       i === index
-                        ? { ...row, inventoryItemId, unit: item?.unit ?? row.unit }
+                        ? {
+                            ...row,
+                            restaurantInventoryItemId,
+                            unit: item?.unit ?? row.unit,
+                            legacyName: undefined,
+                          }
                         : row,
                     ),
                   )
@@ -185,6 +193,11 @@ export function FormComponent(props: {
                   </option>
                 ))}
               </select>
+              {draft.legacyName && !draft.restaurantInventoryItemId ? (
+                <span className="block text-amber-700 mt-1">
+                  Was {draft.legacyName} on hotel inventory. Pick a restaurant ingredient.
+                </span>
+              ) : null}
             </label>
             <label className="text-xs sm:col-span-2">
               Qty
@@ -262,7 +275,7 @@ export function FormComponent(props: {
       {inventory === undefined && <p className="text-xs text-amber-700 mt-3">Loading inventory…</p>}
       {inventory?.success === false && (
         <p className="text-xs text-amber-700 mt-3">
-          Add active inventory items under Inventory Management to use as recipe ingredients.
+          Add ingredients under Restaurant inventory before building a recipe.
         </p>
       )}
     </div>

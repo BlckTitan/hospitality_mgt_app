@@ -43,6 +43,8 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermission> = {
   '/admin/restaurant/pos': { granular: 'restaurant.read' },
   '/admin/restaurant/orders': { granular: 'restaurant.read' },
   '/admin/restaurant/kitchen': { granular: 'restaurant.read' },
+  '/admin/restaurant/inventory': { granular: 'restaurant.read' },
+  '/admin/restaurant/inventory/movements': { granular: 'restaurant.read' },
   '/admin/restaurant/menu-items/edit': { granular: 'restaurant.update' },
   '/admin/restaurant/recipes/edit': { granular: 'restaurant.update' },
   '/admin/restaurant/recipes/view': { granular: 'restaurant.read' },

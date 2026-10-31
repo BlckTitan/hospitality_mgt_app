@@ -276,7 +276,7 @@ interface RestaurantMenuItem {
   price: number;
   cost?: number;
   isAvailable: boolean;
-  imageUrl?: string;
+  imageUrl?: string; // required when creating or updating a menu item
   preparationTime?: number; // minutes
   isActive: boolean;
   createdAt: Date;
@@ -305,12 +305,49 @@ interface Recipe {
 interface RecipeLine {
   recipeLineId: string;
   recipeId: string;
-  inventoryItemId: string;
+  inventoryItemId?: string; // legacy hotel storeroom
+  restaurantInventoryItemId?: string;
   quantity: number;
   unit: string;
   wastePercent?: number;
   createdAt: Date;
   updatedAt: Date;
+}
+```
+
+### RestaurantInventoryItem
+```typescript
+interface RestaurantInventoryItem {
+  restaurantInventoryItemId: string;
+  propertyId: string;
+  sku: string;
+  name: string;
+  category: string;
+  unit: string;
+  currentQuantity: number;
+  reorderPoint?: number;
+  unitCost?: number;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+```
+
+### RestaurantInventoryTransaction
+```typescript
+interface RestaurantInventoryTransaction {
+  transactionId: string;
+  propertyId: string;
+  restaurantInventoryItemId: string;
+  transactionType: 'receive' | 'usage' | 'adjustment' | 'waste';
+  quantity: number;
+  unitCost?: number;
+  referenceType?: string;
+  referenceId?: string;
+  reason?: string;
+  performedByUserId?: string;
+  transactionDate: Date;
+  createdAt: Date;
 }
 ```
 
@@ -340,6 +377,8 @@ interface RestaurantOrder {
   orderType: 'dine_in' | 'takeout' | 'room_service';
   status: 'open' | 'open_tab' | 'settled' | 'voided';
   serverUserId: string;
+  shiftId?: string;
+  employeeId?: string;
   guestLabel?: string;
   subtotal: number;
   taxAmount: number;

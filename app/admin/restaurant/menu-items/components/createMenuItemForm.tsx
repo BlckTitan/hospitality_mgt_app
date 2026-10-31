@@ -6,6 +6,7 @@ import { yupResolver } from '@hookform/resolvers/yup'
 import { toast } from 'sonner'
 import { Button } from '../../../../../shared/button'
 import InputComponent from '../../../../../shared/input'
+import ImageUpload from '../../../../../shared/imageUpload'
 import SelectComponent from '../../../../../shared/select'
 import { Modal } from '../../../../../shared/modal'
 import { api } from '../../../../../convex/_generated/api'
@@ -21,6 +22,7 @@ type FormData = {
   station: Station
   price: number
   isAvailable: boolean
+  imageUrl: string
 }
 
 export function FormComponent({ propertyId }: { propertyId: string }) {
@@ -30,6 +32,8 @@ export function FormComponent({ propertyId }: { propertyId: string }) {
     register,
     handleSubmit,
     formState: { errors },
+    setValue,
+    watch,
   } = useForm<FormData>({
     resolver: yupResolver(formSchema) as any,
     defaultValues: {
@@ -38,8 +42,11 @@ export function FormComponent({ propertyId }: { propertyId: string }) {
       station: 'kitchen',
       price: 0,
       isAvailable: true,
+      imageUrl: '',
     },
   })
+
+  const imageUrl = watch('imageUrl')
 
   const onSubmit: SubmitHandler<FormData> = async (data) => {
     if (!propertyId) {
@@ -54,6 +61,7 @@ export function FormComponent({ propertyId }: { propertyId: string }) {
         station: data.station,
         price: data.price,
         isAvailable: data.isAvailable,
+        imageUrl: data.imageUrl,
       })
       if (response.success === false) {
         toast.error(response.message)
@@ -71,6 +79,17 @@ export function FormComponent({ propertyId }: { propertyId: string }) {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="createMenuItemForm">
+      <div className="w-full h-fit mb-4">
+        <ImageUpload
+          id="imageUrl"
+          label="Food image"
+          required
+          folder="restaurant-menu"
+          value={imageUrl || null}
+          onChange={(url) => setValue('imageUrl', url ?? '', { shouldValidate: true, shouldDirty: true })}
+          error={errors.imageUrl}
+        />
+      </div>
       <div className={fieldRowClassName}>
         <InputComponent
           id="name"

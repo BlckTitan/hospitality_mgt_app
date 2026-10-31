@@ -34,7 +34,7 @@ export default function Page() {
       <header className="w-full border-b mb-4 pb-3 flex justify-between items-start gap-3">
         <div className="min-w-0">
           <h1 className="text-2xl font-bold text-gray-800">Update {item.name}</h1>
-          <p className="text-gray-600">Update this menu item’s name, station, price, and availability.</p>
+          <p className="text-gray-600">Update this menu item’s photo, name, station, price, and availability.</p>
         </div>
         <BackLink />
       </header>
@@ -46,6 +46,7 @@ export default function Page() {
         station={item.station}
         price={item.price}
         isAvailable={item.isAvailable}
+        imageUrl={item.imageUrl}
       />
     </div>
   )

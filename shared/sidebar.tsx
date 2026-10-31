@@ -43,6 +43,8 @@ const navLinks = [
       { id: 1404, href: '/admin/restaurant/pos', label: 'Restaurant POS' },
       { id: 1405, href: '/admin/restaurant/orders', label: 'Orders' },
       { id: 1406, href: '/admin/restaurant/kitchen', label: 'Kitchen board' },
+      { id: 1407, href: '/admin/restaurant/inventory', label: 'Inventory' },
+      { id: 1408, href: '/admin/restaurant/inventory/movements', label: 'Stock movements' },
     ]
   },
   {id: 5, href: "/admin/expenses", label: "Expense Tracker", icon: <FcMoneyTransfer />, subLink: [

@@ -25,7 +25,11 @@ export async function calculateRecipeTotalCost(
 
   let total = 0;
   for (const line of lines) {
-    const item = await ctx.db.get(line.inventoryItemId);
+    const item = line.restaurantInventoryItemId
+      ? await ctx.db.get(line.restaurantInventoryItemId)
+      : line.inventoryItemId
+        ? await ctx.db.get(line.inventoryItemId)
+        : null;
     const unitCost = item?.unitCost ?? 0;
     total += lineCost(line.quantity, unitCost, line.wastePercent);
   }
@@ -69,6 +73,25 @@ export async function recalculateRecipesForInventoryItem(
   const lines = await ctx.db
     .query('recipeLines')
     .withIndex('by_inventoryItemId', (q) => q.eq('inventoryItemId', inventoryItemId))
+    .collect();
+
+  const recipeIds = [...new Set(lines.map((line) => line.recipeId))];
+  for (const recipeId of recipeIds) {
+    await recalculateRecipeAndMenuItem(ctx, recipeId);
+  }
+  return recipeIds.length;
+}
+
+/** Recalculate every recipe that uses a restaurant ingredient. */
+export async function recalculateRecipesForRestaurantInventoryItem(
+  ctx: MutationCtx,
+  restaurantInventoryItemId: Id<'restaurantInventoryItems'>,
+): Promise<number> {
+  const lines = await ctx.db
+    .query('recipeLines')
+    .withIndex('by_restaurantInventoryItemId', (q) =>
+      q.eq('restaurantInventoryItemId', restaurantInventoryItemId),
+    )
     .collect();
 
   const recipeIds = [...new Set(lines.map((line) => line.recipeId))];

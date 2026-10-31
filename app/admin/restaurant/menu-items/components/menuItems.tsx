@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { Button } from '../../../../../shared/button'
 import { api } from '../../../../../convex/_generated/api'
 import { Id } from '../../../../../convex/_generated/dataModel'
+import ImageThumbnail from '../../../../../shared/imageThumbnail'
 import { formatPropertyMoney, usePropertyCurrency } from '../../../inventory-management/components/money'
 import { usePermissions } from '../../../../../hooks/usePermissions'
 
@@ -106,6 +107,7 @@ export default function MenuItems({
         <table className="w-full text-sm border">
           <thead>
             <tr className="bg-slate-50 text-left">
+              <th className="p-2">Photo</th>
               <th className="p-2">Name</th>
               <th className="p-2">Category</th>
               <th className="p-2">Station</th>
@@ -118,13 +120,16 @@ export default function MenuItems({
           <tbody>
             {rows.length === 0 && (
               <tr>
-                <td className="p-3" colSpan={canSeeCost ? 7 : 5}>
+                <td className="p-3" colSpan={(canSeeCost ? 7 : 6) + (canUpdate || canDeactivate ? 1 : 0)}>
                   No menu items found.
                 </td>
               </tr>
             )}
             {rows.map((row) => (
               <tr key={row._id} className="border-t">
+                <td className="p-2">
+                  <ImageThumbnail src={row.imageUrl} alt={row.name} size={40} />
+                </td>
                 <td className="p-2">{row.name}</td>
                 <td className="p-2">{row.category}</td>
                 <td className="p-2">

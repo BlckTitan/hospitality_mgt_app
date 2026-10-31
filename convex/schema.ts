@@ -1511,7 +1511,9 @@ export default defineSchema({
 
   recipeLines: defineTable({
     recipeId: v.id("recipes"),
-    inventoryItemId: v.id("inventoryItems"),
+    // Legacy hotel storeroom link. New lines use restaurantInventoryItemId.
+    inventoryItemId: v.optional(v.id("inventoryItems")),
+    restaurantInventoryItemId: v.optional(v.id("restaurantInventoryItems")),
     quantity: v.number(),
     unit: v.string(),
     wastePercent: v.optional(v.number()),
@@ -1519,7 +1521,48 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("by_recipeId", ["recipeId"])
-    .index("by_inventoryItemId", ["inventoryItemId"]),
+    .index("by_inventoryItemId", ["inventoryItemId"])
+    .index("by_restaurantInventoryItemId", ["restaurantInventoryItemId"]),
+
+  // Restaurant ingredient stock. Separate from hotel inventoryItems and bar store inventories.
+  restaurantInventoryItems: defineTable({
+    propertyId: v.id("properties"),
+    sku: v.string(),
+    name: v.string(),
+    category: v.string(),
+    unit: v.string(),
+    currentQuantity: v.number(),
+    reorderPoint: v.optional(v.number()),
+    unitCost: v.optional(v.number()),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_propertyId_sku", ["propertyId", "sku"])
+    .index("by_propertyId_isActive", ["propertyId", "isActive"]),
+
+  restaurantInventoryTransactions: defineTable({
+    propertyId: v.id("properties"),
+    restaurantInventoryItemId: v.id("restaurantInventoryItems"),
+    transactionType: v.union(
+      v.literal("receive"),
+      v.literal("usage"),
+      v.literal("adjustment"),
+      v.literal("waste"),
+    ),
+    quantity: v.number(),
+    unitCost: v.optional(v.number()),
+    referenceType: v.optional(v.string()),
+    referenceId: v.optional(v.string()),
+    reason: v.optional(v.string()),
+    performedByUserId: v.optional(v.id("users")),
+    transactionDate: v.number(),
+    createdAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_propertyId_transactionDate", ["propertyId", "transactionDate"])
+    .index("by_restaurantInventoryItemId", ["restaurantInventoryItemId"]),
 
   restaurantTables: defineTable({
     propertyId: v.id("properties"),
@@ -1557,6 +1600,9 @@ export default defineSchema({
       v.literal("open_tab"),
     ),
     serverUserId: v.id("users"),
+    // Set from the open restaurant shift. Optional so checks opened before this link still load.
+    shiftId: v.optional(v.id("shifts")),
+    employeeId: v.optional(v.id("staffs")),
     guestLabel: v.optional(v.string()),
     subtotal: v.number(),
     taxAmount: v.number(),
@@ -1581,7 +1627,9 @@ export default defineSchema({
     ])
     .index("by_tableId", ["tableId"])
     .index("by_reservationId", ["reservationId"])
-    .index("by_serverUserId", ["serverUserId"]),
+    .index("by_serverUserId", ["serverUserId"])
+    .index("by_shiftId", ["shiftId"])
+    .index("by_propertyId_and_checkSuffix", ["propertyId", "checkSuffix"]),
 
   restaurantOrderLines: defineTable({
     propertyId: v.id("properties"),

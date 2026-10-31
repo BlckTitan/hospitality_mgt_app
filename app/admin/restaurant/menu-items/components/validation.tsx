@@ -17,4 +17,5 @@ export const formSchema = yup.object().shape({
     .min(0, 'Price must be 0 or more')
     .required('Price is required'),
   isAvailable: yup.boolean().required(),
+  imageUrl: yup.string().trim().url('Upload a valid image').required('Food image is required'),
 })
