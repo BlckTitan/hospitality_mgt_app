@@ -279,44 +279,49 @@ export default function RotationsPage() {
         )}
       </div>
 
-      <form onSubmit={saveAssignment} className="max-w-xl border p-4 mb-6">
+      <div className="flex flex-col lg:flex-row lg:items-start gap-6">
+      <form onSubmit={saveAssignment} className="w-full lg:flex-1 min-w-0 border p-4">
         <h2 className="font-semibold mb-3">Place a person on a rotation</h2>
-        <p className="text-sm text-gray-600 mb-3">The anchor is when their first on-duty begins. A second person on the same rotation starts one segment later, so the desk stays covered. Everyone at this property is listed below. People in the rotation&apos;s department come first.</p>
-        <fieldset className="block mb-3 border-0 p-0 m-0 min-w-0">
-          <legend className="block text-sm mb-1">Staff *</legend>
+        <p className="text-sm text-gray-600 mb-3">The anchor is when their first on-duty begins. A second person on the same rotation starts one segment later, so the desk stays covered. Everyone at this property is in the staff list. People in the rotation&apos;s department come first.</p>
+        <label className="block mb-3">
+          <span className="block text-sm mb-1">Staff *</span>
           {staffResponse === undefined ? (
             <p className="text-sm text-gray-600">Loading staff...</p>
           ) : assignableStaff.length === 0 ? (
             <p className="text-sm text-gray-600">No staff at this property yet.</p>
           ) : (
-            <div className="max-h-60 overflow-y-auto border rounded bg-white" role="radiogroup" aria-label="Staff">
-              {assignableStaff.map((row, index) => (
-                <div key={row._id}>
-                  {rotationDepartment && index === 0 && staffInDepartment.length > 0 && (
-                    <p className="px-2 pt-2 text-xs text-gray-500">This department</p>
+            <select
+              className="w-full border rounded p-2"
+              value={staffId}
+              onChange={(event) => setStaffId(event.target.value)}
+              required
+            >
+              <option value="">Select staff</option>
+              {rotationDepartment ? (
+                <>
+                  {staffInDepartment.length > 0 && (
+                    <optgroup label="This department">
+                      {staffInDepartment.map((row) => (
+                        <option key={row._id} value={row._id}>{staffLabel(row)}</option>
+                      ))}
+                    </optgroup>
                   )}
-                  {rotationDepartment && index === staffInDepartment.length && staffInOtherDepartments.length > 0 && (
-                    <p className="px-2 pt-2 text-xs text-gray-500 border-t">Other departments</p>
+                  {staffInOtherDepartments.length > 0 && (
+                    <optgroup label="Other departments">
+                      {staffInOtherDepartments.map((row) => (
+                        <option key={row._id} value={row._id}>{staffLabel(row)}</option>
+                      ))}
+                    </optgroup>
                   )}
-                  <label className={`flex items-center gap-2 px-2 py-1.5 text-sm cursor-pointer ${staffId === row._id ? 'bg-slate-100' : ''}`}>
-                    <input
-                      type="radio"
-                      name="rotationStaffId"
-                      value={row._id}
-                      checked={staffId === row._id}
-                      onChange={() => setStaffId(row._id)}
-                      required
-                    />
-                    <span>{staffLabel(row)}</span>
-                  </label>
-                </div>
-              ))}
-            </div>
+                </>
+              ) : (
+                assignableStaff.map((row) => (
+                  <option key={row._id} value={row._id}>{staffLabel(row)}</option>
+                ))
+              )}
+            </select>
           )}
-          {staffResponse !== undefined && (
-            <p className="text-xs text-gray-500 mt-1">{assignableStaff.length} staff</p>
-          )}
-        </fieldset>
+        </label>
         <label className="block mb-3">
           <span className="block text-sm mb-1">Rotation *</span>
           <select
@@ -341,7 +346,7 @@ export default function RotationsPage() {
         <Button type="submit" variant="dark">Assign</Button>
       </form>
 
-      <div>
+      <div className="w-full lg:flex-1 min-w-0">
         <h2 className="font-semibold mb-2">Current assignments</h2>
         {!rotations?.assignments?.length ? (
           <p className="text-sm text-gray-600">Nobody is on a rotation yet. Staff without one keep their department shift hours.</p>
@@ -366,6 +371,7 @@ export default function RotationsPage() {
             ))}
           </ul>
         )}
+      </div>
       </div>
     </div>
   );
