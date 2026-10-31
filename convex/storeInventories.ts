@@ -1,5 +1,10 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import {
+  applyStoreQtyChange,
+  maybeOpenReorderAlert,
+  propertyDateKey,
+} from "./lib/barStock";
 import { requirePermission } from "./lib/rbac";
 
 export const createStoreInventory = mutation({
@@ -35,12 +40,56 @@ export const createStoreInventory = mutation({
       };
     }
 
+    if (!Number.isFinite(args.qtyInStore) || args.qtyInStore < 0) {
+      return {
+        success: false,
+        message: "Quantity in store cannot be negative",
+      };
+    }
+    if (!Number.isFinite(args.reorderThreshold) || args.reorderThreshold < 0) {
+      return {
+        success: false,
+        message: "Reorder threshold cannot be negative",
+      };
+    }
+
+    const now = Date.now();
     const storeInventoryId = await ctx.db.insert("storeInventories", {
       propertyId: args.propertyId,
       beverageId: args.beverageId,
       qtyInStore: 0,
       reorderThreshold: args.reorderThreshold,
-      lastUpdated: Date.now(),
+      lastUpdated: now,
+    });
+
+    const created = await ctx.db.get(storeInventoryId);
+    if (!created) {
+      return {
+        success: false,
+        message: "Failed to create store inventory",
+      };
+    }
+
+    const qtyInStore =
+      args.qtyInStore > 0 ? await applyStoreQtyChange(ctx, created, args.qtyInStore) : 0;
+
+    if (args.qtyInStore > 0) {
+      await ctx.db.insert("storeTransactions", {
+        propertyId: args.propertyId,
+        beverageId: args.beverageId,
+        txnType: "receive",
+        qty: args.qtyInStore,
+        txnDate: now,
+        txnDateKey: await propertyDateKey(ctx, args.propertyId, now),
+        notes: "Opening quantity",
+      });
+    }
+
+    await maybeOpenReorderAlert(ctx, {
+      propertyId: args.propertyId,
+      beverageId: args.beverageId,
+      qtyInStore,
+      reorderThreshold: args.reorderThreshold,
     });
 
     return {

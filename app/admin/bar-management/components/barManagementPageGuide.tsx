@@ -24,9 +24,9 @@ const DESCRIPTIONS: Record<GuidePage, string> = {
   'user-stock-logs':
     'Admin view of staff daily stock sheets. Use + to open a log for a bar, then an actively employed user assigned to that bar, and a beverage (opening from the last finalized close). Filter by bar, bar staff, or date. Staff normally close the day on My stock today; use this list to review or correct logs.',
   'store-inventory':
-    'On-hand quantity for each beverage in the central store. Add a row with + (starts at 0). Set reorder threshold for hub alerts. Change quantity with Store transactions or a posted Store count — not by editing the row alone.',
+    'On-hand quantity for each beverage in the central store. Add a row with + and enter Quantity in Store plus a reorder threshold for hub alerts. Later quantity changes go through Store transactions or a posted Store count — not by editing the row alone.',
   'store-transactions':
-    'Record a store movement with +. Receive adds stock to the store. Issue removes it and posts to that staff member’s My stock today for the chosen bar. Count adjustments appear after a posted store count. Transactions are dated today in the property timezone.',
+    'Record a store movement with +. Receive adds stock to the store. Issue removes it and posts to a bartender or waiter’s My stock today for the chosen bar. Count adjustments appear after a posted store count. Transactions are dated today in the property timezone.',
   'store-count':
     'Physical count of the central bar store. Start a draft to snapshot book qty, enter counted amounts, Save, then Post. Posting sets on-hand to counted and records variance as count adjustments. Does not change waiter float logs.',
 };

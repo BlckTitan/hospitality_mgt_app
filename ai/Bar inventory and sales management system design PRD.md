@@ -234,6 +234,16 @@ requester while still `pending`.
 beverage. The `by_beverageId` index on this table shall be used to retrieve or
 upsert a beverage's inventory record within a single indexed query.
 
+**FR-INV-001a** — Creating a store inventory row (`createStoreInventory`) takes
+the beverage, Quantity in Store (≥ 0), and a reorder threshold. The row is
+inserted at 0; a quantity above 0 is applied in the same mutation and recorded
+as a `storeTransactions` receive with notes "Opening quantity". When the
+beverage is linked to a catalog item, that opening quantity is synced onto the
+Bar store location as an adjustment. It does not transfer stock out of the
+storeroom. Quantity 0 creates the row only. If the opening quantity is at or
+below the reorder threshold, an open reorder alert is created. Editing the row
+updates `reorderThreshold` only.
+
 **FR-INV-002** — When new supplier stock arrives, a Convex mutation shall:
 1. Insert a `storeTransactions` document with `txnType: "receive"`, setting both
    `txnDate` (epoch ms) and `txnDateKey` (ISO 8601 date string).
@@ -350,8 +360,9 @@ live logs (health). Pour cost % and gross profit use snapshotted COGS on
 **FR-ANA-008** — Issue and receive are single mutations that **validate then
 write** (throw on failure). Editing or deleting an issue reverses
 `userStockLogs` and store qty. Issue requires bar, user, existing inventory,
-and quantity. Inventory create starts at qty 0; qty changes only via receive,
-issue, or posted store count adjust.
+and quantity. Inventory create saves the entered Quantity in Store; a quantity
+above 0 is an opening receive. Later quantity changes are receive, issue, or a
+posted store count. Editing the inventory row does not change quantity.
 
 ---
 

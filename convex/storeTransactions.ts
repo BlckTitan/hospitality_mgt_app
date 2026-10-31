@@ -1,5 +1,6 @@
-import { mutation, query } from './_generated/server';
+import { mutation, query, type MutationCtx, type QueryCtx } from './_generated/server';
 import { v } from 'convex/values';
+import { Id } from './_generated/dataModel';
 import { requirePermission } from './lib/rbac';
 import {
   applyIssuedQtyToStockLog,
@@ -13,6 +14,82 @@ import {
   resolveBeverageUnitCost,
 } from './lib/barStock';
 import { moveCatalogStockToBar, reverseTransactionEffect } from './lib/inventoryStock';
+
+const ISSUE_RECIPIENT_ROLES = new Set(['Bartender', 'Waiter']);
+
+async function issueRecipientError(
+  ctx: QueryCtx | MutationCtx,
+  propertyId: Id<'properties'>,
+  userId: Id<'users'>,
+): Promise<string | null> {
+  const user = await ctx.db.get(userId);
+  if (!user) {
+    return 'User does not exist';
+  }
+  if (!user.isActive) {
+    return 'Stock can only be issued to an active bartender or waiter';
+  }
+
+  const assignments = await ctx.db
+    .query('userRoles')
+    .withIndex('by_userId_propertyId', (q) => q.eq('userId', userId).eq('propertyId', propertyId))
+    .collect();
+
+  for (const assignment of assignments) {
+    const role = await ctx.db.get(assignment.roleId);
+    if (role && ISSUE_RECIPIENT_ROLES.has(role.name)) {
+      return null;
+    }
+  }
+
+  return 'Stock can only be issued to an active bartender or waiter';
+}
+
+export const listIssueRecipients = query({
+  args: { propertyId: v.id('properties') },
+  handler: async (ctx, args) => {
+    await requirePermission(ctx, 'inventory.read', args.propertyId);
+
+    const recipients = new Map<Id<'users'>, { name: string; email: string; roles: string[] }>();
+    for (const roleName of ISSUE_RECIPIENT_ROLES) {
+      const role = await ctx.db
+        .query('roles')
+        .withIndex('by_name', (q) => q.eq('name', roleName))
+        .first();
+      if (!role) continue;
+
+      const assignments = await ctx.db
+        .query('userRoles')
+        .withIndex('by_roleId_and_propertyId', (q) =>
+          q.eq('roleId', role._id).eq('propertyId', args.propertyId),
+        )
+        .collect();
+
+      for (const assignment of assignments) {
+        const user = await ctx.db.get(assignment.userId);
+        if (!user || !user.isActive) continue;
+        const existing = recipients.get(user._id);
+        if (existing) {
+          existing.roles.push(role.name);
+        } else {
+          recipients.set(user._id, { name: user.name, email: user.email, roles: [role.name] });
+        }
+      }
+    }
+
+    const data = [...recipients.entries()]
+      .map(([userId, user]) => ({
+        _id: userId,
+        name: user.name,
+        email: user.email,
+        roles: user.roles,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    return { success: true as const, data };
+  },
+});
+
 export const getAllStoreTransactions = query({
   args: { propertyId: v.id('properties') },
   handler: async (ctx, args) => {
@@ -84,9 +161,9 @@ export const createStoreTransaction = mutation({
       if (!bar || bar.propertyId !== args.propertyId) {
         return { success: false, message: 'Bar does not exist or does not belong to this property' };
       }
-      const user = await ctx.db.get(args.userId);
-      if (!user) {
-        return { success: false, message: 'User does not exist' };
+      const recipientError = await issueRecipientError(ctx, args.propertyId, args.userId);
+      if (recipientError) {
+        return { success: false, message: recipientError };
       }
 
       const issued = await issueStockToUser(ctx, {
@@ -200,10 +277,10 @@ export const updateStoreTransaction = mutation({
         return { success: false, message: 'Bar does not exist or does not belong to this property' };
       }
     }
-    if (args.userId) {
-      const user = await ctx.db.get(args.userId);
-      if (!user) {
-        return { success: false, message: 'User does not exist' };
+    if (args.txnType === 'issue' && args.userId) {
+      const recipientError = await issueRecipientError(ctx, existing.propertyId, args.userId);
+      if (recipientError) {
+        return { success: false, message: recipientError };
       }
     }
 

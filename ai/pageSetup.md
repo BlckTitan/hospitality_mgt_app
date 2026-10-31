@@ -507,7 +507,20 @@ Bar management, beverages catalog, and beverage POS. Spec: `ai/Bar inventory and
 
 ---
 
-### 17d-iii. Store count (`/admin/bar-management/store-count`)
+### 17d-iii. Store inventory (`/admin/bar-management/store-inventory`)
+**Purpose**: One on-hand row per beverage. Add with + and enter Quantity in Store (opening on-hand) plus a reorder threshold. A quantity above 0 is saved and recorded as an opening receive. Edit changes the threshold only; later quantity changes are Store transactions or a posted Store count.
+
+**Permission:** `inventory.read` to list; `inventory.create` to add; `inventory.update` to edit; `inventory.delete` to remove
+
+**Data Fetching:**
+- `getAllStoreInventories`, `getStoreInventoryById`
+- Mutations: `createStoreInventory`, `updateStoreInventory`, `deleteStoreInventory`
+
+**Rendering Strategy: SSR**
+
+---
+
+### 17d-iv. Store count (`/admin/bar-management/store-count`)
 **Purpose**: Book qty from `storeInventories` vs counted; post writes `count_adjust` store transactions and updates on-hand
 
 **Permission:** `inventory.read` / `inventory.update`

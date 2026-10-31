@@ -23,11 +23,12 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
   const createTransaction = useMutation(api.storeTransactions.createStoreTransaction);
   const beveragesResponse = useQuery(api.beverages.getAllBeverages, { propertyId: propertyId as Id<'properties'> });
   const barsResponse = useQuery(api.bars.getAllBars, { propertyId: propertyId as Id<'properties'> });
-  const usersResponse = useQuery(api.users.getAllUsers, { propertyId: propertyId as Id<'properties'> });
+  const usersResponse = useQuery(api.storeTransactions.listIssueRecipients, { propertyId: propertyId as Id<'properties'> });
 
   const beverages = beveragesResponse?.data || [];
   const bars = barsResponse?.data || [];
   const users = usersResponse?.data || [];
+  const usersLoading = usersResponse === undefined;
 
   const { register, handleSubmit, formState: { errors }, reset, watch } = useForm<FormData>({
     resolver: yupResolver(formSchema) as any,
@@ -85,12 +86,10 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
       label: `${b.name} - ${b.location}`,
     }));
 
-  const userOptions = users
-    .filter((u: any) => u.isActive)
-    .map((u: any) => ({
-      value: u._id,
-      label: `${u.name} (${u.email})`,
-    }));
+  const userOptions = users.map((u) => ({
+    value: u._id,
+    label: `${u.name} (${u.roles.join(' / ')})`,
+  }));
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="createStoreTransactionForm">
@@ -160,14 +159,20 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
             {errors.barId && <span className="text-red-500 text-sm">{errors.barId.message}</span>}
           </div>
           <div className="flex-1">
-            <label htmlFor="userId" className="block mb-2">User *</label>
+            <label htmlFor="userId" className="block mb-2">Bartender / Waiter *</label>
             <select
               id="userId"
               {...register('userId')}
               className="w-full border rounded p-2"
               defaultValue=""
             >
-              <option value="">Select a user</option>
+              <option value="">
+                {usersLoading
+                  ? 'Loading bartenders and waiters...'
+                  : userOptions.length === 0
+                    ? 'No bartenders or waiters at this property'
+                    : 'Select a bartender or waiter'}
+              </option>
               {userOptions.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
@@ -180,7 +185,7 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
       )}
 
       <p className="text-sm text-gray-500 mb-4">
-        The transaction is recorded against today in the property timezone. Issue requires a bar and the staff member receiving the stock.
+        The transaction is recorded against today in the property timezone. Issue requires a bar and the bartender or waiter receiving the stock.
       </p>
 
       <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-start lg:items-center gap-1 [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start [&_div]:mb-2 lg:[&_div]:mb-0 mb-2 lg:mb-4">

@@ -9,7 +9,7 @@ export const formSchema = yup.object().shape({
   }),
   userId: yup.string().when('txnType', {
     is: 'issue',
-    then: (schema) => schema.required('User is required for issues'),
+    then: (schema) => schema.required('A bartender or waiter is required for issues'),
     otherwise: (schema) => schema.optional(),
   }),
   txnType: yup.string().oneOf(['receive', 'issue'], 'Transaction type is required').required('Transaction type is required'),
