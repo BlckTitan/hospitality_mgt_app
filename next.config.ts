@@ -71,6 +71,9 @@ const nextConfig: NextConfig = {
     return [
       { source: '/admin/userRole', destination: '/admin/user', permanent: false },
       { source: '/admin/userRole/edit', destination: '/admin/user', permanent: false },
+      { source: '/admin/pos', destination: '/admin/bar-management/pos', permanent: false },
+      { source: '/admin/pos/orders', destination: '/admin/bar-management/pos/orders', permanent: false },
+      { source: '/admin/pos/cash-up', destination: '/admin/bar-management/pos/cash-up', permanent: false },
     ];
   },
   async headers() {

@@ -131,7 +131,7 @@ export default function StaffLiabilities() {
             <option value="waived">Waived</option>
           </select>
         </label>
-        <Link href="/admin/pos/cash-up" className="text-sm underline ms-auto">
+        <Link href="/admin/bar-management/pos/cash-up" className="text-sm underline ms-auto">
           POS cash-up
         </Link>
       </div>

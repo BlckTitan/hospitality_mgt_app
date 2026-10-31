@@ -21,7 +21,7 @@ const DESCRIPTIONS: Record<GuidePage, string> = {
     'Simple floor board: available, occupied, reserved, out of service. Seat a party from here or from Restaurant POS.',
   pos: 'Open dine-in, takeout, or room-service checks after you start a restaurant shift. Add lines by station. Settle with cash, card (record), room charge, or open tab — no payment gateway.',
   orders:
-    'List restaurant checks the way beverage POS lists checks: check ID, waiter, open date, and pay down. Beverage POS orders stay under /admin/pos.',
+    'List restaurant checks the way beverage POS lists checks: check ID, waiter, open date, and pay down. Beverage POS orders stay under Bar Management.',
   kitchen:
     'Toast-style station board. Filter kitchen or grill, bump line status pending → preparing → ready → served.',
   inventory:

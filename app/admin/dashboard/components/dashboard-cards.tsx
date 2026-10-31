@@ -358,7 +358,7 @@ export function FnBCard({
   }
 
   return (
-    <CardShell href="/admin/pos" linkLabel="Beverage POS">
+    <CardShell href="/admin/bar-management/pos" linkLabel="Beverage POS">
       <KpiGrid className="md:grid-cols-2 lg:grid-cols-6">
         <Kpi label="POS qty sold" value={data.totalQtySold} />
         <Kpi label="POS revenue" value={formatPropertyMoney(data.totalRevenue, currency)} />

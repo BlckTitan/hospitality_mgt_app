@@ -1,6 +1,6 @@
 'use client'
 
-import { BackLink } from '../../../../shared/pageHeader'
+import { BackLink } from '../../../../../shared/pageHeader'
 import React from 'react'
 import CashUp from '../components/cashUp'
 

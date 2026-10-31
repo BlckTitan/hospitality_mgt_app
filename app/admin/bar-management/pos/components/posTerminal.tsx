@@ -3,12 +3,12 @@
 import { useMutation, useQuery } from 'convex/react'
 import Link from 'next/link'
 import { useMemo, useState } from 'react'
-import { Button } from '../../../../shared/button'
-import ImageThumbnail from '../../../../shared/imageThumbnail'
+import { Button } from '../../../../../shared/button'
+import ImageThumbnail from '../../../../../shared/imageThumbnail'
 import { toast } from 'sonner'
-import { api } from '../../../../convex/_generated/api'
-import { Id } from '../../../../convex/_generated/dataModel'
-import { formatPropertyMoney, usePropertyCurrency } from '../../inventory-management/components/money'
+import { api } from '../../../../../convex/_generated/api'
+import { Id } from '../../../../../convex/_generated/dataModel'
+import { formatPropertyMoney, usePropertyCurrency } from '../../../inventory-management/components/money'
 
 type OrderMode = 'bar' | 'room_service'
 type TenderMethod = 'cash' | 'card' | 'room_charge' | 'other'
@@ -313,7 +313,7 @@ export default function PosTerminal() {
             Room service
           </Button>
         </div>
-        <Link href="/admin/pos/orders" className="text-sm underline ms-auto">
+        <Link href="/admin/bar-management/pos/orders" className="text-sm underline ms-auto">
           Orders list
         </Link>
       </div>

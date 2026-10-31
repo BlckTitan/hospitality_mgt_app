@@ -3,11 +3,11 @@
 import { useMutation, useQuery } from 'convex/react'
 import Link from 'next/link'
 import { FormEvent, useState } from 'react'
-import { Button } from '../../../../shared/button'
+import { Button } from '../../../../../shared/button'
 import { toast } from 'sonner'
-import { api } from '../../../../convex/_generated/api'
-import { Id } from '../../../../convex/_generated/dataModel'
-import { formatPropertyMoney, usePropertyCurrency } from '../../inventory-management/components/money'
+import { api } from '../../../../../convex/_generated/api'
+import { Id } from '../../../../../convex/_generated/dataModel'
+import { formatPropertyMoney, usePropertyCurrency } from '../../../inventory-management/components/money'
 
 const selectClassName = 'w-full px-3 py-2 border border-gray-300 rounded-md text-sm'
 

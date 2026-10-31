@@ -3,12 +3,12 @@
 import { useMutation, useQuery } from 'convex/react'
 import Link from 'next/link'
 import { FormEvent, useEffect, useState } from 'react'
-import { Button } from '../../../../shared/button'
+import { Button } from '../../../../../shared/button'
 import { toast } from 'sonner'
-import { api } from '../../../../convex/_generated/api'
-import { Id } from '../../../../convex/_generated/dataModel'
-import { formatPropertyMoney, usePropertyCurrency } from '../../inventory-management/components/money'
-import Pagination from '../../../../shared/ui-pagination'
+import { api } from '../../../../../convex/_generated/api'
+import { Id } from '../../../../../convex/_generated/dataModel'
+import { formatPropertyMoney, usePropertyCurrency } from '../../../inventory-management/components/money'
+import Pagination from '../../../../../shared/ui-pagination'
 
 type StatusFilter = 'all' | 'open' | 'open_tab' | 'settled' | 'voided'
 type TypeFilter = 'all' | 'bar' | 'room_service'
@@ -283,7 +283,7 @@ export default function PosOrders() {
           </div>
         </form>
         <div className="flex flex-wrap gap-3 text-sm ms-auto">
-          <Link href="/admin/pos" className="underline">
+          <Link href="/admin/bar-management/pos" className="underline">
             Open POS
           </Link>
         </div>
@@ -362,7 +362,7 @@ export default function PosOrders() {
                         </Button>
                       )}
                       {row.status === 'open' && (
-                        <Link href="/admin/pos" className="text-xs underline">
+                        <Link href="/admin/bar-management/pos" className="text-xs underline">
                           Continue on terminal
                         </Link>
                       )}
