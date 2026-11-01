@@ -1,5 +1,6 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
+import { Id } from './_generated/dataModel';
 import { posPouredQtyByBarBeverage } from './posOrders';
 import { requirePermission } from './lib/rbac';
 import {
@@ -793,6 +794,141 @@ export const addMyTodayBeverage = mutation({
     });
 
     return { success: true, message: 'Beverage added to today\'s log', id: stockLogId };
+  },
+});
+
+const CARRY_OVER_SCAN = 1000;
+const AUTOFILL_BATCH = 30;
+
+export const autofillMyToday = mutation({
+  args: {
+    propertyId: v.id('properties'),
+    barId: v.id('bars'),
+  },
+  handler: async (ctx, args) => {
+    const auth = await requirePermission(ctx, 'fnb.create', args.propertyId);
+    const logDate = await propertyDateKey(ctx, args.propertyId);
+    const bar = await ctx.db.get(args.barId);
+    if (!bar || bar.propertyId !== args.propertyId || !bar.isActive) {
+      return { success: false as const, message: 'Bar does not exist or does not belong to this property' };
+    }
+
+    const todayLogs = await ctx.db
+      .query('userStockLogs')
+      .withIndex('by_userId_barId_date', (q) =>
+        q.eq('userId', auth.user._id).eq('barId', args.barId).eq('logDate', logDate),
+      )
+      .take(200);
+    if (todayLogs.some((log) => log.isFinalized)) {
+      return { success: false as const, message: 'Today is already finalized for this bar' };
+    }
+
+    const already = new Set(todayLogs.map((log) => log.beverageId));
+    const history = await ctx.db
+      .query('userStockLogs')
+      .withIndex('by_userId_barId_date', (q) =>
+        q.eq('userId', auth.user._id).eq('barId', args.barId).lt('logDate', logDate),
+      )
+      .order('desc')
+      .take(CARRY_OVER_SCAN);
+
+    const closingByBeverage = new Map<Id<'beverages'>, number>();
+    for (const log of history) {
+      if (closingByBeverage.has(log.beverageId) || !log.isFinalized) continue;
+      closingByBeverage.set(log.beverageId, log.closingStock);
+    }
+
+    const candidates: Array<Id<'beverages'>> = [];
+    for (const [beverageId, closingStock] of closingByBeverage) {
+      if (closingStock > 0 && !already.has(beverageId)) candidates.push(beverageId);
+    }
+    if (candidates.length === 0) {
+      const hadCarryOver = [...closingByBeverage.values()].some((closingStock) => closingStock > 0);
+      return hadCarryOver
+        ? { success: true as const, message: 'Carry-over drinks are already on today\'s log', added: 0 }
+        : {
+            success: false as const,
+            message: 'No carry-over stock found for this bar. Add a beverage manually.',
+            added: 0,
+          };
+    }
+
+    const shiftId = await findOrCreateFnBShift(ctx, {
+      propertyId: args.propertyId,
+      userId: auth.user._id,
+      barId: args.barId,
+      shiftDate: logDate,
+    });
+
+    const inserted: Array<{
+      propertyId: Id<'properties'>;
+      barId: Id<'bars'>;
+      userId: Id<'users'>;
+      beverageId: Id<'beverages'>;
+      logDate: string;
+      salesQuantity: number;
+      salesValue: number;
+      cogsValue: number;
+      wasteQuantity: number;
+      compQuantity: number;
+    }> = [];
+    let considered = 0;
+    for (const beverageId of candidates) {
+      if (inserted.length >= AUTOFILL_BATCH) break;
+      considered += 1;
+      const beverage = await ctx.db.get(beverageId);
+      if (!beverage || beverage.propertyId !== args.propertyId || !beverage.isActive) continue;
+      const openingStock = closingByBeverage.get(beverageId) ?? 0;
+      await ctx.db.insert('userStockLogs', {
+        propertyId: args.propertyId,
+        shiftId,
+        userId: auth.user._id,
+        barId: args.barId,
+        beverageId,
+        logDate,
+        openingStock,
+        newStockReceived: 0,
+        totalStock: openingStock,
+        closingStock: openingStock,
+        salesQuantity: 0,
+        salesValue: 0,
+        wasteQuantity: 0,
+        compQuantity: 0,
+        unitCostAtSale: await resolveBeverageUnitCost(ctx, beverage),
+        cogsValue: 0,
+        isFinalized: false,
+        lastUpdatedAt: Date.now(),
+      });
+      inserted.push({
+        propertyId: args.propertyId,
+        barId: args.barId,
+        userId: auth.user._id,
+        beverageId,
+        logDate,
+        salesQuantity: 0,
+        salesValue: 0,
+        cogsValue: 0,
+        wasteQuantity: 0,
+        compQuantity: 0,
+      });
+    }
+    await refreshSalesSummariesForLogs(ctx, inserted);
+
+    const remaining = candidates.length - considered;
+    const added = inserted.length;
+    if (added === 0) {
+      return {
+        success: false as const,
+        message: 'No active carry-over drinks to add. Add a beverage manually.',
+        added: 0,
+      };
+    }
+    const drinkLabel = added === 1 ? '1 carry-over drink' : `${added} carry-over drinks`;
+    const message =
+      remaining > 0
+        ? `Added ${drinkLabel}. ${remaining} more still to add — run Autofill again.`
+        : `Added ${drinkLabel}`;
+    return { success: true as const, message, added };
   },
 });
 

@@ -18,7 +18,7 @@ const DESCRIPTIONS: Record<GuidePage, string> = {
   'beverage-categories':
     'Built-in drink categories stay available. Use + to add a category for this property, such as Craft beer. Deactivate a custom category to hide it from new drinks. Drinks already using it keep that category.',
   'my-stock':
-    'Your float for today. Opening comes from the last finalized close; Received updates when the store issues stock (including approved requests). Enter Closing, Waste, and Comps, then Save. Sales is what the count says left after waste and comps. Amount is that quantity times the drink price. POS is what you rang today on checks opened today. Variance is Sales minus POS: positive means bottles left that were not rung. Request stock when you need replenishment. Finalize today when counts are done.',
+    'Your float for today. Opening comes from the last finalized close; Received updates when the store issues stock (including approved requests). Use Autofill to add every drink you still had at the last close, or add one drink at a time. Enter Closing, Waste, and Comps, then Save. Sales is what the count says left after waste and comps. Amount is that quantity times the drink price. POS is what you rang today on checks opened today. Variance is Sales minus POS: positive means bottles left that were not rung. Request stock when you need replenishment. Finalize today when counts are done.',
   'stock-requests':
     'Waiters submit replenishment lines for a bar. Store staff Approve to issue stock (store qty down, waiter Received up) or Reject. Pending requests also appear on the bar hub.',
   'user-stock-logs':

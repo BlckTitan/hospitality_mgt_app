@@ -25,6 +25,7 @@ export default function MyStock() {
   const [wasteEdits, setWasteEdits] = useState<Record<string, string>>({})
   const [compEdits, setCompEdits] = useState<Record<string, string>>({})
   const [savingId, setSavingId] = useState<string | null>(null)
+  const [autofilling, setAutofilling] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
 
   const currentPropertyId = propertyId || properties[0]?._id || ''
@@ -34,6 +35,7 @@ export default function MyStock() {
   )
 
   const addBeverage = useMutation(api.userStockLogs.addMyTodayBeverage)
+  const autofillToday = useMutation(api.userStockLogs.autofillMyToday)
   const saveClosing = useMutation(api.userStockLogs.saveMyClosingStock)
   const finalizeToday = useMutation(api.userStockLogs.finalizeMyToday)
 
@@ -82,6 +84,35 @@ export default function MyStock() {
       }
     } catch (error: any) {
       toast.error(error?.message || 'Failed to add beverage')
+    }
+  }
+
+  const barFinalized = logs.some((log) => log.isFinalized)
+
+  const handleAutofill = async () => {
+    if (!currentPropertyId || !selectedBarId) {
+      toast.error('Select a bar first')
+      return
+    }
+    if (
+      !confirm(
+        'Add every drink you still had at the last close for this bar? Drinks already on today\'s log are left as they are.',
+      )
+    ) {
+      return
+    }
+    try {
+      setAutofilling(true)
+      const response = await autofillToday({
+        propertyId: currentPropertyId as Id<'properties'>,
+        barId: selectedBarId as Id<'bars'>,
+      })
+      if (response.success === false) toast.error(response.message)
+      else toast.success(response.message)
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to autofill today\'s stock')
+    } finally {
+      setAutofilling(false)
     }
   }
 
@@ -209,19 +240,36 @@ export default function MyStock() {
               ))}
             </select>
           </div>
-          <Button variant="dark" type="submit" disabled={!selectedBarId}>
+          <Button variant="dark" type="submit" disabled={!selectedBarId || autofilling}>
             Add to today
           </Button>
+          <Button
+            variant="outline-dark"
+            type="button"
+            disabled={!selectedBarId || barFinalized || autofilling}
+            title={
+              barFinalized
+                ? 'Today is already finalized for this bar'
+                : 'Add every drink you still had at the last close for this bar'
+            }
+            onClick={handleAutofill}
+          >
+            {autofilling ? 'Autofilling…' : 'Autofill'}
+          </Button>
         </div>
-        {data?.logDate && <p className="text-sm text-gray-500 mt-2">Date: {data.logDate}</p>}
+        {data?.logDate && (
+          <p className="text-sm text-gray-500 mt-2">
+            Date: {data.logDate}. Autofill adds drinks left at your last close for this bar.
+          </p>
+        )}
       </form>
 
       {today === undefined ? (
         <p className="text-gray-500">Loading today&apos;s stock…</p>
       ) : logs.length === 0 ? (
         <p className="text-gray-600">
-          No beverages on today&apos;s log yet. Add a carry-over beverage, wait for a store issue, or
-          request stock.
+          No beverages on today&apos;s log yet. Autofill carry-over drinks, add one, wait for a store
+          issue, or request stock.
         </p>
       ) : (
         <>
