@@ -94,6 +94,11 @@ const UserStockLogs = ({
       barId: filters.barId as Id<'bars'>,
       logDate: filters.logDate,
     });
+  } else if (filters?.logDate) {
+    stockLogData = useQuery(api.userStockLogs.getPropertyDailyStockLogs, {
+      propertyId: currentPropertyId,
+      logDate: filters.logDate,
+    });
   } else {
     // Use default query for all stock logs
     stockLogData = useQuery(api.userStockLogs.getAllUserStockLogs, { propertyId: currentPropertyId });
@@ -324,13 +329,18 @@ const UserStockLogs = ({
     },
   ];
 
+  if (stockLogData === undefined) {
+    return <p className="p-4">Loading</p>;
+  }
+
   return (
     <div className="w-full h-full min-w-0 overflow-x-auto">
       <Suspense>
         <PaginationComponent
+          key={`${filters?.logDate ?? ''}:${filters?.barId ?? ''}:${filters?.userId ?? ''}`}
           collectionName="userStockLogs"
           columns={tableColumns}
-          jointTableData={(stockLogData?.success === true) && stockLogData?.data}
+          jointTableData={stockLogData.success === true ? stockLogData.data ?? [] : []}
         />
       </Suspense>
     </div>

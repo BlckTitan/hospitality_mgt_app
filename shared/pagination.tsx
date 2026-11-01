@@ -14,7 +14,7 @@ type PaginatedArgs = FunctionArgs<typeof api.functions.paginated.getPaginatedDat
 const PEOPLE_SEARCH_TABLES = new Set(['staffs', 'guests']);
 const LOGIN_SEARCH_TABLES = new Set(['users']);
 const CLIENT_SEARCH_TABLES = new Set(['beverages']);
-const CLIENT_PAGE_TABLES = new Set(['beverages', 'beverageCategories']);
+const CLIENT_PAGE_TABLES = new Set(['beverages', 'beverageCategories', 'userStockLogs']);
 const CLIENT_DATA_TABLES = new Set(['housekeepingTasks', 'maintenanceOrders', 'inventoryTasks']);
 
 function searchPlaceholder(collectionName: string) {

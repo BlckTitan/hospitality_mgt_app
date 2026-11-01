@@ -211,6 +211,48 @@ export const getBarDailyStockLogs = query({
   },
 });
 
+export const getPropertyDailyStockLogs = query({
+  args: {
+    propertyId: v.id('properties'),
+    logDate: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await requirePermission(ctx, 'fnb.read', args.propertyId);
+    try {
+      const stockLogs = await ctx.db
+        .query('userStockLogs')
+        .withIndex('by_propertyId_logDate', (q) =>
+          q.eq('propertyId', args.propertyId).eq('logDate', args.logDate)
+        )
+        .collect();
+
+      const stockLogsWithData = await Promise.all(
+        stockLogs.map(async (log) => {
+          const [shift, beverage, user, bar] = await Promise.all([
+            ctx.db.get(log.shiftId),
+            ctx.db.get(log.beverageId),
+            ctx.db.get(log.userId),
+            log.barId ? ctx.db.get(log.barId) : null,
+          ]);
+
+          return {
+            ...log,
+            shift,
+            beverage,
+            user,
+            bar,
+          };
+        })
+      );
+
+      return { success: true, data: stockLogsWithData };
+    } catch (error) {
+      console.log(`Failed to fetch property daily stock logs: ${error}`);
+      return { success: false, data: [], message: 'Failed to fetch property daily stock logs' };
+    }
+  },
+});
+
 export const getUserDailyStockLogs = query({
   args: {
     userId: v.id('users'),

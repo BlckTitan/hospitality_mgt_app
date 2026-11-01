@@ -8,6 +8,7 @@ import { Id } from '../../../../../convex/_generated/dataModel';
 
 interface FilterComponentProps {
   propertyId: Id<'properties'>;
+  defaultLogDate: string;
   onFilter: (filters: {
     userId?: string;
     barId?: string;
@@ -16,14 +17,14 @@ interface FilterComponentProps {
   onClear: () => void;
 }
 
-export function FilterComponent({ propertyId, onFilter, onClear }: FilterComponentProps) {
+export function FilterComponent({ propertyId, defaultLogDate, onFilter, onClear }: FilterComponentProps) {
   const barsResponse = useQuery(api.bars.getAllBars, { propertyId });
   const bars = barsResponse?.data || [];
 
   const [filters, setFilters] = useState({
     userId: '',
     barId: '',
-    logDate: '',
+    logDate: defaultLogDate,
   });
 
   const usersResponse = useQuery(api.userStockLogs.listActiveUsersForBar, {
@@ -57,7 +58,7 @@ export function FilterComponent({ propertyId, onFilter, onClear }: FilterCompone
     } = {};
     if (filters.userId) activeFilters.userId = filters.userId as Id<'users'>;
     if (filters.barId) activeFilters.barId = filters.barId as Id<'bars'>;
-    if (filters.logDate) activeFilters.logDate = filters.logDate;
+    activeFilters.logDate = filters.logDate || defaultLogDate;
 
     onFilter(activeFilters);
   };
@@ -66,12 +67,14 @@ export function FilterComponent({ propertyId, onFilter, onClear }: FilterCompone
     setFilters({
       userId: '',
       barId: '',
-      logDate: '',
+      logDate: defaultLogDate,
     });
     onClear();
   };
 
-  const hasActiveFilters = filters.userId || filters.barId || filters.logDate;
+  const hasActiveFilters = Boolean(
+    filters.userId || filters.barId || (filters.logDate && filters.logDate !== defaultLogDate),
+  );
 
   return (
     <div className="bg-gray-50 p-4 rounded-lg mb-4">
@@ -117,7 +120,7 @@ export function FilterComponent({ propertyId, onFilter, onClear }: FilterCompone
           <input
             type="date"
             value={filters.logDate}
-            onChange={(e) => handleFilterChange('logDate', e.target.value)}
+            onChange={(e) => handleFilterChange('logDate', e.target.value || defaultLogDate)}
             className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
           />
         </div>

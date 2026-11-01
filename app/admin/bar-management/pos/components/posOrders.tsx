@@ -253,34 +253,35 @@ export default function PosOrders() {
           </select>
         </label>
         <form className="text-sm" onSubmit={handleFind}>
-          <label>
+          <label className="block">
             Check ID
-            <input
-              className={selectClassName + ' mt-1 min-w-[12rem]'}
-              value={checkInput}
-              placeholder="Last 6 or full ID"
-              onChange={(e) => setCheckInput(e.target.value)}
-            />
-          </label>
-          <div className="flex gap-2 mt-2">
-            <Button type="submit" size="sm" variant="dark">
-              Find check
-            </Button>
-            {searching && (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline-secondary"
-                onClick={() => {
-                  setCheckInput('')
-                  setActiveCheckId(null)
-                  resetPages()
-                }}
-              >
-                Clear
+            <div className="flex gap-2 mt-1 items-center">
+              <input
+                className="w-48 px-3 py-2 border border-gray-300 rounded-md text-sm"
+                value={checkInput}
+                placeholder="Last 6 or full ID"
+                onChange={(e) => setCheckInput(e.target.value)}
+              />
+              <Button type="submit" size="md" variant="dark" className="shrink-0">
+                Find check
               </Button>
-            )}
-          </div>
+              {searching && (
+                <Button
+                  type="button"
+                  size="md"
+                  variant="outline-secondary"
+                  className="shrink-0"
+                  onClick={() => {
+                    setCheckInput('')
+                    setActiveCheckId(null)
+                    resetPages()
+                  }}
+                >
+                  Clear
+                </Button>
+              )}
+            </div>
+          </label>
         </form>
         <div className="flex flex-wrap gap-3 text-sm ms-auto">
           <Link href="/admin/bar-management/pos" className="underline">

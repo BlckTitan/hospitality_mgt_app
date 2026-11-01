@@ -13,6 +13,25 @@ import { Id } from '../../../../convex/_generated/dataModel';
 import BootstrapModal from '../../../../shared/modal';
 import { BarManagementPageGuide } from '../components/barManagementPageGuide';
 
+function dateKeyInTimeZone(timeZone: string | undefined, now = Date.now()) {
+  const zone = timeZone?.trim() || 'UTC';
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: zone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(new Date(now));
+    const year = parts.find((part) => part.type === 'year')?.value;
+    const month = parts.find((part) => part.type === 'month')?.value;
+    const day = parts.find((part) => part.type === 'day')?.value;
+    if (year && month && day) return `${year}-${month}-${day}`;
+  } catch {
+    // Invalid timezone falls through to UTC.
+  }
+  return new Date(now).toISOString().slice(0, 10);
+}
+
 export default function UserStockLogPage() {
   const [modalShow, setModalShow] = useState(false);
   const [propertyId, setPropertyId] = useState<string>('');
@@ -22,6 +41,9 @@ export default function UserStockLogPage() {
   const propertiesResponse = useQuery(api.property.getAllProperties);
   const properties = propertiesResponse?.data || [];
   const currentPropertyId = propertyId || properties?.[0]?._id || '';
+  const currentProperty = properties.find((property) => property._id === currentPropertyId) ?? properties[0];
+  const todayKey = dateKeyInTimeZone(currentProperty?.timezone);
+  const appliedFilters = activeFilters ?? { logDate: todayKey };
 
   // check if property is loading
   if (!propertiesResponse?.data) {
@@ -70,13 +92,14 @@ export default function UserStockLogPage() {
       </header>
       <FilterComponent
         propertyId={currentPropertyId as Id<'properties'>}
+        defaultLogDate={todayKey}
         onFilter={handleFilter}
         onClear={handleClearFilter}
       />
 
       <UserStockLogs 
         currentPropertyId={currentPropertyId as Id<'properties'>}
-        filters={activeFilters}
+        filters={appliedFilters}
       />
 
       <ModalComponent
