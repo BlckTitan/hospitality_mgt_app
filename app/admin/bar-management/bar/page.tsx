@@ -16,7 +16,7 @@ export default function BarPage() {
   const [propertyId, setPropertyId] = useState<string>('');
 
   // Fetch properties to get the current property
-  const propertiesResponse = useQuery(api.property.getAllProperties);
+  const propertiesResponse = useQuery(api.property.listAccessibleProperties, {});
   const properties = propertiesResponse?.data || [];
   const currentPropertyId = propertyId || properties?.[0]?._id || '';
 

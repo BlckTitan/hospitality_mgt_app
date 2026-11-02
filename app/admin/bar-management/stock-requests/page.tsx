@@ -20,7 +20,7 @@ export default function Page() {
   const { hasGranularPermission } = usePermissions()
   const canCreate = hasGranularPermission('fnb.create')
 
-  const propertiesResponse = useQuery(api.property.getAllProperties)
+  const propertiesResponse = useQuery(api.property.listAccessibleProperties, {})
   const properties = propertiesResponse?.data || []
   const currentPropertyId = (propertyId || properties[0]?._id || '') as Id<'properties'> | ''
 

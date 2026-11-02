@@ -19,7 +19,7 @@ const qtyInputClassName = 'w-20! max-w-[1.75rem] border rounded p-1 text-right';
 const PAGE_SIZE = 10;
 
 export default function MyStock() {
-  const propertiesResponse = useQuery(api.property.getAllProperties)
+  const propertiesResponse = useQuery(api.property.listAccessibleProperties, {})
   const properties = propertiesResponse?.data || []
   const [propertyId, setPropertyId] = useState<string>('')
   const [barId, setBarId] = useState<string>('')

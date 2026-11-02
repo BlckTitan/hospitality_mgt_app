@@ -1,6 +1,6 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
-import { requirePermission, requirePermissionOrFirstProperty, getAuthContext } from './lib/rbac';
+import { requirePermission, requirePermissionOrFirstProperty, getAuthContext, hasGranularPermission } from './lib/rbac';
 import { assignAdministratorRoleForProperty } from './lib/systemRoles';
 import { seedPayrollForProperty } from './lib/payrollHelpers';
 
@@ -47,14 +47,31 @@ export const getAllProperties = query({
       return { success: true, data: [] };
     }
 
-    await requirePermission(ctx, 'properties.read');
+    // Scoped to properties this user is assigned to. Operational roles such as
+    // Waiter do not have properties.read, and their screens still need this list.
     try {
       const properties = (
         await Promise.all(
           authContext.propertyIds.map((propertyId) => ctx.db.get(propertyId)),
         )
       ).filter((property): property is NonNullable<typeof property> => property !== null);
-      return { success: true, data: properties };
+      const includeDetails = hasGranularPermission(authContext, 'properties.read');
+      return {
+        success: true,
+        data: includeDetails
+          ? properties
+          : properties.map((property) => ({
+              ...property,
+              address: undefined,
+              phone: undefined,
+              email: undefined,
+              taxId: undefined,
+              country: undefined,
+              logoUrl: undefined,
+              coverImageUrl: undefined,
+              retainerReminderDays: undefined,
+            })),
+      };
     } catch (error) {
       console.log(`Failed to fetch properties: ${error}`);
       return { success: false, data: [], message: 'Failed to fetch properties' };

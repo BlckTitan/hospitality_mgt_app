@@ -38,7 +38,7 @@ export default function UserStockLogPage() {
   const [activeFilters, setActiveFilters] = useState<any>(null);
 
   // Fetch properties to get the current property
-  const propertiesResponse = useQuery(api.property.getAllProperties);
+  const propertiesResponse = useQuery(api.property.listAccessibleProperties, {});
   const properties = propertiesResponse?.data || [];
   const currentPropertyId = propertyId || properties?.[0]?._id || '';
   const currentProperty = properties.find((property) => property._id === currentPropertyId) ?? properties[0];

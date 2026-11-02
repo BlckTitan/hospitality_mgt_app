@@ -4,7 +4,7 @@ import { goToList } from '../../../../../shared/goToList';
 import { FcDocument, FcEmptyTrash } from "react-icons/fc";
 import { MdEditDocument } from "react-icons/md";
 import { Button } from '../../../../../shared/button';
-import { Suspense } from "react";
+import { Suspense, useMemo } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";
 import { api } from "../../../../../convex/_generated/api";
@@ -330,19 +330,105 @@ const UserStockLogs = ({
     return <p className="p-4">Loading</p>;
   }
 
+  const rows = stockLogData.success === true ? stockLogData.data ?? [] : [];
+
   return (
-    <div className="w-full h-full min-w-0 overflow-x-auto">
+    <div className="w-full h-full min-w-0">
+      <DailyStockValueSummary
+        logs={rows}
+        currency={currency}
+        logDate={filters?.logDate}
+      />
+      <div className="overflow-x-auto">
       <Suspense>
         <PaginationComponent
           key={`${filters?.logDate ?? ''}:${filters?.barId ?? ''}:${filters?.userId ?? ''}`}
           collectionName="userStockLogs"
           columns={tableColumns}
-          jointTableData={stockLogData.success === true ? stockLogData.data ?? [] : []}
+          jointTableData={rows}
           filterKey={`${filters?.logDate ?? ''}:${filters?.barId ?? ''}:${filters?.userId ?? ''}`}
         />
       </Suspense>
+      </div>
     </div>
   );
 };
+
+function DailyStockValueSummary({
+  logs,
+  currency,
+  logDate,
+}: {
+  logs: UserStockLogProps[];
+  currency?: string;
+  logDate?: string;
+}) {
+  const summary = useMemo(() => {
+    let openingValue = 0;
+    let salesValue = 0;
+    let stockLeftValue = 0;
+
+    for (const log of logs) {
+      const unitPrice = log.beverage?.unitPrice ?? 0;
+      openingValue += (log.openingStock ?? 0) * unitPrice;
+      salesValue += log.salesValue ?? 0;
+      stockLeftValue += (log.closingStock ?? 0) * unitPrice;
+    }
+
+    return { openingValue, salesValue, stockLeftValue };
+  }, [logs]);
+
+  const money = (value: number) => formatPropertyMoney(value, currency);
+
+  return (
+    <section className="mb-4">
+      <h2 className="text-base font-semibold text-gray-800 mb-2">
+        Daily stock value{logDate ? ` · ${logDate}` : ''}
+      </h2>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <ValueCard label="Opening stock value" value={money(summary.openingValue)} />
+        <ValueCard label="Total sales value" value={money(summary.salesValue)} tone="green" />
+        <ValueCard label="Stock left value" value={money(summary.stockLeftValue)} tone="blue" />
+      </div>
+      <p className="text-xs text-gray-500 mt-2">
+        Opening and stock left use each drink&apos;s selling price. Sales is the amount recorded on this day&apos;s logs.
+      </p>
+    </section>
+  );
+}
+
+function ValueCard({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone?: 'green' | 'blue';
+}) {
+  const tones = {
+    green: 'bg-emerald-50 border-emerald-200',
+    blue: 'bg-blue-50 border-blue-200',
+    default: 'bg-gray-50 border-gray-200',
+  };
+  const labelTones = {
+    green: 'text-emerald-700',
+    blue: 'text-blue-700',
+    default: 'text-gray-600',
+  };
+  const valueTones = {
+    green: 'text-emerald-900',
+    blue: 'text-blue-900',
+    default: 'text-gray-900',
+  };
+  const key = tone ?? 'default';
+
+  return (
+    <div className={`border rounded-lg p-3 ${tones[key]}`}>
+      <div className={`text-xs font-medium ${labelTones[key]}`}>{label}</div>
+      <div className={`text-lg font-bold ${valueTones[key]}`}>{value}</div>
+    </div>
+  );
+}
 
 export default UserStockLogs;
