@@ -4,6 +4,8 @@ import { Doc, Id } from './_generated/dataModel';
 import { requirePermission } from './lib/rbac';
 import { lastFinalizedClosingStock, propertyDateKey, remainingSellableQty } from './lib/barStock';
 import { requireFnBSaleShift } from './lib/dutyContext';
+import { rowMatchesSearch } from './lib/rowSearch';
+import { activeSearchTerm, docsById, offsetPage } from './lib/listSearch';
 
 const orderTypeValidator = v.union(
   v.literal('bar'),
@@ -397,18 +399,129 @@ export const listStayReservationsForPos = query({
   },
 });
 
+async function collectPosOrders(
+  ctx: QueryCtx,
+  args: {
+    propertyId: Id<'properties'>;
+    status?: Doc<'orders'>['status'];
+    orderType?: Doc<'orders'>['orderType'];
+    dateKey?: string;
+  },
+) {
+  const propertyId = args.propertyId;
+  if (args.status && args.orderType) {
+    return await ctx.db
+      .query('orders')
+      .withIndex('by_propertyId_and_status_and_orderType', (q) =>
+        q.eq('propertyId', propertyId).eq('status', args.status!).eq('orderType', args.orderType!),
+      )
+      .collect();
+  }
+  if (args.status && args.dateKey) {
+    return await ctx.db
+      .query('orders')
+      .withIndex('by_propertyId_status_openedAtDateKey', (q) =>
+        q
+          .eq('propertyId', propertyId)
+          .eq('status', args.status!)
+          .eq('openedAtDateKey', args.dateKey!),
+      )
+      .collect();
+  }
+  if (args.status) {
+    return await ctx.db
+      .query('orders')
+      .withIndex('by_propertyId_status', (q) => q.eq('propertyId', propertyId).eq('status', args.status!))
+      .collect();
+  }
+  if (args.orderType) {
+    return await ctx.db
+      .query('orders')
+      .withIndex('by_propertyId_and_orderType', (q) =>
+        q.eq('propertyId', propertyId).eq('orderType', args.orderType!),
+      )
+      .collect();
+  }
+  if (args.dateKey) {
+    return await ctx.db
+      .query('orders')
+      .withIndex('by_propertyId_openedAtDateKey', (q) =>
+        q.eq('propertyId', propertyId).eq('openedAtDateKey', args.dateKey!),
+      )
+      .collect();
+  }
+  return await ctx.db
+    .query('orders')
+    .withIndex('by_propertyId', (q) => q.eq('propertyId', propertyId))
+    .collect();
+}
+
+async function posOrdersMatching(ctx: QueryCtx, orders: Doc<'orders'>[], term: string) {
+  const [staffById, userById, barById, reservationById] = await Promise.all([
+    docsById(orders.map((order) => order.employeeId), (id) => ctx.db.get(id)),
+    docsById(orders.map((order) => order.serverUserId), (id) => ctx.db.get(id)),
+    docsById(orders.map((order) => order.barId), (id) => ctx.db.get(id)),
+    docsById(orders.map((order) => order.reservationId), (id) => ctx.db.get(id)),
+  ]);
+  const reservations = [...reservationById.values()];
+  const [roomById, guestById] = await Promise.all([
+    docsById(reservations.map((reservation) => reservation.roomId), (id) => ctx.db.get(id)),
+    docsById(reservations.map((reservation) => reservation.guestId), (id) => ctx.db.get(id)),
+  ]);
+
+  return orders.filter((order) => {
+    const employee = order.employeeId ? staffById.get(order.employeeId) : undefined;
+    const server = userById.get(order.serverUserId);
+    const bar = order.barId ? barById.get(order.barId) : undefined;
+    const reservation = order.reservationId ? reservationById.get(order.reservationId) : undefined;
+    const room = reservation ? roomById.get(reservation.roomId) : undefined;
+    const guest = reservation ? guestById.get(reservation.guestId) : undefined;
+    const waiter = employee
+      ? `${employee.firstName} ${employee.lastName}`.trim()
+      : server?.name;
+    return rowMatchesSearch(
+      {
+        check: order.checkSuffix ?? String(order._id).slice(-6),
+        code: String(order._id),
+        status: order.status,
+        orderType: order.orderType,
+        opened: order.openedAtDateKey,
+        guestLabel: order.guestLabel,
+        waiter,
+        bar: bar?.name,
+        room: room ? `Room ${room.roomNumber}` : undefined,
+        guest: guest ? `${guest.firstName} ${guest.lastName}`.trim() : undefined,
+        total: order.totalAmount,
+        due: order.balanceDue,
+      },
+      term,
+    );
+  });
+}
+
 export const listOrders = query({
   args: {
     propertyId: v.id('properties'),
     status: v.optional(orderStatusValidator),
     orderType: v.optional(orderTypeValidator),
     dateKey: v.optional(v.string()),
+    searchTerm: v.optional(v.string()),
     cursor: v.optional(v.union(v.string(), v.null())),
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     await requirePermission(ctx, 'fnb.read', args.propertyId);
     const limit = Math.min(Math.max(args.limit ?? 10, 1), 50);
+    const term = activeSearchTerm(args.searchTerm);
+    if (term) {
+      const orders = await collectPosOrders(ctx, args);
+      const matched = await posOrdersMatching(ctx, orders, term);
+      matched.sort((a, b) => b.openedAt - a.openedAt || b._creationTime - a._creationTime);
+      const sliced = offsetPage(matched, args.cursor, limit);
+      const page = await Promise.all(sliced.page.map((order) => enrichOrder(ctx, order)));
+      return { success: true as const, ...sliced, page };
+    }
+
     const paginationOpts = { numItems: limit, cursor: args.cursor ?? null };
     const propertyId = args.propertyId;
 

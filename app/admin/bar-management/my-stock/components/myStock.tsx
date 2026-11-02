@@ -1,8 +1,10 @@
 'use client'
 
 import { useMutation, useQuery } from 'convex/react'
-import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { useDebounce } from 'use-debounce'
 import { useRememberedList } from '../../../../../shared/listPageState'
+import { TableSearch } from '../../../../../shared/pagination'
 import { Button } from '../../../../../shared/button'
 import Link from 'next/link'
 import { toast } from 'sonner'
@@ -27,6 +29,8 @@ export default function MyStock() {
   const [compEdits, setCompEdits] = useState<Record<string, string>>({})
   const [savingId, setSavingId] = useState<string | null>(null)
   const [autofilling, setAutofilling] = useState(false)
+  const [beverageQuery, setBeverageQuery] = useState('')
+  const [debouncedBeverageQuery] = useDebounce(beverageQuery, 300)
 
   const currentPropertyId = propertyId || properties[0]?._id || ''
   const today = useQuery(
@@ -57,9 +61,20 @@ export default function MyStock() {
       )
   }, [data?.logs, selectedBarId])
   const selectedProperty = properties.find((property: any) => property._id === currentPropertyId)
-  const pageCount = Math.max(1, Math.ceil(logs.length / PAGE_SIZE))
+  const beverageTerm = debouncedBeverageQuery.trim().toLowerCase()
+  const visibleLogs = useMemo(() => {
+    if (beverageTerm.length < 2) return logs
+    return logs.filter((log) => (log.beverage?.name ?? '').toLowerCase().includes(beverageTerm))
+  }, [logs, beverageTerm])
+  const pageCount = Math.max(1, Math.ceil(visibleLogs.length / PAGE_SIZE))
   const safePage = Math.min(currentPage, pageCount)
-  const pageLogs = logs.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
+  const pageLogs = visibleLogs.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
+  const previousBeverageQuery = useRef(debouncedBeverageQuery)
+  useEffect(() => {
+    if (previousBeverageQuery.current === debouncedBeverageQuery) return
+    previousBeverageQuery.current = debouncedBeverageQuery
+    setCurrentPage(1)
+  }, [debouncedBeverageQuery, setCurrentPage])
 
   const availableBeverages = useMemo(() => {
     const used = new Set(logs.map((log) => log.beverageId))
@@ -289,6 +304,15 @@ export default function MyStock() {
           compEdits={compEdits}
           currency={selectedProperty?.currency}
         />
+        <TableSearch
+          value={beverageQuery}
+          placeholder="Search by beverage"
+          setSearchQuery={setBeverageQuery}
+        />
+        {visibleLogs.length === 0 ? (
+          <p className="text-gray-600">No beverages match that search.</p>
+        ) : (
+        <>
         <div className="overflow-x-auto">
           <table className="min-w-full border">
             <thead className="bg-gray-50">
@@ -416,7 +440,7 @@ export default function MyStock() {
             </tbody>
           </table>
         </div>
-        {logs.length > 0 && (
+        {visibleLogs.length > 0 && (
           <Pagination>
             <Pagination.Prev
               onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
@@ -436,6 +460,8 @@ export default function MyStock() {
               disabled={safePage >= pageCount}
             />
           </Pagination>
+        )}
+        </>
         )}
         </>
       )}

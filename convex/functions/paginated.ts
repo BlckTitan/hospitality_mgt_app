@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import { Doc, Id } from "../_generated/dataModel";
 import { getAuthContext, hasGranularPermission, scopeAuthContextToProperty } from "../lib/rbac";
 import { canReadCompensation, stripCompensation } from "../lib/staffAccess";
+import { rowMatchesSearch } from "../lib/rowSearch";
 
 const TABLE_READ_PERMISSIONS = {
   staffs: "staff.read",
@@ -113,6 +114,11 @@ const NAME_SORTED = new Set<TableName>([
   "beverages",
 ]);
 
+function matchingRows<T>(rows: T[], term: string | undefined) {
+  if (!term) return rows;
+  return rows.filter((row) => rowMatchesSearch(row, term));
+}
+
 function manualPage<T>(rows: T[], cursor: string | undefined, limit: number) {
   const offset = cursor && /^\d+$/.test(cursor) ? Number(cursor) : 0;
   const page = rows.slice(offset, offset + limit);
@@ -146,9 +152,10 @@ async function paginateIndexed(
   propertyIds: Id<"properties">[],
   paginationOpts: { numItems: number; cursor: string | null },
   sortOrder: "asc" | "desc",
+  searchTerm?: string,
 ) {
   const nameSorted = NAME_SORTED.has(table);
-  if (nameSorted || propertyIds.length !== 1) {
+  if (nameSorted || propertyIds.length !== 1 || searchTerm) {
     const rows: Array<Doc<"staffs"> & { propertyId?: Id<"properties"> }> = [];
     for (const propertyId of propertyIds) {
       const page = await ctx.db
@@ -157,14 +164,15 @@ async function paginateIndexed(
         .collect();
       rows.push(...page);
     }
+    const visible = matchingRows(rows, searchTerm);
     if (nameSorted) {
-      rows.sort((a, b) => compareLabels(labelFor(table, a as Record<string, unknown>), labelFor(table, b as Record<string, unknown>)));
+      visible.sort((a, b) => compareLabels(labelFor(table, a as Record<string, unknown>), labelFor(table, b as Record<string, unknown>)));
     } else {
-      rows.sort((a, b) =>
+      visible.sort((a, b) =>
         sortOrder === "asc" ? a._creationTime - b._creationTime : b._creationTime - a._creationTime,
       );
     }
-    return manualPage(rows, paginationOpts.cursor ?? undefined, paginationOpts.numItems);
+    return manualPage(visible, paginationOpts.cursor ?? undefined, paginationOpts.numItems);
   }
 
   const propertyId = propertyIds[0];
@@ -173,6 +181,105 @@ async function paginateIndexed(
     .withIndex("by_propertyId", (q) => q.eq("propertyId", propertyId))
     .order(sortOrder)
     .paginate(paginationOpts);
+}
+
+async function enrichInvite(ctx: QueryCtx, invite: Doc<"pendingInvites">) {
+  const role = await ctx.db.get(invite.roleId);
+  const inviter = await ctx.db.get(invite.invitedBy);
+  return {
+    ...invite,
+    roleName: role?.name || "Unknown",
+    inviterName: inviter?.name || "Unknown",
+  };
+}
+
+async function searchReservations(
+  ctx: QueryCtx,
+  propertyId: Id<"properties">,
+  term: string,
+  cursor: string | undefined,
+  pageSize: number,
+  order: "asc" | "desc",
+) {
+  const reservations = await ctx.db
+    .query("reservations")
+    .withIndex("by_propertyId", (q) => q.eq("propertyId", propertyId))
+    .collect();
+  const guests = await ctx.db
+    .query("guests")
+    .withIndex("by_propertyId", (q) => q.eq("propertyId", propertyId))
+    .collect();
+  const rooms = await ctx.db
+    .query("rooms")
+    .withIndex("by_propertyId", (q) => q.eq("propertyId", propertyId))
+    .collect();
+  const roomTypes = await ctx.db
+    .query("roomTypes")
+    .withIndex("by_propertyId", (q) => q.eq("propertyId", propertyId))
+    .collect();
+
+  const guestById = new Map(guests.map((guest) => [guest._id, guest]));
+  const roomById = new Map(rooms.map((room) => [room._id, room]));
+  const roomTypeById = new Map(roomTypes.map((roomType) => [roomType._id, roomType]));
+  const bookerIds = [
+    ...new Set(
+      reservations.flatMap((reservation) =>
+        reservation.bookedByUserId ? [reservation.bookedByUserId] : [],
+      ),
+    ),
+  ];
+  const bookers = await Promise.all(bookerIds.map((id) => ctx.db.get(id)));
+  const bookerById = new Map(
+    bookers.flatMap((user) => (user ? [[user._id, user] as const] : [])),
+  );
+
+  const matched = reservations.filter((reservation) => {
+    const guest = guestById.get(reservation.guestId);
+    const room = roomById.get(reservation.roomId);
+    const roomType = room ? roomTypeById.get(room.roomTypeId) : undefined;
+    const booker = reservation.bookedByUserId ? bookerById.get(reservation.bookedByUserId) : undefined;
+    return rowMatchesSearch(
+      {
+        confirmationNumber: reservation.confirmationNumber,
+        status: reservation.status,
+        source: reservation.source,
+        stayKind: reservation.stayKind ?? "overnight",
+        specialRequests: reservation.specialRequests,
+        guestName: guest ? `${guest.firstName} ${guest.lastName}` : "",
+        guestEmail: guest?.email,
+        guestPhone: guest?.phone,
+        roomNumber: room?.roomNumber,
+        roomType: roomType?.name,
+        bookedBy: booker?.name,
+        checkInDate: reservation.checkInDate,
+        checkOutDate: reservation.checkOutDate,
+      },
+      term,
+    );
+  });
+  matched.sort((a, b) =>
+    order === "asc" ? a._creationTime - b._creationTime : b._creationTime - a._creationTime,
+  );
+  const sliced = manualPage(matched, cursor, pageSize);
+  return {
+    ...sliced,
+    page: sliced.page.map((reservation) => {
+      const guest = guestById.get(reservation.guestId) ?? null;
+      const room = roomById.get(reservation.roomId);
+      const roomType = room ? (roomTypeById.get(room.roomTypeId) ?? null) : null;
+      const bookedByUser = reservation.bookedByUserId
+        ? bookerById.get(reservation.bookedByUserId)
+        : undefined;
+      return {
+        ...reservation,
+        guest,
+        room: room ? { ...room, roomType } : null,
+        bookedBy: bookedByUser
+          ? { _id: bookedByUser._id, name: bookedByUser.name, email: bookedByUser.email }
+          : null,
+      };
+    }),
+  };
 }
 
 export const getPaginatedData = query({
@@ -228,17 +335,20 @@ export const getPaginatedData = query({
 
     if (PROPERTY_REQUIRED.has(table) && !propertyId) return emptyPage();
 
+    const trimmedTerm = searchTerm?.trim();
+    const term = trimmedTerm && trimmedTerm.length >= 2 ? trimmedTerm : undefined;
+
     if (table === "roles") {
       if (!hasGranularPermission(auth, TABLE_READ_PERMISSIONS.roles)) return emptyPage();
       const roles = await ctx.db.query("roles").collect();
-      roles.sort((a, b) => compareLabels(a.name, b.name));
-      return manualPage(roles, cursor, pageSize);
+      const visible = matchingRows(roles, term);
+      visible.sort((a, b) => compareLabels(a.name, b.name));
+      return manualPage(visible, cursor, pageSize);
     }
 
     const allowed = allowedProperties(auth, table, propertyId);
     if (allowed.length === 0) return emptyPage();
 
-    const term = searchTerm?.trim();
     const paginationOpts = { numItems: pageSize, cursor: cursor ?? null };
     const order = sortOrder ?? "desc";
 
@@ -257,17 +367,9 @@ export const getPaginatedData = query({
           const user = await ctx.db.get(userId);
           if (user) users.push(user);
         }
-        if (term) {
-          const lower = term.toLowerCase();
-          users = users.filter(
-            (user) =>
-              user.name.toLowerCase().includes(lower) ||
-              user.email.toLowerCase().includes(lower) ||
-              user.searchName?.toLowerCase().includes(lower),
-          );
-        }
-        users.sort((a, b) => compareLabels(a.name, b.name));
-        return manualPage(users, cursor, pageSize);
+        const visible = matchingRows(users, term);
+        visible.sort((a, b) => compareLabels(a.name, b.name));
+        return manualPage(visible, cursor, pageSize);
       }
 
       if (table === "properties") {
@@ -276,8 +378,9 @@ export const getPaginatedData = query({
           const property = await ctx.db.get(id);
           if (property) properties.push(property);
         }
-        properties.sort((a, b) => compareLabels(a.name, b.name));
-        return manualPage(properties, cursor, pageSize);
+        const visible = matchingRows(properties, term);
+        visible.sort((a, b) => compareLabels(a.name, b.name));
+        return manualPage(visible, cursor, pageSize);
       }
 
       if (table === "staffPay" || table === "paymentFiles") {
@@ -306,8 +409,9 @@ export const getPaginatedData = query({
             }
           }
         }
-        rows.sort((a, b) => Number(b._creationTime) - Number(a._creationTime));
-        return manualPage(rows, cursor, pageSize);
+        const visible = matchingRows(rows, term);
+        visible.sort((a, b) => Number(b._creationTime) - Number(a._creationTime));
+        return manualPage(visible, cursor, pageSize);
       }
 
       if (table === "holidays") {
@@ -325,12 +429,12 @@ export const getPaginatedData = query({
             rows.push(...holidays);
           }
         }
-        rows.sort((a, b) => b._creationTime - a._creationTime);
-        return manualPage(rows, cursor, pageSize);
+        const visible = matchingRows(rows, term);
+        visible.sort((a, b) => b._creationTime - a._creationTime);
+        return manualPage(visible, cursor, pageSize);
       }
 
       if (term && table === "staffs") {
-        const lower = term.toLowerCase();
         const matches: Doc<"staffs">[] = [];
         for (const id of allowed) {
           const staffs = await ctx.db
@@ -338,8 +442,21 @@ export const getPaginatedData = query({
             .withIndex("by_propertyId", (q) => q.eq("propertyId", id))
             .collect();
           for (const row of staffs) {
-            const haystack = `${row.firstName} ${row.lastName} ${row.searchName ?? ""}`.toLowerCase();
-            if (haystack.includes(lower)) matches.push(row);
+            const matchesPerson = rowMatchesSearch(
+              {
+                firstName: row.firstName,
+                lastName: row.lastName,
+                searchName: row.searchName,
+                email: row.email,
+                phone: row.phone,
+                role: row.role,
+                employeeNumber: row.employeeNumber,
+                department: row.department,
+                position: row.position,
+              },
+              term,
+            );
+            if (matchesPerson) matches.push(row);
           }
         }
         matches.sort((a, b) =>
@@ -354,16 +471,6 @@ export const getPaginatedData = query({
         };
       }
 
-      if (term && table === "guests") {
-        if (!propertyId) return emptyPage();
-        return await ctx.db
-          .query("guests")
-          .withSearchIndex("search_guests", (idx) =>
-            idx.search("searchName", term).eq("propertyId", propertyId),
-          )
-          .paginate(paginationOpts);
-      }
-
       if (table === "pendingInvites") {
         const invites: Doc<"pendingInvites">[] = [];
         for (const id of allowed) {
@@ -374,22 +481,19 @@ export const getPaginatedData = query({
           invites.push(...page);
         }
         invites.sort((a, b) => compareLabels(a.email, b.email));
+        if (term) {
+          const enriched = await Promise.all(invites.map((invite) => enrichInvite(ctx, invite)));
+          return manualPage(matchingRows(enriched, term), cursor, pageSize);
+        }
         const sliced = manualPage(invites, cursor, pageSize);
-        const enrichedPage = await Promise.all(
-          sliced.page.map(async (invite) => {
-            const role = await ctx.db.get(invite.roleId);
-            const inviter = await ctx.db.get(invite.invitedBy);
-            return {
-              ...invite,
-              roleName: role?.name || "Unknown",
-              inviterName: inviter?.name || "Unknown",
-            };
-          }),
-        );
+        const enrichedPage = await Promise.all(sliced.page.map((invite) => enrichInvite(ctx, invite)));
         return { ...sliced, page: enrichedPage };
       }
 
       if (propertyId && table === "reservations") {
+        if (term) {
+          return await searchReservations(ctx, propertyId, term, cursor, pageSize, order);
+        }
         const items = await ctx.db
           .query("reservations")
           .withIndex("by_propertyId", (q) => q.eq("propertyId", propertyId))
@@ -419,7 +523,7 @@ export const getPaginatedData = query({
 
       if (!PROPERTY_INDEXED.has(table)) return emptyPage();
 
-      const page = await paginateIndexed(ctx, table, allowed, paginationOpts, order);
+      const page = await paginateIndexed(ctx, table, allowed, paginationOpts, order, term);
       if (table === "staffs") {
         return {
           ...page,

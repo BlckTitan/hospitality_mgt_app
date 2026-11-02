@@ -1,7 +1,9 @@
 'use client'
 
 import { FormEvent, useEffect, useState } from 'react'
+import { useDebounce } from 'use-debounce'
 import { useRememberedList } from '../../../../../shared/listPageState'
+import { TableSearch } from '../../../../../shared/pagination'
 import { useMutation, useQuery } from 'convex/react'
 import { toast } from 'sonner'
 import { FcDocument } from 'react-icons/fc'
@@ -46,12 +48,15 @@ export default function Orders() {
   const [orderType, setOrderType] = useState<TypeFilter>('all')
   const [checkInput, setCheckInput] = useState('')
   const [activeCheckId, setActiveCheckId] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedSearch] = useDebounce(searchQuery, 300)
+  const searchTerm = debouncedSearch.trim().length >= 2 ? debouncedSearch.trim() : undefined
   const [payOrderId, setPayOrderId] = useState<Id<'restaurantOrders'> | null>(null)
   const [payAmount, setPayAmount] = useState('')
   const [payMethod, setPayMethod] = useState<TenderMethod>('cash')
   const [busy, setBusy] = useState(false)
   const { ready, currentPage, setCurrentPage, cursorHistory, setCursorHistory } = useRememberedList(
-    `restaurant-orders:${currentPropertyId}:${status}:${orderType}:${activeCheckId ?? ''}`,
+    `restaurant-orders:${currentPropertyId}:${status}:${orderType}:${activeCheckId ?? ''}:${searchTerm ?? ''}`,
   )
 
   const backfillCheckSuffix = useMutation(api.restaurantOrders.backfillOrderCheckSuffix)
@@ -90,6 +95,7 @@ export default function Orders() {
           limit: PAGE_SIZE,
           ...(status === 'all' ? {} : { status }),
           ...(orderType === 'all' ? {} : { orderType }),
+          ...(searchTerm ? { searchTerm } : {}),
         }
       : 'skip',
   )
@@ -115,6 +121,12 @@ export default function Orders() {
       return [...knownPages, orders.continueCursor]
     })
   }, [orders, currentPage, activeCheckId])
+
+  useEffect(() => {
+    if (!searchQuery.trim() || !activeCheckId) return
+    setCheckInput('')
+    setActiveCheckId(null)
+  }, [searchQuery, activeCheckId])
 
   if (propertiesResponse === undefined) return <p className="p-4">Loading</p>
   if (properties.length === 0) return <p className="p-4 text-xl">No properties yet!</p>
@@ -147,6 +159,7 @@ export default function Orders() {
     event?.preventDefault()
     const next = checkInput.trim()
     resetPages()
+    setSearchQuery('')
     if (!next) {
       setActiveCheckId(null)
       return
@@ -192,6 +205,7 @@ export default function Orders() {
               setPayOrderId(null)
               setCheckInput('')
               setActiveCheckId(null)
+              setSearchQuery('')
               resetPages()
             }}
           >
@@ -274,6 +288,12 @@ export default function Orders() {
         </p>
       )}
 
+      <TableSearch
+        value={searchQuery}
+        placeholder="Search by check, waiter, table, guest, or room"
+        setSearchQuery={setSearchQuery}
+      />
+
       <div className="overflow-x-auto">
         <table className="w-full text-sm border">
           <thead>
@@ -300,7 +320,11 @@ export default function Orders() {
             {!listLoading && !searchLoading && rows.length === 0 && (
               <tr>
                 <td className="p-3" colSpan={9}>
-                  {searching ? searchMessage || 'No check found for that ID.' : 'No orders found.'}
+                  {searching
+                    ? searchMessage || 'No check found for that ID.'
+                    : searchTerm
+                      ? 'No matching results were found.'
+                      : 'No orders found.'}
                 </td>
               </tr>
             )}

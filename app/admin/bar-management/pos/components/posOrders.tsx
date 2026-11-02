@@ -3,7 +3,9 @@
 import { useMutation, useQuery } from 'convex/react'
 import Link from 'next/link'
 import { FormEvent, useEffect, useState } from 'react'
+import { useDebounce } from 'use-debounce'
 import { useRememberedList } from '../../../../../shared/listPageState'
+import { TableSearch } from '../../../../../shared/pagination'
 import { Button } from '../../../../../shared/button'
 import { toast } from 'sonner'
 import { api } from '../../../../../convex/_generated/api'
@@ -58,13 +60,16 @@ export default function PosOrders() {
   const [orderType, setOrderType] = useState<TypeFilter>('all')
   const [checkInput, setCheckInput] = useState('')
   const [activeCheckId, setActiveCheckId] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedSearch] = useDebounce(searchQuery, 300)
+  const searchTerm = debouncedSearch.trim().length >= 2 ? debouncedSearch.trim() : undefined
   const [detailOrderId, setDetailOrderId] = useState<Id<'orders'> | null>(null)
   const [payOrderId, setPayOrderId] = useState<Id<'orders'> | null>(null)
   const [payAmount, setPayAmount] = useState('')
   const [payMethod, setPayMethod] = useState<'cash' | 'card' | 'room_charge' | 'other'>('cash')
   const [busy, setBusy] = useState(false)
   const { ready, currentPage, setCurrentPage, cursorHistory, setCursorHistory } = useRememberedList(
-    `pos-orders:${currentPropertyId}:${status}:${orderType}:${activeCheckId ?? ''}`,
+    `pos-orders:${currentPropertyId}:${status}:${orderType}:${activeCheckId ?? ''}:${searchTerm ?? ''}`,
   )
 
   const backfillCheckSuffix = useMutation(api.posOrders.backfillOrderCheckSuffix)
@@ -103,6 +108,7 @@ export default function PosOrders() {
           limit: PAGE_SIZE,
           ...(status === 'all' ? {} : { status }),
           ...(orderType === 'all' ? {} : { orderType }),
+          ...(searchTerm ? { searchTerm } : {}),
         }
       : 'skip',
   )
@@ -132,6 +138,12 @@ export default function PosOrders() {
       return [...knownPages, orders.continueCursor]
     })
   }, [orders, currentPage, activeCheckId])
+
+  useEffect(() => {
+    if (!searchQuery.trim() || !activeCheckId) return
+    setCheckInput('')
+    setActiveCheckId(null)
+  }, [searchQuery, activeCheckId])
 
   if (propertiesResponse === undefined) return <p className="p-4">Loading</p>
   if (properties.length === 0) return <p className="text-xl">No properties yet!</p>
@@ -164,6 +176,7 @@ export default function PosOrders() {
     setPropertyId(nextPropertyId)
     setCheckInput('')
     setActiveCheckId(null)
+    setSearchQuery('')
     setDetailOrderId(null)
     setPayOrderId(null)
     resetPages()
@@ -173,6 +186,7 @@ export default function PosOrders() {
     event?.preventDefault()
     const next = checkInput.trim()
     resetPages()
+    setSearchQuery('')
     if (!next) {
       setActiveCheckId(null)
       return
@@ -299,6 +313,12 @@ export default function PosOrders() {
         </p>
       )}
 
+      <TableSearch
+        value={searchQuery}
+        placeholder="Search by check, waiter, bar, guest, or room"
+        setSearchQuery={setSearchQuery}
+      />
+
       <div className="overflow-x-auto">
         <table className="w-full text-sm border-collapse">
           <thead>
@@ -377,7 +397,11 @@ export default function PosOrders() {
             {!listLoading && !searchLoading && rows.length === 0 && (
               <tr>
                 <td colSpan={11} className="py-4 text-gray-500">
-                  {searching ? searchMessage || 'No check found for that ID.' : 'No orders for this filter.'}
+                  {searching
+                    ? searchMessage || 'No check found for that ID.'
+                    : searchTerm
+                      ? 'No matching results were found.'
+                      : 'No orders for this filter.'}
                 </td>
               </tr>
             )}

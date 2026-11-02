@@ -8,43 +8,44 @@ import Spinner from './spinner';
 import Pagination from './ui-pagination';
 import { FcSearch } from 'react-icons/fc';
 import { useDebounce } from 'use-debounce';
-import { isChronologicalCollection, orderedRows } from './alphaSort';
+import { orderedRows } from './alphaSort';
 import { useRememberedList } from './listPageState';
+import { rowMatchesSearch } from '../convex/lib/rowSearch';
 
 type PaginatedArgs = FunctionArgs<typeof api.functions.paginated.getPaginatedData>;
 
-const PEOPLE_SEARCH_TABLES = new Set(['staffs', 'guests']);
-const LOGIN_SEARCH_TABLES = new Set(['users']);
-const CLIENT_SEARCH_TABLES = new Set(['beverages']);
 const CLIENT_DATA_TABLES = new Set(['housekeepingTasks', 'maintenanceOrders', 'inventoryTasks']);
 
+const SEARCH_PLACEHOLDERS: Record<string, string> = {
+  staffs: 'Search by name, phone, or role',
+  guests: 'Search by name, email, or phone',
+  users: 'Search by name, email, or phone',
+  beverages: 'Search by name or category',
+  roles: 'Search by role name',
+  properties: 'Search by name, address, or email',
+  pendingInvites: 'Search by email or role',
+  roomTypes: 'Search by name or description',
+  rooms: 'Search by room number or type',
+  reservations: 'Search by confirmation, guest, or room',
+  bars: 'Search by name or location',
+  userRoles: 'Search by user, email, or role',
+  storeInventories: 'Search by beverage',
+  storeTransactions: 'Search by beverage or type',
+  userStockLogs: 'Search by user, bar, or beverage',
+  beverageCategories: 'Search by category',
+  shiftTemplates: 'Search by name or department',
+  shifts: 'Search by staff or department',
+  hours: 'Search by staff or status',
+  timeOff: 'Search by staff or type',
+  payrolls: 'Search by status',
+  expenses: 'Search by name, vendor, or category',
+  billPeriods: 'Search by account, provider, or status',
+  billAccounts: 'Search by name or provider',
+  purchaseOrderLines: 'Search by item or order number',
+};
+
 function searchPlaceholder(collectionName: string) {
-  if (PEOPLE_SEARCH_TABLES.has(collectionName)) {
-    return 'Search by first or last name';
-  }
-  if (LOGIN_SEARCH_TABLES.has(collectionName)) {
-    return 'Search by name or email';
-  }
-  if (collectionName === 'beverages') {
-    return 'Search by name or category';
-  }
-  return '';
-}
-
-function supportsNameSearch(collectionName: string) {
-  return (
-    PEOPLE_SEARCH_TABLES.has(collectionName) ||
-    LOGIN_SEARCH_TABLES.has(collectionName) ||
-    CLIENT_SEARCH_TABLES.has(collectionName)
-  );
-}
-
-function matchesClientSearch(row: Record<string, unknown>, term: string) {
-  const haystack = [row.name, row.category, row.unitOfMeasure, row.size]
-    .filter((value) => typeof value === 'string' && value.length > 0)
-    .join(' ')
-    .toLowerCase();
-  return haystack.includes(term);
+  return SEARCH_PLACEHOLDERS[collectionName] ?? 'Search';
 }
 
 interface SearchComponentProps {
@@ -80,17 +81,16 @@ export default function PaginationComponent({
   const [query] = useDebounce(searchQuery, 300);
   const debouncedQuery = typeof query === 'string' ? query.trim() : '';
   const searchTerm = debouncedQuery.length >= 2 ? debouncedQuery : undefined;
-  const showSearch = supportsNameSearch(collectionName);
+  const showSearch = Boolean(collectionName);
   const usesClientData = Array.isArray(jointTableData);
-  const pagesClientRows = usesClientData && !isChronologicalCollection(collectionName);
-  const clientQuery = !pagesClientRows || !CLIENT_SEARCH_TABLES.has(collectionName) || searchQuery.trim() === ''
-    ? ''
-    : debouncedQuery.toLowerCase();
+  const pagesClientRows = usesClientData;
+  const clientQuery = pagesClientRows && debouncedQuery.length >= 2 ? debouncedQuery.toLowerCase() : '';
   const filteredClientRows = useMemo(() => {
     if (!pagesClientRows) return [];
-    const searched = !clientQuery
-      ? jointTableData
-      : jointTableData.filter((row: Record<string, unknown>) => matchesClientSearch(row, clientQuery));
+    const source = jointTableData as Record<string, unknown>[];
+    const searched = clientQuery
+      ? source.filter((row) => rowMatchesSearch(row, clientQuery))
+      : source;
     return orderedRows(collectionName, searched);
   }, [pagesClientRows, jointTableData, clientQuery, collectionName]);
   const clientPageCount = pagesClientRows ? Math.ceil(filteredClientRows.length / limit) : 0;
@@ -176,9 +176,7 @@ export default function PaginationComponent({
 
   const currentData = pagesClientRows
     ? filteredClientRows.slice((activePage - 1) * limit, activePage * limit)
-    : usesClientData
-      ? jointTableData
-      : pageCache[currentPage] || [];
+    : pageCache[currentPage] || [];
   const pageIndexes = pagesClientRows
     ? Array.from({ length: clientPageCount }, (_, index) => index)
     : cursorHistory.map((_, index) => index);
@@ -186,19 +184,10 @@ export default function PaginationComponent({
     ? 'No matching results were found.'
     : 'No data available!';
 
-  if (!ready || (!usesClientData && response === undefined)) {
-    return (
-      <div className="w-full h-screen flex justify-center items-center">
-        <Spinner size="sm" />
-      </div>
-    );
-  }
-
+  const loading = !ready || (!usesClientData && response === undefined);
   const isEmpty = pagesClientRows
     ? filteredClientRows.length === 0
-    : usesClientData
-      ? jointTableData.length === 0
-      : !response?.page || response.page.length === 0;
+    : !response?.page || response.page.length === 0;
 
   return (
     <>
@@ -209,7 +198,11 @@ export default function PaginationComponent({
           setSearchQuery={setSearchQuery}
         />
       )}
-      {isEmpty ? (
+      {loading ? (
+        <div className="w-full h-screen flex justify-center items-center">
+          <Spinner size="sm" />
+        </div>
+      ) : isEmpty ? (
         <div className="w-full h-full flex justify-center items-center">
           {emptyMessage}
         </div>
@@ -237,6 +230,10 @@ export default function PaginationComponent({
       )}
     </>
   );
+}
+
+export function TableSearch(props: SearchComponentProps) {
+  return <SearchComponent {...props} />;
 }
 
 function SearchComponent({ setSearchQuery, placeholder, value }: SearchComponentProps) {
