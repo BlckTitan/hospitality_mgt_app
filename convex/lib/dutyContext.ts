@@ -1,5 +1,6 @@
 import { MutationCtx, QueryCtx } from "../_generated/server";
 import { Doc, Id } from "../_generated/dataModel";
+import { isUserAssignedToBar } from "./barAssignment";
 import { propertyDateKey } from "./barStock";
 import {
   departmentFromRole,
@@ -62,6 +63,9 @@ export async function requireFnBSaleShift(
   const bar = await ctx.db.get(shift.barId);
   if (!bar || !bar.isActive || bar.propertyId !== args.propertyId) {
     return { ok: false, message: "The bar on your shift is not active." };
+  }
+  if (!(await isUserAssignedToBar(ctx, args.userId, shift.barId))) {
+    return { ok: false, message: "You are not linked to this bar. Ask an admin to link you before selling." };
   }
   return { ok: true, shift, staff, barId: shift.barId };
 }

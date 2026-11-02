@@ -1,5 +1,6 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
+import { isStaffAssignedToBar } from './lib/barAssignment';
 import { requireAuthenticated, requirePermission, tryRequirePermission } from './lib/rbac';
 import { draftHoursFromShift } from './hours';
 import { currentUtcHHmm } from './lib/payrollHelpers';
@@ -206,6 +207,9 @@ export const createShift = mutation({
         if (!bar || !bar.isActive) {
           return { success: false, message: 'Bar not found or inactive' };
         }
+        if (!(await isStaffAssignedToBar(ctx, staff, args.barId))) {
+          return { success: false, message: 'Link this person to the bar before putting them on its shift' };
+        }
       }
 
       const existing = await findActiveShiftForStaffDate(ctx, args.employeeId, args.shiftDate);
@@ -285,6 +289,9 @@ export const updateShift = mutation({
         const bar = await ctx.db.get(barId);
         if (!bar || !bar.isActive) {
           return { success: false, message: 'Bar not found or inactive' };
+        }
+        if (staff && !(await isStaffAssignedToBar(ctx, staff, barId))) {
+          return { success: false, message: 'Link this person to the bar before putting them on its shift' };
         }
       }
 
@@ -394,6 +401,7 @@ export const finalizeShift = mutation({
           .collect();
         const refreshed = [];
         for (const log of logs) {
+          if (log.holder === 'bar') continue;
           const cogs = await computeCogsSnapshot(ctx, log);
           if (!log.isFinalized) {
             await ctx.db.patch(log._id, {

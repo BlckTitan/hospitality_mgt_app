@@ -12,6 +12,7 @@ import { api } from '../../../../../convex/_generated/api'
 import { Id } from '../../../../../convex/_generated/dataModel'
 import { formatPropertyMoney, usePropertyCurrency } from '../../../inventory-management/components/money'
 import Pagination from '../../../../../shared/ui-pagination'
+import { useCanSelectProperty } from '../../../../../hooks/useCanSelectProperty'
 
 type StatusFilter = 'all' | 'open' | 'open_tab' | 'settled' | 'voided'
 type TypeFilter = 'all' | 'bar' | 'room_service'
@@ -53,6 +54,7 @@ function formatWhen(timestamp: number | undefined) {
 export default function PosOrders() {
   const propertiesResponse = useQuery(api.property.listAccessibleProperties, {})
   const properties = propertiesResponse?.data ?? []
+  const canSelectProperty = useCanSelectProperty()
   const [propertyId, setPropertyId] = useState('')
   const currentPropertyId = (propertyId || properties[0]?._id || '') as Id<'properties'> | ''
   const currency = usePropertyCurrency(currentPropertyId || undefined)
@@ -222,6 +224,7 @@ export default function PosOrders() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-3 items-end">
+        {canSelectProperty && (
         <label className="text-sm">
           Property
           <select
@@ -236,6 +239,7 @@ export default function PosOrders() {
             ))}
           </select>
         </label>
+        )}
         <label className="text-sm">
           Status
           <select

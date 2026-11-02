@@ -1,10 +1,8 @@
 import * as yup from "yup";
 
 export const formSchema = yup.object().shape({
-  userId: yup.string().required("User is required"),
   barId: yup.string().required("Bar is required"),
   beverageId: yup.string().required("Beverage is required"),
-  shiftId: yup.string().optional(),
   closingStock: yup
     .number()
     .min(0, "Closing stock cannot be negative")

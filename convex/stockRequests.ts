@@ -1,7 +1,8 @@
 import { mutation, query, MutationCtx, QueryCtx } from "./_generated/server";
 import { v } from "convex/values";
 import { Doc, Id } from "./_generated/dataModel";
-import { requirePermission, tryRequirePermission } from "./lib/rbac";
+import { requirePermission } from "./lib/rbac";
+import { canViewTeamRecords, isFloorServiceOnly, rolesForProperty } from "./lib/staffScope";
 import { issueStockToUser, resolveBeverageUnitCost } from "./lib/barStock";
 
 type DbCtx = MutationCtx | QueryCtx;
@@ -77,7 +78,7 @@ export const listStockRequests = query({
   },
   handler: async (ctx, args) => {
     const auth = await requirePermission(ctx, "fnb.read", args.propertyId);
-    const canInventory = await tryRequirePermission(ctx, "inventory.read", args.propertyId);
+    const seeAll = canViewTeamRecords(rolesForProperty(auth, args.propertyId));
 
     let rows;
     if (args.status) {
@@ -96,9 +97,9 @@ export const listStockRequests = query({
         .take(100);
     }
 
-    const scoped = args.mineOnly || !canInventory
-      ? rows.filter((row) => row.requestedByUserId === auth.user._id)
-      : rows;
+    const scoped = seeAll && !args.mineOnly
+      ? rows
+      : rows.filter((row) => row.requestedByUserId === auth.user._id);
 
     const data = await Promise.all(
       scoped.map(async (request) => {
@@ -118,8 +119,8 @@ export const getStockRequest = query({
       return { success: false, data: null, message: "Stock request not found" };
     }
     const auth = await requirePermission(ctx, "fnb.read", request.propertyId);
-    const canInventory = await tryRequirePermission(ctx, "inventory.read", request.propertyId);
-    if (!canInventory && request.requestedByUserId !== auth.user._id) {
+    const seeAll = canViewTeamRecords(rolesForProperty(auth, request.propertyId));
+    if (!seeAll && request.requestedByUserId !== auth.user._id) {
       return { success: false, data: null, message: "Not allowed to view this request" };
     }
     const data = await loadRequestWithLines(ctx, args.requestId);
@@ -236,6 +237,9 @@ export const approveStockRequestLine = mutation({
       return { success: false, message: "Stock request not found" };
     }
     const auth = await requirePermission(ctx, "inventory.update", request.propertyId);
+    if (isFloorServiceOnly(rolesForProperty(auth, request.propertyId))) {
+      return { success: false, message: "Only store staff can review stock requests" };
+    }
     if (request.status === "cancelled" || request.status === "rejected") {
       return { success: false, message: "This request is closed" };
     }
@@ -288,6 +292,9 @@ export const rejectStockRequest = mutation({
       return { success: false, message: "Stock request not found" };
     }
     const auth = await requirePermission(ctx, "inventory.update", request.propertyId);
+    if (isFloorServiceOnly(rolesForProperty(auth, request.propertyId))) {
+      return { success: false, message: "Only store staff can review stock requests" };
+    }
     if (request.status !== "pending" && request.status !== "partial") {
       return { success: false, message: "Only open requests can be rejected" };
     }
@@ -325,6 +332,9 @@ export const rejectStockRequestLine = mutation({
       return { success: false, message: "Stock request not found" };
     }
     const auth = await requirePermission(ctx, "inventory.update", request.propertyId);
+    if (isFloorServiceOnly(rolesForProperty(auth, request.propertyId))) {
+      return { success: false, message: "Only store staff can review stock requests" };
+    }
     if (line.status !== "pending") {
       return { success: false, message: "Line is already processed" };
     }

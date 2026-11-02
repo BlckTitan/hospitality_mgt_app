@@ -7,7 +7,7 @@ import { InventoryPageGuide } from './components/inventoryPageGuide';
 import { InventoryOverview } from './components/inventoryOverview';
 
 export default function Page() {
-  const propertiesResponse = useQuery(api.property.getAllProperties);
+  const propertiesResponse = useQuery(api.property.listAccessibleProperties, {});
   const currentPropertyId = propertiesResponse?.data?.[0]?._id;
 
   if (!propertiesResponse?.data) {

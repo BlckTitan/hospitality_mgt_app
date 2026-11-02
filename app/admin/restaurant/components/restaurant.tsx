@@ -7,8 +7,12 @@ import { api } from '../../../../convex/_generated/api'
 import { Id } from '../../../../convex/_generated/dataModel'
 import { formatPropertyMoney, usePropertyCurrency } from '../../inventory-management/components/money'
 import { HUB_LINKS } from './hubLinks'
+import { useCanSelectProperty } from '../../../../hooks/useCanSelectProperty'
+import { usePermissions } from '../../../../hooks/usePermissions'
 
 export default function Restaurant() {
+  const canSelectProperty = useCanSelectProperty()
+  const { canAccessRoute } = usePermissions()
   const propertiesResponse = useQuery(api.property.listAccessibleProperties, {})
   const properties = propertiesResponse?.data ?? []
   const [propertyId, setPropertyId] = useState('')
@@ -40,6 +44,7 @@ export default function Restaurant() {
   return (
     <div className="w-full h-full">
       <div className="flex flex-wrap gap-3 mb-4 items-end py-2">
+        {canSelectProperty && (
         <label className="flex flex-col text-sm">
           Property
           <select
@@ -55,6 +60,7 @@ export default function Restaurant() {
             ))}
           </select>
         </label>
+        )}
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
@@ -70,7 +76,7 @@ export default function Restaurant() {
 
       <h2 className="text-sm font-semibold text-gray-700 mb-3">Screens</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-        {HUB_LINKS.map((link) => (
+        {HUB_LINKS.filter((link) => canAccessRoute(link.href)).map((link) => (
           <Link
             key={link.href}
             href={link.href}

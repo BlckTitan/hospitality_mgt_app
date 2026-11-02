@@ -11,6 +11,7 @@ import { api } from "../../../../../convex/_generated/api";
 import { TableColumn } from "../../../../../shared/table";
 import PaginationComponent from "../../../../../shared/pagination";
 import { Id } from "../../../../../convex/_generated/dataModel";
+import { BarSetupActions } from "./barSetup";
 
 interface BarProps {
   _id: string;
@@ -93,6 +94,11 @@ const Bars = ({ currentPropertyId }: { currentPropertyId: Id<"properties"> }) =>
           >
             <i className='icon'><MdEditDocument /></i>
           </a>
+          <BarSetupActions
+            barId={row._id as Id<'bars'>}
+            propertyId={row.propertyId as Id<'properties'>}
+            barName={row.name}
+          />
 
           <Button
             variant='white'

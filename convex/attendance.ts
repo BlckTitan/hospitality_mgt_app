@@ -22,6 +22,7 @@ import {
 import { punctualityFieldsForClock, punctualityInsertFields } from "./lib/punctuality";
 import { canSeeAllTeamRecords, currentUsersStaff, isActiveStatus } from "./lib/staffAccess";
 import { resolveStaffClockMethod, type ShiftClockMethod } from "./lib/clockMethod";
+import { activeAssignmentsForUser } from "./lib/barAssignment";
 import { computeCogsSnapshot, propertyDateKey, refreshSalesSummariesForLogs } from "./lib/barStock";
 import { staffWorksFrontOffice } from "./lib/dutyContext";
 import { placementForStaff } from "./lib/rotation";
@@ -287,10 +288,30 @@ async function startStaffShift(
   const template = ensured.template;
   const expectedStart = placement.status === "on" ? placement.expectedStart : template.startTime;
   const expectedEnd = placement.status === "on" ? placement.expectedEnd : template.endTime;
-  const barId =
-    template.department === "fnb"
-      ? await resolveFnBBarId(ctx, args.propertyId, template.barId)
-      : undefined;
+  let barId: Id<"bars"> | undefined;
+  if (template.department === "fnb") {
+    const linked = args.staff.userId
+      ? (await activeAssignmentsForUser(ctx, args.staff.userId)).filter(
+          (row) => row.propertyId === args.propertyId,
+        )
+      : [];
+    const fallback = await resolveFnBBarId(ctx, args.propertyId, template.barId);
+    if (linked.length === 1) {
+      barId = linked[0].barId;
+    } else if (fallback && linked.some((row) => row.barId === fallback)) {
+      barId = fallback;
+    } else if (linked.length === 0) {
+      return {
+        success: false as const,
+        message: "Link this person to a bar before starting a food and beverage shift.",
+      };
+    } else {
+      return {
+        success: false as const,
+        message: "This person is linked to more than one bar. Create the shift and choose the bar.",
+      };
+    }
+  }
 
   const punctuality = await punctualityFieldsForClock(ctx, {
     propertyId: args.propertyId,
@@ -346,6 +367,7 @@ async function endStaffShift(ctx: MutationCtx, staff: Doc<"staffs">) {
       .collect();
     const refreshed = [];
     for (const log of logs) {
+      if (log.holder === "bar") continue;
       const cogs = await computeCogsSnapshot(ctx, log);
       if (!log.isFinalized) {
         await ctx.db.patch(log._id, {

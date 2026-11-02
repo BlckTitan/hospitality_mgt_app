@@ -6,9 +6,11 @@ import { useQuery } from 'convex/react'
 import { api } from '../../../../convex/_generated/api'
 import { Id } from '../../../../convex/_generated/dataModel'
 import { BarManagementPageGuide } from '../components/barManagementPageGuide'
+import { useCanSelectProperty } from '../../../../hooks/useCanSelectProperty'
 import StoreCount from './components/storeCount'
 
 export default function Page() {
+  const canSelectProperty = useCanSelectProperty()
   const [propertyId, setPropertyId] = useState('')
   const propertiesResponse = useQuery(api.property.getAllProperties)
   const properties = propertiesResponse?.data || []
@@ -39,7 +41,7 @@ export default function Page() {
       </div>
         <BackLink />
       </header>
-      {properties.length > 1 && (
+      {canSelectProperty && properties.length > 1 && (
         <div className="mb-4 w-full lg:w-3/12">
           <label className="block text-sm mb-1">Property</label>
           <select

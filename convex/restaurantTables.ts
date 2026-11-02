@@ -1,6 +1,7 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
 import { requirePermission } from './lib/rbac';
+import { tablesForViewer } from './lib/tableVisibility';
 
 const tableStatusValidator = v.union(
   v.literal('available'),
@@ -16,7 +17,7 @@ export const listTables = query({
     isActive: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    await requirePermission(ctx, 'restaurant.read', args.propertyId);
+    const auth = await requirePermission(ctx, 'restaurant.read', args.propertyId);
 
     let rows =
       args.status !== undefined
@@ -34,6 +35,7 @@ export const listTables = query({
     if (args.isActive !== undefined) {
       rows = rows.filter((row) => row.isActive === args.isActive);
     }
+    rows = await tablesForViewer(ctx, auth, args.propertyId, rows);
 
     rows.sort((a, b) => a.tableNumber.localeCompare(b.tableNumber, undefined, { numeric: true }));
     return { success: true, data: rows };
@@ -47,11 +49,15 @@ export const getTable = query({
     if (!table) {
       return { success: false, data: null, message: 'Table not found' };
     }
-    await requirePermission(ctx, 'restaurant.read', table.propertyId);
+    const auth = await requirePermission(ctx, 'restaurant.read', table.propertyId);
 
     const currentOrder = table.currentOrderId
       ? await ctx.db.get(table.currentOrderId)
       : null;
+    const visible = await tablesForViewer(ctx, auth, table.propertyId, [table]);
+    if (visible.length === 0) {
+      return { success: false, data: null, message: 'Table not found' };
+    }
 
     return { success: true, data: { ...table, currentOrder } };
   },

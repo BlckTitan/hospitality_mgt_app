@@ -9,6 +9,7 @@ import ImageThumbnail from '../../../../../shared/imageThumbnail'
 import { api } from '../../../../../convex/_generated/api'
 import { Id } from '../../../../../convex/_generated/dataModel'
 import { formatPropertyMoney, usePropertyCurrency } from '../../../inventory-management/components/money'
+import { useCanSelectProperty } from '../../../../../hooks/useCanSelectProperty'
 
 type OrderType = 'dine_in' | 'takeout' | 'room_service'
 type TenderMethod = 'cash' | 'card' | 'room_charge' | 'other'
@@ -33,6 +34,7 @@ const ORDER_TYPE_LABELS: Record<OrderType, string> = {
 export default function RestaurantPos() {
   const propertiesResponse = useQuery(api.property.listAccessibleProperties, {})
   const properties = propertiesResponse?.data ?? []
+  const canSelectProperty = useCanSelectProperty()
   const [propertyId, setPropertyId] = useState('')
   const currentPropertyId = (propertyId || properties[0]?._id || '') as Id<'properties'> | ''
   const currency = usePropertyCurrency(currentPropertyId || undefined)
@@ -274,6 +276,7 @@ export default function RestaurantPos() {
   return (
     <div className="w-full h-full">
       <div className="flex flex-wrap gap-3 items-end mb-4">
+        {canSelectProperty && (
         <label className="flex flex-col text-sm">
           Property
           <select
@@ -293,6 +296,7 @@ export default function RestaurantPos() {
             ))}
           </select>
         </label>
+        )}
         <p className={`text-sm m-0 ${canSell ? 'text-gray-700' : 'text-amber-800'}`}>{dutyMessage}</p>
         <div className="flex gap-2">
           {(Object.keys(ORDER_TYPE_LABELS) as OrderType[]).map((type) => (

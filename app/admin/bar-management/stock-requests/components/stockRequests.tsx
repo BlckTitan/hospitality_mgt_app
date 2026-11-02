@@ -7,14 +7,15 @@ import { toast } from 'sonner'
 import { api } from '../../../../../convex/_generated/api'
 import { Id } from '../../../../../convex/_generated/dataModel'
 import { usePermissions } from '../../../../../hooks/usePermissions'
+import { isFloorServiceOnly } from '../../../../../lib/staff-scope'
 
 export default function StockRequests({
   currentPropertyId,
 }: {
   currentPropertyId: Id<'properties'>
 }) {
-  const { hasGranularPermission } = usePermissions()
-  const canApprove = hasGranularPermission('inventory.update')
+  const { hasGranularPermission, roles } = usePermissions()
+  const canApprove = hasGranularPermission('inventory.update') && !isFloorServiceOnly(roles)
 
   const [statusFilter, setStatusFilter] = useState<'pending' | 'all'>('pending')
 

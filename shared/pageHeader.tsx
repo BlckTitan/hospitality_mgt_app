@@ -23,8 +23,8 @@ export function parentAdminPath(pathname: string, homePath = DASHBOARD_PATH): st
 
 export function BackLink({ href }: { href?: string }) {
   const pathname = usePathname();
-  const { hasGranularPermission } = usePermissions();
-  const homePath = getPostLoginPath(hasGranularPermission);
+  const { hasGranularPermission, roles } = usePermissions();
+  const homePath = getPostLoginPath(hasGranularPermission, roles);
   const to = href ?? parentAdminPath(pathname, homePath);
   if (!to) {
     return null;

@@ -1,6 +1,7 @@
 import { createPermissionChecker, type UserContext } from './permission-utils';
 import { ROUTE_PERMISSIONS } from './proxy-permissions';
 import { matchRoute } from './route-matching';
+import { isHiddenFromWaiter, isWaiterView } from './staff-scope';
 
 export const DASHBOARD_PATH = '/admin/dashboard';
 export const STAFF_HOME_PATH = '/admin/staff/myProfile';
@@ -40,7 +41,12 @@ function routeAllows(
 export function canAccessPath(
   pathname: string,
   hasGranularPermission: (granular: string) => boolean,
+  roles?: readonly string[],
 ): boolean {
+  if (isWaiterView(roles) && isHiddenFromWaiter(pathname)) {
+    return false;
+  }
+
   const matchedRoute = matchRoute(pathname, ROUTE_PERMISSIONS);
   if (matchedRoute && routeAllows(ROUTE_PERMISSIONS[matchedRoute], hasGranularPermission)) {
     return true;
@@ -50,7 +56,9 @@ export function canAccessPath(
     const prefix = `${pathname}/`;
     return Object.entries(ROUTE_PERMISSIONS).some(
       ([route, permission]) =>
-        route.startsWith(prefix) && routeAllows(permission, hasGranularPermission),
+        route.startsWith(prefix) &&
+        routeAllows(permission, hasGranularPermission) &&
+        !(isWaiterView(roles) && isHiddenFromWaiter(route)),
     );
   }
 
@@ -71,12 +79,12 @@ function isPostLoginCandidate(route: string): boolean {
 
 export function getPostLoginPath(
   hasGranularPermission: (granular: string) => boolean,
+  roles?: readonly string[],
 ): string {
   for (const route of Object.keys(ROUTE_PERMISSIONS)) {
     if (!isPostLoginCandidate(route)) continue;
-    if (routeAllows(ROUTE_PERMISSIONS[route], hasGranularPermission)) {
-      return route;
-    }
+    if (!canAccessPath(route, hasGranularPermission, roles)) continue;
+    return route;
   }
   return NO_ACCESS_PATH;
 }
@@ -116,11 +124,11 @@ export function resolvePostAuthPath(
     safePath &&
     pathOnly &&
     !blocked &&
-    (setupAllowed || (!pathOnly.startsWith('/setup') && canAccessPath(pathOnly, hasGranularPermission)))
+    (setupAllowed || (!pathOnly.startsWith('/setup') && canAccessPath(pathOnly, hasGranularPermission, userContext.roles)))
   ) {
     return safePath;
   }
-  return getPostLoginPath(hasGranularPermission);
+  return getPostLoginPath(hasGranularPermission, userContext.roles);
 }
 
 type NavLeaf = {

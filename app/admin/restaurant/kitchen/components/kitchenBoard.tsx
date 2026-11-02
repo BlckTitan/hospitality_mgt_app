@@ -5,6 +5,7 @@ import { useMutation, useQuery } from 'convex/react'
 import { toast } from 'sonner'
 import { api } from '../../../../../convex/_generated/api'
 import { Id } from '../../../../../convex/_generated/dataModel'
+import { useCanSelectProperty } from '../../../../../hooks/useCanSelectProperty'
 
 type Station = 'kitchen' | 'grill' | 'other'
 type PrepColumn = 'pending' | 'preparing' | 'ready'
@@ -12,6 +13,7 @@ type PrepColumn = 'pending' | 'preparing' | 'ready'
 export default function KitchenBoard() {
   const propertiesResponse = useQuery(api.property.listAccessibleProperties, {})
   const properties = propertiesResponse?.data ?? []
+  const canSelectProperty = useCanSelectProperty()
   const [propertyId, setPropertyId] = useState('')
   const currentPropertyId = (propertyId || properties[0]?._id || '') as Id<'properties'> | ''
 
@@ -44,6 +46,7 @@ export default function KitchenBoard() {
   return (
     <div className="w-full h-full">
       <div className="mb-4 flex flex-wrap gap-3 items-end">
+        {canSelectProperty && (
         <label className="flex flex-col text-sm">
           Property
           <select
@@ -58,6 +61,7 @@ export default function KitchenBoard() {
             ))}
           </select>
         </label>
+        )}
         <div className="flex gap-2">
           {(['kitchen', 'grill', 'other'] as Station[]).map((item) => (
             <button

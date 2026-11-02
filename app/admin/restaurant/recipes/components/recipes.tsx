@@ -7,6 +7,7 @@ import { api } from '../../../../../convex/_generated/api'
 import { Id } from '../../../../../convex/_generated/dataModel'
 import { formatPropertyMoney, usePropertyCurrency } from '../../../inventory-management/components/money'
 import { usePermissions } from '../../../../../hooks/usePermissions'
+import { useCanSelectProperty } from '../../../../../hooks/useCanSelectProperty'
 import { sortByLabel } from '../../../../../shared/alphaSort'
 
 type PropertyOption = { _id: Id<'properties'>; name: string }
@@ -20,6 +21,7 @@ export default function Recipes({
   properties: PropertyOption[]
   onPropertyChange: (id: string) => void
 }) {
+  const canSelectProperty = useCanSelectProperty()
   const { hasGranularPermission } = usePermissions()
   const canUpdate = hasGranularPermission('restaurant.update')
   const currency = usePropertyCurrency(propertyId || undefined)
@@ -38,6 +40,7 @@ export default function Recipes({
   return (
     <div className="w-full h-full">
       <div className="flex flex-wrap gap-3 mb-4 items-end py-2">
+        {canSelectProperty && (
         <label className="flex flex-col text-sm">
           Property
           <select
@@ -52,6 +55,7 @@ export default function Recipes({
             ))}
           </select>
         </label>
+        )}
       </div>
 
       <div className="overflow-x-auto">

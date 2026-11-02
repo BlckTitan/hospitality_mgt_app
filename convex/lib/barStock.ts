@@ -2,7 +2,7 @@ import { MutationCtx, QueryCtx } from "../_generated/server";
 import { mirrorStoreQtyToBarLocation } from "./inventoryStock";
 import { Doc, Id } from "../_generated/dataModel";
 import { localDayBounds, propertyTimeZone } from "./billingPeriods";
-import { findOrCreateFnBShift } from "./shiftHelpers";
+import { ensureBarDayShift } from "./shiftHelpers";
 
 type DbCtx = MutationCtx | QueryCtx;
 
@@ -102,10 +102,29 @@ export async function findStoreInventory(
     .first();
 }
 
+/** The bar's sheet for one drink on one day. One personal leftover row is used until a bar book exists. */
+export async function findBarDayLog(
+  ctx: DbCtx,
+  barId: Id<"bars">,
+  beverageId: Id<"beverages">,
+  logDate: string,
+) {
+  const rows = await ctx.db
+    .query("userStockLogs")
+    .withIndex("by_barId_beverage_date", (q) =>
+      q.eq("barId", barId).eq("beverageId", beverageId).eq("logDate", logDate),
+    )
+    .collect();
+  const book = rows.find((row) => row.holder === "bar");
+  if (book) return book;
+  if (rows.length === 1) return rows[0];
+  return null;
+}
+
 export async function lastFinalizedClosingStock(
   ctx: DbCtx,
   args: {
-    userId: Id<"users">;
+    userId?: Id<"users">;
     barId: Id<"bars">;
     beverageId: Id<"beverages">;
     beforeDate: string;
@@ -113,18 +132,74 @@ export async function lastFinalizedClosingStock(
 ): Promise<number> {
   const prior = await ctx.db
     .query("userStockLogs")
-    .withIndex("by_userId_barId_bev_date", (q) =>
-      q
-        .eq("userId", args.userId)
-        .eq("barId", args.barId)
-        .eq("beverageId", args.beverageId)
-        .lt("logDate", args.beforeDate),
+    .withIndex("by_barId_beverage_date", (q) =>
+      q.eq("barId", args.barId).eq("beverageId", args.beverageId).lt("logDate", args.beforeDate),
     )
     .order("desc")
     .take(90);
 
-  const finalized = prior.find((log) => log.isFinalized);
-  return finalized?.closingStock ?? 0;
+  const finalized = prior.filter((log) => log.isFinalized);
+  const book = finalized.find((log) => log.holder === "bar");
+  return (book ?? finalized[0])?.closingStock ?? 0;
+}
+
+/** Open the bar's row for one drink. Does not change a row that already exists. */
+export async function openBarBookLine(
+  ctx: MutationCtx,
+  args: {
+    propertyId: Id<"properties">;
+    barId: Id<"bars">;
+    beverageId: Id<"beverages">;
+    logDate: string;
+    operatorUserId: Id<"users">;
+    openingStock: number;
+    unitCost: number;
+    closingStock?: number;
+    wasteQuantity?: number;
+    wasteReason?: string;
+    compQuantity?: number;
+    compReason?: string;
+    unitPrice: number;
+  },
+): Promise<Id<"userStockLogs">> {
+  const existing = await findBarDayLog(ctx, args.barId, args.beverageId, args.logDate);
+  if (existing) return existing._id;
+  const shiftId = await ensureBarDayShift(ctx, {
+    propertyId: args.propertyId,
+    barId: args.barId,
+    shiftDate: args.logDate,
+    operatorUserId: args.operatorUserId,
+  });
+  const openingStock = args.openingStock;
+  const totalStock = openingStock;
+  const closingStock = args.closingStock ?? totalStock;
+  const sales = derivedSales(
+    totalStock,
+    closingStock,
+    args.unitPrice,
+    args.unitCost,
+    args.wasteQuantity,
+    args.compQuantity,
+  );
+  return await ctx.db.insert("userStockLogs", {
+    propertyId: args.propertyId,
+    shiftId,
+    userId: args.operatorUserId,
+    holder: "bar",
+    barId: args.barId,
+    beverageId: args.beverageId,
+    logDate: args.logDate,
+    openingStock,
+    newStockReceived: 0,
+    totalStock,
+    closingStock,
+    ...sales,
+    ...(args.wasteReason ? { wasteReason: args.wasteReason } : {}),
+    ...(args.compReason ? { compReason: args.compReason } : {}),
+    unitCostAtSale: args.unitCost,
+    isFinalized: false,
+    lastUpdatedAt: Date.now(),
+  });
 }
 
 export function resolveUnitCost(unitCost?: number | null): number {
@@ -246,16 +321,7 @@ export async function applyIssuedQtyToStockLog(
 ): Promise<void> {
   if (args.qty === 0) return;
 
-  const existing = await ctx.db
-    .query("userStockLogs")
-    .withIndex("by_userId_barId_bev_date", (q) =>
-      q
-        .eq("userId", args.userId)
-        .eq("barId", args.barId)
-        .eq("beverageId", args.beverageId)
-        .eq("logDate", args.logDate),
-    )
-    .first();
+  const existing = await findBarDayLog(ctx, args.barId, args.beverageId, args.logDate);
 
   if (existing) {
     if (existing.isFinalized) {
@@ -277,6 +343,7 @@ export async function applyIssuedQtyToStockLog(
       existing.compQuantity,
     );
     await ctx.db.patch(existing._id, {
+      holder: "bar",
       newStockReceived,
       totalStock,
       closingStock,
@@ -310,17 +377,18 @@ export async function applyIssuedQtyToStockLog(
   });
   const newStockReceived = args.qty;
   const totalStock = openingStock + newStockReceived;
-  const shiftId = await findOrCreateFnBShift(ctx, {
+  const shiftId = await ensureBarDayShift(ctx, {
     propertyId: args.propertyId,
-    userId: args.userId,
     barId: args.barId,
     shiftDate: args.logDate,
+    operatorUserId: args.userId,
   });
 
   await ctx.db.insert("userStockLogs", {
     propertyId: args.propertyId,
     shiftId,
     userId: args.userId,
+    holder: "bar",
     barId: args.barId,
     beverageId: args.beverageId,
     logDate: args.logDate,
@@ -354,23 +422,14 @@ export async function applyIssuedQtyToStockLog(
 export async function previewIssueToStockLog(
   ctx: DbCtx,
   args: {
-    userId: Id<"users">;
+    userId?: Id<"users">;
     barId: Id<"bars">;
     beverageId: Id<"beverages">;
     logDate: string;
     qty: number;
   },
 ): Promise<{ error?: string }> {
-  const existing = await ctx.db
-    .query("userStockLogs")
-    .withIndex("by_userId_barId_bev_date", (q) =>
-      q
-        .eq("userId", args.userId)
-        .eq("barId", args.barId)
-        .eq("beverageId", args.beverageId)
-        .eq("logDate", args.logDate),
-    )
-    .first();
+  const existing = await findBarDayLog(ctx, args.barId, args.beverageId, args.logDate);
 
   if (!existing) {
     if (args.qty < 0) {

@@ -14,8 +14,8 @@ function homeLabel(path: string): string {
 }
 
 export default function UnauthorizedPage() {
-  const { hasGranularPermission, isLoading } = usePermissions();
-  const homePath = getPostLoginPath(hasGranularPermission);
+  const { hasGranularPermission, roles, isLoading } = usePermissions();
+  const homePath = getPostLoginPath(hasGranularPermission, roles);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">

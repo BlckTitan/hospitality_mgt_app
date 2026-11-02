@@ -153,7 +153,7 @@ export default clerkMiddleware(async (auth, req) => {
       return redirectTo(resolvePostAuthPath(userContext), req.url);
     }
 
-    if (!canAccessPath(pathname, (granular) => permissionChecker.hasGranularPermission(granular))) {
+    if (!canAccessPath(pathname, (granular) => permissionChecker.hasGranularPermission(granular), userContext.roles)) {
       return redirectTo('/unauthorized', req.url);
     }
   }

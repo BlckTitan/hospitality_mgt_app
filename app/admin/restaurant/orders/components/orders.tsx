@@ -15,6 +15,7 @@ import { Id } from '../../../../../convex/_generated/dataModel'
 import Link from 'next/link'
 import { formatPropertyMoney, usePropertyCurrency } from '../../../inventory-management/components/money'
 import { usePermissions } from '../../../../../hooks/usePermissions'
+import { useCanSelectProperty } from '../../../../../hooks/useCanSelectProperty'
 
 type StatusFilter = 'all' | 'open' | 'open_tab' | 'settled' | 'voided'
 type TypeFilter = 'all' | 'dine_in' | 'takeout' | 'room_service'
@@ -41,6 +42,7 @@ export default function Orders() {
   const [propertyId, setPropertyId] = useState('')
   const currentPropertyId = (propertyId || properties[0]?._id || '') as Id<'properties'> | ''
   const currency = usePropertyCurrency(currentPropertyId || undefined)
+  const canSelectProperty = useCanSelectProperty()
   const { hasGranularPermission } = usePermissions()
   const canUpdate = hasGranularPermission('restaurant.update')
 
@@ -195,6 +197,7 @@ export default function Orders() {
   return (
     <div className="w-full h-full">
       <div className="flex flex-wrap gap-3 mb-4 items-end py-2">
+        {canSelectProperty && (
         <label className="flex flex-col text-sm">
           Property
           <select
@@ -216,6 +219,7 @@ export default function Orders() {
             ))}
           </select>
         </label>
+        )}
         <label className="flex flex-col text-sm">
           Status
           <select

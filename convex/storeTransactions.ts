@@ -1,4 +1,4 @@
-import { mutation, query, type MutationCtx, type QueryCtx } from './_generated/server';
+import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
 import { Id } from './_generated/dataModel';
 import { requirePermission } from './lib/rbac';
@@ -16,34 +16,6 @@ import {
 import { moveCatalogStockToBar, reverseTransactionEffect } from './lib/inventoryStock';
 
 const ISSUE_RECIPIENT_ROLES = new Set(['Bartender', 'Waiter']);
-
-async function issueRecipientError(
-  ctx: QueryCtx | MutationCtx,
-  propertyId: Id<'properties'>,
-  userId: Id<'users'>,
-): Promise<string | null> {
-  const user = await ctx.db.get(userId);
-  if (!user) {
-    return 'User does not exist';
-  }
-  if (!user.isActive) {
-    return 'Stock can only be issued to an active bartender or waiter';
-  }
-
-  const assignments = await ctx.db
-    .query('userRoles')
-    .withIndex('by_userId_propertyId', (q) => q.eq('userId', userId).eq('propertyId', propertyId))
-    .collect();
-
-  for (const assignment of assignments) {
-    const role = await ctx.db.get(assignment.roleId);
-    if (role && ISSUE_RECIPIENT_ROLES.has(role.name)) {
-      return null;
-    }
-  }
-
-  return 'Stock can only be issued to an active bartender or waiter';
-}
 
 export const listIssueRecipients = query({
   args: { propertyId: v.id('properties') },
@@ -139,7 +111,7 @@ export const createStoreTransaction = mutation({
     notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    await requirePermission(ctx, 'inventory.create', args.propertyId);
+    const auth = await requirePermission(ctx, 'inventory.create', args.propertyId);
 
     if (args.qty <= 0) {
       return { success: false, message: 'Quantity must be greater than 0' };
@@ -154,23 +126,19 @@ export const createStoreTransaction = mutation({
     const txnDateKey = await propertyDateKey(ctx, args.propertyId, now);
 
     if (args.txnType === 'issue') {
-      if (!args.barId || !args.userId) {
-        return { success: false, message: 'Issue transactions require a bar and a user' };
+      if (!args.barId) {
+        return { success: false, message: 'Issue transactions require a bar' };
       }
       const bar = await ctx.db.get(args.barId);
       if (!bar || bar.propertyId !== args.propertyId) {
         return { success: false, message: 'Bar does not exist or does not belong to this property' };
-      }
-      const recipientError = await issueRecipientError(ctx, args.propertyId, args.userId);
-      if (recipientError) {
-        return { success: false, message: recipientError };
       }
 
       const issued = await issueStockToUser(ctx, {
         propertyId: args.propertyId,
         beverageId: args.beverageId,
         barId: args.barId,
-        userId: args.userId,
+        userId: auth.user._id,
         qty: args.qty,
         notes: args.notes,
         unitPrice: beverage.unitPrice,
@@ -251,7 +219,7 @@ export const updateStoreTransaction = mutation({
     if (!existing) {
       return { success: false, message: 'Store transaction does not exist' };
     }
-    await requirePermission(ctx, 'inventory.update', existing.propertyId);
+    const auth = await requirePermission(ctx, 'inventory.update', existing.propertyId);
     if (existing.txnType === 'count_adjust') {
       return { success: false, message: 'Count adjustments cannot be edited. Run a new store count instead.' };
     }
@@ -268,8 +236,8 @@ export const updateStoreTransaction = mutation({
       return { success: false, message: 'Beverage does not exist or does not belong to this property' };
     }
 
-    if (args.txnType === 'issue' && (!args.barId || !args.userId)) {
-      return { success: false, message: 'Issue transactions require a bar and a user' };
+    if (args.txnType === 'issue' && !args.barId) {
+      return { success: false, message: 'Issue transactions require a bar' };
     }
     if (args.barId) {
       const bar = await ctx.db.get(args.barId);
@@ -277,13 +245,6 @@ export const updateStoreTransaction = mutation({
         return { success: false, message: 'Bar does not exist or does not belong to this property' };
       }
     }
-    if (args.txnType === 'issue' && args.userId) {
-      const recipientError = await issueRecipientError(ctx, existing.propertyId, args.userId);
-      if (recipientError) {
-        return { success: false, message: recipientError };
-      }
-    }
-
     const oldInventory = await findStoreInventory(
       ctx,
       existing.propertyId,
@@ -330,7 +291,6 @@ export const updateStoreTransaction = mutation({
         return { success: false, message: 'Insufficient stock in store for the updated issue' };
       }
       const preview = await previewIssueToStockLog(ctx, {
-        userId: args.userId!,
         barId: args.barId!,
         beverageId: args.beverageId,
         logDate: existing.txnDateKey,
@@ -373,10 +333,10 @@ export const updateStoreTransaction = mutation({
     const newStoreDelta = args.txnType === 'receive' ? args.qty : -args.qty;
     const newQty = await applyStoreQtyChange(ctx, inventoryForNew, newStoreDelta);
 
-    if (args.txnType === 'issue' && args.userId && args.barId) {
+    if (args.txnType === 'issue' && args.barId) {
       await applyIssuedQtyToStockLog(ctx, {
         propertyId: existing.propertyId,
-        userId: args.userId,
+        userId: args.userId ?? existing.userId ?? auth.user._id,
         barId: args.barId,
         beverageId: args.beverageId,
         logDate: existing.txnDateKey,
@@ -396,7 +356,9 @@ export const updateStoreTransaction = mutation({
       propertyId: existing.propertyId,
       beverageId: args.beverageId,
       ...(args.txnType === 'issue' && args.barId ? { barId: args.barId } : {}),
-      ...(args.txnType === 'issue' && args.userId ? { userId: args.userId } : {}),
+      ...(args.txnType === 'issue'
+        ? { userId: args.userId ?? existing.userId ?? auth.user._id }
+        : {}),
       txnType: args.txnType,
       qty: args.qty,
       txnDate: existing.txnDate,

@@ -1,17 +1,16 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
-import { Id } from './_generated/dataModel';
+import { Doc, Id } from './_generated/dataModel';
 import { posPouredQtyByBarBeverage } from './posOrders';
 import { requirePermission } from './lib/rbac';
-import {
-  findOrCreateFnBShift,
-  listActiveUsersTiedToBar,
-  userIsActiveAndTiedToBar,
-} from './lib/shiftHelpers';
+import { assertCanOperateBar, assignedBarIdsForUser } from './lib/barAssignment';
+import { listActiveUsersTiedToBar } from './lib/shiftHelpers';
 import {
   computeCogsSnapshot,
   derivedSales,
+  findBarDayLog,
   lastFinalizedClosingStock,
+  openBarBookLine,
   propertyDateKey,
   refreshSalesSummariesForLog,
   refreshSalesSummariesForLogs,
@@ -421,7 +420,7 @@ export const createUserStockLog = mutation({
   args: {
     propertyId: v.id('properties'),
     shiftId: v.optional(v.id('shifts')),
-    userId: v.id('users'),
+    userId: v.optional(v.id('users')),
     barId: v.id('bars'),
     beverageId: v.id('beverages'),
     logDate: v.optional(v.string()),
@@ -433,7 +432,7 @@ export const createUserStockLog = mutation({
     compReason: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    await requirePermission(ctx, 'fnb.create', args.propertyId);
+    const auth = await requirePermission(ctx, 'fnb.create', args.propertyId);
 
     const logDate = await propertyDateKey(ctx, args.propertyId);
     const bar = await ctx.db.get(args.barId);
@@ -445,117 +444,46 @@ export const createUserStockLog = mutation({
       return { success: false, message: 'Beverage does not exist or is inactive' };
     }
 
-    const tiedToBar = await userIsActiveAndTiedToBar(ctx, {
-      propertyId: args.propertyId,
-      barId: args.barId,
-      userId: args.userId,
-    });
-    if (!tiedToBar) {
-      return {
-        success: false,
-        message: 'User must be actively employed in food & beverage',
-      };
-    }
-
-    const existingLog = await ctx.db
-      .query('userStockLogs')
-      .withIndex('by_userId_barId_bev_date', (q) =>
-        q.eq('userId', args.userId)
-         .eq('barId', args.barId)
-         .eq('beverageId', args.beverageId)
-         .eq('logDate', logDate)
-      )
-      .first();
-    if (existingLog) {
-      return { success: false, message: 'Stock log already exists for this beverage on this date' };
-    }
-
-    let shiftId = args.shiftId;
-    if (shiftId) {
-      const shift = await ctx.db.get(shiftId);
-      if (!shift) {
-        return { success: false, message: 'Shift does not exist' };
-      }
-      if (shift.isFinalized) {
-        return { success: false, message: 'Cannot add stock log to finalized shift' };
-      }
-      if (shift.department && shift.department !== 'fnb') {
-        return { success: false, message: 'Stock logs can only be added to F&B shifts' };
-      }
-      if (shift.propertyId !== args.propertyId) {
-        return { success: false, message: 'Shift does not belong to this property' };
-      }
-      if (shift.shiftDate !== logDate) {
-        return { success: false, message: 'Shift date must match today for this property' };
-      }
-      if (shift.userId && shift.userId !== args.userId) {
-        return { success: false, message: 'Shift does not belong to this user' };
-      }
-      if (shift.barId && shift.barId !== args.barId) {
-        return { success: false, message: 'Shift is assigned to a different bar' };
-      }
-    } else {
-      shiftId = await findOrCreateFnBShift(ctx, {
-        propertyId: args.propertyId,
-        userId: args.userId,
+    const openingStock =
+      args.openingStock ??
+      (await lastFinalizedClosingStock(ctx, {
         barId: args.barId,
-        shiftDate: logDate,
-      });
+        beverageId: args.beverageId,
+        beforeDate: logDate,
+      }));
+    const existing = await findBarDayLog(ctx, args.barId, args.beverageId, logDate);
+    if (existing) {
+      return { success: false, message: 'This drink is already on the bar today' };
     }
-
-    const openingStock = await lastFinalizedClosingStock(ctx, {
-      userId: args.userId,
-      barId: args.barId,
-      beverageId: args.beverageId,
-      beforeDate: logDate,
-    });
-    const newStockReceived = 0;
-    const totalStock = openingStock + newStockReceived;
-    const closingStock = args.closingStock ?? totalStock;
-    let sales;
-    try {
-      sales = derivedSales(
-        totalStock,
-        closingStock,
-        beverage.unitPrice,
-        await resolveBeverageUnitCost(ctx, beverage),
-        args.wasteQuantity,
-        args.compQuantity,
-      );
-    } catch (error: any) {
-      return { success: false, message: error?.message || 'Closing stock cannot be greater than total stock' };
-    }
-    const stockLogId = await ctx.db.insert('userStockLogs', {
+    const unitCost = await resolveBeverageUnitCost(ctx, beverage);
+    const stockLogId = await openBarBookLine(ctx, {
       propertyId: args.propertyId,
-      shiftId,
-      userId: args.userId,
       barId: args.barId,
       beverageId: args.beverageId,
       logDate,
+      operatorUserId: auth.user._id,
       openingStock,
-      newStockReceived,
-      totalStock,
-      closingStock,
-      ...sales,
-      ...(args.wasteReason ? { wasteReason: args.wasteReason } : {}),
-      ...(args.compReason ? { compReason: args.compReason } : {}),
-      isFinalized: false,
-      lastUpdatedAt: Date.now(),
+      unitCost,
+      unitPrice: beverage.unitPrice,
+      closingStock: args.closingStock,
+      wasteQuantity: args.wasteQuantity,
+      wasteReason: args.wasteReason,
+      compQuantity: args.compQuantity,
+      compReason: args.compReason,
     });
     await refreshSalesSummariesForLog(ctx, {
       propertyId: args.propertyId,
       barId: args.barId,
-      userId: args.userId,
+      userId: auth.user._id,
       beverageId: args.beverageId,
       logDate,
-      salesQuantity: sales.salesQuantity,
-      salesValue: sales.salesValue,
-      cogsValue: sales.cogsValue,
-      wasteQuantity: sales.wasteQuantity,
-      compQuantity: sales.compQuantity,
+      salesQuantity: 0,
+      salesValue: 0,
+      cogsValue: 0,
+      wasteQuantity: args.wasteQuantity ?? 0,
+      compQuantity: args.compQuantity ?? 0,
     });
-
-    return { success: true, message: 'User stock log created successfully', id: stockLogId };
+    return { success: true, message: 'Opened this drink on the bar', id: stockLogId };
   },
 });
 
@@ -706,23 +634,40 @@ export const getMyTodayStock = query({
     const auth = await requirePermission(ctx, 'fnb.read', args.propertyId);
     const logDate = await propertyDateKey(ctx, args.propertyId);
 
-    const logs = args.barId
-      ? await ctx.db
-          .query('userStockLogs')
-          .withIndex('by_userId_barId_date', (q) =>
-            q.eq('userId', auth.user._id).eq('barId', args.barId!).eq('logDate', logDate),
-          )
-          .collect()
-      : await ctx.db
-          .query('userStockLogs')
-          .withIndex('by_userId_date', (q) =>
-            q.eq('userId', auth.user._id).eq('logDate', logDate),
-          )
-          .collect();
+    const scope = await assignedBarIdsForUser(ctx, auth, args.propertyId);
+    const bars = (
+      await ctx.db
+        .query('bars')
+        .withIndex('by_propertyId', (q) => q.eq('propertyId', args.propertyId))
+        .collect()
+    ).filter((bar) => bar.isActive && (scope === 'all' || scope.includes(bar._id)));
+    const targetIds = args.barId
+      ? bars.some((bar) => bar._id === args.barId)
+        ? [args.barId]
+        : []
+      : bars.map((bar) => bar._id);
+    const logs: Doc<'userStockLogs'>[] = [];
+    for (const barId of targetIds) {
+      const rows = await ctx.db
+        .query('userStockLogs')
+        .withIndex('by_barId_date', (q) => q.eq('barId', barId).eq('logDate', logDate))
+        .collect();
+      const grouped = new Map<Id<'beverages'>, typeof rows>();
+      for (const row of rows) {
+        const list = grouped.get(row.beverageId) ?? [];
+        list.push(row);
+        grouped.set(row.beverageId, list);
+      }
+      for (const group of grouped.values()) {
+        const book = group.find((row) => row.holder === 'bar');
+        if (book) logs.push(book);
+        else if (group.length === 1) logs.push(group[0]);
+      }
+    }
 
     const poured = await posPouredQtyByBarBeverage(ctx, {
       propertyId: args.propertyId,
-      userId: auth.user._id,
+      barId: targetIds.length === 1 ? targetIds[0] : undefined,
       dateKey: logDate,
     });
 
@@ -741,10 +686,6 @@ export const getMyTodayStock = query({
       .query('beverages')
       .withIndex('by_propertyId', (q) => q.eq('propertyId', args.propertyId))
       .collect();
-    const bars = await ctx.db
-      .query('bars')
-      .withIndex('by_propertyId', (q) => q.eq('propertyId', args.propertyId))
-      .collect();
 
     return {
       success: true,
@@ -753,7 +694,7 @@ export const getMyTodayStock = query({
         userId: auth.user._id,
         logs: stockLogsWithData,
         beverages: beverages.filter((row) => row.isActive),
-        bars: bars.filter((row) => row.isActive),
+        bars,
       },
     };
   },
@@ -777,52 +718,28 @@ export const addMyTodayBeverage = mutation({
       return { success: false, message: 'Beverage does not exist or is inactive' };
     }
 
-    const existingLog = await ctx.db
-      .query('userStockLogs')
-      .withIndex('by_userId_barId_bev_date', (q) =>
-        q
-          .eq('userId', auth.user._id)
-          .eq('barId', args.barId)
-          .eq('beverageId', args.beverageId)
-          .eq('logDate', logDate),
-      )
-      .first();
+    const denied = await assertCanOperateBar(ctx, auth, args.barId);
+    if (denied) return { success: false, message: denied };
+
+    const existingLog = await findBarDayLog(ctx, args.barId, args.beverageId, logDate);
     if (existingLog) {
-      return { success: false, message: 'This beverage is already on today\'s log' };
+      return { success: false, message: 'This beverage is already on the bar today' };
     }
 
     const openingStock = await lastFinalizedClosingStock(ctx, {
-      userId: auth.user._id,
       barId: args.barId,
       beverageId: args.beverageId,
       beforeDate: logDate,
     });
-    const shiftId = await findOrCreateFnBShift(ctx, {
+    const stockLogId = await openBarBookLine(ctx, {
       propertyId: args.propertyId,
-      userId: auth.user._id,
-      barId: args.barId,
-      shiftDate: logDate,
-    });
-
-    const stockLogId = await ctx.db.insert('userStockLogs', {
-      propertyId: args.propertyId,
-      shiftId,
-      userId: auth.user._id,
       barId: args.barId,
       beverageId: args.beverageId,
       logDate,
+      operatorUserId: auth.user._id,
       openingStock,
-      newStockReceived: 0,
-      totalStock: openingStock,
-      closingStock: openingStock,
-      salesQuantity: 0,
-      salesValue: 0,
-      wasteQuantity: 0,
-      compQuantity: 0,
-      unitCostAtSale: await resolveBeverageUnitCost(ctx, beverage),
-      cogsValue: 0,
-      isFinalized: false,
-      lastUpdatedAt: Date.now(),
+      unitCost: await resolveBeverageUnitCost(ctx, beverage),
+      unitPrice: beverage.unitPrice,
     });
     await refreshSalesSummariesForLog(ctx, {
       propertyId: args.propertyId,
@@ -839,7 +756,6 @@ export const addMyTodayBeverage = mutation({
   },
 });
 
-const CARRY_OVER_SCAN = 1000;
 const AUTOFILL_BATCH = 30;
 
 export const autofillMyToday = mutation({
@@ -849,44 +765,41 @@ export const autofillMyToday = mutation({
   },
   handler: async (ctx, args) => {
     const auth = await requirePermission(ctx, 'fnb.create', args.propertyId);
+    const denied = await assertCanOperateBar(ctx, auth, args.barId);
+    if (denied) return { success: false as const, message: denied, added: 0 };
     const logDate = await propertyDateKey(ctx, args.propertyId);
     const bar = await ctx.db.get(args.barId);
     if (!bar || bar.propertyId !== args.propertyId || !bar.isActive) {
       return { success: false as const, message: 'Bar does not exist or does not belong to this property' };
     }
 
-    const todayLogs = await ctx.db
+    const todayRows = await ctx.db
       .query('userStockLogs')
-      .withIndex('by_userId_barId_date', (q) =>
-        q.eq('userId', auth.user._id).eq('barId', args.barId).eq('logDate', logDate),
-      )
-      .take(200);
-    if (todayLogs.some((log) => log.isFinalized)) {
+      .withIndex('by_barId_date', (q) => q.eq('barId', args.barId).eq('logDate', logDate))
+      .collect();
+    if (todayRows.some((log) => log.holder === 'bar' && log.isFinalized)) {
       return { success: false as const, message: 'Today is already finalized for this bar' };
     }
 
-    const already = new Set(todayLogs.map((log) => log.beverageId));
-    const history = await ctx.db
-      .query('userStockLogs')
-      .withIndex('by_userId_barId_date', (q) =>
-        q.eq('userId', auth.user._id).eq('barId', args.barId).lt('logDate', logDate),
-      )
-      .order('desc')
-      .take(CARRY_OVER_SCAN);
-
-    const closingByBeverage = new Map<Id<'beverages'>, number>();
-    for (const log of history) {
-      if (closingByBeverage.has(log.beverageId) || !log.isFinalized) continue;
-      closingByBeverage.set(log.beverageId, log.closingStock);
-    }
-
-    const candidates: Array<Id<'beverages'>> = [];
-    for (const [beverageId, closingStock] of closingByBeverage) {
-      if (closingStock > 0 && !already.has(beverageId)) candidates.push(beverageId);
+    const already = new Set(
+      todayRows.filter((log) => log.holder === 'bar').map((log) => log.beverageId),
+    );
+    const beverages = await ctx.db
+      .query('beverages')
+      .withIndex('by_propertyId', (q) => q.eq('propertyId', args.propertyId))
+      .collect();
+    const candidates: Array<{ beverageId: Id<'beverages'>; closingStock: number }> = [];
+    for (const beverage of beverages) {
+      if (!beverage.isActive || already.has(beverage._id)) continue;
+      const closingStock = await lastFinalizedClosingStock(ctx, {
+        barId: args.barId,
+        beverageId: beverage._id,
+        beforeDate: logDate,
+      });
+      if (closingStock > 0) candidates.push({ beverageId: beverage._id, closingStock });
     }
     if (candidates.length === 0) {
-      const hadCarryOver = [...closingByBeverage.values()].some((closingStock) => closingStock > 0);
-      return hadCarryOver
+      return already.size > 0
         ? { success: true as const, message: 'Carry-over drinks are already on today\'s log', added: 0 }
         : {
             success: false as const,
@@ -894,13 +807,6 @@ export const autofillMyToday = mutation({
             added: 0,
           };
     }
-
-    const shiftId = await findOrCreateFnBShift(ctx, {
-      propertyId: args.propertyId,
-      userId: auth.user._id,
-      barId: args.barId,
-      shiftDate: logDate,
-    });
 
     const inserted: Array<{
       propertyId: Id<'properties'>;
@@ -915,37 +821,26 @@ export const autofillMyToday = mutation({
       compQuantity: number;
     }> = [];
     let considered = 0;
-    for (const beverageId of candidates) {
+    for (const candidate of candidates) {
       if (inserted.length >= AUTOFILL_BATCH) break;
       considered += 1;
-      const beverage = await ctx.db.get(beverageId);
-      if (!beverage || beverage.propertyId !== args.propertyId || !beverage.isActive) continue;
-      const openingStock = closingByBeverage.get(beverageId) ?? 0;
-      await ctx.db.insert('userStockLogs', {
+      const beverage = await ctx.db.get(candidate.beverageId);
+      if (!beverage) continue;
+      await openBarBookLine(ctx, {
         propertyId: args.propertyId,
-        shiftId,
-        userId: auth.user._id,
         barId: args.barId,
-        beverageId,
+        beverageId: candidate.beverageId,
         logDate,
-        openingStock,
-        newStockReceived: 0,
-        totalStock: openingStock,
-        closingStock: openingStock,
-        salesQuantity: 0,
-        salesValue: 0,
-        wasteQuantity: 0,
-        compQuantity: 0,
-        unitCostAtSale: await resolveBeverageUnitCost(ctx, beverage),
-        cogsValue: 0,
-        isFinalized: false,
-        lastUpdatedAt: Date.now(),
+        operatorUserId: auth.user._id,
+        openingStock: candidate.closingStock,
+        unitCost: await resolveBeverageUnitCost(ctx, beverage),
+        unitPrice: beverage.unitPrice,
       });
       inserted.push({
         propertyId: args.propertyId,
         barId: args.barId,
         userId: auth.user._id,
-        beverageId,
+        beverageId: candidate.beverageId,
         logDate,
         salesQuantity: 0,
         salesValue: 0,
@@ -989,9 +884,11 @@ export const saveMyClosingStock = mutation({
       return { success: false, message: 'User stock log does not exist' };
     }
     const auth = await requirePermission(ctx, 'fnb.update', existingLog.propertyId);
-    if (existingLog.userId !== auth.user._id) {
-      return { success: false, message: 'You can only update your own stock log' };
+    if (!existingLog.barId) {
+      return { success: false, message: 'This stock row is not on a bar' };
     }
+    const denied = await assertCanOperateBar(ctx, auth, existingLog.barId);
+    if (denied) return { success: false, message: denied };
     const today = await propertyDateKey(ctx, existingLog.propertyId);
     if (existingLog.logDate !== today) {
       return { success: false, message: 'You can only update today\'s stock log' };
@@ -1046,13 +943,25 @@ export const finalizeMyToday = mutation({
   },
   handler: async (ctx, args) => {
     const auth = await requirePermission(ctx, 'fnb.update', args.propertyId);
+    const denied = await assertCanOperateBar(ctx, auth, args.barId);
+    if (denied) return { success: false, message: denied };
     const logDate = await propertyDateKey(ctx, args.propertyId);
-    const logs = await ctx.db
+    const rows = await ctx.db
       .query('userStockLogs')
-      .withIndex('by_userId_barId_date', (q) =>
-        q.eq('userId', auth.user._id).eq('barId', args.barId).eq('logDate', logDate),
-      )
+      .withIndex('by_barId_date', (q) => q.eq('barId', args.barId).eq('logDate', logDate))
       .collect();
+    const grouped = new Map<Id<'beverages'>, typeof rows>();
+    for (const row of rows) {
+      const list = grouped.get(row.beverageId) ?? [];
+      list.push(row);
+      grouped.set(row.beverageId, list);
+    }
+    const logs: Doc<'userStockLogs'>[] = [];
+    for (const group of grouped.values()) {
+      const book = group.find((row) => row.holder === 'bar');
+      if (book) logs.push(book);
+      else if (group.length === 1) logs.push(group[0]);
+    }
 
     if (logs.length === 0) {
       return { success: false, message: 'No stock logs to finalize for today' };

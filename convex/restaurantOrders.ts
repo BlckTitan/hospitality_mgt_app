@@ -2,6 +2,8 @@ import { mutation, query, MutationCtx, QueryCtx } from './_generated/server';
 import { v } from 'convex/values';
 import { Doc, Id } from './_generated/dataModel';
 import { requirePermission } from './lib/rbac';
+import { canViewTeamRecords, rolesForProperty } from './lib/staffScope';
+import { tablesForViewer } from './lib/tableVisibility';
 import { propertyDateKey } from './lib/barStock';
 import { postInventoryTransaction } from './lib/inventoryStock';
 import { requireRestaurantSaleShift } from './lib/dutyContext';
@@ -381,18 +383,22 @@ export const listSellableMenuItems = query({
 export const listTablesForPos = query({
   args: { propertyId: v.id('properties') },
   handler: async (ctx, args) => {
-    await requirePermission(ctx, 'restaurant.read', args.propertyId);
+    const auth = await requirePermission(ctx, 'restaurant.read', args.propertyId);
     const tables = await ctx.db
       .query('restaurantTables')
       .withIndex('by_propertyId', (q) => q.eq('propertyId', args.propertyId))
       .collect();
+    const visible = await tablesForViewer(
+      ctx,
+      auth,
+      args.propertyId,
+      tables.filter((table) => table.isActive),
+    );
     return {
       success: true,
-      data: tables
-        .filter((t) => t.isActive)
-        .sort((a, b) =>
-          a.tableNumber.localeCompare(b.tableNumber, undefined, { numeric: true }),
-        ),
+      data: visible.sort((a, b) =>
+        a.tableNumber.localeCompare(b.tableNumber, undefined, { numeric: true }),
+      ),
     };
   },
 });
@@ -528,9 +534,25 @@ export const listOrders = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    await requirePermission(ctx, 'restaurant.read', args.propertyId);
+    const auth = await requirePermission(ctx, 'restaurant.read', args.propertyId);
     const limit = Math.min(Math.max(args.limit ?? 10, 1), 50);
+    const seeAll = canViewTeamRecords(rolesForProperty(auth, args.propertyId));
     const term = activeSearchTerm(args.searchTerm);
+    if (!seeAll) {
+      const owned = await ctx.db
+        .query('restaurantOrders')
+        .withIndex('by_serverUserId', (q) => q.eq('serverUserId', auth.user._id))
+        .collect();
+      let orders = owned.filter((order) => order.propertyId === args.propertyId);
+      if (args.status) orders = orders.filter((order) => order.status === args.status);
+      if (args.orderType) orders = orders.filter((order) => order.orderType === args.orderType);
+      if (args.dateKey) orders = orders.filter((order) => order.openedAtDateKey === args.dateKey);
+      const matched = term ? await restaurantOrdersMatching(ctx, orders, term) : orders;
+      matched.sort((a, b) => b.openedAt - a.openedAt || b._creationTime - a._creationTime);
+      const sliced = offsetPage(matched, args.cursor, limit);
+      const page = await Promise.all(sliced.page.map((order) => enrichOrder(ctx, order)));
+      return { success: true as const, ...sliced, page };
+    }
     if (term) {
       let orders = await collectRestaurantOrders(ctx, args);
       if (args.orderType) orders = orders.filter((order) => order.orderType === args.orderType);
@@ -598,7 +620,13 @@ export const getOrder = query({
     if (!order) {
       return { success: false, data: null, message: 'Order not found' };
     }
-    await requirePermission(ctx, 'restaurant.read', order.propertyId);
+    const auth = await requirePermission(ctx, 'restaurant.read', order.propertyId);
+    if (
+      !canViewTeamRecords(rolesForProperty(auth, order.propertyId)) &&
+      order.serverUserId !== auth.user._id
+    ) {
+      return { success: false, data: null, message: 'This check belongs to another waiter.' };
+    }
     const data = await enrichOrder(ctx, order);
     const [server, payments] = await Promise.all([
       ctx.db.get(order.serverUserId),
@@ -701,7 +729,10 @@ export const findOrdersByCheckId = query({
     orderType: v.optional(orderTypeValidator),
   },
   handler: async (ctx, args) => {
-    await requirePermission(ctx, 'restaurant.read', args.propertyId);
+    const auth = await requirePermission(ctx, 'restaurant.read', args.propertyId);
+    const seeAll = canViewTeamRecords(rolesForProperty(auth, args.propertyId));
+    const owns = (order: { serverUserId: Id<'users'> }) =>
+      seeAll || order.serverUserId === auth.user._id;
     const checkId = normalizeCheckQuery(args.checkId);
     if (checkId.length < 6) {
       return {
@@ -723,6 +754,9 @@ export const findOrdersByCheckId = query({
       if (args.orderType && order.orderType !== args.orderType) {
         return { success: true, data: [], message: 'No check found for that ID with the current filters' };
       }
+      if (!owns(order)) {
+        return { success: true, data: [], message: 'No check found for that ID' };
+      }
       return { success: true, data: [await enrichOrder(ctx, order)], message: null };
     }
 
@@ -739,6 +773,7 @@ export const findOrdersByCheckId = query({
     let rows = indexed;
     if (args.status) rows = rows.filter((row) => row.status === args.status);
     if (args.orderType) rows = rows.filter((row) => row.orderType === args.orderType);
+    rows = rows.filter((row) => owns(row));
     rows.sort((a, b) => b.openedAt - a.openedAt);
     const data = await Promise.all(rows.map((order) => enrichOrder(ctx, order)));
     return {

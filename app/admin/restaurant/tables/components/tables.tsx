@@ -9,6 +9,7 @@ import BootstrapModal from '../../../../../shared/modal'
 import { api } from '../../../../../convex/_generated/api'
 import { Id } from '../../../../../convex/_generated/dataModel'
 import { usePermissions } from '../../../../../hooks/usePermissions'
+import { useCanSelectProperty } from '../../../../../hooks/useCanSelectProperty'
 import { sortByLabel } from '../../../../../shared/alphaSort'
 
 type TableStatus = 'available' | 'occupied' | 'reserved' | 'out-of-service'
@@ -40,6 +41,7 @@ export default function Tables({
   properties: PropertyOption[]
   onPropertyChange: (id: string) => void
 }) {
+  const canSelectProperty = useCanSelectProperty()
   const { hasGranularPermission } = usePermissions()
   const canUpdate = hasGranularPermission('restaurant.update')
   const [statusPicker, setStatusPicker] = useState<{
@@ -83,6 +85,7 @@ export default function Tables({
   return (
     <div className="w-full h-full">
       <div className="flex flex-wrap gap-3 mb-4 items-end py-2">
+        {canSelectProperty && (
         <label className="flex flex-col text-sm">
           Property
           <select
@@ -97,6 +100,7 @@ export default function Tables({
             ))}
           </select>
         </label>
+        )}
       </div>
 
       <div className="flex flex-wrap gap-3 mb-4 text-xs text-gray-600">

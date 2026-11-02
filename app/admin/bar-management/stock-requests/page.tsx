@@ -10,6 +10,8 @@ import { api } from '../../../../convex/_generated/api'
 import { Id } from '../../../../convex/_generated/dataModel'
 import BootstrapModal from '../../../../shared/modal'
 import { usePermissions } from '../../../../hooks/usePermissions'
+import { useCanSelectProperty } from '../../../../hooks/useCanSelectProperty'
+import { isFloorServiceOnly } from '../../../../lib/staff-scope'
 import { BarManagementPageGuide } from '../components/barManagementPageGuide'
 import StockRequests from './components/stockRequests'
 import { FormComponent } from './components/createStockRequestForm'
@@ -17,8 +19,10 @@ import { FormComponent } from './components/createStockRequestForm'
 export default function Page() {
   const [modalShow, setModalShow] = useState(false)
   const [propertyId, setPropertyId] = useState('')
-  const { hasGranularPermission } = usePermissions()
+  const { hasGranularPermission, roles } = usePermissions()
+  const canSelectProperty = useCanSelectProperty()
   const canCreate = hasGranularPermission('fnb.create')
+  const ownRequests = isFloorServiceOnly(roles)
 
   const propertiesResponse = useQuery(api.property.listAccessibleProperties, {})
   const properties = propertiesResponse?.data || []
@@ -44,7 +48,7 @@ export default function Page() {
     <div className="w-full p-4 bg-white">
       <header className="w-full border-b mb-4 pb-3 flex justify-between items-start gap-3">
       <div className="min-w-0">
-        <h1 className="text-2xl font-bold text-gray-800">Stock requests</h1>
+        <h1 className="text-2xl font-bold text-gray-800">{ownRequests ? 'My stock requests' : 'Stock requests'}</h1>
         <BarManagementPageGuide page="stock-requests" />
       </div>
         <div className="flex items-center gap-3">
@@ -64,7 +68,7 @@ export default function Page() {
           )}
         </div>
       </header>
-      {properties.length > 1 && (
+      {canSelectProperty && properties.length > 1 && (
         <div className="mb-4 w-full lg:w-3/12">
           <label className="block text-sm mb-1">Property</label>
           <select

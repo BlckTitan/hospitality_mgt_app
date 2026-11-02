@@ -142,14 +142,16 @@ Represents a working session. **Live app:** shifts are property-wide and assigne
 
 ### 5. `userStockLogs`
 
-Daily per-beverage stock and sales reconciliation entry for a user at a specific
-bar. One document exists per `(userId, barId, beverageId, logDate)` combination.
-Stock updates from `storeTransactions` are applied to the record matching the
-transaction's calendar date (`txnDateKey`) only — prior days are never mutated.
+Daily per-beverage stock sheet for a bar. The operating document is one per
+`(barId, beverageId, logDate)` with `holder: "bar"`. Staff linked in
+`barAssignments` operate that sheet. `userId` is the operator who last wrote
+the row. Older rows without `holder` were a personal float and are not the
+book when a bar row exists. Stock updates from `storeTransactions` apply to
+the bar's row for `txnDateKey` only — prior days are never mutated.
 
-> **v2.1 Changes:** `barId`, `userId`, `logDate`, and `isFinalized` are now
-> denormalized directly onto this table. `recordedAt` is replaced by
-> `lastUpdatedAt`. The natural unique key is `(userId, barId, beverageId, logDate)`.
+> **v2.4:** The bar holds the stock. `barAssignments` links a user to a bar.
+> Opening stock can be entered on the bar during setup. The next linked person
+> continues from the bar's last finalized close.
 
 | Field              | Convex Type            | Notes                                                        |
 |--------------------|------------------------|--------------------------------------------------------------|
@@ -418,12 +420,12 @@ export default defineSchema({
     .index("by_barId_date", ["barId", "shiftDate"])
     .index("by_userId_date", ["userId", "shiftDate"]),
 
-  // v2.1: barId, userId, logDate, isFinalized added; recordedAt → lastUpdatedAt
-  // Natural unique key: (userId, barId, beverageId, logDate)
+  // Operating key: (barId, beverageId, logDate) where holder is "bar"
   userStockLogs: defineTable({
     shiftId:          v.id("shifts"),     // back-reference to the shift that opened this day
-    userId:           v.id("users"),      // denormalized for direct day-scoped lookups
-    barId:            v.id("bars"),       // denormalized for direct day-scoped lookups
+    userId:           v.id("users"),      // operator who last wrote the row
+    holder:           v.optional(v.literal("bar")),
+    barId:            v.id("bars"),       // the bar that holds this stock
     beverageId:       v.id("beverages"),
     logDate:          v.string(),         // ISO 8601 e.g. "2026-03-26"
     openingStock:     v.number(),         // carried over from previous day's closingStock

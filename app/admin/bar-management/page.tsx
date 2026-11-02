@@ -7,6 +7,7 @@ import ReorderAlertsTable from './components/reorder-alerts';
 import SalesSummaryCharts from './components/sales-summary-charts';
 import { BackLink } from '../../../shared/pageHeader';
 import { usePermissions } from '../../../hooks/usePermissions';
+import { useCanSelectProperty } from '../../../hooks/useCanSelectProperty';
 import Spinner from '../../../shared/spinner';
 
 export default function BarManagement() {
@@ -16,6 +17,7 @@ export default function BarManagement() {
   const properties = propertiesResponse?.data ?? [];
   const currentPropertyId = (propertyId || properties[0]?._id || '') as Id<'properties'> | '';
   const selected = properties.find((property) => property._id === currentPropertyId) ?? properties[0];
+  const canSelectProperty = useCanSelectProperty();
   const canReports = hasGranularPermission('reports.read');
   const canInventory = hasGranularPermission('inventory.read');
 
@@ -53,7 +55,7 @@ export default function BarManagement() {
         <BackLink />
       </header>
 
-      <div className="mb-6">
+      {canSelectProperty && <div className="mb-6">
         <label htmlFor="property-select" className="block text-sm font-medium text-gray-700 mb-2">
           Select Property
         </label>
@@ -69,7 +71,7 @@ export default function BarManagement() {
             </option>
           ))}
         </select>
-      </div>
+      </div>}
 
       {canReports && currentPropertyId && (
         <div className="mb-8">

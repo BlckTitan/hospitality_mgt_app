@@ -479,7 +479,7 @@ Bar management, beverages catalog, and beverage POS. Spec: `ai/Bar inventory and
 
 ---
 ### 17d. My Stock Today (`/admin/bar-management/my-stock`)
-**Purpose**: Waiter float ledger for property-local today — Opening / Received / Total / Closing / Waste / Comps / Sales
+**Purpose**: The linked bar's stock for today — Opening / Received / Total / Closing / Waste / Comps / Sales. Opening is the bar's last close, or the quantity entered on the bar during setup.
 
 **Permission:** `beverages.read`
 

@@ -63,6 +63,7 @@ interface UsePermissionsOptions {
 
 interface UsePermissionsReturn {
   permissionChecker: PermissionChecker | null;
+  roles: string[];
   isLoading: boolean;
   error: string | null;
   hasPermission: (module: Module, action: Action) => boolean;
@@ -114,13 +115,16 @@ export function usePermissions(options: UsePermissionsOptions = {}): UsePermissi
 
   const canAccessRoute = (pathname: string): boolean => {
     if (!permissionChecker) return false;
-    return canAccessPath(pathname, (granular) =>
-      permissionChecker.hasGranularPermission(granular),
+    return canAccessPath(
+      pathname,
+      (granular) => permissionChecker.hasGranularPermission(granular),
+      authContext?.roles,
     );
   };
 
   return {
     permissionChecker,
+    roles: authContext?.roles ?? [],
     isLoading,
     error,
     hasPermission,

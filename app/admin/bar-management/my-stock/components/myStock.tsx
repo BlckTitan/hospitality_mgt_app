@@ -12,6 +12,7 @@ import { api } from '../../../../../convex/_generated/api'
 import { Id } from '../../../../../convex/_generated/dataModel'
 import Pagination from '../../../../../shared/ui-pagination'
 import { formatPropertyMoney } from '../../../inventory-management/components/money'
+import { useCanSelectProperty } from '../../../../../hooks/useCanSelectProperty'
 import { DailySalesSummary } from './dailySalesSummary'
 
 const selectClassName = 'w-full px-3 py-2 border border-gray-300 rounded-md';
@@ -29,6 +30,7 @@ export default function MyStock() {
   const [compEdits, setCompEdits] = useState<Record<string, string>>({})
   const [savingId, setSavingId] = useState<string | null>(null)
   const [autofilling, setAutofilling] = useState(false)
+  const canSelectProperty = useCanSelectProperty()
   const [beverageQuery, setBeverageQuery] = useState('')
   const [debouncedBeverageQuery] = useDebounce(beverageQuery, 300)
 
@@ -212,7 +214,7 @@ export default function MyStock() {
 
   return (
     <div className="w-full h-full">
-      {properties.length > 1 && (
+      {canSelectProperty && properties.length > 1 && (
         <div className="mb-4 w-full lg:w-3/12">
           <label className="block text-sm mb-1">Property</label>
           <select

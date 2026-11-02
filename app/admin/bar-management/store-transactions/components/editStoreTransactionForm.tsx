@@ -14,7 +14,6 @@ import { api } from "../../../../../convex/_generated/api";
 type FormData = {
   beverageId: string;
   barId?: string;
-  userId?: string;
   txnType: 'receive' | 'issue';
   qty: number;
   notes?: string;
@@ -34,19 +33,15 @@ export function EditStoreTransactionForm({
   const updateTransaction = useMutation(api.storeTransactions.updateStoreTransaction);
   const beveragesResponse = useQuery(api.beverages.getAllBeverages, { propertyId: transactionData.propertyId as Id<'properties'> });
   const barsResponse = useQuery(api.bars.getAllBars, { propertyId: transactionData.propertyId as Id<'properties'> });
-  const usersResponse = useQuery(api.storeTransactions.listIssueRecipients, { propertyId: transactionData.propertyId as Id<'properties'> });
 
   const beverages = beveragesResponse?.data || [];
   const bars = barsResponse?.data || [];
-  const users = usersResponse?.data || [];
-  const usersLoading = usersResponse === undefined;
 
   const { register, handleSubmit, formState: { errors }, reset, watch } = useForm<FormData>({
     resolver: yupResolver(editFormSchema) as any,
     defaultValues: {
       beverageId: transactionData.beverageId || '',
       barId: transactionData.barId || '',
-      userId: transactionData.userId || '',
       txnType: transactionData.txnType || 'receive',
       qty: transactionData.qty || 1,
       notes: transactionData.notes || '',
@@ -61,7 +56,6 @@ export function EditStoreTransactionForm({
         transactionId: transactionId as Id<'storeTransactions'>,
         beverageId: data.beverageId as Id<'beverages'>,
         barId: data.barId ? data.barId as Id<'bars'> : undefined,
-        userId: data.userId ? data.userId as Id<'users'> : undefined,
         txnType: data.txnType,
         qty: data.qty,
         notes: data.notes,
@@ -93,11 +87,6 @@ goToList('/admin/bar-management/store-transactions');
       value: b._id,
       label: `${b.name} - ${b.location}`,
     }));
-
-  const userOptions = users.map((u) => ({
-    value: u._id,
-    label: `${u.name} (${u.roles.join(' / ')})`,
-  }));
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="editStoreTransactionForm">
@@ -162,28 +151,6 @@ goToList('/admin/bar-management/store-transactions');
               ))}
             </select>
             {errors.barId && <span className="text-red-500 text-sm">{errors.barId.message}</span>}
-          </div>
-          <div className="flex-1">
-            <label htmlFor="userId" className="block mb-2">Bartender / Waiter *</label>
-            <select
-              id="userId"
-              {...register('userId')}
-              className="w-full border rounded p-2"
-            >
-              <option value="">
-                {usersLoading
-                  ? 'Loading bartenders and waiters...'
-                  : userOptions.length === 0
-                    ? 'No bartenders or waiters at this property'
-                    : 'Select a bartender or waiter'}
-              </option>
-              {userOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            {errors.userId && <span className="text-red-500 text-sm">{errors.userId.message}</span>}
           </div>
         </div>
       )}

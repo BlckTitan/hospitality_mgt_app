@@ -9,6 +9,7 @@ import { api } from '../../../../../convex/_generated/api'
 import { Id } from '../../../../../convex/_generated/dataModel'
 import { RestaurantPageGuide } from '../../components/restaurantPageGuide'
 import { usePermissions } from '../../../../../hooks/usePermissions'
+import { useCanSelectProperty } from '../../../../../hooks/useCanSelectProperty'
 
 type StockType = 'receive' | 'usage' | 'adjustment' | 'waste'
 
@@ -17,6 +18,7 @@ export default function Page() {
   const properties = propertiesResponse?.data ?? []
   const [propertyId, setPropertyId] = useState('')
   const currentPropertyId = (propertyId || properties[0]?._id || '') as Id<'properties'> | ''
+  const canSelectProperty = useCanSelectProperty()
   const { hasGranularPermission } = usePermissions()
   const canUpdate = hasGranularPermission('restaurant.update')
 
@@ -89,6 +91,7 @@ export default function Page() {
       </header>
 
       <div className="flex flex-wrap gap-3 mb-4 items-end">
+        {canSelectProperty && (
         <label className="flex flex-col text-sm">
           Property
           <select
@@ -106,6 +109,7 @@ export default function Page() {
             ))}
           </select>
         </label>
+        )}
       </div>
 
       {canUpdate && (

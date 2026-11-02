@@ -2,7 +2,8 @@ import { mutation, query, MutationCtx, QueryCtx } from './_generated/server';
 import { v } from 'convex/values';
 import { Doc, Id } from './_generated/dataModel';
 import { requirePermission } from './lib/rbac';
-import { lastFinalizedClosingStock, propertyDateKey, remainingSellableQty } from './lib/barStock';
+import { canViewTeamRecords, rolesForProperty } from './lib/staffScope';
+import { findBarDayLog, lastFinalizedClosingStock, propertyDateKey, remainingSellableQty } from './lib/barStock';
 import { requireFnBSaleShift } from './lib/dutyContext';
 import { rowMatchesSearch } from './lib/rowSearch';
 import { activeSearchTerm, docsById, offsetPage } from './lib/listSearch';
@@ -206,18 +207,6 @@ function formatStockQty(quantity: number): string {
   return String(rounded);
 }
 
-function latestStockLog(
-  logs: Array<Doc<'userStockLogs'>>,
-  propertyId: Id<'properties'>,
-): Doc<'userStockLogs'> | null {
-  let latest: Doc<'userStockLogs'> | null = null;
-  for (const log of logs) {
-    if (log.propertyId !== propertyId) continue;
-    if (!latest || log.lastUpdatedAt > latest.lastUpdatedAt) latest = log;
-  }
-  return latest;
-}
-
 async function availableQtyForUserBarBeverage(
   ctx: DbCtx,
   args: {
@@ -234,19 +223,7 @@ async function availableQtyForUserBarBeverage(
   const log =
     args.todayLog !== undefined
       ? args.todayLog
-      : latestStockLog(
-          await ctx.db
-            .query('userStockLogs')
-            .withIndex('by_userId_barId_bev_date', (q) =>
-              q
-                .eq('userId', args.userId)
-                .eq('barId', args.barId)
-                .eq('beverageId', args.beverageId)
-                .eq('logDate', args.logDate),
-            )
-            .collect(),
-          args.propertyId,
-        );
+      : await findBarDayLog(ctx, args.barId, args.beverageId, args.logDate);
 
   if (log) {
     return {
@@ -279,7 +256,7 @@ async function availableQtyForUserBarBeverage(
 function stockRefusalMessage(name: string, availableQty: number, closed: boolean): string {
   if (closed) return `${name} is closed for today.`;
   if (availableQty <= 0) return `${name} is out of stock.`;
-  return `Only ${formatStockQty(availableQty)} ${name} left in your stock.`;
+  return `Only ${formatStockQty(availableQty)} ${name} left at this bar.`;
 }
 
 export const listSellableBeverages = query({
@@ -302,24 +279,27 @@ export const listSellableBeverages = query({
         .collect(),
       ctx.db
         .query('userStockLogs')
-        .withIndex('by_userId_barId_date', (q) =>
-          q.eq('userId', auth.user._id).eq('barId', duty.barId).eq('logDate', logDate),
-        )
+        .withIndex('by_barId_date', (q) => q.eq('barId', duty.barId).eq('logDate', logDate))
         .collect(),
       posPouredQtyByBarBeverage(ctx, {
         propertyId: args.propertyId,
-        userId: auth.user._id,
+        barId: duty.barId,
         dateKey: logDate,
       }),
     ]);
 
-    const logByBeverage = new Map<Id<'beverages'>, Doc<'userStockLogs'>>();
+    const grouped = new Map<Id<'beverages'>, Doc<'userStockLogs'>[]>();
     for (const log of todayLogs) {
-      const current = logByBeverage.get(log.beverageId);
       if (log.propertyId !== args.propertyId) continue;
-      if (!current || log.lastUpdatedAt > current.lastUpdatedAt) {
-        logByBeverage.set(log.beverageId, log);
-      }
+      const list = grouped.get(log.beverageId) ?? [];
+      list.push(log);
+      grouped.set(log.beverageId, list);
+    }
+    const logByBeverage = new Map<Id<'beverages'>, Doc<'userStockLogs'>>();
+    for (const [beverageId, rows] of grouped) {
+      const book = rows.find((row) => row.holder === 'bar');
+      if (book) logByBeverage.set(beverageId, book);
+      else if (rows.length === 1) logByBeverage.set(beverageId, rows[0]);
     }
 
     const data = (
@@ -499,6 +479,22 @@ async function posOrdersMatching(ctx: QueryCtx, orders: Doc<'orders'>[], term: s
   });
 }
 
+function matchesOrderListFilters(
+  order: { propertyId: Id<'properties'>; status: string; orderType: string; openedAtDateKey: string },
+  args: {
+    propertyId: Id<'properties'>;
+    status?: string;
+    orderType?: string;
+    dateKey?: string;
+  },
+) {
+  if (order.propertyId !== args.propertyId) return false;
+  if (args.status && order.status !== args.status) return false;
+  if (args.orderType && order.orderType !== args.orderType) return false;
+  if (args.dateKey && order.openedAtDateKey !== args.dateKey) return false;
+  return true;
+}
+
 export const listOrders = query({
   args: {
     propertyId: v.id('properties'),
@@ -510,9 +506,22 @@ export const listOrders = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    await requirePermission(ctx, 'fnb.read', args.propertyId);
+    const auth = await requirePermission(ctx, 'fnb.read', args.propertyId);
     const limit = Math.min(Math.max(args.limit ?? 10, 1), 50);
+    const seeAll = canViewTeamRecords(rolesForProperty(auth, args.propertyId));
     const term = activeSearchTerm(args.searchTerm);
+    if (!seeAll) {
+      const owned = await ctx.db
+        .query('orders')
+        .withIndex('by_serverUserId', (q) => q.eq('serverUserId', auth.user._id))
+        .collect();
+      let orders = owned.filter((order) => matchesOrderListFilters(order, args));
+      if (term) orders = await posOrdersMatching(ctx, orders, term);
+      orders.sort((a, b) => b.openedAt - a.openedAt || b._creationTime - a._creationTime);
+      const sliced = offsetPage(orders, args.cursor, limit);
+      const page = await Promise.all(sliced.page.map((order) => enrichOrder(ctx, order)));
+      return { success: true as const, ...sliced, page };
+    }
     if (term) {
       const orders = await collectPosOrders(ctx, args);
       const matched = await posOrdersMatching(ctx, orders, term);
@@ -591,7 +600,8 @@ export const listOpenOrders = query({
     orderType: v.optional(orderTypeValidator),
   },
   handler: async (ctx, args) => {
-    await requirePermission(ctx, 'fnb.read', args.propertyId);
+    const auth = await requirePermission(ctx, 'fnb.read', args.propertyId);
+    const seeAll = canViewTeamRecords(rolesForProperty(auth, args.propertyId));
     const open = await ctx.db
       .query('orders')
       .withIndex('by_propertyId_status', (q) =>
@@ -608,6 +618,9 @@ export const listOpenOrders = query({
     if (args.orderType) {
       rows = rows.filter((row) => row.orderType === args.orderType);
     }
+    if (!seeAll) {
+      rows = rows.filter((row) => row.serverUserId === auth.user._id);
+    }
     rows.sort((a, b) => b.openedAt - a.openedAt);
     const data = await Promise.all(rows.map((order) => enrichOrder(ctx, order)));
     return { success: true, data };
@@ -621,7 +634,13 @@ export const getOrder = query({
     if (!order) {
       return { success: false, data: null, message: 'Order not found' };
     }
-    await requirePermission(ctx, 'fnb.read', order.propertyId);
+    const auth = await requirePermission(ctx, 'fnb.read', order.propertyId);
+    if (
+      !canViewTeamRecords(rolesForProperty(auth, order.propertyId)) &&
+      order.serverUserId !== auth.user._id
+    ) {
+      return { success: false, data: null, message: 'This check belongs to another waiter.' };
+    }
     const data = await enrichOrder(ctx, order);
     const [server, payments] = await Promise.all([
       ctx.db.get(order.serverUserId),
@@ -654,7 +673,10 @@ export const findOrdersByCheckId = query({
     orderType: v.optional(orderTypeValidator),
   },
   handler: async (ctx, args) => {
-    await requirePermission(ctx, 'fnb.read', args.propertyId);
+    const auth = await requirePermission(ctx, 'fnb.read', args.propertyId);
+    const seeAll = canViewTeamRecords(rolesForProperty(auth, args.propertyId));
+    const owns = (order: { serverUserId: Id<'users'> }) =>
+      seeAll || order.serverUserId === auth.user._id;
     const checkId = normalizeCheckQuery(args.checkId);
     if (checkId.length < 6) {
       return {
@@ -676,6 +698,9 @@ export const findOrdersByCheckId = query({
       if (args.orderType && order.orderType !== args.orderType) {
         return { success: true, data: [], message: 'No check found for that ID with the current filters' };
       }
+      if (!owns(order)) {
+        return { success: true, data: [], message: 'No check found for that ID' };
+      }
       return { success: true, data: [await enrichOrder(ctx, order)], message: null };
     }
 
@@ -692,6 +717,7 @@ export const findOrdersByCheckId = query({
     let rows = indexed;
     if (args.status) rows = rows.filter((row) => row.status === args.status);
     if (args.orderType) rows = rows.filter((row) => row.orderType === args.orderType);
+    rows = rows.filter((row) => owns(row));
     rows.sort((a, b) => b.openedAt - a.openedAt);
     const data = await Promise.all(rows.map((order) => enrichOrder(ctx, order)));
     return {
@@ -776,7 +802,8 @@ export async function posPouredQtyByBarBeverage(
   ctx: DbCtx,
   args: {
     propertyId: Id<'properties'>;
-    userId: Id<'users'>;
+    userId?: Id<'users'>;
+    barId?: Id<'bars'>;
     dateKey: string;
   },
 ): Promise<Map<string, number>> {
@@ -789,7 +816,9 @@ export async function posPouredQtyByBarBeverage(
 
   const totals = new Map<string, number>();
   for (const order of orders) {
-    if (order.serverUserId !== args.userId || order.status === 'voided' || !order.barId) continue;
+    if (order.status === 'voided' || !order.barId) continue;
+    if (args.barId && order.barId !== args.barId) continue;
+    if (!args.barId && args.userId && order.serverUserId !== args.userId) continue;
     const lines = await linesForOrder(ctx, order._id);
     for (const line of lines) {
       if (line.status !== 'active') continue;
@@ -938,7 +967,7 @@ export const addLine = mutation({
     }
     const poured = await posPouredQtyByBarBeverage(ctx, {
       propertyId: order.propertyId,
-      userId: auth.user._id,
+      barId,
       dateKey: logDate,
     });
     const stock = await availableQtyForUserBarBeverage(ctx, {

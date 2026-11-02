@@ -1014,6 +1014,21 @@ export default defineSchema({
     .index("by_propertyId", ["propertyId"])
     .index("by_isActive", ["isActive"]),
 
+  // Who may operate a bar. The bar keeps the stock; this link does not move it.
+  barAssignments: defineTable({
+    propertyId: v.id("properties"),
+    barId: v.id("bars"),
+    userId: v.id("users"),
+    staffId: v.optional(v.id("staffs")),
+    isActive: v.boolean(),
+    assignedAt: v.number(),
+  })
+    .index("by_propertyId", ["propertyId"])
+    .index("by_barId", ["barId"])
+    .index("by_userId", ["userId"])
+    .index("by_barId_userId", ["barId", "userId"])
+    .index("by_staffId", ["staffId"]),
+
   // Beverages table for drink products
   beverages: defineTable({
     propertyId: v.id("properties"),
@@ -1202,11 +1217,13 @@ export default defineSchema({
 
   // User Stock Logs table for per-shift, per-beverage stock and sales reconciliation
   // v2.1: barId, userId, logDate, isFinalized added; recordedAt → lastUpdatedAt
-  // Natural unique key: (userId, barId, beverageId, logDate)
+  // Operating key: (barId, beverageId, logDate) for holder "bar". userId is the operator.
   userStockLogs: defineTable({
     propertyId: v.id("properties"),
     shiftId: v.id("shifts"),     // back-reference to the shift that opened this day
-    userId: v.id("users"),      // denormalized for direct day-scoped lookups
+    userId: v.id("users"),      // operator who last wrote the row, not the owner of the stock
+    // "bar" is the bar's book. Older rows omit this and were a personal float.
+    holder: v.optional(v.literal("bar")),
     barId: v.optional(v.id("bars")),       // denormalized for direct day-scoped lookups
     beverageId: v.id("beverages"),
     logDate: v.string(),         // ISO 8601 e.g. "2026-03-26"

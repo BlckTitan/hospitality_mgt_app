@@ -1,6 +1,14 @@
 import { mutation, query } from './_generated/server';
 import { v } from 'convex/values';
 import { requirePermission } from './lib/rbac';
+import { listActiveWaitersAndBartenders } from './lib/serviceStaff';
+import {
+  derivedSales,
+  findBarDayLog,
+  openBarBookLine,
+  propertyDateKey,
+  resolveBeverageUnitCost,
+} from './lib/barStock';
 
 export const getAllBars = query({
   args: { propertyId: v.optional(v.id('properties')) },
@@ -131,5 +139,172 @@ export const deleteBar = mutation({
       console.log(`Failed to delete bar: ${error}`);
       return { success: false, message: 'Failed to delete bar' };
     }
+  },
+});
+
+export const listBarOperators = query({
+  args: { barId: v.id('bars') },
+  handler: async (ctx, args) => {
+    const bar = await ctx.db.get(args.barId);
+    if (!bar) return { success: false as const, data: [], message: 'Bar not found' };
+    await requirePermission(ctx, 'fnb.read', bar.propertyId);
+    const rows = await ctx.db
+      .query('barAssignments')
+      .withIndex('by_barId', (q) => q.eq('barId', args.barId))
+      .collect();
+    const data = [];
+    for (const row of rows.filter((item) => item.isActive)) {
+      const user = await ctx.db.get(row.userId);
+      if (!user) continue;
+      data.push({
+        _id: row._id,
+        userId: row.userId,
+        name: user.name,
+        email: user.email,
+      });
+    }
+    data.sort((a, b) => a.name.localeCompare(b.name));
+    return { success: true as const, data };
+  },
+});
+
+export const listBarOperatorChoices = query({
+  args: { propertyId: v.id('properties') },
+  handler: async (ctx, args) => {
+    await requirePermission(ctx, 'fnb.read', args.propertyId);
+    const people = await listActiveWaitersAndBartenders(ctx, args.propertyId);
+    return { success: true as const, data: people };
+  },
+});
+
+export const assignBarOperator = mutation({
+  args: { barId: v.id('bars'), userId: v.id('users') },
+  handler: async (ctx, args) => {
+    const bar = await ctx.db.get(args.barId);
+    if (!bar || !bar.isActive) return { success: false, message: 'Bar not found or inactive' };
+    await requirePermission(ctx, 'fnb.update', bar.propertyId);
+    const people = await listActiveWaitersAndBartenders(ctx, bar.propertyId);
+    const person = people.find((row) => row._id === args.userId);
+    if (!person) {
+      return { success: false, message: 'Link an active waiter or bartender at this property' };
+    }
+    const user = await ctx.db.get(args.userId);
+    const staff = user
+      ? await ctx.db
+          .query('staffs')
+          .withIndex('by_userId', (q) => q.eq('userId', args.userId))
+          .first()
+      : null;
+    const existing = await ctx.db
+      .query('barAssignments')
+      .withIndex('by_barId_userId', (q) => q.eq('barId', args.barId).eq('userId', args.userId))
+      .first();
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        isActive: true,
+        assignedAt: Date.now(),
+        ...(staff ? { staffId: staff._id } : {}),
+      });
+    } else {
+      await ctx.db.insert('barAssignments', {
+        propertyId: bar.propertyId,
+        barId: args.barId,
+        userId: args.userId,
+        ...(staff ? { staffId: staff._id } : {}),
+        isActive: true,
+        assignedAt: Date.now(),
+      });
+    }
+    return { success: true, message: `${person.name} can operate ${bar.name}` };
+  },
+});
+
+export const unassignBarOperator = mutation({
+  args: { assignmentId: v.id('barAssignments') },
+  handler: async (ctx, args) => {
+    const row = await ctx.db.get(args.assignmentId);
+    if (!row) return { success: false, message: 'Link not found' };
+    await requirePermission(ctx, 'fnb.update', row.propertyId);
+    await ctx.db.patch(row._id, { isActive: false });
+    return { success: true, message: 'Removed from this bar. The bar stock stays.' };
+  },
+});
+
+export const setBarOpeningStock = mutation({
+  args: {
+    barId: v.id('bars'),
+    lines: v.array(v.object({ beverageId: v.id('beverages'), quantity: v.number() })),
+  },
+  handler: async (ctx, args) => {
+    const bar = await ctx.db.get(args.barId);
+    if (!bar || !bar.isActive) return { success: false, message: 'Bar not found or inactive' };
+    const auth = await requirePermission(ctx, 'fnb.update', bar.propertyId);
+    const logDate = await propertyDateKey(ctx, bar.propertyId);
+    let saved = 0;
+    const skipped: string[] = [];
+    for (const line of args.lines) {
+      if (!Number.isFinite(line.quantity) || line.quantity < 0) continue;
+      const beverage = await ctx.db.get(line.beverageId);
+      if (!beverage || beverage.propertyId !== bar.propertyId || !beverage.isActive) continue;
+      const existing = await findBarDayLog(ctx, args.barId, line.beverageId, logDate);
+      if (existing?.isFinalized) {
+        skipped.push(beverage.name);
+        continue;
+      }
+      if (existing) {
+        const totalStock = line.quantity + existing.newStockReceived;
+        const counted = existing.closingStock !== existing.totalStock;
+        const closingStock = counted ? existing.closingStock : totalStock;
+        const unitCost = await resolveBeverageUnitCost(ctx, beverage);
+        let sales;
+        try {
+          sales = derivedSales(
+            totalStock,
+            closingStock,
+            beverage.unitPrice,
+            unitCost,
+            existing.wasteQuantity,
+            existing.compQuantity,
+          );
+        } catch {
+          skipped.push(beverage.name);
+          continue;
+        }
+        await ctx.db.patch(existing._id, {
+          holder: 'bar',
+          openingStock: line.quantity,
+          totalStock,
+          closingStock,
+          ...sales,
+          lastUpdatedAt: Date.now(),
+        });
+      } else {
+        await openBarBookLine(ctx, {
+          propertyId: bar.propertyId,
+          barId: args.barId,
+          beverageId: line.beverageId,
+          logDate,
+          operatorUserId: auth.user._id,
+          openingStock: line.quantity,
+          unitCost: await resolveBeverageUnitCost(ctx, beverage),
+          unitPrice: beverage.unitPrice,
+        });
+      }
+      saved += 1;
+    }
+    if (saved === 0) {
+      return {
+        success: false,
+        message: skipped.length
+          ? `Today is already finalized for ${skipped.join(', ')}`
+          : 'Enter a quantity for at least one drink',
+      };
+    }
+    return {
+      success: true,
+      message: skipped.length
+        ? `Saved opening stock for ${saved} drinks. Skipped finalized: ${skipped.join(', ')}.`
+        : `Saved opening stock for ${saved} drinks on ${bar.name}.`,
+    };
   },
 });

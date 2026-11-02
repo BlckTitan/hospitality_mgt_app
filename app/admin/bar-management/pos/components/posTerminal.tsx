@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 import { api } from '../../../../../convex/_generated/api'
 import { Id } from '../../../../../convex/_generated/dataModel'
 import { formatPropertyMoney, usePropertyCurrency } from '../../../inventory-management/components/money'
+import { useCanSelectProperty } from '../../../../../hooks/useCanSelectProperty'
 
 type OrderMode = 'bar' | 'room_service'
 type TenderMethod = 'cash' | 'card' | 'room_charge' | 'other'
@@ -26,6 +27,7 @@ const TENDERS: Array<[TenderMethod, string]> = [
 export default function PosTerminal() {
   const propertiesResponse = useQuery(api.property.listAccessibleProperties, {})
   const properties = propertiesResponse?.data ?? []
+  const canSelectProperty = useCanSelectProperty()
   const [propertyId, setPropertyId] = useState('')
   const currentPropertyId = (propertyId || properties[0]?._id || '') as Id<'properties'> | ''
   const currency = usePropertyCurrency(currentPropertyId || undefined)
@@ -278,6 +280,7 @@ export default function PosTerminal() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-3 items-end">
+        {canSelectProperty && (
         <label className="text-sm">
           Property
           <select
@@ -296,6 +299,7 @@ export default function PosTerminal() {
             ))}
           </select>
         </label>
+        )}
         <p className={`text-sm m-0 ${canSell ? 'text-gray-700' : 'text-amber-800'}`}>{dutyMessage}</p>
         <div className="flex gap-2">
           <Button

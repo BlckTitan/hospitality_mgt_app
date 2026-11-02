@@ -9,6 +9,7 @@ import { api } from '../../../../../convex/_generated/api'
 import { Id } from '../../../../../convex/_generated/dataModel'
 import { formatPropertyMoney, usePropertyCurrency } from '../../../inventory-management/components/money'
 import { usePermissions } from '../../../../../hooks/usePermissions'
+import { useCanSelectProperty } from '../../../../../hooks/useCanSelectProperty'
 import { sortByLabel } from '../../../../../shared/alphaSort'
 
 type PropertyOption = { _id: Id<'properties'>; name: string }
@@ -24,7 +25,8 @@ export default function InventoryItems({
 }) {
   const { hasGranularPermission } = usePermissions()
   const canUpdate = hasGranularPermission('restaurant.update')
-  const canChooseProperty = hasGranularPermission('restaurant.read') && properties.length > 1
+  const canSelectProperty = useCanSelectProperty()
+  const canChooseProperty = canSelectProperty && hasGranularPermission('restaurant.read') && properties.length > 1
   const currency = usePropertyCurrency(propertyId || undefined)
   const list = useQuery(
     api.restaurantInventory.listInventoryItems,

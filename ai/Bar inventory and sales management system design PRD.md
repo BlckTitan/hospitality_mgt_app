@@ -3,8 +3,8 @@
 
 | Field         | Detail                          |
 |---------------|---------------------------------|
-| Version       | 2.3                             |
-| Status        | Implemented (ledger + requests + counts)  |
+| Version       | 2.4                             |
+| Status        | Implemented. The bar holds the stock. Staff are linked to operate it. |
 | Database      | Convex                          |
 | Date          | 2026-09-27                      |
 | Prepared by   | Product Team                    |
@@ -104,15 +104,20 @@ reorder alerts, beverage replenishment.
 
 ### 3.3 Waiter / Bar Staff
 
-Assigned to a specific bar per shift. Records stock received and reconciles
-closing stock at end of day.
+Linked to a bar, the same way a login is linked to a staff record. The bar holds
+the stock and the daily sheet. The person operates that sheet. Department
+membership only says they are food and beverage. A department shift is the
+hours. A worked shift is this person, this date, this bar, and only someone
+already linked to that bar.
 
-**Key concerns:** opening stock for the day, additional stock collected during
-the day, sales made, closing stock balance.
+**Key concerns:** the bar's opening stock (its last finalized close, or the
+quantity an admin entered when the property adopted the system), stock the
+store issues to the bar, sales, and the closing count.
 
-**Convex access pattern:** Queries on `shifts` and `userStockLogs` scoped to
-their own `userId` and the current `logDate`. Mutations to create and update
-`userStockLogs` for today's date only.
+**Convex access pattern:** Queries on `barAssignments` and `userStockLogs` for
+the bars the caller may operate, for today's `logDate`. The operating row has
+`holder: "bar"` and is unique per `(barId, beverageId, logDate)`. `userId` on
+that row is the operator who last wrote it, not the owner of the bottles.
 
 ### 3.4 Convex Scheduler (System)
 
@@ -150,26 +155,27 @@ validate `isActive` before proceeding.
 
 ### 4.2 Shift and Stock Tracking — Waiter View
 
-**Live app:** `shifts` are property-wide staff sessions (`employeeId`), not bar-only. `barId` is required only for Beverages. Waiters start and end work on **Attendance Tracker** (`startShift` / `endShift`); logging in does not create a shift. Ad-hoc Shift create/Finalize still exists. End shift also drafts payroll Hours. Stock-log fields and indexes in this section remain the Beverages snapshot — see `ai/payroll-implementation.md` for the staff scheduling model.
+**Live app:** `shifts` are property-wide staff sessions (`employeeId`), not bar-only. `barId` is required only for food and beverage, and only for a person already linked to that bar (`barAssignments`). Waiters start and end work on **Attendance Tracker** (`startShift` / `endShift`); logging in does not create a shift. Ad-hoc Shift create/Finalize still exists. End shift also drafts payroll Hours. The stock sheet belongs to the bar. See `ai/payroll-implementation.md` for the staff scheduling model.
 
 **FR-SHF-001** — A Convex mutation shall create a `shifts` document when a
 waiter begins a working session, recording `userId`, `barId`, `shiftDate`
 (ISO 8601 string), `startTime`, and setting `isFinalized: false`.
 
-**FR-SHF-002** — `userStockLogs` records are daily documents scoped to a single
-`(userId, barId, beverageId, logDate)` combination. For each beverage in the
-shift, a Convex mutation shall create or update the `userStockLogs` document
+**FR-SHF-002** — `userStockLogs` records are the bar's daily documents. The
+operating key is `(barId, beverageId, logDate)` with `holder: "bar"`. For each
+beverage at the bar, a Convex mutation shall create or update that document
 for **today's date** (`logDate = current ISO 8601 date string`). The record
 shall contain:
 
 | Field              | Source                                                                      |
 |--------------------|-----------------------------------------------------------------------------|
 | `shiftId`          | Reference to the shift that opened this day                                 |
-| `userId`           | Denormalized from the shift — identifies the waiter                         |
-| `barId`            | Denormalized from the shift — identifies the bar                            |
+| `userId`           | Operator who last wrote the row. Not the owner of the stock.               |
+| `holder`           | `"bar"` on the operating book. Omitted on older personal-float rows.       |
+| `barId`            | The bar that holds this stock                                               |
 | `beverageId`       | The beverage being tracked                                                  |
 | `logDate`          | ISO 8601 date string for today, e.g. `"2026-03-26"`                        |
-| `openingStock`     | Previous day's `closingStock` for same `(userId, barId, beverageId)`, or 0 |
+| `openingStock`     | Previous finalized `closingStock` for the same bar and beverage, or the quantity the admin entered |
 | `newStockReceived` | Cumulative qty issued via `storeTransactions` on this day                  |
 | `totalStock`       | Computed in mutation: `openingStock + newStockReceived`                     |
 | `closingStock`     | Manual entry at end of day                                                  |

@@ -59,6 +59,32 @@ export function staffDisplayName(staff: { firstName: string; lastName: string } 
   return `${staff.firstName} ${staff.lastName}`;
 }
 
+/** A shift row the bar book can point at. Does not clock a person in. */
+export async function ensureBarDayShift(
+  ctx: MutationCtx,
+  args: {
+    propertyId: Id<"properties">;
+    barId: Id<"bars">;
+    shiftDate: string;
+    operatorUserId: Id<"users">;
+  },
+): Promise<Id<"shifts">> {
+  const existing = await ctx.db
+    .query("shifts")
+    .withIndex("by_barId_date", (q) => q.eq("barId", args.barId).eq("shiftDate", args.shiftDate))
+    .first();
+  if (existing) return existing._id;
+  return await ctx.db.insert("shifts", {
+    propertyId: args.propertyId,
+    barId: args.barId,
+    department: "fnb",
+    shiftDate: args.shiftDate,
+    startTime: currentUtcHHmm(),
+    isFinalized: false,
+    recordedByUserId: args.operatorUserId,
+  });
+}
+
 /** Bar for an F&B worked shift. Uses a legacy template bar, or the property's only active bar. */
 export async function resolveFnBBarId(
   ctx: DbCtx,

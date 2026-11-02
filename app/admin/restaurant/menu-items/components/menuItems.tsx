@@ -10,6 +10,7 @@ import { Id } from '../../../../../convex/_generated/dataModel'
 import ImageThumbnail from '../../../../../shared/imageThumbnail'
 import { formatPropertyMoney, usePropertyCurrency } from '../../../inventory-management/components/money'
 import { usePermissions } from '../../../../../hooks/usePermissions'
+import { useCanSelectProperty } from '../../../../../hooks/useCanSelectProperty'
 import { sortByLabel } from '../../../../../shared/alphaSort'
 
 type Station = 'kitchen' | 'grill' | 'other'
@@ -35,7 +36,8 @@ export default function MenuItems({
   const { hasGranularPermission } = usePermissions()
   const canUpdate = hasGranularPermission('restaurant.update')
   const canDeactivate = hasGranularPermission('restaurant.delete')
-  const canChooseProperty = hasGranularPermission('restaurant.read') && properties.length > 1
+  const canSelectProperty = useCanSelectProperty()
+  const canChooseProperty = canSelectProperty && hasGranularPermission('restaurant.read') && properties.length > 1
   const canSeeCost = hasGranularPermission('restaurant.read')
   const currency = usePropertyCurrency(propertyId || undefined)
 

@@ -8,12 +8,14 @@ import { toast } from 'sonner'
 import { api } from '../../../../../convex/_generated/api'
 import { Id } from '../../../../../convex/_generated/dataModel'
 import { formatPropertyMoney, usePropertyCurrency } from '../../../inventory-management/components/money'
+import { useCanSelectProperty } from '../../../../../hooks/useCanSelectProperty'
 
 const selectClassName = 'w-full px-3 py-2 border border-gray-300 rounded-md text-sm'
 
 export default function CashUp() {
   const propertiesResponse = useQuery(api.property.listAccessibleProperties, {})
   const properties = propertiesResponse?.data ?? []
+  const canSelectProperty = useCanSelectProperty()
   const [propertyId, setPropertyId] = useState('')
   const currentPropertyId = (propertyId || properties[0]?._id || '') as Id<'properties'> | ''
   const currency = usePropertyCurrency(currentPropertyId || undefined)
@@ -100,6 +102,7 @@ export default function CashUp() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-3 items-end">
+        {canSelectProperty && (
         <label className="text-sm">
           Property
           <select
@@ -117,6 +120,7 @@ export default function CashUp() {
             ))}
           </select>
         </label>
+        )}
         <label className="text-sm">
           Server (linked staff)
           <select
