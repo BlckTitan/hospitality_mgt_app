@@ -30,6 +30,7 @@ export function FilterComponent({ propertyId, defaultLogDate, onFilter, onClear 
   const usersResponse = useQuery(api.userStockLogs.listActiveUsersForBar, {
     propertyId,
     barId: filters.barId ? (filters.barId as Id<'bars'>) : undefined,
+    logDate: filters.logDate || defaultLogDate,
   });
   const users = usersResponse?.data || [];
 
@@ -104,9 +105,7 @@ export function FilterComponent({ propertyId, defaultLogDate, onFilter, onClear 
             onChange={(e) => handleFilterChange('userId', e.target.value)}
             className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
           >
-            <option value="">
-              {filters.barId ? 'All bar staff' : 'All bar-tied staff'}
-            </option>
+            <option value="">All on duty</option>
             {users.map((user) => (
               <option key={user._id} value={user._id}>
                 {user.name}
@@ -139,8 +138,8 @@ export function FilterComponent({ propertyId, defaultLogDate, onFilter, onClear 
       {usersResponse !== undefined && users.length === 0 && (
         <p className="text-xs text-gray-500 mt-2">
           {filters.barId
-            ? 'No actively employed staff assigned to this bar.'
-            : 'No actively employed staff assigned to any bar.'}
+            ? 'No staff linked to this bar are on duty on this date.'
+            : 'No staff linked to a bar are on duty on this date.'}
         </p>
       )}
     </div>

@@ -1,10 +1,10 @@
-import { mutation, query } from './_generated/server';
+import { mutation, query, QueryCtx } from './_generated/server';
 import { v } from 'convex/values';
 import { Doc, Id } from './_generated/dataModel';
 import { posPouredQtyByBarBeverage } from './posOrders';
 import { requirePermission } from './lib/rbac';
 import { assertCanOperateBar, assignedBarIdsForUser } from './lib/barAssignment';
-import { listActiveUsersTiedToBar } from './lib/shiftHelpers';
+import { DutyPerson, listOnDutyStaffForBarDate, listOnDutyUsersForDate } from './lib/barDuty';
 import {
   computeCogsSnapshot,
   derivedSales,
@@ -17,10 +17,41 @@ import {
   resolveBeverageUnitCost,
 } from './lib/barStock';
 
+async function presentStockLogs(ctx: QueryCtx, logs: Doc<'userStockLogs'>[]) {
+  const dutyByBarDate = new Map<string, DutyPerson[]>();
+  for (const log of logs) {
+    if (!log.barId) continue;
+    const key = `${log.barId}:${log.logDate}`;
+    if (dutyByBarDate.has(key)) continue;
+    dutyByBarDate.set(
+      key,
+      await listOnDutyStaffForBarDate(ctx, {
+        propertyId: log.propertyId,
+        barId: log.barId,
+        logDate: log.logDate,
+      }),
+    );
+  }
+
+  return Promise.all(
+    logs.map(async (log) => {
+      const [shift, beverage, user, bar] = await Promise.all([
+        ctx.db.get(log.shiftId),
+        ctx.db.get(log.beverageId),
+        ctx.db.get(log.userId),
+        log.barId ? ctx.db.get(log.barId) : null,
+      ]);
+      const dutyUsers = log.barId ? (dutyByBarDate.get(`${log.barId}:${log.logDate}`) ?? []) : [];
+      return { ...log, shift, beverage, user, bar, dutyUsers };
+    }),
+  );
+}
+
 export const listActiveUsersForBar = query({
   args: {
     propertyId: v.id('properties'),
     barId: v.optional(v.id('bars')),
+    logDate: v.string(),
   },
   handler: async (ctx, args) => {
     await requirePermission(ctx, 'fnb.read', args.propertyId);
@@ -30,9 +61,10 @@ export const listActiveUsersForBar = query({
         return { success: false, data: [], message: 'Bar not found for this property' };
       }
     }
-    const data = await listActiveUsersTiedToBar(ctx, {
+    const data = await listOnDutyUsersForDate(ctx, {
       propertyId: args.propertyId,
       barId: args.barId,
+      logDate: args.logDate,
     });
     return { success: true, data };
   },
@@ -50,24 +82,7 @@ export const getAllUserStockLogs = query({
         .take(200);
       
       // Fetch related data for each stock log
-      const stockLogsWithData = await Promise.all(
-        userStockLogs.map(async (log) => {
-          const [shift, beverage, user, bar] = await Promise.all([
-            ctx.db.get(log.shiftId),
-            ctx.db.get(log.beverageId),
-            ctx.db.get(log.userId),
-            log.barId ? ctx.db.get(log.barId) : null
-          ]);
-          
-          return {
-            ...log,
-            shift,
-            beverage,
-            user,
-            bar,
-          };
-        })
-      );
+      const stockLogsWithData = await presentStockLogs(ctx, userStockLogs);
       
       return { success: true, data: stockLogsWithData };
     } catch (error) {
@@ -87,23 +102,16 @@ export const getUserStockLog = query({
     await requirePermission(ctx, 'fnb.read', stockLog.propertyId);
     try {
       // Fetch related data using denormalized fields
-      const [shift, beverage, user, bar] = await Promise.all([
-        ctx.db.get(stockLog.shiftId),
-        ctx.db.get(stockLog.beverageId),
-        ctx.db.get(stockLog.userId),
-        stockLog.barId ? ctx.db.get(stockLog.barId) : null
-      ]);
-      
+      const [presented] = await presentStockLogs(ctx, [stockLog]);
+      const beverage = presented.beverage
+        ? { ...presented.beverage, resolvedUnitCost: await resolveBeverageUnitCost(ctx, presented.beverage) }
+        : presented.beverage;
+
       return {
         success: true,
         data: {
-          ...stockLog,
-          shift,
-          beverage: beverage
-            ? { ...beverage, resolvedUnitCost: await resolveBeverageUnitCost(ctx, beverage) }
-            : beverage,
-          user,
-          bar,
+          ...presented,
+          beverage,
         },
       };
     } catch (error) {
@@ -136,24 +144,7 @@ export const getDailyStockLogs = query({
         .collect();
       
       // Fetch related data
-      const stockLogsWithData = await Promise.all(
-        stockLogs.map(async (log) => {
-          const [shift, beverage, user, bar] = await Promise.all([
-            ctx.db.get(log.shiftId),
-            ctx.db.get(log.beverageId),
-            ctx.db.get(log.userId),
-            log.barId ? ctx.db.get(log.barId) : null
-          ]);
-          
-          return {
-            ...log,
-            shift,
-            beverage,
-            user,
-            bar,
-          };
-        })
-      );
+      const stockLogsWithData = await presentStockLogs(ctx, stockLogs);
       
       return { success: true, data: stockLogsWithData };
     } catch (error) {
@@ -183,24 +174,7 @@ export const getBarDailyStockLogs = query({
         .collect();
       
       // Fetch related data
-      const stockLogsWithData = await Promise.all(
-        stockLogs.map(async (log) => {
-          const [shift, beverage, user, bar] = await Promise.all([
-            ctx.db.get(log.shiftId),
-            ctx.db.get(log.beverageId),
-            ctx.db.get(log.userId),
-            log.barId ? ctx.db.get(log.barId) : null
-          ]);
-          
-          return {
-            ...log,
-            shift,
-            beverage,
-            user,
-            bar,
-          };
-        })
-      );
+      const stockLogsWithData = await presentStockLogs(ctx, stockLogs);
       
       return { success: true, data: stockLogsWithData };
     } catch (error) {
@@ -225,24 +199,7 @@ export const getPropertyDailyStockLogs = query({
         )
         .collect();
 
-      const stockLogsWithData = await Promise.all(
-        stockLogs.map(async (log) => {
-          const [shift, beverage, user, bar] = await Promise.all([
-            ctx.db.get(log.shiftId),
-            ctx.db.get(log.beverageId),
-            ctx.db.get(log.userId),
-            log.barId ? ctx.db.get(log.barId) : null,
-          ]);
-
-          return {
-            ...log,
-            shift,
-            beverage,
-            user,
-            bar,
-          };
-        })
-      );
+      const stockLogsWithData = await presentStockLogs(ctx, stockLogs);
 
       return { success: true, data: stockLogsWithData };
     } catch (error) {
@@ -278,24 +235,7 @@ export const getUserDailyStockLogs = query({
         .collect();
       
       // Fetch related data
-      const stockLogsWithData = await Promise.all(
-        stockLogs.map(async (log) => {
-          const [shift, beverage, user, bar] = await Promise.all([
-            ctx.db.get(log.shiftId),
-            ctx.db.get(log.beverageId),
-            ctx.db.get(log.userId),
-            log.barId ? ctx.db.get(log.barId) : null
-          ]);
-          
-          return {
-            ...log,
-            shift,
-            beverage,
-            user,
-            bar,
-          };
-        })
-      );
+      const stockLogsWithData = await presentStockLogs(ctx, stockLogs);
       
       return { success: true, data: stockLogsWithData };
     } catch (error) {
@@ -348,24 +288,7 @@ export const getBeverageStockHistory = query({
       }
       
       // Fetch related data
-      const stockLogsWithData = await Promise.all(
-        stockLogs.map(async (log) => {
-          const [shift, beverage, user, bar] = await Promise.all([
-            ctx.db.get(log.shiftId),
-            ctx.db.get(log.beverageId),
-            ctx.db.get(log.userId),
-            log.barId ? ctx.db.get(log.barId) : null
-          ]);
-          
-          return {
-            ...log,
-            shift,
-            beverage,
-            user,
-            bar,
-          };
-        })
-      );
+      const stockLogsWithData = await presentStockLogs(ctx, stockLogs);
       
       return { success: true, data: stockLogsWithData };
     } catch (error) {
@@ -390,23 +313,7 @@ export const getUserStockLogsByShift = query({
         .collect();
       
       // Fetch related data for each stock log
-      const stockLogsWithData = await Promise.all(
-        stockLogs.map(async (log) => {
-          const [shift, beverage, user, bar] = await Promise.all([
-            ctx.db.get(log.shiftId),
-            ctx.db.get(log.beverageId),
-            ctx.db.get(log.userId),
-            log.barId ? ctx.db.get(log.barId) : null
-          ]);
-          
-          return {
-            ...log,
-            beverage,
-            user,
-            bar,
-          };
-        })
-      );
+      const stockLogsWithData = await presentStockLogs(ctx, stockLogs);
       
       return { success: true, data: stockLogsWithData };
     } catch (error) {

@@ -55,6 +55,10 @@ interface UserStockLogProps {
     name: string;
     email: string;
   };
+  dutyUsers?: Array<{
+    name: string;
+    userId?: string;
+  }>;
   bar?: {
     _id: string;
     name: string;
@@ -62,6 +66,13 @@ interface UserStockLogProps {
     barType: string;
     isActive: boolean;
   };
+}
+
+function dutyLabel(row: UserStockLogProps) {
+  const names = (row.dutyUsers ?? []).map((person) => person.name).filter(Boolean);
+  if (names.length > 0) return names.join(', ');
+  if (!row.barId) return row.user?.name || 'N/A';
+  return 'No one on duty';
 }
 
 const UserStockLogs = ({ 
@@ -76,20 +87,7 @@ const UserStockLogs = ({
   // Use different queries based on active filters
   let stockLogData;
   
-  if (filters?.userId && filters?.barId && filters?.logDate) {
-    // Use daily stock logs query for specific user/bar/date
-    stockLogData = useQuery(api.userStockLogs.getDailyStockLogs, {
-      userId: filters.userId as Id<'users'>,
-      barId: filters.barId as Id<'bars'>,
-      logDate: filters.logDate,
-    });
-  } else if (filters?.userId && filters?.logDate) {
-    // Use user daily stock logs query
-    stockLogData = useQuery(api.userStockLogs.getUserDailyStockLogs, {
-      userId: filters.userId as Id<'users'>,
-      logDate: filters.logDate,
-    });
-  } else if (filters?.barId && filters?.logDate) {
+  if (filters?.barId && filters?.logDate) {
     // Use bar daily stock logs query
     stockLogData = useQuery(api.userStockLogs.getBarDailyStockLogs, {
       barId: filters.barId as Id<'bars'>,
@@ -169,9 +167,7 @@ const UserStockLogs = ({
     {
       label: 'User',
       key: 'user',
-      render: (value, row) => (
-        <span>{row.user?.name || 'N/A'}</span>
-      )
+      render: (value, row) => <span>{dutyLabel(row)}</span>
     },
     {
       label: 'Bar',
@@ -330,7 +326,10 @@ const UserStockLogs = ({
     return <p className="p-4">Loading</p>;
   }
 
-  const rows = stockLogData.success === true ? stockLogData.data ?? [] : [];
+  const loaded = stockLogData.success === true ? stockLogData.data ?? [] : [];
+  const rows = filters?.userId
+    ? loaded.filter((row) => (row.dutyUsers ?? []).some((person) => person.userId === filters.userId))
+    : loaded;
 
   return (
     <div className="w-full h-full min-w-0">

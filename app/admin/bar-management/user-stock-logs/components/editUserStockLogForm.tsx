@@ -20,6 +20,17 @@ type FormData = {
   compReason?: string;
 };
 
+function dutyNames(stockLogData: {
+  barId?: string;
+  user?: { name?: string } | null;
+  dutyUsers?: Array<{ name: string }>;
+}) {
+  const names = (stockLogData.dutyUsers ?? []).map((person) => person.name).filter(Boolean);
+  if (names.length > 0) return names.join(', ');
+  if (!stockLogData.barId) return stockLogData.user?.name || 'Unknown User';
+  return 'No one on duty';
+}
+
 interface EditUserStockLogFormProps {
   stockLogData: any;
   stockLogId: string;
@@ -83,7 +94,7 @@ goToList('/admin/bar-management/user-stock-logs');
           <label className="block mb-2">User & Bar</label>
           <input
             type="text"
-            value={`${stockLogData.user?.name || 'Unknown User'} - ${stockLogData.bar?.name || 'Unknown Bar'}`}
+            value={`${dutyNames(stockLogData)} - ${stockLogData.bar?.name || 'Unknown Bar'}`}
             disabled
             className="w-full border rounded p-2 bg-gray-100"
           />
