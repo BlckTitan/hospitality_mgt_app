@@ -1,3 +1,4 @@
+import { goToList } from '../../../../shared/goToList';
 import { FcEmptyTrash } from "react-icons/fc";
 import { TableColumn } from "../../../../shared/table";
 import { MdEditDocument } from "react-icons/md";
@@ -33,9 +34,7 @@ const Users = () => {
       if (response.success === true) {
         toast.success(response.message);
         // Reload page after deletion
-        setTimeout(() => {
-          window.location.href = "/admin/user";
-        }, 2000);
+        goToList("/admin/user");
       } else {
         toast.error(response.message);
       }

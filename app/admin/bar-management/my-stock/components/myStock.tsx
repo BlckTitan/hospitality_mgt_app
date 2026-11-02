@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery } from 'convex/react'
 import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { useRememberedList } from '../../../../../shared/listPageState'
 import { Button } from '../../../../../shared/button'
 import Link from 'next/link'
 import { toast } from 'sonner'
@@ -26,7 +27,6 @@ export default function MyStock() {
   const [compEdits, setCompEdits] = useState<Record<string, string>>({})
   const [savingId, setSavingId] = useState<string | null>(null)
   const [autofilling, setAutofilling] = useState(false)
-  const [currentPage, setCurrentPage] = useState(1)
 
   const currentPropertyId = propertyId || properties[0]?._id || ''
   const today = useQuery(
@@ -42,22 +42,31 @@ export default function MyStock() {
   const data = today?.success ? today.data : null
   const bars = data?.bars ?? []
   const selectedBarId = barId || bars[0]?._id || ''
-  const logs = (data?.logs ?? []).filter((log) => !selectedBarId || log.barId === selectedBarId)
+  const { ready, currentPage, setCurrentPage } = useRememberedList(
+    `my-stock:${currentPropertyId}:${selectedBarId}`,
+  )
+  const logs = useMemo(() => {
+    return (data?.logs ?? [])
+      .filter((log) => !selectedBarId || log.barId === selectedBarId)
+      .slice()
+      .sort((a, b) =>
+        (a.beverage?.name ?? '').localeCompare(b.beverage?.name ?? '', undefined, {
+          sensitivity: 'base',
+          numeric: true,
+        }),
+      )
+  }, [data?.logs, selectedBarId])
   const selectedProperty = properties.find((property: any) => property._id === currentPropertyId)
   const pageCount = Math.max(1, Math.ceil(logs.length / PAGE_SIZE))
   const safePage = Math.min(currentPage, pageCount)
   const pageLogs = logs.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
-
-  useEffect(() => {
-    setCurrentPage(1)
-  }, [selectedBarId, currentPropertyId])
 
   const availableBeverages = useMemo(() => {
     const used = new Set(logs.map((log) => log.beverageId))
     return (data?.beverages ?? []).filter((beverage) => !used.has(beverage._id))
   }, [data?.beverages, logs])
 
-  if (propertiesResponse === undefined) {
+  if (!ready || propertiesResponse === undefined) {
     return <p className="p-4">Loading</p>
   }
 

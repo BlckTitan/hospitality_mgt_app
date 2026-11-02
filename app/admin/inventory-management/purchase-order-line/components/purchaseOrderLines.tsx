@@ -1,3 +1,4 @@
+import { goToList } from '../../../../../shared/goToList';
 import { FcEmptyTrash } from "react-icons/fc";
 import { MdEditDocument } from "react-icons/md";
 import { Button } from '../../../../../shared/button';
@@ -38,9 +39,7 @@ const PurchaseOrderLines = ({ currentPropertyId }: { currentPropertyId: Id<"prop
 
       if (response.success === true) {
         toast.success(response.message);
-        setTimeout(() => {
-          window.location.href = "/admin/inventory-management/purchase-order-line";
-        }, 3000);
+        goToList("/admin/inventory-management/purchase-order-line");
       } else {
         return toast.error(response.message);
       }

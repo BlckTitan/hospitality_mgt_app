@@ -3,6 +3,7 @@
 import { useMutation, useQuery } from 'convex/react'
 import Link from 'next/link'
 import { FormEvent, useEffect, useState } from 'react'
+import { useRememberedList } from '../../../../../shared/listPageState'
 import { Button } from '../../../../../shared/button'
 import { toast } from 'sonner'
 import { api } from '../../../../../convex/_generated/api'
@@ -62,8 +63,9 @@ export default function PosOrders() {
   const [payAmount, setPayAmount] = useState('')
   const [payMethod, setPayMethod] = useState<'cash' | 'card' | 'room_charge' | 'other'>('cash')
   const [busy, setBusy] = useState(false)
-  const [cursorHistory, setCursorHistory] = useState<(string | null)[]>([null])
-  const [currentPage, setCurrentPage] = useState(1)
+  const { ready, currentPage, setCurrentPage, cursorHistory, setCursorHistory } = useRememberedList(
+    `pos-orders:${currentPropertyId}:${status}:${orderType}:${activeCheckId ?? ''}`,
+  )
 
   const backfillCheckSuffix = useMutation(api.posOrders.backfillOrderCheckSuffix)
 
@@ -94,7 +96,7 @@ export default function PosOrders() {
   const listCursor = currentPage === 1 ? null : (cursorHistory[currentPage - 1] ?? null)
   const orders = useQuery(
     api.posOrders.listOrders,
-    currentPropertyId && !activeCheckId
+    ready && currentPropertyId && !activeCheckId
       ? {
           propertyId: currentPropertyId,
           cursor: listCursor,

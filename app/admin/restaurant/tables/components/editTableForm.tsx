@@ -1,4 +1,5 @@
 'use client'
+import { goToList } from '../../../../../shared/goToList';
 
 import { useMutation } from 'convex/react'
 import { SubmitHandler, useForm } from 'react-hook-form'
@@ -53,7 +54,7 @@ export function FormComponent(props: {
       }
       toast.success(response.message || 'Table updated')
       setTimeout(() => {
-        window.location.href = '/admin/restaurant/tables'
+        goToList('/admin/restaurant/tables')
       }, 1500)
     } catch (error) {
       console.error('Edit table failed:', error)

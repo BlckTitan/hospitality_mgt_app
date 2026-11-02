@@ -1,3 +1,4 @@
+import { goToList } from '../../../../../shared/goToList';
 import { useMutation } from "convex/react";
 import { SubmitHandler, useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
@@ -83,10 +84,8 @@ export function EditFormComponent({ roomTypeData, onSuccess, onClose, roomTypeId
       } else {
         toast.success('Room type updated successfully!');
         reset();
-        setTimeout(() => {
-          onSuccess();
-          window.location.href = '/admin/room-management/room-type';
-        }, 1500);
+        onSuccess();
+goToList('/admin/room-management/room-type');
       }
     } catch (error: any) {
       console.error('Update room type failed:', error);

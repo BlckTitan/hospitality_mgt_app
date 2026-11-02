@@ -1,3 +1,4 @@
+import { goToList } from '../../../../../shared/goToList';
 import { useMutation, useQuery } from "convex/react";
 import { Button } from '../../../../../shared/button';
 import { Modal } from '../../../../../shared/modal';
@@ -180,9 +181,7 @@ export function FormComponent({
         console.log("Reservation updated with ID:", response);
 
         // Redirect to reservation page after submission
-        setTimeout(() => {
-          window.location.href = "/admin/room-management/reservation";
-        }, 2000);
+        goToList("/admin/room-management/reservation");
       }
     } catch (error: any) {
       console.error("Edit reservation failed:", error);
@@ -334,7 +333,6 @@ export function FormComponent({
             note={retainerNote}
             followedUpAt={retainerFollowedUpAt}
             followedUpBy={retainerFollowedUpBy}
-            reloadOnSuccess
           />
         </div>
       )}

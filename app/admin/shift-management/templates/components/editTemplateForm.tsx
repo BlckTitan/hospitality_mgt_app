@@ -1,4 +1,5 @@
 'use client'
+import { goToList } from '../../../../../shared/goToList';
 
 import { useMutation } from 'convex/react';
 import { SubmitHandler, useForm } from 'react-hook-form';
@@ -71,10 +72,8 @@ export default function EditTemplateForm({
         return;
       }
       toast.success(response.message);
-      setTimeout(() => {
-        onSuccess();
-        window.location.href = '/admin/shift-management/templates';
-      }, 800);
+      onSuccess();
+goToList('/admin/shift-management/templates');
     } catch (error) {
       console.error('Edit department shift failed:', error);
       toast.error('Failed to update department shift. Please try again.');

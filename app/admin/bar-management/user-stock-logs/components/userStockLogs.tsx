@@ -1,4 +1,5 @@
 'use client'
+import { goToList } from '../../../../../shared/goToList';
 
 import { FcDocument, FcEmptyTrash } from "react-icons/fc";
 import { MdEditDocument } from "react-icons/md";
@@ -115,9 +116,7 @@ const UserStockLogs = ({
       if (response.success === true) {
         toast.success(response.message);
         // Reload page after deletion
-        setTimeout(() => {
-          window.location.href = "/admin/bar-management/user-stock-logs";
-        }, 2000);
+        goToList("/admin/bar-management/user-stock-logs");
       } else {
         return toast.error(response.message);
       }
@@ -135,9 +134,7 @@ const UserStockLogs = ({
       if (response.success === true) {
         toast.success(response.message);
         // Reload page after finalization
-        setTimeout(() => {
-          window.location.href = "/admin/bar-management/user-stock-logs";
-        }, 2000);
+        goToList("/admin/bar-management/user-stock-logs");
       } else {
         return toast.error(response.message);
       }
@@ -341,6 +338,7 @@ const UserStockLogs = ({
           collectionName="userStockLogs"
           columns={tableColumns}
           jointTableData={stockLogData.success === true ? stockLogData.data ?? [] : []}
+          filterKey={`${filters?.logDate ?? ''}:${filters?.barId ?? ''}:${filters?.userId ?? ''}`}
         />
       </Suspense>
     </div>

@@ -1,4 +1,5 @@
 'use client';
+import { goToList } from '../../../../../shared/goToList';
 
 import { BackLink } from '../../../../../shared/pageHeader';
 import { useSearchParams } from 'next/navigation';
@@ -51,7 +52,7 @@ export default function EditBillAccountPage() {
       <EditAccountForm
         account={accountResponse.data}
         onClose={() => {
-          window.location.href = '/admin/billing/accounts';
+          goToList('/admin/billing/accounts');
         }}
       />
     </div>

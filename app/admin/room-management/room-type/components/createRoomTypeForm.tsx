@@ -1,3 +1,4 @@
+import { goToList } from '../../../../../shared/goToList';
 import { useMutation } from "convex/react";
 import { SubmitHandler, useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
@@ -72,10 +73,8 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
         toast.success('Room type created successfully!');
         reset();
         setAmenities([]);
-        setTimeout(() => {
-          onSuccess();
-          window.location.href = '/admin/room-management/room-type';
-        }, 1500);
+        onSuccess();
+goToList('/admin/room-management/room-type');
       }
     } catch (error: any) {
       console.error('Add new room type failed:', error);

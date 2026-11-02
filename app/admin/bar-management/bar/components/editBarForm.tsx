@@ -1,4 +1,5 @@
 'use client';
+import { goToList } from '../../../../../shared/goToList';
 
 import { useMutation } from "convex/react";
 import { SubmitHandler, useForm } from "react-hook-form";
@@ -51,10 +52,8 @@ export function EditBarForm({ barData, barId, onSuccess, onClose }: EditBarFormP
         toast.error(response.message);
       } else {
         toast.success('Bar updated successfully!');
-        setTimeout(() => {
-          onSuccess();
-          window.location.href = '/admin/bar-management/bar';
-        }, 1500);
+        onSuccess();
+goToList('/admin/bar-management/bar');
       }
     } catch (error: any) {
       console.error('Update bar failed:', error);

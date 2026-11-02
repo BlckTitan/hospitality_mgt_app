@@ -88,6 +88,31 @@ function emptyPage() {
   return { page: [], isDone: true, continueCursor: "" };
 }
 
+function compareLabels(a: string, b: string) {
+  return a.localeCompare(b, undefined, { sensitivity: "base", numeric: true });
+}
+
+function labelFor(table: string, row: Record<string, unknown>) {
+  if (table === "staffs" || table === "guests") {
+    return `${String(row.firstName ?? "")} ${String(row.lastName ?? "")}`.trim();
+  }
+  if (table === "rooms") return String(row.roomNumber ?? "");
+  if (typeof row.name === "string" && row.name.trim()) return row.name;
+  if (typeof row.email === "string") return row.email;
+  return "";
+}
+
+const NAME_SORTED = new Set<TableName>([
+  "staffs",
+  "roomTypes",
+  "rooms",
+  "guests",
+  "suppliers",
+  "inventoryItems",
+  "bars",
+  "beverages",
+]);
+
 function manualPage<T>(rows: T[], cursor: string | undefined, limit: number) {
   const offset = cursor && /^\d+$/.test(cursor) ? Number(cursor) : 0;
   const page = rows.slice(offset, offset + limit);
@@ -122,27 +147,32 @@ async function paginateIndexed(
   paginationOpts: { numItems: number; cursor: string | null },
   sortOrder: "asc" | "desc",
 ) {
-  if (propertyIds.length === 1) {
-    const propertyId = propertyIds[0];
-    return await ctx.db
-      .query(table as "staffs")
-      .withIndex("by_propertyId", (q) => q.eq("propertyId", propertyId))
-      .order(sortOrder)
-      .paginate(paginationOpts);
+  const nameSorted = NAME_SORTED.has(table);
+  if (nameSorted || propertyIds.length !== 1) {
+    const rows: Array<Doc<"staffs"> & { propertyId?: Id<"properties"> }> = [];
+    for (const propertyId of propertyIds) {
+      const page = await ctx.db
+        .query(table as "staffs")
+        .withIndex("by_propertyId", (q) => q.eq("propertyId", propertyId))
+        .collect();
+      rows.push(...page);
+    }
+    if (nameSorted) {
+      rows.sort((a, b) => compareLabels(labelFor(table, a as Record<string, unknown>), labelFor(table, b as Record<string, unknown>)));
+    } else {
+      rows.sort((a, b) =>
+        sortOrder === "asc" ? a._creationTime - b._creationTime : b._creationTime - a._creationTime,
+      );
+    }
+    return manualPage(rows, paginationOpts.cursor ?? undefined, paginationOpts.numItems);
   }
 
-  const rows: Array<Doc<"staffs"> & { propertyId?: Id<"properties"> }> = [];
-  for (const propertyId of propertyIds) {
-    const page = await ctx.db
-      .query(table as "staffs")
-      .withIndex("by_propertyId", (q) => q.eq("propertyId", propertyId))
-      .collect();
-    rows.push(...page);
-  }
-  rows.sort((a, b) =>
-    sortOrder === "asc" ? a._creationTime - b._creationTime : b._creationTime - a._creationTime,
-  );
-  return manualPage(rows, paginationOpts.cursor ?? undefined, paginationOpts.numItems);
+  const propertyId = propertyIds[0];
+  return await ctx.db
+    .query(table as "staffs")
+    .withIndex("by_propertyId", (q) => q.eq("propertyId", propertyId))
+    .order(sortOrder)
+    .paginate(paginationOpts);
 }
 
 export const getPaginatedData = query({
@@ -200,10 +230,9 @@ export const getPaginatedData = query({
 
     if (table === "roles") {
       if (!hasGranularPermission(auth, TABLE_READ_PERMISSIONS.roles)) return emptyPage();
-      return await ctx.db
-        .query("roles")
-        .order(sortOrder ?? "desc")
-        .paginate({ numItems: pageSize, cursor: cursor ?? null });
+      const roles = await ctx.db.query("roles").collect();
+      roles.sort((a, b) => compareLabels(a.name, b.name));
+      return manualPage(roles, cursor, pageSize);
     }
 
     const allowed = allowedProperties(auth, table, propertyId);
@@ -237,7 +266,7 @@ export const getPaginatedData = query({
               user.searchName?.toLowerCase().includes(lower),
           );
         }
-        users.sort((a, b) => b._creationTime - a._creationTime);
+        users.sort((a, b) => compareLabels(a.name, b.name));
         return manualPage(users, cursor, pageSize);
       }
 
@@ -247,7 +276,7 @@ export const getPaginatedData = query({
           const property = await ctx.db.get(id);
           if (property) properties.push(property);
         }
-        properties.sort((a, b) => b._creationTime - a._creationTime);
+        properties.sort((a, b) => compareLabels(a.name, b.name));
         return manualPage(properties, cursor, pageSize);
       }
 
@@ -313,7 +342,9 @@ export const getPaginatedData = query({
             if (haystack.includes(lower)) matches.push(row);
           }
         }
-        matches.sort((a, b) => b._creationTime - a._creationTime);
+        matches.sort((a, b) =>
+          compareLabels(labelFor("staffs", a), labelFor("staffs", b)),
+        );
         const sliced = manualPage(matches, cursor, pageSize);
         return {
           ...sliced,
@@ -342,7 +373,7 @@ export const getPaginatedData = query({
             .collect();
           invites.push(...page);
         }
-        invites.sort((a, b) => b._creationTime - a._creationTime);
+        invites.sort((a, b) => compareLabels(a.email, b.email));
         const sliced = manualPage(invites, cursor, pageSize);
         const enrichedPage = await Promise.all(
           sliced.page.map(async (invite) => {

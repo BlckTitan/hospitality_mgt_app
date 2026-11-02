@@ -1,3 +1,4 @@
+import { goToList } from '../../../../../shared/goToList';
 import { useMutation, useQuery } from "convex/react";
 import { SubmitHandler, useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
@@ -67,9 +68,7 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess?: 
         if (onClose) onClose();
 
         // Reload page after submission
-        setTimeout(() => {
-          window.location.href = "/admin/room-management/guest";
-        }, 2000);
+        goToList("/admin/room-management/guest");
       }
     } catch (error: any) {
       console.error("Add new guest failed:", error);

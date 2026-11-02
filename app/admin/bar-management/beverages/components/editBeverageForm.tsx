@@ -1,4 +1,5 @@
 'use client';
+import { goToList } from '../../../../../shared/goToList';
 
 import { useMutation, useQuery } from "convex/react";
 import { useState } from "react";
@@ -86,10 +87,8 @@ export function EditBeverageForm({ beverageData, beverageId, onSuccess, onClose 
         toast.error(response.message);
       } else {
         toast.success('Beverage updated successfully!');
-        setTimeout(() => {
-          onSuccess();
-          window.location.href = '/admin/bar-management/beverages';
-        }, 1500);
+        onSuccess();
+goToList('/admin/bar-management/beverages');
       }
     } catch (error: any) {
       console.error('Update beverage failed:', error);

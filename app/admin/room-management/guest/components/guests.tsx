@@ -1,3 +1,4 @@
+import { goToList } from '../../../../../shared/goToList';
 import { FcEmptyTrash } from "react-icons/fc";
 import { MdEditDocument, MdHotel } from "react-icons/md";
 import { Button } from '../../../../../shared/button';
@@ -37,9 +38,7 @@ const Guests = ({ propertyId }: { propertyId: string }) => {
       if (response.success === true) {
         toast.success(response.message);
         // Reload page after deletion
-        setTimeout(() => {
-          window.location.href = "/admin/room-management/guest";
-        }, 2000);
+        goToList("/admin/room-management/guest");
       } else {
         return toast.error(response.message);
       }

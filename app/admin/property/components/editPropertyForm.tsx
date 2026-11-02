@@ -1,4 +1,5 @@
 'use client'
+import { goToList } from '../../../../shared/goToList';
 
 import { useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
@@ -97,9 +98,7 @@ export function FormComponent(
         } else {
           toast.success('Property edited successfully!');
           reset();
-          setTimeout(() => {
-            window.location.href = '/admin/property';
-          }, 1500);
+          goToList('/admin/property');
         }
       } catch (error: any) {
         console.error('Edit property failed:', error);

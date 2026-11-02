@@ -8,13 +8,14 @@ import Spinner from './spinner';
 import Pagination from './ui-pagination';
 import { FcSearch } from 'react-icons/fc';
 import { useDebounce } from 'use-debounce';
+import { isChronologicalCollection, orderedRows } from './alphaSort';
+import { useRememberedList } from './listPageState';
 
 type PaginatedArgs = FunctionArgs<typeof api.functions.paginated.getPaginatedData>;
 
 const PEOPLE_SEARCH_TABLES = new Set(['staffs', 'guests']);
 const LOGIN_SEARCH_TABLES = new Set(['users']);
 const CLIENT_SEARCH_TABLES = new Set(['beverages']);
-const CLIENT_PAGE_TABLES = new Set(['beverages', 'beverageCategories', 'userStockLogs']);
 const CLIENT_DATA_TABLES = new Set(['housekeepingTasks', 'maintenanceOrders', 'inventoryTasks']);
 
 function searchPlaceholder(collectionName: string) {
@@ -58,6 +59,7 @@ export default function PaginationComponent({
   jointTableData,
   propertyId,
   searchResetKey = 0,
+  filterKey = '',
 }: {
   collectionName: string;
   columns: TableColumn<any>[];
@@ -65,10 +67,14 @@ export default function PaginationComponent({
   propertyId?: string;
   /** Bump this after dismissing a create dialog so a leftover search cannot hide the list. */
   searchResetKey?: number;
+  /** Changes the remembered page, for example a category filter. */
+  filterKey?: string;
 }) {
   const limit = 10;
-  const [cursorHistory, setCursorHistory] = useState<(string | null)[]>([null]);
-  const [currentPage, setCurrentPage] = useState(1);
+  const listMemory = useRememberedList(
+    `${collectionName}:${propertyId ?? ''}:${filterKey}`,
+  );
+  const { ready, currentPage, setCurrentPage, cursorHistory, setCursorHistory } = listMemory;
   const [pageCache, setPageCache] = useState<Record<number, any[]>>({});
   const [searchQuery, setSearchQuery] = useState('');
   const [query] = useDebounce(searchQuery, 300);
@@ -76,20 +82,22 @@ export default function PaginationComponent({
   const searchTerm = debouncedQuery.length >= 2 ? debouncedQuery : undefined;
   const showSearch = supportsNameSearch(collectionName);
   const usesClientData = Array.isArray(jointTableData);
-  const pagesClientRows = usesClientData && CLIENT_PAGE_TABLES.has(collectionName);
-  const clientQuery = !pagesClientRows || searchQuery.trim() === ''
+  const pagesClientRows = usesClientData && !isChronologicalCollection(collectionName);
+  const clientQuery = !pagesClientRows || !CLIENT_SEARCH_TABLES.has(collectionName) || searchQuery.trim() === ''
     ? ''
     : debouncedQuery.toLowerCase();
   const filteredClientRows = useMemo(() => {
     if (!pagesClientRows) return [];
-    if (!clientQuery) return jointTableData;
-    return jointTableData.filter((row) => matchesClientSearch(row, clientQuery));
-  }, [pagesClientRows, jointTableData, clientQuery]);
+    const searched = !clientQuery
+      ? jointTableData
+      : jointTableData.filter((row: Record<string, unknown>) => matchesClientSearch(row, clientQuery));
+    return orderedRows(collectionName, searched);
+  }, [pagesClientRows, jointTableData, clientQuery, collectionName]);
   const clientPageCount = pagesClientRows ? Math.ceil(filteredClientRows.length / limit) : 0;
   const activePage =
     pagesClientRows && clientPageCount > 0 ? Math.min(currentPage, clientPageCount) : currentPage;
   const skipPaginated =
-    usesClientData || CLIENT_DATA_TABLES.has(collectionName) || !collectionName;
+    !ready || usesClientData || CLIENT_DATA_TABLES.has(collectionName) || !collectionName;
   const currentCursor = cursorHistory[currentPage - 1] ?? undefined;
 
   const response = useQuery(
@@ -110,10 +118,22 @@ export default function PaginationComponent({
   }, [searchResetKey]);
 
   useEffect(() => {
+    setPageCache({});
+  }, [collectionName, propertyId, filterKey]);
+
+  const previousQuery = useRef(query);
+  useEffect(() => {
+    if (previousQuery.current === query) return;
+    previousQuery.current = query;
     setCursorHistory([null]);
     setCurrentPage(1);
     setPageCache({});
-  }, [query, collectionName, propertyId]);
+  }, [query, setCursorHistory, setCurrentPage]);
+
+  useEffect(() => {
+    if (!pagesClientRows || clientPageCount === 0 || currentPage <= clientPageCount) return;
+    setCurrentPage(clientPageCount);
+  }, [pagesClientRows, clientPageCount, currentPage, setCurrentPage]);
 
   useEffect(() => {
     if (!response?.page) return;
@@ -166,7 +186,7 @@ export default function PaginationComponent({
     ? 'No matching results were found.'
     : 'No data available!';
 
-  if (!usesClientData && (skipPaginated || response === undefined)) {
+  if (!ready || (!usesClientData && response === undefined)) {
     return (
       <div className="w-full h-screen flex justify-center items-center">
         <Spinner size="sm" />

@@ -1,4 +1,5 @@
 'use client'
+import { goToList } from '../../../../../shared/goToList';
 
 import { useEffect } from 'react';
 import { useMutation, useQuery } from 'convex/react';
@@ -50,7 +51,7 @@ export function FormComponent({
     }
     toast.success('Payroll started');
     onSuccess();
-    window.location.href = '/admin/payroll-management/payroll';
+    goToList('/admin/payroll-management/payroll');
   };
 
   return (

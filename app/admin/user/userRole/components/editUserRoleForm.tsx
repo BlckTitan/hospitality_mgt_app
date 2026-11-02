@@ -1,4 +1,5 @@
 'use client'
+import { goToList } from '../../../../../shared/goToList';
 
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
@@ -54,9 +55,7 @@ export function FormComponent({
       } else {
         toast.success('User role updated successfully!');
         reset();
-        setTimeout(() => {
-          window.location.href = '/admin/user';
-        }, 1500);
+        goToList('/admin/user');
       }
     } catch (error: any) {
       console.error('Update user role failed:', error);
@@ -147,7 +146,7 @@ export function FormComponent({
       </div>
 
       <div className="flex gap-2 justify-end">
-        <Button variant="secondary" onClick={() => window.location.href = '/admin/user'}>
+        <Button variant="secondary" onClick={() => goToList('/admin/user')}>
           Cancel
         </Button>
         <Button variant="dark" type="submit">

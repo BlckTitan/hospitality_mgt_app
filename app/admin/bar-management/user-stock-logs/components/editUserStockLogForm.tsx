@@ -1,4 +1,5 @@
 'use client';
+import { goToList } from '../../../../../shared/goToList';
 
 import { useMutation, useQuery } from "convex/react";
 import { SubmitHandler, useForm } from "react-hook-form";
@@ -66,10 +67,8 @@ export function EditUserStockLogForm({ stockLogData, stockLogId, onSuccess, onCl
         toast.error(response.message);
       } else {
         toast.success('User stock log updated successfully!');
-        setTimeout(() => {
-          onSuccess();
-          window.location.href = '/admin/bar-management/user-stock-logs';
-        }, 1500);
+        onSuccess();
+goToList('/admin/bar-management/user-stock-logs');
       }
     } catch (error: any) {
       console.error('Update user stock log failed:', error);

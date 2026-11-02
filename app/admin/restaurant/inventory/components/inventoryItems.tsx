@@ -9,6 +9,7 @@ import { api } from '../../../../../convex/_generated/api'
 import { Id } from '../../../../../convex/_generated/dataModel'
 import { formatPropertyMoney, usePropertyCurrency } from '../../../inventory-management/components/money'
 import { usePermissions } from '../../../../../hooks/usePermissions'
+import { sortByLabel } from '../../../../../shared/alphaSort'
 
 type PropertyOption = { _id: Id<'properties'>; name: string }
 
@@ -30,7 +31,7 @@ export default function InventoryItems({
     propertyId ? { propertyId } : 'skip',
   )
   const updateItem = useMutation(api.restaurantInventory.updateInventoryItem)
-  const rows = useMemo(() => list?.data ?? [], [list?.data])
+  const rows = useMemo(() => sortByLabel(list?.data ?? []), [list?.data])
   const money = (value: number) => formatPropertyMoney(value, currency)
 
   const handleActive = async (itemId: Id<'restaurantInventoryItems'>, name: string, isActive: boolean) => {

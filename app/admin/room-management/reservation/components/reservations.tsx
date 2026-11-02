@@ -1,4 +1,5 @@
 'use client';
+import { goToList } from '../../../../../shared/goToList';
 
 import { FcEmptyTrash } from "react-icons/fc";
 import { MdEditDocument } from "react-icons/md";
@@ -65,9 +66,7 @@ const Reservations = ({ propertyId }: { propertyId: string }) => {
 
       if (response.success === true) {
         toast.success(response.message);
-        setTimeout(() => {
-          window.location.href = "/admin/room-management/reservation";
-        }, 2000);
+        goToList("/admin/room-management/reservation");
       } else {
         return toast.error(response.message);
       }

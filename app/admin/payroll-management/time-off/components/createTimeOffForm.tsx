@@ -1,4 +1,5 @@
 'use client'
+import { goToList } from '../../../../../shared/goToList';
 
 import { useMutation, useQuery } from 'convex/react';
 import { SubmitHandler, useForm } from 'react-hook-form';
@@ -64,7 +65,7 @@ export function FormComponent({
     }
     toast.success('Time off recorded');
     onSuccess();
-    window.location.href = '/admin/payroll-management/time-off';
+    goToList('/admin/payroll-management/time-off');
   };
 
   return (

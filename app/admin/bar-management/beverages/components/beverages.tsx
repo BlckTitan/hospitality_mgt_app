@@ -3,7 +3,7 @@
 import { FcDocument, FcEmptyTrash } from "react-icons/fc";
 import { MdEditDocument } from "react-icons/md";
 import { Button } from '../../../../../shared/button';
-import { Suspense } from "react";
+import { Suspense, useLayoutEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";
 import { api } from "../../../../../convex/_generated/api";
@@ -42,6 +42,14 @@ const Beverages = ({
 }) => {
   const { hasGranularPermission } = usePermissions();
   const canOperate = hasGranularPermission('fnb.read');
+  const categoryKey = `beverage-category:${currentPropertyId}`;
+  const [category, setCategory] = useState('all');
+  const [categoryReady, setCategoryReady] = useState(false);
+  useLayoutEffect(() => {
+    const saved = window.sessionStorage.getItem(categoryKey);
+    setCategory(saved || 'all');
+    setCategoryReady(true);
+  }, [categoryKey]);
   const beverageData = useQuery(
     api.beverages.getBeverages,
     currentPropertyId ? { propertyId: currentPropertyId } : 'skip',
@@ -50,6 +58,9 @@ const Beverages = ({
     api.beverages.getPropertyWithCurrency,
     currentPropertyId ? { propertyId: currentPropertyId } : 'skip',
   );
+  const categoryCatalog = useQuery(api.beverageCategories.listBeverageCategories, {
+    propertyId: currentPropertyId,
+  });
   const removeBeverage = useMutation(api.beverages.deleteBeverage);
 
   const getCurrencySymbol = (currency?: string) => {
@@ -70,9 +81,6 @@ const Beverages = ({
 
       if (response.success === true) {
         toast.success(response.message);
-        setTimeout(() => {
-          window.location.href = "/admin/bar-management/beverages";
-        }, 2000);
       } else {
         return toast.error(response.message);
       }
@@ -169,7 +177,25 @@ const Beverages = ({
       : []),
   ];
 
-  if (beverageData === undefined) {
+  const rows = beverageData?.success === true ? beverageData.data ?? [] : [];
+  const categoryOptions = useMemo(() => {
+    const labels = new Map((categoryCatalog?.data ?? []).map((item) => [item.name, item.label]));
+    const used = [...new Set(rows.map((row) => row.category).filter(Boolean))];
+    return used
+      .map((name) => ({
+        name,
+        label: labels.get(name) || name.charAt(0).toUpperCase() + name.slice(1),
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }));
+  }, [categoryCatalog?.data, rows]);
+  const activeCategory = category !== 'all' && categoryOptions.some((item) => item.name === category)
+    ? category
+    : 'all';
+  const visibleRows = activeCategory === 'all'
+    ? rows
+    : rows.filter((row) => row.category === activeCategory);
+
+  if (beverageData === undefined || !categoryReady) {
     return (
       <div className="w-full h-full flex justify-center items-center">
         <Spinner size="sm" />
@@ -177,19 +203,59 @@ const Beverages = ({
     );
   }
 
+  const chooseCategory = (next: string) => {
+    setCategory(next);
+    window.sessionStorage.setItem(categoryKey, next);
+  };
+
   return (
     <div className='w-full h-full overflow-x-scroll lg:!overflow-x-hidden'>
+      <div className="flex flex-wrap gap-2 py-2">
+        <CategoryButton active={activeCategory === 'all'} onClick={() => chooseCategory('all')}>
+          All
+        </CategoryButton>
+        {categoryOptions.map((item) => (
+          <CategoryButton
+            key={item.name}
+            active={activeCategory === item.name}
+            onClick={() => chooseCategory(item.name)}
+          >
+            {item.label}
+          </CategoryButton>
+        ))}
+      </div>
       <Suspense>
         <PaginationComponent
           collectionName='beverages'
           columns={tableColumns}
-          jointTableData={beverageData.success === true ? beverageData.data ?? [] : []}
+          jointTableData={visibleRows}
           searchResetKey={searchResetKey}
+          filterKey={activeCategory}
         />
       </Suspense>
     </div>
   );
 };
+
+function CategoryButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`px-3 py-1 rounded-full border text-sm ${active ? 'bg-gray-800 text-white border-gray-800' : 'bg-white text-gray-700 border-gray-300'}`}
+    >
+      {children}
+    </button>
+  );
+}
 
 export default Beverages;
 

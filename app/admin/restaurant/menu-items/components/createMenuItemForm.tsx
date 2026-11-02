@@ -1,4 +1,5 @@
 'use client'
+import { goToList } from '../../../../../shared/goToList';
 
 import { useMutation } from 'convex/react'
 import { SubmitHandler, useForm } from 'react-hook-form'
@@ -69,7 +70,7 @@ export function FormComponent({ propertyId }: { propertyId: string }) {
       }
       toast.success(response.message || 'Menu item created')
       setTimeout(() => {
-        window.location.href = '/admin/restaurant/menu-items'
+        goToList('/admin/restaurant/menu-items')
       }, 1500)
     } catch (error) {
       console.error('Add menu item failed:', error)

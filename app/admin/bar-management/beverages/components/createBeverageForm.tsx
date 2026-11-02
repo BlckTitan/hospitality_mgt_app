@@ -1,4 +1,5 @@
 'use client'
+import { goToList } from '../../../../../shared/goToList';
 
 import { useMutation, useQuery } from "convex/react";
 import { useEffect, useState } from "react";
@@ -75,10 +76,8 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
       } else {
         toast.success('Beverage created successfully!');
         reset();
-        setTimeout(() => {
-          onSuccess();
-          window.location.href = '/admin/bar-management/beverages';
-        }, 1500);
+        onSuccess();
+goToList('/admin/bar-management/beverages');
       }
     } catch (error: any) {
       console.error('Add beverage failed:', error);

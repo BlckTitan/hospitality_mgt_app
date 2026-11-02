@@ -1,4 +1,5 @@
 'use client'
+import { goToList } from '../../../../../shared/goToList';
 
 import { FcDocument, FcEmptyTrash } from "react-icons/fc";
 import { MdEditDocument } from "react-icons/md";
@@ -44,9 +45,7 @@ const Rooms = ({ currentPropertyId }: { currentPropertyId: Id<"properties"> }) =
       if (response.success === true) {
         toast.success(response.message);
         // Reload page after deletion
-        setTimeout(() => {
-          window.location.href = "/admin/room-management/room";
-        }, 2000);
+        goToList("/admin/room-management/room");
       } else {
         return toast.error(response.message);
       }

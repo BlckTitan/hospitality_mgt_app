@@ -1,5 +1,7 @@
 'use client'
+import { goToList } from '../../../../../shared/goToList';
 
+import { useMemo } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { SubmitHandler, useForm } from "react-hook-form";
 import { formSchema } from "./validation";
@@ -18,8 +20,27 @@ type FormData = {
 
 export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: () => void; onClose: () => void; propertyId: string }) {
   const createStoreInventory = useMutation(api.storeInventories.createStoreInventory);
-  const beveragesResponse = useQuery(api.beverages.getAllBeverages, { propertyId: propertyId as Id<'properties'> });
+  const beveragesResponse = useQuery(
+    api.beverages.getAllBeverages,
+    propertyId ? { propertyId: propertyId as Id<'properties'> } : 'skip',
+  );
+  const inventoryResponse = useQuery(
+    api.storeInventories.getAllStoreInventories,
+    propertyId ? { propertyId: propertyId as Id<'properties'> } : 'skip',
+  );
   const beverages = beveragesResponse?.data || [];
+  const optionsReady = beveragesResponse !== undefined && inventoryResponse !== undefined;
+  const beverageOptions = useMemo(() => {
+    const stocked = new Set(
+      (inventoryResponse?.success ? inventoryResponse.data ?? [] : []).map((row) => row.beverageId),
+    );
+    return beverages
+      .filter((beverage) => beverage.isActive && !stocked.has(beverage._id))
+      .map((beverage) => ({
+        value: beverage._id,
+        label: `${beverage.name} (${beverage.category}) - ${beverage.unitOfMeasure}`,
+      }));
+  }, [beverages, inventoryResponse]);
 
   const { register, handleSubmit, formState: { errors }, reset } = useForm<FormData>({
     resolver: yupResolver(formSchema) as any,
@@ -44,23 +65,14 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
       } else {
         toast.success('Store inventory created successfully!');
         reset();
-        setTimeout(() => {
-          onSuccess();
-          window.location.href = '/admin/bar-management/store-inventory';
-        }, 1500);
+        onSuccess();
+goToList('/admin/bar-management/store-inventory');
       }
     } catch (error: any) {
       console.error('Add new store inventory failed:', error);
       toast.error('Failed to add new store inventory. Please try again.');
     }
   };
-
-  const beverageOptions = beverages
-    .filter((beverage: any) => beverage.isActive)
-    .map((beverage: any) => ({
-      value: beverage._id,
-      label: `${beverage.name} (${beverage.category}) - ${beverage.unitOfMeasure}`,
-    }));
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="createStoreInventoryForm">
@@ -72,14 +84,20 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
             {...register('beverageId', { required: true })}
             className="w-full border rounded p-2"
             defaultValue=""
+            disabled={!optionsReady || beverageOptions.length === 0}
           >
-            <option disabled value="">Select a beverage</option>
+            <option disabled value="">
+              {optionsReady ? 'Select a beverage' : 'Loading beverages...'}
+            </option>
             {beverageOptions.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
             ))}
           </select>
+          {optionsReady && beverageOptions.length === 0 && (
+            <span className="text-sm text-gray-500">Every active beverage already has store inventory.</span>
+          )}
           {errors.beverageId && <span className="text-red-500 text-sm">{errors.beverageId.message}</span>}
         </div>
       </div>
@@ -119,7 +137,7 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
         <Button variant="secondary" onClick={onClose}>
           Cancel
         </Button>
-        <Button variant="dark" type="submit">
+        <Button variant="dark" type="submit" disabled={!optionsReady || beverageOptions.length === 0}>
           Create Store Inventory
         </Button>
       </div>

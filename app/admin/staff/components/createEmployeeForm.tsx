@@ -1,3 +1,4 @@
+import { goToList } from '../../../../shared/goToList';
 import { useMutation, useQuery, useConvexAuth } from "convex/react";
 import { useEffect, useState } from "react";
 import { api } from "../../../../convex/_generated/api";
@@ -133,9 +134,7 @@ export function FormComponent() {
         toast.error(response.message);
       } else {
         toast.success(response.message);
-        setTimeout(() => {
-          window.location.href = "/admin/staff";
-        }, 1500);
+        goToList("/admin/staff");
       }
     } catch (error) {
       console.error("Add new staff failed:", error);

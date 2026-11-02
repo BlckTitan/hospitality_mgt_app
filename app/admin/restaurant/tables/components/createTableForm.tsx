@@ -1,4 +1,5 @@
 'use client'
+import { goToList } from '../../../../../shared/goToList';
 
 import { useMutation } from 'convex/react'
 import { SubmitHandler, useForm } from 'react-hook-form'
@@ -52,7 +53,7 @@ export function FormComponent({ propertyId }: { propertyId: string }) {
       }
       toast.success(response.message || 'Table created')
       setTimeout(() => {
-        window.location.href = '/admin/restaurant/tables'
+        goToList('/admin/restaurant/tables')
       }, 1500)
     } catch (error) {
       console.error('Add table failed:', error)

@@ -153,6 +153,7 @@ export const getBeverages = query({
       const data = menuOnly
         ? beverages.map(publicMenuBeverage)
         : await Promise.all(beverages.map((beverage) => enrichBeverage(ctx, beverage)));
+      data.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true }));
       return { success: true, data };
     } catch (error) {
       console.log(`Failed to fetch beverages: ${error}`);
@@ -174,6 +175,7 @@ export const getAllBeverages = query({
       const data = menuOnly
         ? beverages.map(publicMenuBeverage)
         : await Promise.all(beverages.map((beverage) => enrichBeverage(ctx, beverage)));
+      data.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true }));
       return { success: true, data };
     } catch (error) {
       console.log(`Failed to fetch beverages: ${error}`);

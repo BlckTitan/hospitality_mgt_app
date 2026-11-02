@@ -1,4 +1,5 @@
 'use client';
+import { goToList } from '../../../../../shared/goToList';
 
 import { useMutation, useQuery } from "convex/react";
 import { SubmitHandler, useForm } from "react-hook-form";
@@ -62,10 +63,8 @@ export function EditRoomForm({ roomData, roomId, onSuccess, onClose }: EditRoomF
         toast.error(response.message);
       } else {
         toast.success('Room updated successfully!');
-        setTimeout(() => {
-          onSuccess();
-          window.location.href = '/admin/room-management/room';
-        }, 1500);
+        onSuccess();
+goToList('/admin/room-management/room');
       }
     } catch (error: any) {
       console.error('Update room failed:', error);

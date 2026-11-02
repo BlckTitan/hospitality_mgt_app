@@ -1,4 +1,5 @@
 'use client'
+import { goToList } from '../../../../../shared/goToList';
 
 import { useMutation, useQuery } from 'convex/react'
 import { SubmitHandler, useForm } from 'react-hook-form'
@@ -63,7 +64,7 @@ export function FormComponent({ propertyId }: { propertyId: string }) {
       toast.success(response.message)
       const recipeId = response.data.recipeId
       setTimeout(() => {
-        window.location.href = `/admin/restaurant/recipes/edit?recipe_id=${recipeId}`
+        goToList(`/admin/restaurant/recipes/edit?recipe_id=${recipeId}`)
       }, 1500)
     } catch (error) {
       console.error('Upsert recipe failed:', error)

@@ -1,3 +1,4 @@
+import { goToList } from '../../../../shared/goToList';
 import { useMutation } from "convex/react";
 import { Button } from '../../../../shared/button';
 import { api } from "../../../../convex/_generated/api";
@@ -64,9 +65,7 @@ export function FormComponent({
         console.log("User updated with ID:", response);
 
         // Redirect to user page after submission
-        setTimeout(() => {
-          window.location.href = "/admin/user";
-        }, 2000);
+        goToList("/admin/user");
       }
     } catch (error: any) {
       console.error("Edit user failed:", error);

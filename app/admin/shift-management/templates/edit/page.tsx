@@ -1,4 +1,5 @@
 'use client';
+import { goToList } from '../../../../../shared/goToList';
 
 import { BackLink } from '../../../../../shared/pageHeader';
 import React, { useState, useEffect } from 'react';
@@ -53,7 +54,7 @@ export default function EditTemplatePage() {
             variant="light"
             className="cursor-pointer"
             circle
-            onClick={() => { window.location.href = '/admin/shift-management/templates'; }}
+            onClick={() => { goToList('/admin/shift-management/templates'); }}
           >
             ×
           </Button>
@@ -78,14 +79,14 @@ function ModalComponent(props: {
   return (
     <BootstrapModal
       show={props.modalShow}
-      onHide={() => { window.location.href = '/admin/shift-management/templates'; }}
+      onHide={() => { goToList('/admin/shift-management/templates'); }}
       backdrop="static"
       keyboard={false}
       heading="Edit department shift"
       body={
         <EditTemplateForm
           onSuccess={() => props.setModalShow(false)}
-          onClose={() => { window.location.href = '/admin/shift-management/templates'; }}
+          onClose={() => { goToList('/admin/shift-management/templates'); }}
           templateData={props.templateData}
           templateId={props.templateId}
         />

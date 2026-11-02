@@ -1,4 +1,5 @@
 'use client'
+import { goToList } from '../../../../../shared/goToList';
 
 import { FcDocument, FcEmptyTrash } from "react-icons/fc";
 import { MdEditDocument } from "react-icons/md";
@@ -33,9 +34,7 @@ const Bars = ({ currentPropertyId }: { currentPropertyId: Id<"properties"> }) =>
       if (response.success === true) {
         toast.success(response.message);
         // Reload page after deletion
-        setTimeout(() => {
-          window.location.href = "/admin/bar-management/bar";
-        }, 2000);
+        goToList("/admin/bar-management/bar");
       } else {
         return toast.error(response.message);
       }

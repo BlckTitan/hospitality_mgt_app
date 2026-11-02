@@ -1,4 +1,5 @@
 'use client';
+import { goToList } from '../../../../../shared/goToList';
 
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
@@ -63,9 +64,7 @@ export function FormComponent({ onClose, propertyId }: { onClose?: () => void; p
       } else {
         toast.success(response.message);
         if (onClose) onClose();
-        setTimeout(() => {
-          window.location.href = "/admin/inventory-management/tasks";
-        }, 1500);
+        goToList("/admin/inventory-management/tasks");
       }
     } catch (error) {
       console.error("Add new inventory task failed:", error);

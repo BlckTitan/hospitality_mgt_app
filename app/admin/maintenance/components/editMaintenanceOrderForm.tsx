@@ -1,4 +1,5 @@
 'use client';
+import { goToList } from '../../../../shared/goToList';
 
 import { useMutation, useQuery } from "convex/react";
 import { Button } from '../../../../shared/button';
@@ -171,9 +172,7 @@ export function FormComponent({
         toast.error(response.message);
       } else {
         toast.success(response.message);
-        setTimeout(() => {
-          window.location.href = "/admin/maintenance";
-        }, 1500);
+        goToList("/admin/maintenance");
       }
     } catch (error) {
       console.error("Edit maintenance order failed:", error);

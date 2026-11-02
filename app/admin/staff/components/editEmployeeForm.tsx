@@ -1,3 +1,4 @@
+import { goToList } from '../../../../shared/goToList';
 import { useMutation, useQuery, useConvexAuth } from "convex/react";
 import { Button } from '../../../../shared/button';
 import { api } from "../../../../convex/_generated/api";
@@ -264,9 +265,7 @@ export function FormComponent(props: {
       }
 
       toast.success("Staff updated successfully");
-      setTimeout(() => {
-        window.location.href = "/admin/staff";
-      }, 1500);
+      goToList("/admin/staff");
     } catch (error) {
       console.error("Edit staff failed:", error);
       toast.error("Failed to update staff. Please try again.");
@@ -635,7 +634,7 @@ export function FormComponent(props: {
               const result = await terminateStaff({ id: props.id });
               if (result.success) {
                 toast.success(result.message);
-                window.location.href = "/admin/staff";
+                goToList("/admin/staff");
               } else toast.error(result.message);
             }}
           >

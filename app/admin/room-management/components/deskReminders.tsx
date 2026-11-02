@@ -110,14 +110,12 @@ export function RetainerActions({
   note,
   followedUpBy,
   followedUpAt,
-  reloadOnSuccess = false,
 }: {
   reservationId: Id<'reservations'>;
   followUp: string;
   note?: string | null;
   followedUpBy?: string | null;
   followedUpAt?: number | null;
-  reloadOnSuccess?: boolean;
 }) {
   const desk = useFrontOfficeDuty();
   const extendStay = useMutation(api.reservations.extendOvernightStay);
@@ -132,7 +130,6 @@ export function RetainerActions({
       const response = await work();
       if (response.success) {
         toast.success(response.message);
-        if (reloadOnSuccess) window.location.reload();
       } else toast.error(response.message);
     } catch (error) {
       console.error(error);

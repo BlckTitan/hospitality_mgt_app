@@ -1,4 +1,5 @@
 'use client'
+import { goToList } from '../../../../../shared/goToList';
 
 import { useMutation } from "convex/react";
 import { SubmitHandler, useForm } from "react-hook-form";
@@ -45,10 +46,8 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
       } else {
         toast.success('Bar created successfully!');
         reset();
-        setTimeout(() => {
-          onSuccess();
-          window.location.href = '/admin/bar-management/bar';
-        }, 1500);
+        onSuccess();
+goToList('/admin/bar-management/bar');
       }
     } catch (error: any) {
       console.error('Add new bar failed:', error);

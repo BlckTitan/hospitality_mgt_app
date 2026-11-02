@@ -1,4 +1,5 @@
 'use client'
+import { goToList } from '../../../../../shared/goToList';
 
 import { FcDocument, FcEmptyTrash } from "react-icons/fc";
 import { MdEditDocument } from "react-icons/md";
@@ -9,6 +10,7 @@ import { toast } from "sonner";
 import { api } from "../../../../../convex/_generated/api";
 import { TableColumn } from "../../../../../shared/table";
 import PaginationComponent from "../../../../../shared/pagination";
+import Spinner from "../../../../../shared/spinner";
 import { Id } from "../../../../../convex/_generated/dataModel";
 
 interface StoreInventoryProps {
@@ -41,9 +43,7 @@ const StoreInventories = ({ currentPropertyId }: { currentPropertyId: Id<"proper
       if (response.success === true) {
         toast.success(response.message);
         // Reload page after deletion
-        setTimeout(() => {
-          window.location.href = "/admin/bar-management/store-inventory";
-        }, 2000);
+        goToList("/admin/bar-management/store-inventory");
       } else {
         return toast.error(response.message);
       }
@@ -153,13 +153,24 @@ const StoreInventories = ({ currentPropertyId }: { currentPropertyId: Id<"proper
     },
   ];
 
+  if (storeInventoryData === undefined) {
+    return (
+      <div className="w-full h-full flex justify-center items-center py-16">
+        <Spinner size="sm" />
+      </div>
+    );
+  }
+
+  const rows = storeInventoryData.success === true ? storeInventoryData.data ?? [] : [];
+
   return (
     <div className='w-full h-full overflow-x-scroll lg:!overflow-x-hidden'>
       <Suspense>
-        <PaginationComponent 
-          collectionName='storeInventories' 
+        <PaginationComponent
+          collectionName='storeInventories'
           columns={tableColumns}
-          jointTableData={(storeInventoryData?.success === true) && storeInventoryData?.data}  
+          jointTableData={rows}
+          propertyId={currentPropertyId}
         />
       </Suspense>
     </div>

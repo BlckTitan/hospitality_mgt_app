@@ -1,3 +1,4 @@
+import { goToList } from '../../../../../shared/goToList';
 import { FcDocument, FcEmptyTrash } from "react-icons/fc";
 import { TableColumn } from "../../../../../shared/table";
 import { MdEditDocument } from "react-icons/md";
@@ -32,9 +33,7 @@ const Roles = () => {
       if (response.success === true) {
         toast.success(response.message);
         // Reload page after deletion
-        setTimeout(() => {
-          window.location.href = "/admin/role";
-        }, 2000);
+        goToList("/admin/user/role");
       } else {
         return toast.error(response.message);
       }

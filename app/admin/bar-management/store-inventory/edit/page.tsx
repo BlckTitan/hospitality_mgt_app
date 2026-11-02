@@ -1,4 +1,5 @@
 'use client';
+import { goToList } from '../../../../../shared/goToList';
 
 import { BackLink } from '../../../../../shared/pageHeader';
 import React, { useState, useEffect } from 'react';
@@ -17,20 +18,20 @@ export default function EditStoreInventoryPage() {
       setInventoryId(inventory_id);
     } else {
       // Redirect back if no inventory_id is provided
-      window.location.href = '/admin/bar-management/store-inventory';
+      goToList('/admin/bar-management/store-inventory');
     }
   }, [searchParams]);
 
   const handleSuccess = () => {
     setModalShow(false);
     // Redirect back to store inventory list
-    window.location.href = '/admin/bar-management/store-inventory';
+    goToList('/admin/bar-management/store-inventory');
   };
 
   const handleClose = () => {
     setModalShow(false);
     // Redirect back to store inventory list
-    window.location.href = '/admin/bar-management/store-inventory';
+    goToList('/admin/bar-management/store-inventory');
   };
 
   if (!inventoryId) {

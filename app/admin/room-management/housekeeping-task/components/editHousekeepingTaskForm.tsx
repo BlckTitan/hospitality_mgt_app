@@ -1,4 +1,5 @@
 'use client';
+import { goToList } from '../../../../../shared/goToList';
 
 import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
@@ -147,9 +148,7 @@ export function FormComponent({
         toast.success("Housekeeping task updated successfully!");
         console.log("Task updated with ID:", response);
 
-        setTimeout(() => {
-          window.location.href = "/admin/room-management/housekeeping-task";
-        }, 2000);
+        goToList("/admin/room-management/housekeeping-task");
       }
     } catch (error: any) {
       console.error("Edit housekeeping task failed:", error);

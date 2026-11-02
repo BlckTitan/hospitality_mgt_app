@@ -1,4 +1,5 @@
 'use client'
+import { goToList } from '../../../../../shared/goToList';
 
 import { useMutation, useQuery } from "convex/react";
 import { SubmitHandler, useForm } from "react-hook-form";
@@ -70,10 +71,8 @@ export function EditStoreTransactionForm({
         toast.error(response.message);
       } else {
         toast.success('Store transaction updated successfully!');
-        setTimeout(() => {
-          onSuccess();
-          window.location.href = '/admin/bar-management/store-transactions';
-        }, 1500);
+        onSuccess();
+goToList('/admin/bar-management/store-transactions');
       }
     } catch (error: any) {
       console.error('Update store transaction failed:', error);

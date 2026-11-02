@@ -1,3 +1,4 @@
+import { goToList } from '../../../../../shared/goToList';
 import { useMutation } from "convex/react";
 import { SubmitHandler, useForm } from "react-hook-form";
 import { formSchema } from "./validation";
@@ -63,9 +64,7 @@ export function EditFormComponent({
         toast.error(response.message);
       } else {
         toast.success('Purchase order line updated successfully!');
-        setTimeout(() => {
-          window.location.href = '/admin/inventory-management/purchase-order-line';
-        }, 1500);
+        goToList('/admin/inventory-management/purchase-order-line');
       }
     } catch (error: any) {
       console.error('Update purchase order line failed:', error);

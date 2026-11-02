@@ -9,6 +9,7 @@ import BootstrapModal from '../../../../../shared/modal'
 import { api } from '../../../../../convex/_generated/api'
 import { Id } from '../../../../../convex/_generated/dataModel'
 import { usePermissions } from '../../../../../hooks/usePermissions'
+import { sortByLabel } from '../../../../../shared/alphaSort'
 
 type TableStatus = 'available' | 'occupied' | 'reserved' | 'out-of-service'
 
@@ -77,7 +78,7 @@ export default function Tables({
     return <p className="p-4">Loading</p>
   }
 
-  const rows = tables?.data ?? []
+  const rows = sortByLabel(tables?.data ?? [])
 
   return (
     <div className="w-full h-full">

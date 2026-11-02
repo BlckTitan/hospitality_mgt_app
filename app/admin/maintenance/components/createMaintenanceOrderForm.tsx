@@ -1,4 +1,5 @@
 'use client';
+import { goToList } from '../../../../shared/goToList';
 
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
@@ -106,9 +107,7 @@ export function FormComponent({ onClose, propertyId }: { onClose?: () => void; p
       } else {
         toast.success(response.message);
         if (onClose) onClose();
-        setTimeout(() => {
-          window.location.href = "/admin/maintenance";
-        }, 1500);
+        goToList("/admin/maintenance");
       }
     } catch (error) {
       console.error("Add new maintenance order failed:", error);

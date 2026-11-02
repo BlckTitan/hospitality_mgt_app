@@ -1,4 +1,5 @@
 'use client';
+import { goToList } from '../../../../../shared/goToList';
 
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
@@ -75,9 +76,7 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess?: 
         if (onSuccess) onSuccess();
         if (onClose) onClose();
 
-        setTimeout(() => {
-          window.location.href = "/admin/room-management/housekeeping-task";
-        }, 2000);
+        goToList("/admin/room-management/housekeeping-task");
       }
     } catch (error: any) {
       console.error("Add new housekeeping task failed:", error);

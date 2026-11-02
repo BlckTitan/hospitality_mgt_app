@@ -1,4 +1,5 @@
 'use client'
+import { goToList } from '../../../../../shared/goToList';
 
 import { useMutation, useQuery } from 'convex/react';
 import { SubmitHandler, useForm } from 'react-hook-form';
@@ -61,7 +62,7 @@ export function FormComponent({
     }
     toast.success('Hours recorded');
     onSuccess();
-    window.location.href = '/admin/shift-management/hours';
+    goToList('/admin/shift-management/hours');
   };
 
   return (

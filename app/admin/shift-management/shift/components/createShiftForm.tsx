@@ -1,4 +1,5 @@
 'use client'
+import { goToList } from '../../../../../shared/goToList';
 
 import { useEffect } from "react";
 import { useMutation, useQuery } from "convex/react";
@@ -66,10 +67,8 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
       } else {
         toast.success('Shift created successfully!');
         reset();
-        setTimeout(() => {
-          onSuccess();
-          window.location.href = '/admin/shift-management/shift';
-        }, 1500);
+        onSuccess();
+goToList('/admin/shift-management/shift');
       }
     } catch (error: any) {
       console.error('Add shift failed:', error);

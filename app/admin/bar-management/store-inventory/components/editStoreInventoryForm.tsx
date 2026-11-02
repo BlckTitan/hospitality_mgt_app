@@ -1,4 +1,5 @@
 'use client'
+import { goToList } from '../../../../../shared/goToList';
 
 import { useMutation, useQuery, useConvexAuth } from "convex/react";
 import { SubmitHandler, useForm } from "react-hook-form";
@@ -56,10 +57,8 @@ export function EditFormComponent({ onSuccess, onClose, inventoryId }: { onSucce
       } else {
         toast.success('Store inventory updated successfully!');
         reset();
-        setTimeout(() => {
-          onSuccess();
-          window.location.href = '/admin/bar-management/store-inventory';
-        }, 1500);
+        onSuccess();
+goToList('/admin/bar-management/store-inventory');
       }
     } catch (error: any) {
       console.error('Update store inventory failed:', error);

@@ -1,3 +1,4 @@
+import { goToList } from '../../../../../shared/goToList';
 import { useMutation } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import { SubmitHandler, useForm } from "react-hook-form";
@@ -69,10 +70,8 @@ export function FormComponent({ onSuccess, onClose }: { onSuccess: () => void; o
         toast.success('Role created successfully!');
         reset();
         setPermissions({});
-        setTimeout(() => {
-          onSuccess();
-          window.location.href = '/adminuser/role';
-        }, 1500);
+        onSuccess();
+goToList('/admin/user/role');
       }
     } catch (error: any) {
       console.error('Add new role failed:', error);

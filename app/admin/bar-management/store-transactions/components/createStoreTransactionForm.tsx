@@ -1,4 +1,5 @@
 'use client'
+import { goToList } from '../../../../../shared/goToList';
 
 import { useMutation, useQuery } from "convex/react";
 import { SubmitHandler, useForm } from "react-hook-form";
@@ -61,10 +62,8 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
       } else {
         toast.success('Store transaction created successfully!');
         reset();
-        setTimeout(() => {
-          onSuccess();
-          window.location.href = '/admin/bar-management/store-transactions';
-        }, 1500);
+        onSuccess();
+goToList('/admin/bar-management/store-transactions');
       }
     } catch (error: any) {
       console.error('Add new store transaction failed:', error);

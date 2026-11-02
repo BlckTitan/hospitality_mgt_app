@@ -10,6 +10,7 @@ import { Id } from '../../../../../convex/_generated/dataModel'
 import ImageThumbnail from '../../../../../shared/imageThumbnail'
 import { formatPropertyMoney, usePropertyCurrency } from '../../../inventory-management/components/money'
 import { usePermissions } from '../../../../../hooks/usePermissions'
+import { sortByLabel } from '../../../../../shared/alphaSort'
 
 type Station = 'kitchen' | 'grill' | 'other'
 
@@ -50,7 +51,7 @@ export default function MenuItems({
   )
   const deactivateMenuItem = useMutation(api.restaurantMenuItems.deactivateMenuItem)
 
-  const rows = useMemo(() => list?.data ?? [], [list?.data])
+  const rows = useMemo(() => sortByLabel(list?.data ?? []), [list?.data])
   const money = (value: number) => formatPropertyMoney(value, currency)
 
   const handleDeactivate = async (menuItemId: Id<'restaurantMenuItems'>, name: string) => {

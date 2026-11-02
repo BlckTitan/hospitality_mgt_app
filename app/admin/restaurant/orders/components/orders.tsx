@@ -1,6 +1,7 @@
 'use client'
 
 import { FormEvent, useEffect, useState } from 'react'
+import { useRememberedList } from '../../../../../shared/listPageState'
 import { useMutation, useQuery } from 'convex/react'
 import { toast } from 'sonner'
 import { FcDocument } from 'react-icons/fc'
@@ -49,8 +50,9 @@ export default function Orders() {
   const [payAmount, setPayAmount] = useState('')
   const [payMethod, setPayMethod] = useState<TenderMethod>('cash')
   const [busy, setBusy] = useState(false)
-  const [cursorHistory, setCursorHistory] = useState<(string | null)[]>([null])
-  const [currentPage, setCurrentPage] = useState(1)
+  const { ready, currentPage, setCurrentPage, cursorHistory, setCursorHistory } = useRememberedList(
+    `restaurant-orders:${currentPropertyId}:${status}:${orderType}:${activeCheckId ?? ''}`,
+  )
 
   const backfillCheckSuffix = useMutation(api.restaurantOrders.backfillOrderCheckSuffix)
 
@@ -81,7 +83,7 @@ export default function Orders() {
   const listCursor = currentPage === 1 ? null : (cursorHistory[currentPage - 1] ?? null)
   const orders = useQuery(
     api.restaurantOrders.listOrders,
-    currentPropertyId && !activeCheckId
+    ready && currentPropertyId && !activeCheckId
       ? {
           propertyId: currentPropertyId,
           cursor: listCursor,

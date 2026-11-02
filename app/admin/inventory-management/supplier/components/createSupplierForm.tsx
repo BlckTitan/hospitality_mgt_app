@@ -1,4 +1,5 @@
 'use client'
+import { goToList } from '../../../../../shared/goToList';
 
 import { useMutation } from "convex/react";
 import { SubmitHandler, useForm } from "react-hook-form";
@@ -57,10 +58,8 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
       } else {
         toast.success('Supplier created successfully!');
         reset();
-        setTimeout(() => {
-          onSuccess();
-          window.location.href = '/admin/inventory-management/supplier';
-        }, 1500);
+        onSuccess();
+goToList('/admin/inventory-management/supplier');
       }
     } catch (error: any) {
       console.error('Add new supplier failed:', error);

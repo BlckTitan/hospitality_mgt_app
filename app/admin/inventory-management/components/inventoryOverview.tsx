@@ -1,4 +1,5 @@
 'use client';
+import { goToList } from '../../../../shared/goToList';
 
 import Link from 'next/link';
 import { useState } from 'react';
@@ -133,7 +134,7 @@ export function InventoryOverview({ propertyId }: { propertyId: Id<'properties'>
                             return;
                           }
                           toast.success(drafted.message);
-                          window.location.href = `/admin/inventory-management/purchase-order/edit?purchase_order_id=${drafted.id}`;
+                          goToList(`/admin/inventory-management/purchase-order/edit?purchase_order_id=${drafted.id}`);
                         }}
                       >
                         Draft order{row.reorderQuantity ? ` (${row.reorderQuantity})` : ''}

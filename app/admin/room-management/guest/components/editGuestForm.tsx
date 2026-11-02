@@ -1,3 +1,4 @@
+import { goToList } from '../../../../../shared/goToList';
 import { useMutation } from "convex/react";
 import { Button } from '../../../../../shared/button';
 import { yupResolver } from "@hookform/resolvers/yup";
@@ -89,9 +90,7 @@ export function FormComponent({
         console.log("Guest updated with ID:", response);
 
         // Redirect to guest page after submission
-        setTimeout(() => {
-          window.location.href = "/admin/room-management/guest";
-        }, 2000);
+        goToList("/admin/room-management/guest");
       }
     } catch (error: any) {
       console.error("Edit guest failed:", error);

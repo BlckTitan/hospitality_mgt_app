@@ -1,3 +1,4 @@
+import { goToList } from '../../../../shared/goToList';
 import { TableColumn } from "../../../../shared/table";
 import { MdCancel, MdRefresh } from "react-icons/md";
 import { Button } from '../../../../shared/button';
@@ -39,9 +40,7 @@ const PendingInvites = () => {
       }
 
       toast.success(result.message || 'Invitation revoked');
-      setTimeout(() => {
-        window.location.href = "/admin/user";
-      }, 2000);
+      goToList("/admin/user");
     } catch (error) {
       console.log(`Failed to revoke invite! ${error}`);
       toast.error("Failed to revoke invite. Please try again.");
@@ -67,9 +66,7 @@ const PendingInvites = () => {
       }
 
       toast.success('Invitation re-sent successfully!');
-      setTimeout(() => {
-        window.location.href = "/admin/user";
-      }, 2000);
+      goToList("/admin/user");
     } catch (error) {
       console.error('Re-invite failed:', error);
       toast.error('Failed to re-send invitation. Please try again.');

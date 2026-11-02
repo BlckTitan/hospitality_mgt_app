@@ -1,4 +1,5 @@
 'use client'
+import { goToList } from '../../../../../shared/goToList';
 
 import { useMutation } from 'convex/react'
 import { SubmitHandler, useForm } from 'react-hook-form'
@@ -62,7 +63,7 @@ export function FormComponent({ propertyId }: { propertyId: string }) {
       }
       toast.success(response.message || 'Ingredient added')
       setTimeout(() => {
-        window.location.href = '/admin/restaurant/inventory'
+        goToList('/admin/restaurant/inventory')
       }, 1200)
     } catch (error) {
       console.error('Add restaurant ingredient failed:', error)

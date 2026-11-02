@@ -1,4 +1,5 @@
 'use client';
+import { goToList } from '../../../../shared/goToList';
 
 import { FcEmptyTrash } from 'react-icons/fc';
 import { MdEditDocument } from 'react-icons/md';
@@ -47,9 +48,7 @@ const Property = () => {
 
       if (response.success === true) {
         toast.success(response.message);
-        setTimeout(() => {
-          window.location.href = '/admin/property';
-        }, 1500);
+        goToList('/admin/property');
       } else {
         toast.error(response.message);
       }

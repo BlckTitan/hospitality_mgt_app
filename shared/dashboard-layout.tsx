@@ -2,6 +2,7 @@
 
 import dynamic from 'next/dynamic'
 import React from 'react'
+import { ListNavigator } from './listNavigator'
 
 function NavChromeSkeleton() {
   return (
@@ -46,6 +47,7 @@ const Sidebar = dynamic(() => import('../shared/sidebar'), {
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
+      <ListNavigator />
       <Navigation />
       <section className="w-full min-w-0 min-h-dvh pt-14 relative">
         <Sidebar />

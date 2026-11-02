@@ -1,4 +1,5 @@
 'use client'
+import { goToList } from '../../../../../shared/goToList';
 
 import { useMutation, useQuery } from "convex/react";
 import { SubmitHandler, useForm } from "react-hook-form";
@@ -53,10 +54,8 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
       } else {
         toast.success('Room created successfully!');
         reset();
-        setTimeout(() => {
-          onSuccess();
-          window.location.href = '/admin/room-management/room';
-        }, 1500);
+        onSuccess();
+goToList('/admin/room-management/room');
       }
     } catch (error: any) {
       console.error('Add new room failed:', error);

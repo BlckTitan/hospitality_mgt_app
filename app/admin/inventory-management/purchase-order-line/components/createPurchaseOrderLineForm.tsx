@@ -1,3 +1,4 @@
+import { goToList } from '../../../../../shared/goToList';
 import { useMutation, useQuery } from "convex/react";
 import { useState } from "react";
 import { SubmitHandler, useForm } from "react-hook-form";
@@ -68,9 +69,7 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
       } else {
         toast.success('Purchase order line created successfully!');
         reset();
-        setTimeout(() => {
-          window.location.href = '/admin/inventory-management/purchase-order-line';
-        }, 1500);
+        goToList('/admin/inventory-management/purchase-order-line');
       }
     } catch (error: any) {
       console.error('Create purchase order line failed:', error);

@@ -7,6 +7,7 @@ import { api } from '../../../../../convex/_generated/api'
 import { Id } from '../../../../../convex/_generated/dataModel'
 import { formatPropertyMoney, usePropertyCurrency } from '../../../inventory-management/components/money'
 import { usePermissions } from '../../../../../hooks/usePermissions'
+import { sortByLabel } from '../../../../../shared/alphaSort'
 
 type PropertyOption = { _id: Id<'properties'>; name: string }
 
@@ -28,7 +29,7 @@ export default function Recipes({
   )
 
   const money = (value: number) => formatPropertyMoney(value, currency)
-  const rows = recipes?.data ?? []
+  const rows = sortByLabel(recipes?.data ?? [])
 
   if (recipes === undefined && propertyId) {
     return <p className="p-4">Loading</p>

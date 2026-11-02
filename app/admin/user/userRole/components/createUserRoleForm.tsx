@@ -1,3 +1,4 @@
+import { goToList } from '../../../../../shared/goToList';
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import { SubmitHandler, useForm } from "react-hook-form";
@@ -43,10 +44,8 @@ export function FormComponent({ onSuccess, onClose }: { onSuccess: () => void; o
       } else {
         toast.success('User role assigned successfully!');
         reset();
-        setTimeout(() => {
-          onSuccess();
-          window.location.href = '/admin/user';
-        }, 1500);
+        onSuccess();
+goToList('/admin/user');
       }
     } catch (error: any) {
       console.error('Assign user role failed:', error);

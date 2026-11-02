@@ -1,4 +1,5 @@
 'use client';
+import { goToList } from '../../../../../shared/goToList';
 
 import { BackLink } from '../../../../../shared/pageHeader';
 import React, { useState, useEffect } from 'react';
@@ -55,7 +56,7 @@ export default function EditShiftPage() {
       <div className="max-w-xl">
         <EditShiftForm
           onSuccess={() => undefined}
-          onClose={() => { window.location.href = '/admin/shift-management/shift'; }}
+          onClose={() => { goToList('/admin/shift-management/shift'); }}
           propertyId={shift.propertyId}
           shiftData={shift}
           shiftId={shiftId}

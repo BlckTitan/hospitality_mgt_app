@@ -1,3 +1,4 @@
+import { goToList } from '../../../../shared/goToList';
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
@@ -61,10 +62,8 @@ export function InviteUserForm({ onSuccess, onClose }: InviteUserFormProps) {
     const success = await inviteUser(data);
     if (success) {
       reset();
-      setTimeout(() => {
-        onSuccess();
-        window.location.href = '/admin/user';
-      }, 1500);
+      onSuccess();
+goToList('/admin/user');
     }
   };
 

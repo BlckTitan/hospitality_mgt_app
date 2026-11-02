@@ -93,7 +93,7 @@ export default function Templates({ currentPropertyId }: { currentPropertyId: Id
     <div className="w-full h-full overflow-x-scroll lg:!overflow-x-hidden">
       <Suspense>
         <PaginationComponent
-          collectionName="shifts"
+          collectionName="shiftTemplates"
           columns={tableColumns}
           jointTableData={(templates?.success === true) && templates?.data}
         />

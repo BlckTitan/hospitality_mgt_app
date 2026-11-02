@@ -1,4 +1,5 @@
 'use client'
+import { goToList } from '../../../../../shared/goToList';
 
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery } from 'convex/react'
@@ -106,7 +107,7 @@ export function FormComponent(props: {
       if (response.success) {
         toast.success(response.message)
         setTimeout(() => {
-          window.location.href = '/admin/restaurant/recipes'
+          goToList('/admin/restaurant/recipes')
         }, 1500)
       } else toast.error(response.message)
     } catch (error) {

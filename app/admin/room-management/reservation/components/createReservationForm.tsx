@@ -1,3 +1,4 @@
+import { goToList } from '../../../../../shared/goToList';
 import { useMutation, useQuery } from "convex/react";
 import { SubmitHandler, useForm } from "react-hook-form";
 import { formSchema } from "./validation";
@@ -276,10 +277,8 @@ export function FormComponent({
         );
         reset();
         setSelectedGuest(null);
-        setTimeout(() => {
-          onSuccess();
-          window.location.href = "/admin/room-management/reservation";
-        }, 1500);
+        onSuccess();
+goToList("/admin/room-management/reservation");
       }
     } catch (error: any) {
       console.error("Add new reservation failed:", error);

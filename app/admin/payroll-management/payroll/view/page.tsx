@@ -1,4 +1,5 @@
 'use client'
+import { goToList } from '../../../../../shared/goToList';
 
 import { BackLink } from '../../../../../shared/pageHeader';
 import { useSearchParams } from 'next/navigation';
@@ -48,7 +49,7 @@ function PayrollViewInner() {
       return;
     }
     toast.success(response.message ?? 'Done');
-    if (successHref) window.location.href = successHref;
+    if (successHref) goToList(successHref);
   };
 
   return (

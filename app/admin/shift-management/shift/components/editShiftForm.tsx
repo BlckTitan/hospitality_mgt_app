@@ -1,4 +1,5 @@
 'use client';
+import { goToList } from '../../../../../shared/goToList';
 
 import { useEffect } from "react";
 import { useMutation, useQuery } from "convex/react";
@@ -86,7 +87,7 @@ export default function EditShiftForm({ shiftData, shiftId, onSuccess, onClose, 
       } else {
         toast.success('Shift updated successfully!');
         onSuccess();
-        window.location.href = '/admin/shift-management/shift';
+        goToList('/admin/shift-management/shift');
       }
     } catch (error: any) {
       console.error('Update shift failed:', error);

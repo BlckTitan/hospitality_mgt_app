@@ -1,4 +1,5 @@
 'use client';
+import { goToList } from '../../../../../shared/goToList';
 
 import { useMutation, useQuery } from "convex/react";
 import { Button } from '../../../../../shared/button';
@@ -62,9 +63,7 @@ export function FormComponent({
         toast.error(response.message);
       } else {
         toast.success(response.message);
-        setTimeout(() => {
-          window.location.href = "/admin/inventory-management/tasks";
-        }, 1500);
+        goToList("/admin/inventory-management/tasks");
       }
     } catch (error) {
       console.error("Edit inventory task failed:", error);
