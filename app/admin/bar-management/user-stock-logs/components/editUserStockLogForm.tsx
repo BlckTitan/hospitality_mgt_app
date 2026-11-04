@@ -10,6 +10,7 @@ import { Button } from '../../../../../shared/button';
 import { api } from "../../../../../convex/_generated/api";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import InputComponent from "../../../../../shared/input";
+import { formatPropertyMoney, usePropertyCurrency } from "../../../inventory-management/components/money";
 
 type FormData = {
   openingStock: number;
@@ -40,6 +41,8 @@ interface EditUserStockLogFormProps {
 
 export function EditUserStockLogForm({ stockLogData, stockLogId, onSuccess, onClose }: EditUserStockLogFormProps) {
   const updateUserStockLog = useMutation(api.userStockLogs.updateUserStockLog);
+  const currency = usePropertyCurrency(stockLogData.propertyId);
+  const money = (amount: number) => formatPropertyMoney(amount, currency);
 
   const { register, handleSubmit, formState: { errors }, watch } = useForm<FormData>({
     resolver: yupResolver(editFormSchema) as any,
@@ -61,6 +64,10 @@ export function EditUserStockLogForm({ stockLogData, stockLogId, onSuccess, onCl
   const wasteQuantity = Number(watchedValues.wasteQuantity) || 0;
   const compQuantity = Number(watchedValues.compQuantity) || 0;
   const salesQuantity = disappeared - wasteQuantity - compQuantity;
+  const unitPrice = stockLogData.beverage?.unitPrice || 0;
+  const unitCost = stockLogData.beverage?.resolvedUnitCost ?? stockLogData.beverage?.unitCost ?? 0;
+  const salesValue = salesQuantity * unitPrice;
+  const cogsValue = disappeared * unitCost;
 
   const onSubmit: SubmitHandler<FormData> = async (data) => {
     try {
@@ -183,9 +190,9 @@ goToList('/admin/bar-management/user-stock-logs');
             <p className="text-sm">Total Stock: <span className="font-bold">{totalStock}</span></p>
             <p className="text-sm">Disappeared: <span className="font-bold">{disappeared}</span></p>
             <p className="text-sm">Sales Quantity: <span className="font-bold">{salesQuantity}</span></p>
-            <p className="text-sm">Sales Value: <span className="font-bold">${salesQuantity * (stockLogData.beverage?.unitPrice || 0)}</span></p>
-            <p className="text-sm">COGS: <span className="font-bold">${disappeared * (stockLogData.beverage?.resolvedUnitCost ?? stockLogData.beverage?.unitCost ?? 0)}</span></p>
-            <p className="text-sm">Gross Profit: <span className="font-bold">${salesQuantity * (stockLogData.beverage?.unitPrice || 0) - disappeared * (stockLogData.beverage?.resolvedUnitCost ?? stockLogData.beverage?.unitCost ?? 0)}</span></p>
+            <p className="text-sm">Sales Value: <span className="font-bold">{money(salesValue)}</span></p>
+            <p className="text-sm">COGS: <span className="font-bold">{money(cogsValue)}</span></p>
+            <p className="text-sm">Gross Profit: <span className="font-bold">{money(salesValue - cogsValue)}</span></p>
             {disappeared < 0 && <p className="text-red-500 text-sm">Warning: Closing stock exceeds total stock!</p>}
             {disappeared >= 0 && salesQuantity < 0 && <p className="text-red-500 text-sm">Warning: Waste and comps exceed stock that disappeared!</p>}
           </div>

@@ -355,6 +355,7 @@ export default function PosTerminal() {
               key={row._id}
               size="sm"
               variant={orderId === row._id ? 'dark' : 'outline-secondary'}
+              className="h-auto min-h-8 max-w-full whitespace-normal break-words px-3 py-1 text-left leading-snug"
               onClick={() =>
                 resumeOrder(
                   row._id,
@@ -374,45 +375,48 @@ export default function PosTerminal() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 items-start">
-        <section className="lg:col-span-3 border rounded-md p-3">
-          <div className="flex flex-wrap gap-2 mb-3">
+      <div className="grid min-w-0 grid-cols-1 items-start gap-4 lg:grid-cols-5">
+        <section className="@container min-w-0 border rounded-md p-3 lg:col-span-3">
+          <div className="mb-3 flex flex-wrap gap-2">
             {categories.map((c) => (
               <Button
                 key={c}
                 size="sm"
                 variant={category === c ? 'dark' : 'outline-secondary'}
                 onClick={() => setCategory(c)}
+                className="h-auto min-h-8 max-w-full whitespace-normal break-words px-3 py-1 text-left leading-snug"
               >
                 {c}
               </Button>
             ))}
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 gap-2 @min-[18rem]:grid-cols-2 @min-[40rem]:grid-cols-3">
             {beverages === undefined ? (
               <p className="text-sm text-gray-500 col-span-full">Loading drinks…</p>
             ) : (
               menu.map((item) => (
-                <button
-                  key={item._id}
-                  type="button"
-                  disabled={busy || !canSell || item.availableQty <= 0 || (isRoom && !reservationId && !orderId)}
-                  onClick={() => void handleAddBeverage(item._id)}
-                  className="text-left border rounded-md p-2 hover:bg-gray-50 disabled:opacity-50 flex items-center gap-2"
-                >
-                  <ImageThumbnail
-                    src={item.imageUrl}
-                    alt={item.name}
-                    size={48}
-                    className="shrink-0"
-                  />
-                  <div className="min-w-0">
-                    <div className="font-medium text-sm">{item.name}</div>
-                    <div className="text-xs text-gray-500">{item.category}</div>
-                    <div className="text-sm mt-1">{money(item.unitPrice)}</div>
-                    <div className="text-xs text-gray-600">{item.availableQty} in stock</div>
-                  </div>
-                </button>
+                <div key={item._id} className="@container/drink min-w-0">
+                  <button
+                    type="button"
+                    title={`${item.name} · ${item.category}`}
+                    disabled={busy || !canSell || item.availableQty <= 0 || (isRoom && !reservationId && !orderId)}
+                    onClick={() => void handleAddBeverage(item._id)}
+                    className="flex h-full w-full min-w-0 flex-col items-start gap-2 overflow-hidden rounded-md border p-2 text-left hover:bg-gray-50 disabled:opacity-50 @min-[11rem]/drink:flex-row @min-[11rem]/drink:items-center"
+                  >
+                    <ImageThumbnail
+                      src={item.imageUrl}
+                      alt={item.name}
+                      size={48}
+                      className="shrink-0"
+                    />
+                    <div className="w-full min-w-0 flex-1">
+                      <div className="line-clamp-2 break-words text-sm font-medium leading-snug">{item.name}</div>
+                      <div className="truncate text-xs text-gray-500">{item.category}</div>
+                      <div className="mt-1 break-words text-sm">{money(item.unitPrice)}</div>
+                      <div className="break-words text-xs text-gray-600">{item.availableQty} in stock</div>
+                    </div>
+                  </button>
+                </div>
               ))
             )}
             {beverages && menu.length === 0 && (
@@ -426,9 +430,9 @@ export default function PosTerminal() {
           </div>
         </section>
 
-        <section className="lg:col-span-2 border rounded-md p-3 flex flex-col gap-3 self-start">
-          <div className="flex justify-between items-center">
-            <h4 className="text-base font-semibold m-0">
+        <section className="flex min-w-0 flex-col gap-3 self-start rounded-md border p-3 lg:col-span-2">
+          <div className="flex items-center justify-between gap-2">
+            <h4 className="m-0 min-w-0 truncate text-base font-semibold">
               {orderId ? `Check ${String(orderId).slice(-6)}` : 'New check'}
             </h4>
             <div className="flex gap-2">
@@ -442,7 +446,7 @@ export default function PosTerminal() {
               )}
             </div>
           </div>
-          <p className="text-xs text-gray-500 m-0">
+          <p className="m-0 break-words text-xs text-gray-500">
             {isRoom ? 'Room service' : openShift?.barName || 'Bar'}
             {dutyData?.staffName ? ` · ${dutyData.staffName}` : ''}
             {order?.roomLabel ? ` · Room ${order.roomLabel}` : ''}
@@ -452,11 +456,11 @@ export default function PosTerminal() {
 
           <ul className="space-y-2 min-h-[8rem]">
             {activeLines.map((line) => (
-              <li key={line._id} className="flex justify-between gap-2 text-sm border-b pb-1">
-                <span>
+              <li key={line._id} className="flex items-start justify-between gap-2 border-b pb-1 text-sm">
+                <span className="min-w-0 break-words">
                   {line.quantity}× {line.nameSnapshot}
                 </span>
-                <span className="flex items-center gap-2">
+                <span className="flex shrink-0 items-center gap-2">
                   {money(line.lineTotal)}
                   {order?.status === 'open' && (
                     <button

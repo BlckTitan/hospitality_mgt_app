@@ -496,7 +496,22 @@ export const deleteUserStockLog = mutation({
   },
 });
 
-// New mutation for finalizing stock logs
+async function finalizeOpenStockLog(
+  ctx: Parameters<typeof refreshSalesSummariesForLog>[0],
+  log: Doc<'userStockLogs'>,
+  now: number,
+) {
+  if (log.isFinalized) return null;
+  const cogs = await computeCogsSnapshot(ctx, log);
+  await ctx.db.patch(log._id, {
+    isFinalized: true,
+    ...cogs,
+    lastUpdatedAt: now,
+  });
+  return { ...log, ...cogs };
+}
+
+// One log at a time. Bulk close uses finalizeUserStockLogs so sales summaries stay inside one transaction.
 export const finalizeUserStockLog = mutation({
   args: { stockLogId: v.id('userStockLogs') },
   handler: async (ctx, args) => {
@@ -507,26 +522,66 @@ export const finalizeUserStockLog = mutation({
     await requirePermission(ctx, 'fnb.update', existingLog.propertyId);
 
     try {
-      // Check if already finalized
       if (existingLog.isFinalized) {
         return { success: false, message: 'Stock log is already finalized' };
       }
 
-      const cogs = await computeCogsSnapshot(ctx, existingLog);
-      await ctx.db.patch(args.stockLogId, {
-        isFinalized: true,
-        ...cogs,
-        lastUpdatedAt: Date.now(),
-      });
-      await refreshSalesSummariesForLog(ctx, {
-        ...existingLog,
-        ...cogs,
-      });
+      const finalized = await finalizeOpenStockLog(ctx, existingLog, Date.now());
+      if (!finalized) {
+        return { success: false, message: 'Stock log is already finalized' };
+      }
+      await refreshSalesSummariesForLog(ctx, finalized);
 
       return { success: true, message: 'User stock log finalized successfully' };
     } catch (error) {
       console.log(`Failed to finalize user stock log: ${error}`);
       return { success: false, message: 'Failed to finalize user stock log' };
+    }
+  },
+});
+
+/** Kept small because each log refreshes daily, weekly, monthly, and yearly sales summaries. */
+const FINALIZE_BATCH = 15;
+
+export const finalizeUserStockLogs = mutation({
+  args: { stockLogIds: v.array(v.id('userStockLogs')) },
+  handler: async (ctx, args) => {
+    if (args.stockLogIds.length === 0) {
+      return { success: false, message: 'No stock logs to finalize', finalized: 0 };
+    }
+
+    const logs: Doc<'userStockLogs'>[] = [];
+    for (const stockLogId of args.stockLogIds.slice(0, FINALIZE_BATCH)) {
+      const log = await ctx.db.get(stockLogId);
+      if (log) logs.push(log);
+    }
+    if (logs.length === 0) {
+      return { success: false, message: 'User stock logs do not exist', finalized: 0 };
+    }
+
+    const propertyId = logs[0].propertyId;
+    if (logs.some((log) => log.propertyId !== propertyId)) {
+      return { success: false, message: 'Stock logs must belong to the same property', finalized: 0 };
+    }
+    await requirePermission(ctx, 'fnb.update', propertyId);
+
+    try {
+      const now = Date.now();
+      const finalized = [];
+      for (const log of logs) {
+        const updated = await finalizeOpenStockLog(ctx, log, now);
+        if (updated) finalized.push(updated);
+      }
+      await refreshSalesSummariesForLogs(ctx, finalized);
+      const count = finalized.length;
+      return {
+        success: true,
+        message: count === 1 ? '1 stock log finalized' : `${count} stock logs finalized`,
+        finalized: count,
+      };
+    } catch (error) {
+      console.log(`Failed to finalize user stock logs: ${error}`);
+      return { success: false, message: 'Failed to finalize user stock logs', finalized: 0 };
     }
   },
 });

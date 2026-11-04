@@ -1,6 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { requirePermission } from "./lib/rbac";
+import { requirePermission, tryRequirePermission } from "./lib/rbac";
 import { SHIFT_DEPARTMENTS } from "./lib/shiftHelpers";
 import { clockPlusDuration } from "./lib/rotation";
 
@@ -45,7 +45,15 @@ export const getShiftTemplate = query({
   handler: async (ctx, args) => {
     const row = await ctx.db.get(args.templateId);
     if (!row) return { success: false, data: null, message: "Department shift not found" };
-    await requirePermission(ctx, "staff.read", row.propertyId);
+    const canRead = await tryRequirePermission(ctx, "staff.read", row.propertyId);
+    const canOpen = canRead ?? (await tryRequirePermission(ctx, "staff.update", row.propertyId));
+    if (!canOpen) {
+      return {
+        success: false,
+        data: null,
+        message: "You do not have access to this department shift",
+      };
+    }
     return { success: true, data: row };
   },
 });

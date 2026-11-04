@@ -4,13 +4,15 @@ import { goToList } from '../../../../../shared/goToList';
 import { BackLink } from '../../../../../shared/pageHeader';
 import React, { useState, useEffect } from 'react';
 import { Button } from '../../../../../shared/button';
-import { useQuery } from 'convex/react';
+import { useQuery, useConvexAuth } from 'convex/react';
 import { api } from '../../../../../convex/_generated/api';
+import { Id } from '../../../../../convex/_generated/dataModel';
 import BootstrapModal from '../../../../../shared/modal';
 import EditTemplateForm from '../components/editTemplateForm';
 import { ShiftPageGuide } from '../../components/shiftPageGuide';
 
 export default function EditTemplatePage() {
+  const { isAuthenticated, isLoading } = useConvexAuth();
   const [modalShow, setModalShow] = useState(true);
   const [templateId, setTemplateId] = useState<string>('');
 
@@ -22,7 +24,9 @@ export default function EditTemplatePage() {
 
   const templateResponse = useQuery(
     api.shiftTemplates.getShiftTemplate,
-    templateId ? { templateId: templateId as any } : 'skip',
+    !isLoading && isAuthenticated && templateId
+      ? { templateId: templateId as Id<'shiftTemplates'> }
+      : 'skip',
   );
 
   if (!templateId || templateResponse === undefined) {
@@ -34,9 +38,15 @@ export default function EditTemplatePage() {
   }
 
   if (!templateResponse.success || !templateResponse.data) {
+    const message = templateResponse.success
+      ? 'Department shift not found!'
+      : templateResponse.message;
     return (
-      <div className="w-full h-full flex justify-center items-center">
-        <p className="text-xl">Department shift not found!</p>
+      <div className="w-full h-full flex flex-col justify-center items-center gap-3 p-4">
+        <p className="text-xl text-center">{message}</p>
+        <a href="/admin/shift-management/templates" className="text-blue-600 hover:underline">
+          Back to department shifts
+        </a>
       </div>
     );
   }

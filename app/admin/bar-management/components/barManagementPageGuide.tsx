@@ -22,7 +22,7 @@ const DESCRIPTIONS: Record<GuidePage, string> = {
   'stock-requests':
     'Waiters submit replenishment lines for a bar. Store staff Approve to issue stock to that bar (store qty down, bar Received up) or Reject. Pending requests also appear on the bar hub.',
   'user-stock-logs':
-    'Admin view of each bar’s daily stock sheet. The totals above the list are for the selected day: opening stock value, total sales value, and the value of stock left, all at selling price. Use + to add a drink to a bar. Opening comes from that bar’s last finalized close. The user on each row is the staff linked to that bar who are on duty that day, and the list changes with the date. Filter by bar, that person, or date. Staff close the day on My stock today; use this list to review or correct the bar’s logs.',
+    'Admin view of each bar’s daily stock sheet. The totals above the list are for the selected day: opening stock value, total sales value, and the value of stock left, all at selling price in the property currency. Use + to add a drink to a bar. Opening comes from that bar’s last finalized close. The user on each row is the staff linked to that bar who are on duty that day, and the list changes with the date. Filter by bar, that person, or date. Finalize all closes every open log in the current list. Staff can also close the day on My stock today.',
   'store-inventory':
     'On-hand quantity for each beverage in the central store. Add a row with + and enter Quantity in Store plus a reorder threshold for hub alerts. Later quantity changes go through Store transactions or a posted Store count — not by editing the row alone.',
   'store-transactions':

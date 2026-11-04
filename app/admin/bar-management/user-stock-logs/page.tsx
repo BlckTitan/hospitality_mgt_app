@@ -99,6 +99,7 @@ export default function UserStockLogPage() {
 
       <UserStockLogs 
         currentPropertyId={currentPropertyId as Id<'properties'>}
+        currency={currentProperty?.currency}
         filters={appliedFilters}
       />
 

@@ -8,6 +8,7 @@ import { Button } from '../../../../../shared/button';
 import { api } from "../../../../../convex/_generated/api";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { toast } from "sonner";
+import { formatPropertyMoney, usePropertyCurrency } from "../../../inventory-management/components/money";
 
 type FormData = {
   barId: string;
@@ -16,6 +17,7 @@ type FormData = {
 
 export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: () => void; onClose: () => void; propertyId: string }) {
   const createUserStockLog = useMutation(api.userStockLogs.createUserStockLog);
+  const currency = usePropertyCurrency(propertyId);
   const barsResponse = useQuery(api.bars.getAllBars, { propertyId: propertyId as Id<'properties'> });
   const bars = barsResponse?.data || [];
   const beveragesResponse = useQuery(api.beverages.getAllBeverages, { propertyId: propertyId as Id<'properties'> });
@@ -61,7 +63,7 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
     .filter((beverage: any) => beverage.isActive)
     .map((beverage: any) => ({
       value: beverage._id,
-      label: `${beverage.name} - ${beverage.unitPrice}/${beverage.unitOfMeasure}`,
+      label: `${beverage.name} - ${formatPropertyMoney(beverage.unitPrice, currency)}/${beverage.unitOfMeasure}`,
     }));
 
   return (

@@ -31,6 +31,8 @@ import type * as inventoryCounts from "../inventoryCounts.js";
 import type * as inventoryItems from "../inventoryItems.js";
 import type * as inventoryTasks from "../inventoryTasks.js";
 import type * as inventoryTransactions from "../inventoryTransactions.js";
+import type * as lib_barAssignment from "../lib/barAssignment.js";
+import type * as lib_barDuty from "../lib/barDuty.js";
 import type * as lib_barStock from "../lib/barStock.js";
 import type * as lib_beverageCategoryCatalog from "../lib/beverageCategoryCatalog.js";
 import type * as lib_billingPeriods from "../lib/billingPeriods.js";
@@ -139,6 +141,8 @@ declare const fullApi: ApiFromModules<{
   inventoryItems: typeof inventoryItems;
   inventoryTasks: typeof inventoryTasks;
   inventoryTransactions: typeof inventoryTransactions;
+  "lib/barAssignment": typeof lib_barAssignment;
+  "lib/barDuty": typeof lib_barDuty;
   "lib/barStock": typeof lib_barStock;
   "lib/beverageCategoryCatalog": typeof lib_beverageCategoryCatalog;
   "lib/billingPeriods": typeof lib_billingPeriods;

@@ -4,14 +4,14 @@ import { goToList } from '../../../../../shared/goToList';
 import { FcDocument, FcEmptyTrash } from "react-icons/fc";
 import { MdEditDocument } from "react-icons/md";
 import { Button } from '../../../../../shared/button';
-import { Suspense, useMemo } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";
 import { api } from "../../../../../convex/_generated/api";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { TableColumn } from "../../../../../shared/table";
 import PaginationComponent from "../../../../../shared/pagination";
-import { formatPropertyMoney, usePropertyCurrency } from "../../../inventory-management/components/money";
+import { formatPropertyMoney, propertyCurrencyCode, usePropertyCurrency } from "../../../inventory-management/components/money";
 
 interface UserStockLogProps {
   _id: string;
@@ -75,14 +75,20 @@ function dutyLabel(row: UserStockLogProps) {
   return 'No one on duty';
 }
 
+const FINALIZE_BATCH = 15;
+
 const UserStockLogs = ({ 
   currentPropertyId, 
+  currency: propertyCurrency,
   filters 
 }: { 
   currentPropertyId: Id<"properties">;
+  currency?: string;
   filters?: any;
 }) => {
-  const currency = usePropertyCurrency(currentPropertyId);
+  const queriedCurrency = usePropertyCurrency(currentPropertyId);
+  const currency = propertyCurrencyCode(propertyCurrency || queriedCurrency);
+  const [finalizingAll, setFinalizingAll] = useState(false);
 
   // Use different queries based on active filters
   let stockLogData;
@@ -105,6 +111,7 @@ const UserStockLogs = ({
   
   const removeUserStockLog = useMutation(api.userStockLogs.deleteUserStockLog);
   const finalizeUserStockLog = useMutation(api.userStockLogs.finalizeUserStockLog);
+  const finalizeUserStockLogs = useMutation(api.userStockLogs.finalizeUserStockLogs);
 
   const handleDelete = async (id: string, beverageName: string) => {
     if (!confirm('Are you sure you want to delete stock log for: ' + beverageName + '?')) return;
@@ -139,6 +146,56 @@ const UserStockLogs = ({
     } catch (error) {
       console.log(`Failed to finalize user stock log! ${error}`);
       toast.error("Failed to finalize user stock log. Please try again.");
+    }
+  };
+
+  const visibleLogs = () => {
+    if (!stockLogData || stockLogData.success !== true) return [];
+    const loaded = stockLogData.data ?? [];
+    if (!filters?.userId) return loaded;
+    return loaded.filter((row) =>
+      (row.dutyUsers ?? []).some((person) => person.userId === filters.userId),
+    );
+  };
+
+  const handleFinalizeAll = async () => {
+    const openLogs = visibleLogs().filter((row) => !row.isFinalized);
+    if (openLogs.length === 0) {
+      toast.error('No open stock logs to finalize');
+      return;
+    }
+    const noun = openLogs.length === 1 ? 'stock log' : 'stock logs';
+    const dateLabel = filters?.logDate ? ` for ${filters.logDate}` : '';
+    if (!confirm(`Finalize ${openLogs.length} open ${noun}${dateLabel}? This cannot be undone.`)) return;
+
+    setFinalizingAll(true);
+    let finalized = 0;
+    try {
+      for (let index = 0; index < openLogs.length; index += FINALIZE_BATCH) {
+        const stockLogIds = openLogs
+          .slice(index, index + FINALIZE_BATCH)
+          .map((row) => row._id as Id<'userStockLogs'>);
+        const response = await finalizeUserStockLogs({ stockLogIds });
+        if (response.success !== true) {
+          toast.error(
+            finalized > 0
+              ? `${response.message} ${finalized} already finalized.`
+              : response.message,
+          );
+          return;
+        }
+        finalized += response.finalized ?? 0;
+      }
+      toast.success(finalized === 1 ? '1 stock log finalized' : `${finalized} stock logs finalized`);
+    } catch (error) {
+      console.log(`Failed to finalize user stock logs! ${error}`);
+      toast.error(
+        finalized > 0
+          ? `Failed to finalize the remaining stock logs. ${finalized} already finalized.`
+          : 'Failed to finalize user stock logs. Please try again.',
+      );
+    } finally {
+      setFinalizingAll(false);
     }
   };
 
@@ -300,6 +357,7 @@ const UserStockLogs = ({
               onClick={() => handleFinalize(row._id, row.beverage?.name || 'Unknown')}
               title='Finalize stock log'
               className='!text-white'
+              disabled={finalizingAll}
             >
               <i className='icon'>
                 <FcDocument />
@@ -326,18 +384,28 @@ const UserStockLogs = ({
     return <p className="p-4">Loading</p>;
   }
 
-  const loaded = stockLogData.success === true ? stockLogData.data ?? [] : [];
-  const rows = filters?.userId
-    ? loaded.filter((row) => (row.dutyUsers ?? []).some((person) => person.userId === filters.userId))
-    : loaded;
+  const rows = visibleLogs();
+  const openCount = rows.filter((row) => !row.isFinalized).length;
 
   return (
     <div className="w-full h-full min-w-0">
-      <DailyStockValueSummary
-        logs={rows}
-        currency={currency}
-        logDate={filters?.logDate}
-      />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <DailyStockValueSummary
+          logs={rows}
+          currency={currency}
+          logDate={filters?.logDate}
+        />
+        {openCount > 0 && (
+          <Button
+            variant="success"
+            onClick={handleFinalizeAll}
+            disabled={finalizingAll}
+            className="shrink-0"
+          >
+            {finalizingAll ? 'Finalizing…' : `Finalize all (${openCount})`}
+          </Button>
+        )}
+      </div>
       <div className="overflow-x-auto">
       <Suspense>
         <PaginationComponent
@@ -380,7 +448,7 @@ function DailyStockValueSummary({
   const money = (value: number) => formatPropertyMoney(value, currency);
 
   return (
-    <section className="mb-4">
+    <section className="mb-4 flex-1">
       <h2 className="text-base font-semibold text-gray-800 mb-2">
         Daily stock value{logDate ? ` · ${logDate}` : ''}
       </h2>
