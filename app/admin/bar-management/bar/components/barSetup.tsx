@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useState } from 'react';
-import { useMutation, useQuery } from 'convex/react';
+import { useConvexAuth, useMutation, useQuery } from 'convex/react';
 import { toast } from 'sonner';
 import { api } from '../../../../../convex/_generated/api';
 import { Id } from '../../../../../convex/_generated/dataModel';
@@ -18,17 +18,18 @@ export function BarSetupActions({
   barName: string;
 }) {
   const [mode, setMode] = useState<'people' | 'stock' | null>(null);
+  const { isAuthenticated } = useConvexAuth();
   const operators = useQuery(
     api.bars.listBarOperators,
-    mode === 'people' ? { barId } : 'skip',
+    isAuthenticated && mode === 'people' ? { barId } : 'skip',
   );
   const choices = useQuery(
     api.bars.listBarOperatorChoices,
-    mode === 'people' ? { propertyId } : 'skip',
+    isAuthenticated && mode === 'people' ? { propertyId } : 'skip',
   );
   const beverages = useQuery(
     api.beverages.getAllBeverages,
-    mode === 'stock' ? { propertyId } : 'skip',
+    isAuthenticated && mode === 'stock' ? { propertyId } : 'skip',
   );
   const assign = useMutation(api.bars.assignBarOperator);
   const unassign = useMutation(api.bars.unassignBarOperator);

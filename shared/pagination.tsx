@@ -31,7 +31,7 @@ const SEARCH_PLACEHOLDERS: Record<string, string> = {
   userRoles: 'Search by user, email, or role',
   storeInventories: 'Search by beverage',
   storeTransactions: 'Search by beverage or type',
-  userStockLogs: 'Search by user, bar, or beverage',
+  userStockLogs: 'Search by beverage',
   beverageCategories: 'Search by category',
   shiftTemplates: 'Search by name or department',
   shifts: 'Search by staff or department',
@@ -63,6 +63,8 @@ export default function PaginationComponent({
   searchResetKey = 0,
   filterKey = '',
   searchLeading,
+  showSearch = true,
+  showIndex = true,
 }: {
   collectionName: string;
   columns: TableColumn<any>[];
@@ -74,6 +76,8 @@ export default function PaginationComponent({
   filterKey?: string;
   /** Sits on the search row, at the left on large screens. */
   searchLeading?: ReactNode;
+  showSearch?: boolean;
+  showIndex?: boolean;
 }) {
   const limit = 10;
   const listMemory = useRememberedList(
@@ -85,7 +89,7 @@ export default function PaginationComponent({
   const [query] = useDebounce(searchQuery, 300);
   const debouncedQuery = typeof query === 'string' ? query.trim() : '';
   const searchTerm = debouncedQuery.length >= 2 ? debouncedQuery : undefined;
-  const showSearch = Boolean(collectionName);
+  const searchVisible = showSearch && Boolean(collectionName);
   const usesClientData = Array.isArray(jointTableData);
   const pagesClientRows = usesClientData;
   const clientQuery = pagesClientRows && debouncedQuery.length >= 2 ? debouncedQuery.toLowerCase() : '';
@@ -195,7 +199,7 @@ export default function PaginationComponent({
 
   return (
     <>
-      {showSearch && (
+      {searchVisible && (
         <SearchComponent
           value={searchQuery}
           placeholder={searchPlaceholder(collectionName)}
@@ -215,6 +219,7 @@ export default function PaginationComponent({
         <TableComponent
           data={currentData}
           columns={columns}
+          showIndex={showIndex}
         />
       )}
 

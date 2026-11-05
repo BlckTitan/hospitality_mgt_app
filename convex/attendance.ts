@@ -23,7 +23,12 @@ import { punctualityFieldsForClock, punctualityInsertFields } from "./lib/punctu
 import { canSeeAllTeamRecords, currentUsersStaff, isActiveStatus } from "./lib/staffAccess";
 import { resolveStaffClockMethod, type ShiftClockMethod } from "./lib/clockMethod";
 import { activeAssignmentsForUser } from "./lib/barAssignment";
-import { computeCogsSnapshot, propertyDateKey, refreshSalesSummariesForLogs } from "./lib/barStock";
+import {
+  computeCogsSnapshot,
+  priorStockHandoverBlock,
+  propertyDateKey,
+  refreshSalesSummariesForLogs,
+} from "./lib/barStock";
 import { staffWorksFrontOffice } from "./lib/dutyContext";
 import { placementForStaff } from "./lib/rotation";
 
@@ -311,6 +316,17 @@ async function startStaffShift(
         message: "This person is linked to more than one bar. Create the shift and choose the bar.",
       };
     }
+  }
+
+  if (barId) {
+    const blocked = await priorStockHandoverBlock(ctx, {
+      barId,
+      beforeDate: today,
+      actorUserId: args.staff.userId,
+      allowOwner: true,
+      action: "starting this shift",
+    });
+    if (blocked) return { success: false as const, message: blocked };
   }
 
   const punctuality = await punctualityFieldsForClock(ctx, {

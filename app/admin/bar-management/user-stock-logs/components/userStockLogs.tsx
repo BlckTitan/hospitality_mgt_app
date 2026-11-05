@@ -5,12 +5,14 @@ import { FcDocument, FcEmptyTrash } from "react-icons/fc";
 import { MdEditDocument } from "react-icons/md";
 import { Button } from '../../../../../shared/button';
 import { Suspense, useMemo, useState } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";
+import { useDebounce } from "use-debounce";
 import { api } from "../../../../../convex/_generated/api";
 import { Id } from "../../../../../convex/_generated/dataModel";
+import { rowMatchesSearch } from "../../../../../convex/lib/rowSearch";
 import { TableColumn } from "../../../../../shared/table";
-import PaginationComponent from "../../../../../shared/pagination";
+import PaginationComponent, { TableSearch } from "../../../../../shared/pagination";
 import { formatPropertyMoney, propertyCurrencyCode, usePropertyCurrency } from "../../../inventory-management/components/money";
 
 interface UserStockLogProps {
@@ -68,11 +70,34 @@ interface UserStockLogProps {
   };
 }
 
-function dutyLabel(row: UserStockLogProps) {
-  const names = (row.dutyUsers ?? []).map((person) => person.name).filter(Boolean);
+function dutyLabel(row: UserStockLogProps, userId?: string) {
+  const people = row.dutyUsers ?? [];
+  if (userId) {
+    const selected = people.find((person) => person.userId === userId);
+    if (selected?.name) return selected.name;
+  }
+  const names = people.map((person) => person.name).filter(Boolean);
   if (names.length > 0) return names.join(', ');
   if (!row.barId) return row.user?.name || 'N/A';
   return 'No one on duty';
+}
+
+function groupLogsByBar(rows: UserStockLogProps[], userId?: string) {
+  const groups = new Map<string, UserStockLogProps[]>();
+  for (const row of rows) {
+    const key = row.barId || 'unassigned';
+    const list = groups.get(key) ?? [];
+    list.push(row);
+    groups.set(key, list);
+  }
+  return [...groups.entries()]
+    .map(([key, logs]) => ({
+      key,
+      barName: logs[0]?.bar?.name || 'N/A',
+      duty: dutyLabel(logs[0], userId),
+      logs,
+    }))
+    .sort((a, b) => a.barName.localeCompare(b.barName, undefined, { sensitivity: 'base' }));
 }
 
 const FINALIZE_BATCH = 15;
@@ -86,28 +111,28 @@ const UserStockLogs = ({
   currency?: string;
   filters?: any;
 }) => {
+  const { isAuthenticated } = useConvexAuth();
   const queriedCurrency = usePropertyCurrency(currentPropertyId);
   const currency = propertyCurrencyCode(propertyCurrency || queriedCurrency);
   const [finalizingAll, setFinalizingAll] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedQuery] = useDebounce(searchQuery, 300);
+  const canQuery = isAuthenticated && Boolean(currentPropertyId);
+  const logDate = typeof filters?.logDate === 'string' && filters.logDate ? filters.logDate : undefined;
 
-  // Use different queries based on active filters
-  let stockLogData;
-  
-  if (filters?.barId && filters?.logDate) {
-    // Use bar daily stock logs query
-    stockLogData = useQuery(api.userStockLogs.getBarDailyStockLogs, {
-      barId: filters.barId as Id<'bars'>,
-      logDate: filters.logDate,
-    });
-  } else if (filters?.logDate) {
-    stockLogData = useQuery(api.userStockLogs.getPropertyDailyStockLogs, {
-      propertyId: currentPropertyId,
-      logDate: filters.logDate,
-    });
-  } else {
-    // Use default query for all stock logs
-    stockLogData = useQuery(api.userStockLogs.getAllUserStockLogs, { propertyId: currentPropertyId });
-  }
+  const barDailyLogs = useQuery(
+    api.userStockLogs.getBarDailyStockLogs,
+    canQuery && filters?.barId && logDate
+      ? { barId: filters.barId as Id<'bars'>, logDate }
+      : 'skip',
+  );
+  const propertyDailyLogs = useQuery(
+    api.userStockLogs.getPropertyDailyStockLogs,
+    canQuery && logDate && !filters?.barId
+      ? { propertyId: currentPropertyId, logDate }
+      : 'skip',
+  );
+  const stockLogData = filters?.barId ? barDailyLogs : propertyDailyLogs;
   
   const removeUserStockLog = useMutation(api.userStockLogs.deleteUserStockLog);
   const finalizeUserStockLog = useMutation(api.userStockLogs.finalizeUserStockLog);
@@ -215,23 +240,48 @@ const UserStockLogs = ({
 
   const tableColumns: TableColumn<UserStockLogProps>[] = [
     {
-      label: 'Date',
-      key: 'logDate',
+      label: 'Action',
+      key: '_id',
+      pin: 'left',
       render: (value, row) => (
-        <span>{row.logDate || 'N/A'}</span>
-      )
-    },
-    {
-      label: 'User',
-      key: 'user',
-      render: (value, row) => <span>{dutyLabel(row)}</span>
-    },
-    {
-      label: 'Bar',
-      key: 'bar',
-      render: (value, row) => (
-        <span>{row.bar?.name || 'N/A'}</span>
-      )
+        <div className='flex justify-evenly lg:justify-start items-center gap-1'>
+          <a
+            href={`/admin/bar-management/user-stock-logs/edit?stock_log_id=${row._id}`}
+            className='!mr-2 !no-underline !text-amber-400'
+            title={row.isFinalized ? 'Cannot edit - record is finalized' : 'Edit stock log'}
+          >
+            <i className={`icon ${row.isFinalized ? 'opacity-50 cursor-not-allowed' : ''}`}>
+              <MdEditDocument />
+            </i>
+          </a>
+
+          {!row.isFinalized && (
+            <Button
+              variant='success'
+              size='sm'
+              onClick={() => handleFinalize(row._id, row.beverage?.name || 'Unknown')}
+              title='Finalize stock log'
+              className='!text-white'
+              disabled={finalizingAll}
+            >
+              <i className='icon'>
+                <FcDocument />
+              </i>
+            </Button>
+          )}
+
+          <Button
+            variant='white'
+            onClick={() => handleDelete(row._id, row.beverage?.name || 'Unknown')}
+            title={row.isFinalized ? 'Cannot delete - record is finalized' : 'Delete stock log'}
+            disabled={row.isFinalized}
+          >
+            <i className={`icon ${row.isFinalized ? 'opacity-50 cursor-not-allowed' : ''}`}>
+              <FcEmptyTrash />
+            </i>
+          </Button>
+        </div>
+      ),
     },
     {
       label: 'Beverage',
@@ -335,49 +385,6 @@ const UserStockLogs = ({
         <span>{formatDate(row.lastUpdatedAt)}</span>
       )
     },
-    {
-      label: 'Action',
-      key: '_id',
-      render: (value, row) => (
-        <div className='flex justify-evenly lg:justify-start items-center gap-1'>
-          <a
-            href={`/admin/bar-management/user-stock-logs/edit?stock_log_id=${row._id}`}
-            className='!mr-2 !no-underline !text-amber-400'
-            title={row.isFinalized ? 'Cannot edit - record is finalized' : 'Edit stock log'}
-          >
-            <i className={`icon ${row.isFinalized ? 'opacity-50 cursor-not-allowed' : ''}`}>
-              <MdEditDocument />
-            </i>
-          </a>
-
-          {!row.isFinalized && (
-            <Button
-              variant='success'
-              size='sm'
-              onClick={() => handleFinalize(row._id, row.beverage?.name || 'Unknown')}
-              title='Finalize stock log'
-              className='!text-white'
-              disabled={finalizingAll}
-            >
-              <i className='icon'>
-                <FcDocument />
-              </i>
-            </Button>
-          )}
-
-          <Button
-            variant='white'
-            onClick={() => handleDelete(row._id, row.beverage?.name || 'Unknown')}
-            title={row.isFinalized ? 'Cannot delete - record is finalized' : 'Delete stock log'}
-            disabled={row.isFinalized}
-          >
-            <i className={`icon ${row.isFinalized ? 'opacity-50 cursor-not-allowed' : ''}`}>
-              <FcEmptyTrash />
-            </i>
-          </Button>
-        </div>
-      ),
-    },
   ];
 
   if (stockLogData === undefined) {
@@ -386,36 +393,67 @@ const UserStockLogs = ({
 
   const rows = visibleLogs();
   const openCount = rows.filter((row) => !row.isFinalized).length;
+  const searchTerm = typeof debouncedQuery === 'string' ? debouncedQuery.trim() : '';
+  const searchedRows = searchTerm.length >= 2
+    ? rows.filter((row) => rowMatchesSearch(row, searchTerm))
+    : rows;
+  const groups = groupLogsByBar(searchedRows, filters?.userId);
+  const filterKey = `${logDate ?? ''}:${filters?.barId ?? ''}:${filters?.userId ?? ''}`;
 
   return (
     <div className="w-full h-full min-w-0">
       <DailyStockValueSummary
         logs={rows}
         currency={currency}
-        logDate={filters?.logDate}
+        logDate={logDate}
       />
-      <div className="overflow-x-auto">
-      <Suspense>
-        <PaginationComponent
-          key={`${filters?.logDate ?? ''}:${filters?.barId ?? ''}:${filters?.userId ?? ''}`}
-          collectionName="userStockLogs"
-          columns={tableColumns}
-          jointTableData={rows}
-          filterKey={`${filters?.logDate ?? ''}:${filters?.barId ?? ''}:${filters?.userId ?? ''}`}
-          searchLeading={
-            openCount > 0 ? (
-              <Button
-                variant="success"
-                onClick={handleFinalizeAll}
-                disabled={finalizingAll}
-              >
-                {finalizingAll ? 'Finalizing…' : `Finalize all (${openCount})`}
-              </Button>
-            ) : null
-          }
-        />
-      </Suspense>
-      </div>
+      <TableSearch
+        value={searchQuery}
+        placeholder="Search by beverage"
+        setSearchQuery={setSearchQuery}
+        leading={
+          openCount > 0 ? (
+            <Button
+              variant="success"
+              onClick={handleFinalizeAll}
+              disabled={finalizingAll}
+            >
+              {finalizingAll ? 'Finalizing…' : `Finalize all (${openCount})`}
+            </Button>
+          ) : null
+        }
+      />
+      {groups.length === 0 ? (
+        <div className="w-full h-full flex justify-center items-center py-8">
+          {searchTerm.length >= 2 ? 'No matching results were found.' : 'No data available!'}
+        </div>
+      ) : (
+        groups.map((group) => (
+          <section key={group.key} className="mb-6">
+            <div className="mb-2 flex flex-wrap items-baseline gap-x-6 gap-y-1">
+              <p className="text-sm text-gray-800">
+                <span className="font-medium text-gray-500">Bar</span>{' '}
+                <span className="font-semibold">{group.barName}</span>
+              </p>
+              <p className="text-sm text-gray-800">
+                <span className="font-medium text-gray-500">On duty</span>{' '}
+                <span className="font-semibold">{group.duty}</span>
+              </p>
+            </div>
+            <Suspense>
+              <PaginationComponent
+                key={`${filterKey}:${group.key}`}
+                collectionName="userStockLogs"
+                columns={tableColumns}
+                jointTableData={group.logs}
+                filterKey={`${filterKey}:${group.key}`}
+                showSearch={false}
+                showIndex={false}
+              />
+            </Suspense>
+          </section>
+        ))
+      )}
     </div>
   );
 };

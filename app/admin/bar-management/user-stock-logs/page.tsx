@@ -1,13 +1,13 @@
 'use client';
 
 import { BackLink } from '../../../../shared/pageHeader';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Button } from '../../../../shared/button';
 import { FcPlus } from 'react-icons/fc';
 import UserStockLogs from './components/userStockLogs';
 import { FormComponent } from './components/createUserStockLogForm';
 import { FilterComponent } from './components/filterComponent';
-import { useQuery } from 'convex/react';
+import { useConvexAuth, useQuery } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 import { Id } from '../../../../convex/_generated/dataModel';
 import BootstrapModal from '../../../../shared/modal';
@@ -32,21 +32,75 @@ function dateKeyInTimeZone(timeZone: string | undefined, now = Date.now()) {
   return new Date(now).toISOString().slice(0, 10);
 }
 
+type StockLogFilters = {
+  userId?: string;
+  barId?: string;
+  logDate?: string;
+};
+
+const FILTER_STORAGE_KEY = 'user-stock-logs:filters';
+let handledDocumentLoad = false;
+
+function readStockLogFilters(): StockLogFilters | null {
+  if (typeof window === 'undefined') return null;
+  if (!handledDocumentLoad) {
+    handledDocumentLoad = true;
+    const entry = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
+    if (entry?.type === 'reload') {
+      sessionStorage.removeItem(FILTER_STORAGE_KEY);
+      return null;
+    }
+  }
+  try {
+    const parsed = JSON.parse(sessionStorage.getItem(FILTER_STORAGE_KEY) ?? 'null') as StockLogFilters | null;
+    if (!parsed || typeof parsed !== 'object') return null;
+    return {
+      userId: typeof parsed.userId === 'string' && parsed.userId ? parsed.userId : undefined,
+      barId: typeof parsed.barId === 'string' && parsed.barId ? parsed.barId : undefined,
+      logDate: typeof parsed.logDate === 'string' && parsed.logDate ? parsed.logDate : undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeStockLogFilters(filters: StockLogFilters | null) {
+  if (typeof window === 'undefined') return;
+  if (!filters) {
+    sessionStorage.removeItem(FILTER_STORAGE_KEY);
+    return;
+  }
+  sessionStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(filters));
+}
+
 export default function UserStockLogPage() {
+  const { isLoading: authLoading, isAuthenticated } = useConvexAuth();
   const [modalShow, setModalShow] = useState(false);
   const [propertyId, setPropertyId] = useState<string>('');
-  const [activeFilters, setActiveFilters] = useState<any>(null);
+  const [filtersReady, setFiltersReady] = useState(false);
+  const [activeFilters, setActiveFilters] = useState<StockLogFilters | null>(null);
+
+  useEffect(() => {
+    setActiveFilters(readStockLogFilters());
+    setFiltersReady(true);
+  }, []);
 
   // Fetch properties to get the current property
-  const propertiesResponse = useQuery(api.property.listAccessibleProperties, {});
+  const propertiesResponse = useQuery(
+    api.property.listAccessibleProperties,
+    isAuthenticated ? {} : 'skip',
+  );
   const properties = propertiesResponse?.data || [];
   const currentPropertyId = propertyId || properties?.[0]?._id || '';
   const currentProperty = properties.find((property) => property._id === currentPropertyId) ?? properties[0];
   const todayKey = dateKeyInTimeZone(currentProperty?.timezone);
-  const appliedFilters = activeFilters ?? { logDate: todayKey };
+  const appliedFilters: StockLogFilters = {
+    userId: activeFilters?.userId,
+    barId: activeFilters?.barId,
+    logDate: activeFilters?.logDate || todayKey,
+  };
 
-  // check if property is loading
-  if (!propertiesResponse?.data) {
+  if (authLoading || !isAuthenticated || !filtersReady || !propertiesResponse?.data) {
     return (
       <div className='w-full h-full flex justify-center items-center'>
         Loading...
@@ -62,12 +116,14 @@ export default function UserStockLogPage() {
     );
   }
 
-  const handleFilter = (filters: any) => {
+  const handleFilter = (filters: StockLogFilters) => {
     setActiveFilters(filters);
+    writeStockLogFilters(filters);
   };
 
   const handleClearFilter = () => {
     setActiveFilters(null);
+    writeStockLogFilters(null);
   };
 
   return (
@@ -93,6 +149,7 @@ export default function UserStockLogPage() {
       <FilterComponent
         propertyId={currentPropertyId as Id<'properties'>}
         defaultLogDate={todayKey}
+        initialFilters={activeFilters}
         onFilter={handleFilter}
         onClear={handleClearFilter}
       />

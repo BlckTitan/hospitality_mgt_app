@@ -14,7 +14,12 @@ import {
   SHIFT_DEPARTMENTS,
   staffForUser,
 } from './lib/shiftHelpers';
-import { computeCogsSnapshot, refreshSalesSummariesForLogs } from './lib/barStock';
+import {
+  computeCogsSnapshot,
+  priorStockHandoverBlock,
+  propertyDateKey,
+  refreshSalesSummariesForLogs,
+} from './lib/barStock';
 
 const departmentValidator = v.union(
   v.literal('front-office'),
@@ -210,6 +215,17 @@ export const createShift = mutation({
         if (!(await isStaffAssignedToBar(ctx, staff, args.barId))) {
           return { success: false, message: 'Link this person to the bar before putting them on its shift' };
         }
+        const today = await propertyDateKey(ctx, args.propertyId);
+        if (args.shiftDate >= today) {
+          const blocked = await priorStockHandoverBlock(ctx, {
+            barId: args.barId,
+            beforeDate: args.shiftDate,
+            actorUserId: staff.userId,
+            allowOwner: true,
+            action: 'starting this shift',
+          });
+          if (blocked) return { success: false, message: blocked };
+        }
       }
 
       const existing = await findActiveShiftForStaffDate(ctx, args.employeeId, args.shiftDate);
@@ -292,6 +308,23 @@ export const updateShift = mutation({
         }
         if (staff && !(await isStaffAssignedToBar(ctx, staff, barId))) {
           return { success: false, message: 'Link this person to the bar before putting them on its shift' };
+        }
+        const today = await propertyDateKey(ctx, existingShift.propertyId);
+        const nextUserId = staff?.userId ?? existingShift.userId;
+        const assignmentChanged =
+          barId !== existingShift.barId ||
+          nextUserId !== existingShift.userId ||
+          (args.shiftDate !== undefined && args.shiftDate !== existingShift.shiftDate);
+        const shiftDate = args.shiftDate ?? existingShift.shiftDate;
+        if (assignmentChanged && shiftDate >= today) {
+          const blocked = await priorStockHandoverBlock(ctx, {
+            barId,
+            beforeDate: shiftDate,
+            actorUserId: nextUserId,
+            allowOwner: true,
+            action: 'starting this shift',
+          });
+          if (blocked) return { success: false, message: blocked };
         }
       }
 

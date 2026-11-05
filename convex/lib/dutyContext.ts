@@ -1,7 +1,7 @@
 import { MutationCtx, QueryCtx } from "../_generated/server";
 import { Doc, Id } from "../_generated/dataModel";
 import { isUserAssignedToBar } from "./barAssignment";
-import { propertyDateKey } from "./barStock";
+import { priorStockHandoverBlock, propertyDateKey } from "./barStock";
 import {
   departmentFromRole,
   findActiveShiftForStaffDate,
@@ -67,6 +67,14 @@ export async function requireFnBSaleShift(
   if (!(await isUserAssignedToBar(ctx, args.userId, shift.barId))) {
     return { ok: false, message: "You are not linked to this bar. Ask an admin to link you before selling." };
   }
+  const logDate = await propertyDateKey(ctx, args.propertyId);
+  const blocked = await priorStockHandoverBlock(ctx, {
+    barId: shift.barId,
+    beforeDate: logDate,
+    actorUserId: args.userId,
+    action: "selling",
+  });
+  if (blocked) return { ok: false, message: blocked };
   return { ok: true, shift, staff, barId: shift.barId };
 }
 

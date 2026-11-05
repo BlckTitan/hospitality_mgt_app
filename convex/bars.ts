@@ -1,19 +1,32 @@
-import { mutation, query } from './_generated/server';
+import { mutation, query, type QueryCtx } from './_generated/server';
 import { v } from 'convex/values';
-import { requirePermission } from './lib/rbac';
+import type { Id } from './_generated/dataModel';
+import { requirePermission, tryRequirePermission } from './lib/rbac';
 import { listActiveWaitersAndBartenders } from './lib/serviceStaff';
 import {
   derivedSales,
   findBarDayLog,
   openBarBookLine,
+  priorStockHandoverBlock,
   propertyDateKey,
   resolveBeverageUnitCost,
 } from './lib/barStock';
 
+async function denyBarRead(
+  ctx: QueryCtx,
+  propertyId?: Id<'properties'>,
+): Promise<string | null> {
+  const auth = await tryRequirePermission(ctx, 'fnb.read', propertyId);
+  if (auth) return null;
+  const identity = await ctx.auth.getUserIdentity();
+  return identity ? 'Unauthorized' : 'Not authenticated';
+}
+
 export const getAllBars = query({
   args: { propertyId: v.optional(v.id('properties')) },
   handler: async (ctx, args) => {
-    await requirePermission(ctx, 'fnb.read', args.propertyId);
+    const denied = await denyBarRead(ctx, args.propertyId);
+    if (denied) return { success: false, data: [], message: denied };
     try {
       let barsQuery = ctx.db.query('bars');
       if (args.propertyId) {
@@ -31,7 +44,8 @@ export const getAllBars = query({
 export const getBars = query({
   args: { propertyId: v.optional(v.id('properties')) },
   handler: async (ctx, args) => {
-    await requirePermission(ctx, 'fnb.read', args.propertyId);
+    const denied = await denyBarRead(ctx, args.propertyId);
+    if (denied) return { success: false, data: [], message: denied };
     try {
       let barsQuery = ctx.db.query('bars');
       if (args.propertyId) {
@@ -53,7 +67,8 @@ export const getBar = query({
     if (!bar) {
       return { success: false, data: null, message: 'Bar not found' };
     }
-    await requirePermission(ctx, 'fnb.read', args.propertyId ?? bar.propertyId);
+    const denied = await denyBarRead(ctx, args.propertyId ?? bar.propertyId);
+    if (denied) return { success: false, data: null, message: denied };
     try {
       if (args.propertyId && bar.propertyId !== args.propertyId) {
         return { success: false, data: null, message: 'Bar does not belong to the specified property' };
@@ -147,7 +162,8 @@ export const listBarOperators = query({
   handler: async (ctx, args) => {
     const bar = await ctx.db.get(args.barId);
     if (!bar) return { success: false as const, data: [], message: 'Bar not found' };
-    await requirePermission(ctx, 'fnb.read', bar.propertyId);
+    const denied = await denyBarRead(ctx, bar.propertyId);
+    if (denied) return { success: false as const, data: [], message: denied };
     const rows = await ctx.db
       .query('barAssignments')
       .withIndex('by_barId', (q) => q.eq('barId', args.barId))
@@ -171,7 +187,8 @@ export const listBarOperators = query({
 export const listBarOperatorChoices = query({
   args: { propertyId: v.id('properties') },
   handler: async (ctx, args) => {
-    await requirePermission(ctx, 'fnb.read', args.propertyId);
+    const denied = await denyBarRead(ctx, args.propertyId);
+    if (denied) return { success: false as const, data: [], message: denied };
     const people = await listActiveWaitersAndBartenders(ctx, args.propertyId);
     return { success: true as const, data: people };
   },
@@ -240,6 +257,12 @@ export const setBarOpeningStock = mutation({
     if (!bar || !bar.isActive) return { success: false, message: 'Bar not found or inactive' };
     const auth = await requirePermission(ctx, 'fnb.update', bar.propertyId);
     const logDate = await propertyDateKey(ctx, bar.propertyId);
+    const blocked = await priorStockHandoverBlock(ctx, {
+      barId: args.barId,
+      beforeDate: logDate,
+      action: "opening today's stock",
+    });
+    if (blocked) return { success: false, message: blocked };
     let saved = 0;
     const skipped: string[] = [];
     for (const line of args.lines) {

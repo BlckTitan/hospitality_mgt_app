@@ -1,8 +1,8 @@
-import { mutation, query, QueryCtx } from './_generated/server';
+import { mutation, query, MutationCtx, QueryCtx } from './_generated/server';
 import { v } from 'convex/values';
 import { Doc, Id } from './_generated/dataModel';
 import { posPouredQtyByBarBeverage } from './posOrders';
-import { requirePermission } from './lib/rbac';
+import { requirePermission, tryRequirePermission } from './lib/rbac';
 import { assertCanOperateBar, assignedBarIdsForUser } from './lib/barAssignment';
 import { DutyPerson, listOnDutyStaffForBarDate, listOnDutyUsersForDate } from './lib/barDuty';
 import {
@@ -12,12 +12,33 @@ import {
   carryOverOpeningStock,
   lastFinalizedClosingStock,
   openBarBookLine,
+  openPriorBarBooks,
   previousDateKey,
+  priorStockHandoverBlock,
   propertyDateKey,
   refreshSalesSummariesForLog,
   refreshSalesSummariesForLogs,
   resolveBeverageUnitCost,
 } from './lib/barStock';
+
+function stockReadFailure(error: unknown, data: null): { success: false; data: null; message: string };
+function stockReadFailure(error: unknown): { success: false; data: []; message: string };
+function stockReadFailure(error: unknown, data: [] | null = []) {
+  return {
+    success: false as const,
+    data,
+    message: error instanceof Error ? error.message : 'Not authenticated',
+  };
+}
+
+/** Read queries must not throw when the client subscribes before a session exists. */
+async function authorizeStockRead(ctx: QueryCtx, propertyId?: Id<'properties'>) {
+  try {
+    return { auth: await requirePermission(ctx, 'fnb.read', propertyId) };
+  } catch (error) {
+    return { error };
+  }
+}
 
 async function presentStockLogs(ctx: QueryCtx, logs: Doc<'userStockLogs'>[]) {
   const dutyByBarDate = new Map<string, DutyPerson[]>();
@@ -56,7 +77,15 @@ export const listActiveUsersForBar = query({
     logDate: v.string(),
   },
   handler: async (ctx, args) => {
-    await requirePermission(ctx, 'fnb.read', args.propertyId);
+    const auth = await tryRequirePermission(ctx, 'fnb.read', args.propertyId);
+    if (!auth) {
+      const identity = await ctx.auth.getUserIdentity();
+      return {
+        success: false,
+        data: [],
+        message: identity ? 'Unauthorized' : 'Not authenticated',
+      };
+    }
     if (args.barId) {
       const bar = await ctx.db.get(args.barId);
       if (!bar || bar.propertyId !== args.propertyId) {
@@ -75,7 +104,8 @@ export const listActiveUsersForBar = query({
 export const getAllUserStockLogs = query({
   args: { propertyId: v.id('properties') },
   handler: async (ctx, args) => {
-    await requirePermission(ctx, 'fnb.read', args.propertyId);
+    const access = await authorizeStockRead(ctx, args.propertyId);
+    if ('error' in access) return stockReadFailure(access.error);
     try {
       const userStockLogs = await ctx.db
         .query('userStockLogs')
@@ -101,7 +131,8 @@ export const getUserStockLog = query({
     if (!stockLog) {
       return { success: false, data: null, message: 'User stock log not found' };
     }
-    await requirePermission(ctx, 'fnb.read', stockLog.propertyId);
+    const access = await authorizeStockRead(ctx, stockLog.propertyId);
+    if ('error' in access) return stockReadFailure(access.error, null);
     try {
       // Fetch related data using denormalized fields
       const [presented] = await presentStockLogs(ctx, [stockLog]);
@@ -136,7 +167,8 @@ export const getDailyStockLogs = query({
     if (!bar) {
       return { success: false, data: [], message: 'Bar not found' };
     }
-    await requirePermission(ctx, 'fnb.read', bar.propertyId);
+    const access = await authorizeStockRead(ctx, bar.propertyId);
+    if ('error' in access) return stockReadFailure(access.error);
     try {
       const stockLogs = await ctx.db
         .query('userStockLogs')
@@ -166,7 +198,8 @@ export const getBarDailyStockLogs = query({
     if (!bar) {
       return { success: false, data: [], message: 'Bar not found' };
     }
-    await requirePermission(ctx, 'fnb.read', bar.propertyId);
+    const access = await authorizeStockRead(ctx, bar.propertyId);
+    if ('error' in access) return stockReadFailure(access.error);
     try {
       const stockLogs = await ctx.db
         .query('userStockLogs')
@@ -192,7 +225,8 @@ export const getPropertyDailyStockLogs = query({
     logDate: v.string(),
   },
   handler: async (ctx, args) => {
-    await requirePermission(ctx, 'fnb.read', args.propertyId);
+    const access = await authorizeStockRead(ctx, args.propertyId);
+    if ('error' in access) return stockReadFailure(access.error);
     try {
       const stockLogs = await ctx.db
         .query('userStockLogs')
@@ -223,11 +257,8 @@ export const getUserDailyStockLogs = query({
         q.eq('userId', args.userId).eq('logDate', args.logDate)
       )
       .first();
-    if (!sampleLog) {
-      await requirePermission(ctx, 'fnb.read');
-    } else {
-      await requirePermission(ctx, 'fnb.read', sampleLog.propertyId);
-    }
+    const access = await authorizeStockRead(ctx, sampleLog?.propertyId);
+    if ('error' in access) return stockReadFailure(access.error);
     try {
       const stockLogs = await ctx.db
         .query('userStockLogs')
@@ -264,9 +295,11 @@ export const getBeverageStockHistory = query({
       if (!bar) {
         return { success: false, data: [], message: 'Bar not found' };
       }
-      await requirePermission(ctx, 'fnb.read', bar.propertyId);
+      const access = await authorizeStockRead(ctx, bar.propertyId);
+      if ('error' in access) return stockReadFailure(access.error);
     } else {
-      await requirePermission(ctx, 'fnb.read', beverage.propertyId);
+      const access = await authorizeStockRead(ctx, beverage.propertyId);
+      if ('error' in access) return stockReadFailure(access.error);
     }
     try {
       let stockLogs;
@@ -307,7 +340,8 @@ export const getUserStockLogsByShift = query({
     if (!shift) {
       return { success: false, data: [], message: 'Shift not found' };
     }
-    await requirePermission(ctx, 'fnb.read', shift.propertyId);
+    const access = await authorizeStockRead(ctx, shift.propertyId);
+    if ('error' in access) return stockReadFailure(access.error);
     try {
       const stockLogs = await ctx.db
         .query('userStockLogs')
@@ -364,6 +398,12 @@ export const createUserStockLog = mutation({
     if (existing) {
       return { success: false, message: 'This drink is already on the bar today' };
     }
+    const blocked = await priorStockHandoverBlock(ctx, {
+      barId: args.barId,
+      beforeDate: logDate,
+      action: "opening today's stock",
+    });
+    if (blocked) return { success: false, message: blocked };
     const unitCost = await resolveBeverageUnitCost(ctx, beverage);
     const stockLogId = await openBarBookLine(ctx, {
       propertyId: args.propertyId,
@@ -595,7 +635,9 @@ export const getMyTodayStock = query({
     barId: v.optional(v.id('bars')),
   },
   handler: async (ctx, args) => {
-    const auth = await requirePermission(ctx, 'fnb.read', args.propertyId);
+    const access = await authorizeStockRead(ctx, args.propertyId);
+    if ('error' in access) return stockReadFailure(access.error, null);
+    const auth = access.auth;
     const logDate = await propertyDateKey(ctx, args.propertyId);
 
     const scope = await assignedBarIdsForUser(ctx, auth, args.propertyId);
@@ -629,6 +671,11 @@ export const getMyTodayStock = query({
       }
     }
 
+    const priorLogs: Doc<'userStockLogs'>[] = [];
+    for (const barId of targetIds) {
+      priorLogs.push(...(await openPriorBarBooks(ctx, { barId, beforeDate: logDate })));
+    }
+
     const poured = await posPouredQtyByBarBeverage(ctx, {
       propertyId: args.propertyId,
       barId: targetIds.length === 1 ? targetIds[0] : undefined,
@@ -646,6 +693,17 @@ export const getMyTodayStock = query({
       }),
     );
 
+    const priorLogsWithData = await Promise.all(
+      priorLogs.map(async (log) => {
+        const [beverage, bar, operator] = await Promise.all([
+          ctx.db.get(log.beverageId),
+          log.barId ? ctx.db.get(log.barId) : null,
+          ctx.db.get(log.userId),
+        ]);
+        return { ...log, beverage, bar, operatorName: operator?.name?.trim() || 'the previous shift' };
+      }),
+    );
+
     const beverages = await ctx.db
       .query('beverages')
       .withIndex('by_propertyId', (q) => q.eq('propertyId', args.propertyId))
@@ -657,6 +715,7 @@ export const getMyTodayStock = query({
         logDate,
         userId: auth.user._id,
         logs: stockLogsWithData,
+        priorLogs: priorLogsWithData,
         beverages: beverages.filter((row) => row.isActive),
         bars,
       },
@@ -689,6 +748,12 @@ export const addMyTodayBeverage = mutation({
     if (existingLog) {
       return { success: false, message: 'This beverage is already on the bar today' };
     }
+    const blocked = await priorStockHandoverBlock(ctx, {
+      barId: args.barId,
+      beforeDate: logDate,
+      action: "opening today's stock",
+    });
+    if (blocked) return { success: false, message: blocked };
 
     const openingStock = await carryOverOpeningStock(ctx, {
       barId: args.barId,
@@ -746,6 +811,13 @@ export const autofillMyToday = mutation({
       .query('userStockLogs')
       .withIndex('by_barId_date', (q) => q.eq('barId', args.barId).eq('logDate', logDate))
       .collect();
+    const blocked = await priorStockHandoverBlock(ctx, {
+      barId: args.barId,
+      beforeDate: logDate,
+      action: "opening today's stock",
+    });
+    if (blocked) return { success: false as const, message: blocked, added: 0, remaining: 0 };
+
     if (todayRows.some((log) => log.holder === 'bar' && log.isFinalized)) {
       return { success: false as const, message: 'Today is already finalized for this bar', added: 0, remaining: 0 };
     }
@@ -859,6 +931,53 @@ export const autofillMyToday = mutation({
   },
 });
 
+type ClosingCount = {
+  closingStock: number;
+  wasteQuantity?: number;
+  wasteReason?: string;
+  compQuantity?: number;
+  compReason?: string;
+};
+
+async function prepareClosingCount(
+  ctx: MutationCtx,
+  log: Doc<'userStockLogs'>,
+  args: ClosingCount,
+  today: string,
+) {
+  if (!log.barId) {
+    return { ok: false as const, message: 'This stock row is not on a bar' };
+  }
+  const yesterday = previousDateKey(today);
+  const closingPriorDay = log.logDate === yesterday && !log.isFinalized;
+  if (log.logDate !== today && !closingPriorDay) {
+    return { ok: false as const, message: 'You can only update today\'s stock log, or yesterday while it is still open' };
+  }
+  if (log.isFinalized) {
+    return { ok: false as const, message: 'Cannot update finalized stock log' };
+  }
+  if (args.closingStock < 0) {
+    return { ok: false as const, message: 'Closing stock cannot be negative' };
+  }
+  const beverage = await ctx.db.get(log.beverageId);
+  if (!beverage) {
+    return { ok: false as const, message: 'Associated beverage does not exist' };
+  }
+  try {
+    const sales = derivedSales(
+      log.totalStock,
+      args.closingStock,
+      beverage.unitPrice,
+      await resolveBeverageUnitCost(ctx, beverage),
+      args.wasteQuantity ?? log.wasteQuantity,
+      args.compQuantity ?? log.compQuantity,
+    );
+    return { ok: true as const, sales };
+  } catch (error: any) {
+    return { ok: false as const, message: error?.message || 'Closing stock cannot be greater than total stock' };
+  }
+}
+
 export const saveMyClosingStock = mutation({
   args: {
     stockLogId: v.id('userStockLogs'),
@@ -880,49 +999,93 @@ export const saveMyClosingStock = mutation({
     const denied = await assertCanOperateBar(ctx, auth, existingLog.barId);
     if (denied) return { success: false, message: denied };
     const today = await propertyDateKey(ctx, existingLog.propertyId);
-    if (existingLog.logDate !== today) {
-      return { success: false, message: 'You can only update today\'s stock log' };
-    }
-    if (existingLog.isFinalized) {
-      return { success: false, message: 'Cannot update finalized stock log' };
-    }
-    if (args.closingStock < 0) {
-      return { success: false, message: 'Closing stock cannot be negative' };
-    }
+    const prepared = await prepareClosingCount(ctx, existingLog, args, today);
+    if (!prepared.ok) return { success: false, message: prepared.message };
 
-    const beverage = await ctx.db.get(existingLog.beverageId);
-    if (!beverage) {
-      return { success: false, message: 'Associated beverage does not exist' };
-    }
-    let sales;
-    try {
-      sales = derivedSales(
-        existingLog.totalStock,
-        args.closingStock,
-        beverage.unitPrice,
-        await resolveBeverageUnitCost(ctx, beverage),
-        args.wasteQuantity ?? existingLog.wasteQuantity,
-        args.compQuantity ?? existingLog.compQuantity,
-      );
-    } catch (error: any) {
-      return { success: false, message: error?.message || 'Closing stock cannot be greater than total stock' };
-    }
     await ctx.db.patch(args.stockLogId, {
       closingStock: args.closingStock,
-      ...sales,
+      ...prepared.sales,
       ...(args.wasteReason !== undefined ? { wasteReason: args.wasteReason } : {}),
       ...(args.compReason !== undefined ? { compReason: args.compReason } : {}),
       lastUpdatedAt: Date.now(),
     });
     await refreshSalesSummariesForLog(ctx, {
       ...existingLog,
-      salesQuantity: sales.salesQuantity,
-      salesValue: sales.salesValue,
-      cogsValue: sales.cogsValue,
-      wasteQuantity: sales.wasteQuantity,
-      compQuantity: sales.compQuantity,
+      salesQuantity: prepared.sales.salesQuantity,
+      salesValue: prepared.sales.salesValue,
+      cogsValue: prepared.sales.cogsValue,
+      wasteQuantity: prepared.sales.wasteQuantity,
+      compQuantity: prepared.sales.compQuantity,
     });
     return { success: true, message: 'Closing stock saved' };
+  },
+});
+
+const SAVE_BATCH = 10;
+
+export const saveMyClosingStocks = mutation({
+  args: {
+    lines: v.array(
+      v.object({
+        stockLogId: v.id('userStockLogs'),
+        closingStock: v.number(),
+        wasteQuantity: v.optional(v.number()),
+        compQuantity: v.optional(v.number()),
+      }),
+    ),
+  },
+  handler: async (ctx, args) => {
+    if (args.lines.length === 0) {
+      return { success: false, message: 'No stock logs to save', saved: 0 };
+    }
+    const batch = args.lines.slice(0, SAVE_BATCH);
+    const logs: Array<{ log: Doc<'userStockLogs'>; line: (typeof batch)[number] }> = [];
+    for (const line of batch) {
+      const log = await ctx.db.get(line.stockLogId);
+      if (!log) return { success: false, message: 'User stock log does not exist', saved: 0 };
+      logs.push({ log, line });
+    }
+    const propertyId = logs[0].log.propertyId;
+    const barId = logs[0].log.barId;
+    if (!barId || logs.some(({ log }) => log.propertyId !== propertyId || log.barId !== barId)) {
+      return { success: false, message: 'Stock logs must belong to the same bar', saved: 0 };
+    }
+    const auth = await requirePermission(ctx, 'fnb.update', propertyId);
+    const denied = await assertCanOperateBar(ctx, auth, barId);
+    if (denied) return { success: false, message: denied, saved: 0 };
+
+    const today = await propertyDateKey(ctx, propertyId);
+    const prepared = [];
+    for (const { log, line } of logs) {
+      const result = await prepareClosingCount(ctx, log, line, today);
+      if (!result.ok) return { success: false, message: result.message, saved: 0 };
+      prepared.push({ log, line, sales: result.sales });
+    }
+
+    const now = Date.now();
+    const summaries = [];
+    for (const { log, line, sales } of prepared) {
+      await ctx.db.patch(log._id, {
+        closingStock: line.closingStock,
+        ...sales,
+        lastUpdatedAt: now,
+      });
+      summaries.push({
+        ...log,
+        salesQuantity: sales.salesQuantity,
+        salesValue: sales.salesValue,
+        cogsValue: sales.cogsValue,
+        wasteQuantity: sales.wasteQuantity,
+        compQuantity: sales.compQuantity,
+      });
+    }
+    await refreshSalesSummariesForLogs(ctx, summaries);
+    const count = prepared.length;
+    return {
+      success: true,
+      message: count === 1 ? '1 stock row saved' : `${count} stock rows saved`,
+      saved: count,
+    };
   },
 });
 
@@ -970,6 +1133,37 @@ export const finalizeMyToday = mutation({
     }
     await refreshSalesSummariesForLogs(ctx, finalized);
     return { success: true, message: 'Today\'s stock logs finalized' };
+  },
+});
+
+export const finalizeMyPriorDay = mutation({
+  args: {
+    propertyId: v.id('properties'),
+    barId: v.id('bars'),
+  },
+  handler: async (ctx, args) => {
+    const auth = await requirePermission(ctx, 'fnb.update', args.propertyId);
+    const denied = await assertCanOperateBar(ctx, auth, args.barId);
+    if (denied) return { success: false, message: denied };
+    const bar = await ctx.db.get(args.barId);
+    if (!bar || bar.propertyId !== args.propertyId) {
+      return { success: false, message: 'Bar does not exist or does not belong to this property' };
+    }
+    const today = await propertyDateKey(ctx, args.propertyId);
+    const open = await openPriorBarBooks(ctx, { barId: args.barId, beforeDate: today });
+    if (open.length === 0) {
+      return { success: false, message: "Yesterday's stock is already closed" };
+    }
+
+    const now = Date.now();
+    const finalized = [];
+    for (const log of open) {
+      const cogs = await computeCogsSnapshot(ctx, log);
+      await ctx.db.patch(log._id, { isFinalized: true, ...cogs, lastUpdatedAt: now });
+      finalized.push({ ...log, ...cogs });
+    }
+    await refreshSalesSummariesForLogs(ctx, finalized);
+    return { success: true, message: "Yesterday's stock is closed" };
   },
 });
 

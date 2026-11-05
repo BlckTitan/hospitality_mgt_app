@@ -1,7 +1,7 @@
 import { mutation, query, MutationCtx, QueryCtx } from './_generated/server';
 import { v } from 'convex/values';
 import { Doc, Id } from './_generated/dataModel';
-import { hasGranularPermission, requirePermission, scopeAuthContextToProperty } from './lib/rbac';
+import { hasGranularPermission, requirePermission, scopeAuthContextToProperty, tryRequirePermission } from './lib/rbac';
 import { resolveBeverageUnitCost } from './lib/barStock';
 import { resolveBeverageCategory } from './beverageCategories';
 
@@ -165,7 +165,15 @@ export const getBeverages = query({
 export const getAllBeverages = query({
   args: { propertyId: v.id('properties') },
   handler: async (ctx, args) => {
-    const auth = await requirePermission(ctx, 'fnb.menu.read', args.propertyId);
+    const auth = await tryRequirePermission(ctx, 'fnb.menu.read', args.propertyId);
+    if (!auth) {
+      const identity = await ctx.auth.getUserIdentity();
+      return {
+        success: false,
+        data: [],
+        message: identity ? 'Unauthorized' : 'Not authenticated',
+      };
+    }
     const menuOnly = isMenuOnlyReader(auth, args.propertyId);
     try {
       const beverages = await ctx.db

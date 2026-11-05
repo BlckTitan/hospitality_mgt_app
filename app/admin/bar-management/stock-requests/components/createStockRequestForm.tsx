@@ -1,7 +1,7 @@
 'use client'
 
 import { FormEvent, useState } from 'react'
-import { useMutation, useQuery } from 'convex/react'
+import { useConvexAuth, useMutation, useQuery } from 'convex/react'
 import { Button } from '../../../../../shared/button'
 import { toast } from 'sonner'
 import { api } from '../../../../../convex/_generated/api'
@@ -19,14 +19,10 @@ export function FormComponent({
   propertyId: string
 }) {
   const createRequest = useMutation(api.stockRequests.createStockRequest)
-  const beveragesResponse = useQuery(
-    api.beverages.getAllBeverages,
-    propertyId ? { propertyId: propertyId as Id<'properties'> } : 'skip',
-  )
-  const barsResponse = useQuery(
-    api.bars.getAllBars,
-    propertyId ? { propertyId: propertyId as Id<'properties'> } : 'skip',
-  )
+  const { isAuthenticated } = useConvexAuth()
+  const propertyArgs = isAuthenticated && propertyId ? { propertyId: propertyId as Id<'properties'> } : 'skip'
+  const beveragesResponse = useQuery(api.beverages.getAllBeverages, propertyArgs)
+  const barsResponse = useQuery(api.bars.getAllBars, propertyArgs)
 
   const beverages = (beveragesResponse?.data || []).filter((b: any) => b.isActive)
   const bars = (barsResponse?.data || []).filter((b: any) => b.isActive)

@@ -1,6 +1,6 @@
 'use client'
 
-import { useMutation, useQuery } from 'convex/react'
+import { useConvexAuth, useMutation, useQuery } from 'convex/react'
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { useDebounce } from 'use-debounce'
 import { useRememberedList } from '../../../../../shared/listPageState'
@@ -20,7 +20,11 @@ const qtyInputClassName = 'w-20! max-w-[1.75rem] border rounded p-1 text-right';
 const PAGE_SIZE = 10;
 
 export default function MyStock() {
-  const propertiesResponse = useQuery(api.property.listAccessibleProperties, {})
+  const { isAuthenticated } = useConvexAuth()
+  const propertiesResponse = useQuery(
+    api.property.listAccessibleProperties,
+    isAuthenticated ? {} : 'skip',
+  )
   const properties = propertiesResponse?.data || []
   const [propertyId, setPropertyId] = useState<string>('')
   const [barId, setBarId] = useState<string>('')
@@ -29,6 +33,7 @@ export default function MyStock() {
   const [wasteEdits, setWasteEdits] = useState<Record<string, string>>({})
   const [compEdits, setCompEdits] = useState<Record<string, string>>({})
   const [savingId, setSavingId] = useState<string | null>(null)
+  const [savingAll, setSavingAll] = useState(false)
   const [autofilling, setAutofilling] = useState(false)
   const canSelectProperty = useCanSelectProperty()
   const [beverageQuery, setBeverageQuery] = useState('')
@@ -37,13 +42,17 @@ export default function MyStock() {
   const currentPropertyId = propertyId || properties[0]?._id || ''
   const today = useQuery(
     api.userStockLogs.getMyTodayStock,
-    currentPropertyId ? { propertyId: currentPropertyId as Id<'properties'> } : 'skip',
+    isAuthenticated && currentPropertyId
+      ? { propertyId: currentPropertyId as Id<'properties'> }
+      : 'skip',
   )
 
   const addBeverage = useMutation(api.userStockLogs.addMyTodayBeverage)
   const autofillToday = useMutation(api.userStockLogs.autofillMyToday)
   const saveClosing = useMutation(api.userStockLogs.saveMyClosingStock)
+  const saveClosings = useMutation(api.userStockLogs.saveMyClosingStocks)
   const finalizeToday = useMutation(api.userStockLogs.finalizeMyToday)
+  const finalizePriorDay = useMutation(api.userStockLogs.finalizeMyPriorDay)
 
   const data = today?.success ? today.data : null
   const bars = data?.bars ?? []
@@ -62,6 +71,34 @@ export default function MyStock() {
         }),
       )
   }, [data?.logs, selectedBarId])
+  const priorForBar = useMemo(() => {
+    return (data?.priorLogs ?? [])
+      .filter((log) => !selectedBarId || log.barId === selectedBarId)
+      .slice()
+      .sort((a, b) =>
+        (a.beverage?.name ?? '').localeCompare(b.beverage?.name ?? '', undefined, {
+          sensitivity: 'base',
+          numeric: true,
+        }),
+      )
+  }, [data?.priorLogs, selectedBarId])
+  const priorOperatorNames = useMemo(() => {
+    const names: string[] = []
+    for (const log of priorForBar) {
+      if (!names.includes(log.operatorName)) names.push(log.operatorName)
+    }
+    return names
+  }, [priorForBar])
+  const priorBarName = priorForBar[0]?.bar?.name || 'this bar'
+  const priorWho =
+    priorOperatorNames.length === 0
+      ? 'the previous shift'
+      : priorOperatorNames.length === 1
+        ? priorOperatorNames[0]
+        : priorOperatorNames.length === 2
+          ? `${priorOperatorNames[0]} and ${priorOperatorNames[1]}`
+          : `${priorOperatorNames.slice(0, -1).join(', ')}, and ${priorOperatorNames[priorOperatorNames.length - 1]}`
+  const priorCloseMessage = `Finalize yesterday's ${priorBarName} stock for ${priorWho} before the next shift sells it.`
   const selectedProperty = properties.find((property: any) => property._id === currentPropertyId)
   const beverageTerm = debouncedBeverageQuery.trim().toLowerCase()
   const visibleLogs = useMemo(() => {
@@ -81,8 +118,10 @@ export default function MyStock() {
   const carryKey = useRef('')
   const carryRun = useRef(0)
   const todayLogs = data?.logs
+  const priorLogs = data?.priorLogs
   useEffect(() => {
     if (!currentPropertyId || !selectedBarId || !data?.logDate) return
+    if ((priorLogs ?? []).some((log) => log.barId === selectedBarId)) return
     const barLogs = (todayLogs ?? []).filter((log) => log.barId === selectedBarId)
     if (barLogs.some((log) => log.isFinalized)) return
     const key = `${currentPropertyId}:${selectedBarId}:${data.logDate}`
@@ -126,7 +165,7 @@ export default function MyStock() {
         if (carryRun.current === run) setAutofilling(false)
       }
     })()
-  }, [autofillToday, currentPropertyId, data?.logDate, selectedBarId, todayLogs])
+  }, [autofillToday, currentPropertyId, data?.logDate, priorLogs, selectedBarId, todayLogs])
 
   const availableBeverages = useMemo(() => {
     const used = new Set(logs.map((log) => log.beverageId))
@@ -244,6 +283,81 @@ export default function MyStock() {
     }
   }
 
+  const clearSavedEdits = (ids: string[]) => {
+    const drop = (current: Record<string, string>) => {
+      const next = { ...current }
+      for (const id of ids) delete next[id]
+      return next
+    }
+    setClosingEdits(drop)
+    setWasteEdits(drop)
+    setCompEdits(drop)
+  }
+
+  const handleSaveAll = async () => {
+    const openLogs = logs.filter((log) => !log.isFinalized)
+    if (openLogs.length === 0) {
+      toast.error('No open stock to save')
+      return
+    }
+    const lines: Array<{
+      stockLogId: Id<'userStockLogs'>
+      closingStock: number
+      wasteQuantity: number
+      compQuantity: number
+    }> = []
+    for (const log of openLogs) {
+      const closingRaw = closingEdits[log._id]
+      const wasteRaw = wasteEdits[log._id]
+      const compRaw = compEdits[log._id]
+      const closingStock = closingRaw === undefined || closingRaw === '' ? log.closingStock : Number(closingRaw)
+      const wasteQuantity = wasteRaw === undefined || wasteRaw === '' ? (log.wasteQuantity ?? 0) : Number(wasteRaw)
+      const compQuantity = compRaw === undefined || compRaw === '' ? (log.compQuantity ?? 0) : Number(compRaw)
+      const name = log.beverage?.name || 'A drink'
+      if ([closingStock, wasteQuantity, compQuantity].some((value) => Number.isNaN(value))) {
+        toast.error(`Enter numbers for ${name}`)
+        return
+      }
+      const disappeared = log.totalStock - closingStock
+      if (disappeared < 0 || wasteQuantity + compQuantity > disappeared) {
+        toast.error(`${name} has closing, waste, or comps that do not fit the stock`)
+        return
+      }
+      lines.push({
+        stockLogId: log._id as Id<'userStockLogs'>,
+        closingStock,
+        wasteQuantity,
+        compQuantity,
+      })
+    }
+
+    setSavingAll(true)
+    const savedIds: string[] = []
+    try {
+      for (let index = 0; index < lines.length; index += 10) {
+        const batch = lines.slice(index, index + 10)
+        const response = await saveClosings({ lines: batch })
+        if (response.success !== true) {
+          clearSavedEdits(savedIds)
+          toast.error(
+            savedIds.length > 0
+              ? `${response.message} ${savedIds.length} already saved.`
+              : response.message,
+          )
+          return
+        }
+        savedIds.push(...batch.map((line) => line.stockLogId))
+      }
+      clearSavedEdits(savedIds)
+      toast.success(savedIds.length === 1 ? '1 stock row saved' : `${savedIds.length} stock rows saved`)
+    } catch (error: any) {
+      clearSavedEdits(savedIds)
+      toast.error(error?.message || 'Failed to save stock')
+    } finally {
+      setSavingAll(false)
+    }
+  }
+
   const handleFinalize = async () => {
     if (!selectedBarId) {
       toast.error('Select a bar first')
@@ -259,6 +373,24 @@ export default function MyStock() {
       else toast.success(response.message)
     } catch (error: any) {
       toast.error(error?.message || 'Failed to finalize today')
+    }
+  }
+
+  const handleFinalizePrior = async () => {
+    if (!currentPropertyId || !selectedBarId) {
+      toast.error('Select a bar first')
+      return
+    }
+    if (!confirm(`${priorCloseMessage} Close yesterday now?`)) return
+    try {
+      const response = await finalizePriorDay({
+        propertyId: currentPropertyId as Id<'properties'>,
+        barId: selectedBarId as Id<'bars'>,
+      })
+      if (response.success === false) toast.error(response.message)
+      else toast.success(response.message)
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to close yesterday')
     }
   }
 
@@ -316,15 +448,22 @@ export default function MyStock() {
               ))}
             </select>
           </div>
-          <Button variant="dark" type="submit" disabled={!selectedBarId || autofilling}>
+          <Button
+            variant="dark"
+            type="submit"
+            disabled={!selectedBarId || autofilling || priorForBar.length > 0}
+            title={priorForBar.length > 0 ? priorCloseMessage : undefined}
+          >
             Add to today
           </Button>
           <Button
             variant="outline-dark"
             type="button"
-            disabled={!selectedBarId || barFinalized || autofilling}
+            disabled={!selectedBarId || barFinalized || autofilling || priorForBar.length > 0}
             title={
-              barFinalized
+              priorForBar.length > 0
+                ? priorCloseMessage
+                : barFinalized
                 ? 'Today is already finalized for this bar'
                 : 'Add any drinks still missing from yesterday\'s close'
             }
@@ -340,14 +479,115 @@ export default function MyStock() {
         )}
       </form>
 
+      {priorForBar.length > 0 && (
+        <section className="mb-6 rounded-md border border-amber-300 bg-amber-50 p-4">
+          <h3 className="text-base font-semibold">Close yesterday first</h3>
+          <p className="mt-1 text-sm text-gray-700">
+            {priorCloseMessage} Anyone linked to {priorBarName} can save the count and close it.
+            The next shift cannot start or sell until this is done.
+          </p>
+          <div className="mt-3 overflow-x-auto">
+            <table className="min-w-full border bg-white">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="p-2 text-left text-sm">Beverage</th>
+                  <th className="p-2 text-left text-sm">Opening</th>
+                  <th className="p-2 text-left text-sm">Received</th>
+                  <th className="p-2 text-left text-sm">Total</th>
+                  <th className="p-2 text-left text-sm">Closing</th>
+                  <th className="p-2 text-left text-sm">Waste</th>
+                  <th className="p-2 text-left text-sm">Comps</th>
+                  <th className="p-2 text-left text-sm">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {priorForBar.map((log) => {
+                  const closingValue = closingEdits[log._id] ?? String(log.closingStock)
+                  const wasteValue = wasteEdits[log._id] ?? String(log.wasteQuantity ?? 0)
+                  const compValue = compEdits[log._id] ?? String(log.compQuantity ?? 0)
+                  return (
+                    <tr key={log._id} className="border-t">
+                      <td className="p-2">{log.beverage?.name || 'Unknown'}</td>
+                      <td className="p-2">{log.openingStock}</td>
+                      <td className="p-2">{log.newStockReceived}</td>
+                      <td className="p-2 font-semibold">{log.totalStock}</td>
+                      <td className="p-2">
+                        <input
+                          type="number"
+                          min={0}
+                          className={qtyInputClassName}
+                          value={closingValue}
+                          disabled={savingAll || savingId === log._id}
+                          onChange={(event) =>
+                            setClosingEdits((current) => ({
+                              ...current,
+                              [log._id]: event.target.value,
+                            }))
+                          }
+                        />
+                      </td>
+                      <td className="p-2">
+                        <input
+                          type="number"
+                          min={0}
+                          className={qtyInputClassName}
+                          value={wasteValue}
+                          disabled={savingAll || savingId === log._id}
+                          onChange={(event) =>
+                            setWasteEdits((current) => ({
+                              ...current,
+                              [log._id]: event.target.value,
+                            }))
+                          }
+                        />
+                      </td>
+                      <td className="p-2">
+                        <input
+                          type="number"
+                          min={0}
+                          className={qtyInputClassName}
+                          value={compValue}
+                          disabled={savingAll || savingId === log._id}
+                          onChange={(event) =>
+                            setCompEdits((current) => ({
+                              ...current,
+                              [log._id]: event.target.value,
+                            }))
+                          }
+                        />
+                      </td>
+                      <td className="p-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="dark"
+                          disabled={savingAll || savingId === log._id}
+                          onClick={() => handleSave(log._id, log.closingStock)}
+                        >
+                          {savingId === log._id ? 'Saving…' : 'Save'}
+                        </Button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+          <Button type="button" variant="success" className="mt-3" onClick={handleFinalizePrior}>
+            Finalize yesterday
+          </Button>
+        </section>
+      )}
+
       {today === undefined || (autofilling && logs.length === 0) ? (
         <p className="text-gray-500">
           {autofilling ? 'Opening today from yesterday\'s close…' : 'Loading today\'s stock…'}
         </p>
       ) : logs.length === 0 ? (
         <p className="text-gray-600">
-          No drinks carried over from yesterday. Add a beverage, wait for a store issue, or request
-          stock.
+          {priorForBar.length > 0
+            ? 'Today stays closed until yesterday is finalized.'
+            : 'No drinks carried over from yesterday. Add a beverage, wait for a store issue, or request stock.'}
         </p>
       ) : (
         <>
@@ -362,6 +602,18 @@ export default function MyStock() {
           value={beverageQuery}
           placeholder="Search by beverage"
           setSearchQuery={setBeverageQuery}
+          leading={
+            logs.some((log) => !log.isFinalized) ? (
+              <Button
+                type="button"
+                variant="success"
+                onClick={handleSaveAll}
+                disabled={savingAll || autofilling}
+              >
+                {savingAll ? 'Saving…' : `Save all (${logs.filter((log) => !log.isFinalized).length})`}
+              </Button>
+            ) : null
+          }
         />
         {visibleLogs.length === 0 ? (
           <p className="text-gray-600">No beverages match that search.</p>
@@ -425,7 +677,7 @@ export default function MyStock() {
                         min={0}
                         className={qtyInputClassName}
                         value={closingValue}
-                        disabled={log.isFinalized || savingId === log._id}
+                        disabled={log.isFinalized || savingAll || savingId === log._id}
                         onChange={(event) =>
                           setClosingEdits((current) => ({
                             ...current,
@@ -440,7 +692,7 @@ export default function MyStock() {
                         min={0}
                         className={qtyInputClassName}
                         value={wasteValue}
-                        disabled={log.isFinalized || savingId === log._id}
+                        disabled={log.isFinalized || savingAll || savingId === log._id}
                         onChange={(event) =>
                           setWasteEdits((current) => ({
                             ...current,
@@ -455,7 +707,7 @@ export default function MyStock() {
                         min={0}
                         className={qtyInputClassName}
                         value={compValue}
-                        disabled={log.isFinalized || savingId === log._id}
+                        disabled={log.isFinalized || savingAll || savingId === log._id}
                         onChange={(event) =>
                           setCompEdits((current) => ({
                             ...current,
@@ -481,7 +733,7 @@ export default function MyStock() {
                           type="button"
                           size="sm"
                           variant="dark"
-                          disabled={sales < 0 || savingId === log._id}
+                          disabled={sales < 0 || savingAll || savingId === log._id}
                           onClick={() => handleSave(log._id, log.closingStock)}
                         >
                           {savingId === log._id ? 'Saving…' : 'Save'}

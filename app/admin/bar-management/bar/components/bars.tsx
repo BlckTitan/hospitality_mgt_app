@@ -5,7 +5,7 @@ import { FcDocument, FcEmptyTrash } from "react-icons/fc";
 import { MdEditDocument } from "react-icons/md";
 import { Button } from '../../../../../shared/button';
 import { Suspense } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";
 import { api } from "../../../../../convex/_generated/api";
 import { TableColumn } from "../../../../../shared/table";
@@ -24,7 +24,11 @@ interface BarProps {
 }
 
 const Bars = ({ currentPropertyId }: { currentPropertyId: Id<"properties"> }) => {
-  const barData = useQuery(api.bars.getBars, { propertyId: currentPropertyId }); //data from bars
+  const { isAuthenticated } = useConvexAuth();
+  const barData = useQuery(
+    api.bars.getBars,
+    isAuthenticated ? { propertyId: currentPropertyId } : "skip",
+  );
   const removeBar = useMutation(api.bars.deleteBar);
 
   const handleDelete = async (id: string, name: string) => {

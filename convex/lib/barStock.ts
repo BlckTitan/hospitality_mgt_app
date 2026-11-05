@@ -133,7 +133,82 @@ export function previousDateKey(dateKey: string): string {
   return `${year}-${month}-${day}`;
 }
 
-/** Opening for today: yesterday's closing count, or the last finalized close if yesterday has no row. */
+/** The bar's sheet for each drink on one day. One personal leftover row is used until a bar book exists. */
+export function selectBarBooks(rows: Doc<"userStockLogs">[]): Doc<"userStockLogs">[] {
+  const grouped = new Map<Id<"beverages">, Doc<"userStockLogs">[]>();
+  for (const row of rows) {
+    const list = grouped.get(row.beverageId) ?? [];
+    list.push(row);
+    grouped.set(row.beverageId, list);
+  }
+  const books: Doc<"userStockLogs">[] = [];
+  for (const group of grouped.values()) {
+    const book = group.find((row) => row.holder === "bar");
+    if (book) books.push(book);
+    else if (group.length === 1) books.push(group[0]);
+  }
+  return books;
+}
+
+/** Yesterday's bar sheet rows that are still open. */
+export async function openPriorBarBooks(
+  ctx: DbCtx,
+  args: { barId: Id<"bars">; beforeDate: string },
+): Promise<Doc<"userStockLogs">[]> {
+  const rows = await ctx.db
+    .query("userStockLogs")
+    .withIndex("by_barId_date", (q) =>
+      q.eq("barId", args.barId).eq("logDate", previousDateKey(args.beforeDate)),
+    )
+    .collect();
+  return selectBarBooks(rows).filter((log) => !log.isFinalized);
+}
+
+function joinNames(names: string[]): string {
+  if (names.length <= 1) return names[0] ?? "the previous shift";
+  if (names.length === 2) return `${names[0]} and ${names[1]}`;
+  return `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
+}
+
+/**
+ * Yesterday's open bar sheet must be closed before another person starts, sells,
+ * or opens today from that count. The person who still owns every open row may
+ * start a shift so they can close it. They still cannot sell or open today.
+ */
+export async function priorStockHandoverBlock(
+  ctx: DbCtx,
+  args: {
+    barId: Id<"bars">;
+    beforeDate: string;
+    actorUserId?: Id<"users">;
+    allowOwner?: boolean;
+    action: "starting this shift" | "selling" | "opening today's stock" | "issuing more stock";
+  },
+): Promise<string | null> {
+  const open = await openPriorBarBooks(ctx, args);
+  if (open.length === 0) return null;
+  if (
+    args.allowOwner &&
+    args.actorUserId &&
+    open.every((log) => log.userId === args.actorUserId)
+  ) {
+    return null;
+  }
+  const bar = await ctx.db.get(args.barId);
+  const seen = new Set<string>();
+  const names: string[] = [];
+  for (const log of open) {
+    if (seen.has(log.userId)) continue;
+    seen.add(log.userId);
+    const user = await ctx.db.get(log.userId);
+    const name = user?.name?.trim();
+    if (name) names.push(name);
+  }
+  const barName = bar?.name ?? "this bar";
+  return `Finalize yesterday's ${barName} stock for ${joinNames(names)} before ${args.action}.`;
+}
+
+/** Opening for today: yesterday's finalized close, or the last finalized close if yesterday has no row. An open yesterday is not carried forward. */
 export async function carryOverOpeningStock(
   ctx: DbCtx,
   args: {
@@ -148,7 +223,7 @@ export async function carryOverOpeningStock(
     args.beverageId,
     previousDateKey(args.beforeDate),
   );
-  if (yesterday) return yesterday.closingStock;
+  if (yesterday?.isFinalized) return yesterday.closingStock;
   return lastFinalizedClosingStock(ctx, args);
 }
 
@@ -352,6 +427,15 @@ export async function applyIssuedQtyToStockLog(
 ): Promise<void> {
   if (args.qty === 0) return;
 
+  if (args.qty > 0) {
+    const blocked = await priorStockHandoverBlock(ctx, {
+      barId: args.barId,
+      beforeDate: args.logDate,
+      action: "issuing more stock",
+    });
+    if (blocked) throw new Error(blocked);
+  }
+
   const existing = await findBarDayLog(ctx, args.barId, args.beverageId, args.logDate);
 
   if (existing) {
@@ -459,6 +543,15 @@ export async function previewIssueToStockLog(
     qty: number;
   },
 ): Promise<{ error?: string }> {
+  if (args.qty > 0) {
+    const blocked = await priorStockHandoverBlock(ctx, {
+      barId: args.barId,
+      beforeDate: args.logDate,
+      action: "issuing more stock",
+    });
+    if (blocked) return { error: blocked };
+  }
+
   const existing = await findBarDayLog(ctx, args.barId, args.beverageId, args.logDate);
 
   if (!existing) {

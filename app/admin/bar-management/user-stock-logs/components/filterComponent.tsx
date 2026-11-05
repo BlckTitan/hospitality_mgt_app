@@ -2,13 +2,18 @@
 
 import React, { useEffect, useState } from 'react';
 import { Button } from '../../../../../shared/button';
-import { useQuery } from 'convex/react';
+import { useConvexAuth, useQuery } from 'convex/react';
 import { api } from '../../../../../convex/_generated/api';
 import { Id } from '../../../../../convex/_generated/dataModel';
 
 interface FilterComponentProps {
   propertyId: Id<'properties'>;
   defaultLogDate: string;
+  initialFilters?: {
+    userId?: string;
+    barId?: string;
+    logDate?: string;
+  } | null;
   onFilter: (filters: {
     userId?: string;
     barId?: string;
@@ -17,21 +22,27 @@ interface FilterComponentProps {
   onClear: () => void;
 }
 
-export function FilterComponent({ propertyId, defaultLogDate, onFilter, onClear }: FilterComponentProps) {
-  const barsResponse = useQuery(api.bars.getAllBars, { propertyId });
+export function FilterComponent({ propertyId, defaultLogDate, initialFilters, onFilter, onClear }: FilterComponentProps) {
+  const { isAuthenticated } = useConvexAuth();
+  const barsResponse = useQuery(api.bars.getAllBars, isAuthenticated ? { propertyId } : 'skip');
   const bars = barsResponse?.data || [];
 
   const [filters, setFilters] = useState({
-    userId: '',
-    barId: '',
-    logDate: defaultLogDate,
+    userId: initialFilters?.userId ?? '',
+    barId: initialFilters?.barId ?? '',
+    logDate: initialFilters?.logDate || defaultLogDate,
   });
 
-  const usersResponse = useQuery(api.userStockLogs.listActiveUsersForBar, {
-    propertyId,
-    barId: filters.barId ? (filters.barId as Id<'bars'>) : undefined,
-    logDate: filters.logDate || defaultLogDate,
-  });
+  const usersResponse = useQuery(
+    api.userStockLogs.listActiveUsersForBar,
+    isAuthenticated
+      ? {
+          propertyId,
+          barId: filters.barId ? (filters.barId as Id<'bars'>) : undefined,
+          logDate: filters.logDate || defaultLogDate,
+        }
+      : 'skip',
+  );
   const users = usersResponse?.data || [];
 
   useEffect(() => {
@@ -135,7 +146,7 @@ export function FilterComponent({ propertyId, defaultLogDate, onFilter, onClear 
           )}
         </div>
       </div>
-      {usersResponse !== undefined && users.length === 0 && (
+      {usersResponse?.success && users.length === 0 && (
         <p className="text-xs text-gray-500 mt-2">
           {filters.barId
             ? 'No staff linked to this bar are on duty on this date.'

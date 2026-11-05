@@ -1,6 +1,6 @@
 'use client'
 
-import { useMutation, useQuery } from "convex/react";
+import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { SubmitHandler, useForm } from "react-hook-form";
 import { formSchema } from "./validation";
 import { yupResolver } from "@hookform/resolvers/yup";
@@ -18,9 +18,11 @@ type FormData = {
 export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: () => void; onClose: () => void; propertyId: string }) {
   const createUserStockLog = useMutation(api.userStockLogs.createUserStockLog);
   const currency = usePropertyCurrency(propertyId);
-  const barsResponse = useQuery(api.bars.getAllBars, { propertyId: propertyId as Id<'properties'> });
+  const { isAuthenticated } = useConvexAuth();
+  const propertyArgs = isAuthenticated && propertyId ? { propertyId: propertyId as Id<'properties'> } : 'skip';
+  const barsResponse = useQuery(api.bars.getAllBars, propertyArgs);
   const bars = barsResponse?.data || [];
-  const beveragesResponse = useQuery(api.beverages.getAllBeverages, { propertyId: propertyId as Id<'properties'> });
+  const beveragesResponse = useQuery(api.beverages.getAllBeverages, propertyArgs);
   const beverages = beveragesResponse?.data || [];
 
   const { register, handleSubmit, formState: { errors }, reset } = useForm<FormData>({

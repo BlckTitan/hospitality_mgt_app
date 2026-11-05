@@ -1,7 +1,7 @@
 'use client'
 import { goToList } from '../../../../../shared/goToList';
 
-import { useMutation, useQuery } from "convex/react";
+import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { SubmitHandler, useForm } from "react-hook-form";
 import { editFormSchema } from "./validation";
 import { yupResolver } from "@hookform/resolvers/yup";
@@ -31,8 +31,12 @@ export function EditStoreTransactionForm({
   onClose: () => void; 
 }) {
   const updateTransaction = useMutation(api.storeTransactions.updateStoreTransaction);
-  const beveragesResponse = useQuery(api.beverages.getAllBeverages, { propertyId: transactionData.propertyId as Id<'properties'> });
-  const barsResponse = useQuery(api.bars.getAllBars, { propertyId: transactionData.propertyId as Id<'properties'> });
+  const { isAuthenticated } = useConvexAuth();
+  const propertyArgs = isAuthenticated && transactionData.propertyId
+    ? { propertyId: transactionData.propertyId as Id<'properties'> }
+    : 'skip';
+  const beveragesResponse = useQuery(api.beverages.getAllBeverages, propertyArgs);
+  const barsResponse = useQuery(api.bars.getAllBars, propertyArgs);
 
   const beverages = beveragesResponse?.data || [];
   const bars = barsResponse?.data || [];
