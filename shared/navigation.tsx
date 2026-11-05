@@ -284,11 +284,11 @@ export default function Navigation() {
                             <Link
                               key={link.id}
                               href={link.href}
-                              className={`px-3 py-2 ml-4 h-auto flex items-center ${
+                              className={`px-3 py-2 h-auto flex items-center ${
                                 isPathInSection(path, link.href) ? '!bg-[#333] text-white' : ''
                               }`}
                             >
-                              <span>{link.label}</span>
+                              <span className='ml-4'>{link.label}</span>
                             </Link>
                           ))}
                         </div>

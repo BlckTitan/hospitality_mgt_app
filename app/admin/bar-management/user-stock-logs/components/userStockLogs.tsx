@@ -389,23 +389,11 @@ const UserStockLogs = ({
 
   return (
     <div className="w-full h-full min-w-0">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <DailyStockValueSummary
-          logs={rows}
-          currency={currency}
-          logDate={filters?.logDate}
-        />
-        {openCount > 0 && (
-          <Button
-            variant="success"
-            onClick={handleFinalizeAll}
-            disabled={finalizingAll}
-            className="shrink-0"
-          >
-            {finalizingAll ? 'Finalizing…' : `Finalize all (${openCount})`}
-          </Button>
-        )}
-      </div>
+      <DailyStockValueSummary
+        logs={rows}
+        currency={currency}
+        logDate={filters?.logDate}
+      />
       <div className="overflow-x-auto">
       <Suspense>
         <PaginationComponent
@@ -414,6 +402,17 @@ const UserStockLogs = ({
           columns={tableColumns}
           jointTableData={rows}
           filterKey={`${filters?.logDate ?? ''}:${filters?.barId ?? ''}:${filters?.userId ?? ''}`}
+          searchLeading={
+            openCount > 0 ? (
+              <Button
+                variant="success"
+                onClick={handleFinalizeAll}
+                disabled={finalizingAll}
+              >
+                {finalizingAll ? 'Finalizing…' : `Finalize all (${openCount})`}
+              </Button>
+            ) : null
+          }
         />
       </Suspense>
       </div>
@@ -448,7 +447,7 @@ function DailyStockValueSummary({
   const money = (value: number) => formatPropertyMoney(value, currency);
 
   return (
-    <section className="mb-4 flex-1">
+    <section className="mb-4">
       <h2 className="text-base font-semibold text-gray-800 mb-2">
         Daily stock value{logDate ? ` · ${logDate}` : ''}
       </h2>

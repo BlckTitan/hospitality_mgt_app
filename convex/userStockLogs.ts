@@ -9,8 +9,10 @@ import {
   computeCogsSnapshot,
   derivedSales,
   findBarDayLog,
+  carryOverOpeningStock,
   lastFinalizedClosingStock,
   openBarBookLine,
+  previousDateKey,
   propertyDateKey,
   refreshSalesSummariesForLog,
   refreshSalesSummariesForLogs,
@@ -353,7 +355,7 @@ export const createUserStockLog = mutation({
 
     const openingStock =
       args.openingStock ??
-      (await lastFinalizedClosingStock(ctx, {
+      (await carryOverOpeningStock(ctx, {
         barId: args.barId,
         beverageId: args.beverageId,
         beforeDate: logDate,
@@ -688,7 +690,7 @@ export const addMyTodayBeverage = mutation({
       return { success: false, message: 'This beverage is already on the bar today' };
     }
 
-    const openingStock = await lastFinalizedClosingStock(ctx, {
+    const openingStock = await carryOverOpeningStock(ctx, {
       barId: args.barId,
       beverageId: args.beverageId,
       beforeDate: logDate,
@@ -728,11 +730,16 @@ export const autofillMyToday = mutation({
   handler: async (ctx, args) => {
     const auth = await requirePermission(ctx, 'fnb.create', args.propertyId);
     const denied = await assertCanOperateBar(ctx, auth, args.barId);
-    if (denied) return { success: false as const, message: denied, added: 0 };
+    if (denied) return { success: false as const, message: denied, added: 0, remaining: 0 };
     const logDate = await propertyDateKey(ctx, args.propertyId);
     const bar = await ctx.db.get(args.barId);
     if (!bar || bar.propertyId !== args.propertyId || !bar.isActive) {
-      return { success: false as const, message: 'Bar does not exist or does not belong to this property' };
+      return {
+        success: false as const,
+        message: 'Bar does not exist or does not belong to this property',
+        added: 0,
+        remaining: 0,
+      };
     }
 
     const todayRows = await ctx.db
@@ -740,33 +747,53 @@ export const autofillMyToday = mutation({
       .withIndex('by_barId_date', (q) => q.eq('barId', args.barId).eq('logDate', logDate))
       .collect();
     if (todayRows.some((log) => log.holder === 'bar' && log.isFinalized)) {
-      return { success: false as const, message: 'Today is already finalized for this bar' };
+      return { success: false as const, message: 'Today is already finalized for this bar', added: 0, remaining: 0 };
     }
 
     const already = new Set(
       todayRows.filter((log) => log.holder === 'bar').map((log) => log.beverageId),
     );
-    const beverages = await ctx.db
-      .query('beverages')
-      .withIndex('by_propertyId', (q) => q.eq('propertyId', args.propertyId))
+    const yesterdayRows = await ctx.db
+      .query('userStockLogs')
+      .withIndex('by_barId_date', (q) => q.eq('barId', args.barId).eq('logDate', previousDateKey(logDate)))
       .collect();
+    const yesterdayByDrink = new Map<Id<'beverages'>, typeof yesterdayRows>();
+    for (const row of yesterdayRows) {
+      const list = yesterdayByDrink.get(row.beverageId) ?? [];
+      list.push(row);
+      yesterdayByDrink.set(row.beverageId, list);
+    }
     const candidates: Array<{ beverageId: Id<'beverages'>; closingStock: number }> = [];
-    for (const beverage of beverages) {
-      if (!beverage.isActive || already.has(beverage._id)) continue;
-      const closingStock = await lastFinalizedClosingStock(ctx, {
-        barId: args.barId,
-        beverageId: beverage._id,
-        beforeDate: logDate,
-      });
-      if (closingStock > 0) candidates.push({ beverageId: beverage._id, closingStock });
+    if (yesterdayByDrink.size > 0) {
+      for (const [beverageId, group] of yesterdayByDrink) {
+        if (already.has(beverageId)) continue;
+        const book = group.find((row) => row.holder === 'bar') ?? (group.length === 1 ? group[0] : undefined);
+        if (!book || book.closingStock <= 0) continue;
+        candidates.push({ beverageId, closingStock: book.closingStock });
+      }
+    } else {
+      const beverages = await ctx.db
+        .query('beverages')
+        .withIndex('by_propertyId', (q) => q.eq('propertyId', args.propertyId))
+        .collect();
+      for (const beverage of beverages) {
+        if (!beverage.isActive || already.has(beverage._id)) continue;
+        const closingStock = await lastFinalizedClosingStock(ctx, {
+          barId: args.barId,
+          beverageId: beverage._id,
+          beforeDate: logDate,
+        });
+        if (closingStock > 0) candidates.push({ beverageId: beverage._id, closingStock });
+      }
     }
     if (candidates.length === 0) {
       return already.size > 0
-        ? { success: true as const, message: 'Carry-over drinks are already on today\'s log', added: 0 }
+        ? { success: true as const, message: 'Carry-over drinks are already on today\'s log', added: 0, remaining: 0 }
         : {
             success: false as const,
             message: 'No carry-over stock found for this bar. Add a beverage manually.',
             added: 0,
+            remaining: 0,
           };
     }
 
@@ -820,14 +847,15 @@ export const autofillMyToday = mutation({
         success: false as const,
         message: 'No active carry-over drinks to add. Add a beverage manually.',
         added: 0,
+        remaining: 0,
       };
     }
-    const drinkLabel = added === 1 ? '1 carry-over drink' : `${added} carry-over drinks`;
+    const drinkLabel = added === 1 ? '1 drink' : `${added} drinks`;
     const message =
       remaining > 0
-        ? `Added ${drinkLabel}. ${remaining} more still to add — run Autofill again.`
-        : `Added ${drinkLabel}`;
-    return { success: true as const, message, added };
+        ? `Opened today with yesterday's close for ${drinkLabel}. ${remaining} more still to add.`
+        : `Opened today with yesterday's close for ${drinkLabel}`;
+    return { success: true as const, message, added, remaining };
   },
 });
 

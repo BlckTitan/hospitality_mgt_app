@@ -121,6 +121,37 @@ export async function findBarDayLog(
   return null;
 }
 
+/** Calendar day before a property date key. The key is already in the property timezone. */
+export function previousDateKey(dateKey: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey);
+  if (!match) return dateKey;
+  const utc = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+  utc.setUTCDate(utc.getUTCDate() - 1);
+  const year = utc.getUTCFullYear();
+  const month = String(utc.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(utc.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+/** Opening for today: yesterday's closing count, or the last finalized close if yesterday has no row. */
+export async function carryOverOpeningStock(
+  ctx: DbCtx,
+  args: {
+    barId: Id<"bars">;
+    beverageId: Id<"beverages">;
+    beforeDate: string;
+  },
+): Promise<number> {
+  const yesterday = await findBarDayLog(
+    ctx,
+    args.barId,
+    args.beverageId,
+    previousDateKey(args.beforeDate),
+  );
+  if (yesterday) return yesterday.closingStock;
+  return lastFinalizedClosingStock(ctx, args);
+}
+
 export async function lastFinalizedClosingStock(
   ctx: DbCtx,
   args: {
@@ -369,8 +400,7 @@ export async function applyIssuedQtyToStockLog(
     throw new Error("No stock log exists to reverse this issue against");
   }
 
-  const openingStock = await lastFinalizedClosingStock(ctx, {
-    userId: args.userId,
+  const openingStock = await carryOverOpeningStock(ctx, {
     barId: args.barId,
     beverageId: args.beverageId,
     beforeDate: args.logDate,

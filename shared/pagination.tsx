@@ -1,6 +1,6 @@
 import type { FunctionArgs } from 'convex/server';
 import { useQuery } from 'convex/react';
-import { Dispatch, SetStateAction, useEffect, useMemo, useRef, useState } from 'react';
+import { Dispatch, ReactNode, SetStateAction, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../convex/_generated/api';
 import { Id } from '../convex/_generated/dataModel';
 import TableComponent, { TableColumn } from './table';
@@ -52,6 +52,7 @@ interface SearchComponentProps {
   setSearchQuery: Dispatch<SetStateAction<string>>;
   placeholder: string;
   value: string;
+  leading?: ReactNode;
 }
 
 export default function PaginationComponent({
@@ -61,6 +62,7 @@ export default function PaginationComponent({
   propertyId,
   searchResetKey = 0,
   filterKey = '',
+  searchLeading,
 }: {
   collectionName: string;
   columns: TableColumn<any>[];
@@ -70,6 +72,8 @@ export default function PaginationComponent({
   searchResetKey?: number;
   /** Changes the remembered page, for example a category filter. */
   filterKey?: string;
+  /** Sits on the search row, at the left on large screens. */
+  searchLeading?: ReactNode;
 }) {
   const limit = 10;
   const listMemory = useRememberedList(
@@ -196,6 +200,7 @@ export default function PaginationComponent({
           value={searchQuery}
           placeholder={searchPlaceholder(collectionName)}
           setSearchQuery={setSearchQuery}
+          leading={searchLeading}
         />
       )}
       {loading ? (
@@ -236,7 +241,7 @@ export function TableSearch(props: SearchComponentProps) {
   return <SearchComponent {...props} />;
 }
 
-function SearchComponent({ setSearchQuery, placeholder, value }: SearchComponentProps) {
+function SearchComponent({ setSearchQuery, placeholder, value, leading }: SearchComponentProps) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -249,24 +254,37 @@ function SearchComponent({ setSearchQuery, placeholder, value }: SearchComponent
     return () => node.removeEventListener('search', handleSearch);
   }, [setSearchQuery]);
 
-  return (
-    <div className="w-full h-fit py-2 flex items-start justify-end">
-      <div className="w-full lg:w-1/3 h-fit flex flex-col items-end">
-        <div className="w-full h-full flex justify-start items-center gap-2">
-          <span className="icon">
-            <FcSearch />
-          </span>
-          <input
-            ref={inputRef}
-            type="search"
-            name="tableSearch"
-            autoComplete="off"
-            value={value}
-            placeholder={placeholder}
-            onChange={(event) => setSearchQuery(event.target.value)}
-          />
-        </div>
+  const field = (
+    <div className="w-full lg:w-1/3 h-fit flex flex-col items-end">
+      <div className="w-full h-full flex justify-start items-center gap-2">
+        <span className="icon">
+          <FcSearch />
+        </span>
+        <input
+          ref={inputRef}
+          type="search"
+          name="tableSearch"
+          autoComplete="off"
+          value={value}
+          placeholder={placeholder}
+          onChange={(event) => setSearchQuery(event.target.value)}
+        />
       </div>
+    </div>
+  );
+
+  if (!leading) {
+    return (
+      <div className="w-full h-fit py-2 flex items-start justify-end">
+        {field}
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full h-fit py-2 flex flex-col items-stretch gap-3 lg:flex-row lg:items-center lg:justify-between">
+      <div className="shrink-0 self-start">{leading}</div>
+      {field}
     </div>
   );
 }

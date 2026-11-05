@@ -78,6 +78,56 @@ export default function MyStock() {
     setCurrentPage(1)
   }, [debouncedBeverageQuery, setCurrentPage])
 
+  const carryKey = useRef('')
+  const carryRun = useRef(0)
+  const todayLogs = data?.logs
+  useEffect(() => {
+    if (!currentPropertyId || !selectedBarId || !data?.logDate) return
+    const barLogs = (todayLogs ?? []).filter((log) => log.barId === selectedBarId)
+    if (barLogs.some((log) => log.isFinalized)) return
+    const key = `${currentPropertyId}:${selectedBarId}:${data.logDate}`
+    if (carryKey.current === key) return
+    carryKey.current = key
+    const run = carryRun.current + 1
+    carryRun.current = run
+    let added = 0
+    ;(async () => {
+      setAutofilling(true)
+      try {
+        for (let pass = 0; pass < 20; pass += 1) {
+          const response = await autofillToday({
+            propertyId: currentPropertyId as Id<'properties'>,
+            barId: selectedBarId as Id<'bars'>,
+          })
+          added += response.added ?? 0
+          if (response.success === false) {
+            const quiet =
+              response.message.startsWith('No carry-over') ||
+              response.message.startsWith('No active carry-over') ||
+              response.message.includes('already finalized')
+            if (!quiet && carryRun.current === run) toast.error(response.message)
+            break
+          }
+          if ((response.remaining ?? 0) === 0) break
+        }
+        if (carryRun.current === run && added > 0) {
+          toast.success(
+            added === 1
+              ? "Today's opening stock is yesterday's close"
+              : `Today's opening stock is yesterday's close for ${added} drinks`,
+          )
+        }
+      } catch (error: any) {
+        if (carryRun.current === run) {
+          carryKey.current = ''
+          toast.error(error?.message || "Failed to open today's stock from yesterday")
+        }
+      } finally {
+        if (carryRun.current === run) setAutofilling(false)
+      }
+    })()
+  }, [autofillToday, currentPropertyId, data?.logDate, selectedBarId, todayLogs])
+
   const availableBeverages = useMemo(() => {
     const used = new Set(logs.map((log) => log.beverageId))
     return (data?.beverages ?? []).filter((beverage) => !used.has(beverage._id))
@@ -122,7 +172,7 @@ export default function MyStock() {
     }
     if (
       !confirm(
-        'Add every drink you still had at the last close for this bar? Drinks already on today\'s log are left as they are.',
+        'Fill any drinks still missing from today using yesterday\'s closing stock? Drinks already on today\'s log stay as they are.',
       )
     ) {
       return
@@ -276,7 +326,7 @@ export default function MyStock() {
             title={
               barFinalized
                 ? 'Today is already finalized for this bar'
-                : 'Add every drink you still had at the last close for this bar'
+                : 'Add any drinks still missing from yesterday\'s close'
             }
             onClick={handleAutofill}
           >
@@ -285,17 +335,19 @@ export default function MyStock() {
         </div>
         {data?.logDate && (
           <p className="text-sm text-gray-500 mt-2">
-            Date: {data.logDate}. Autofill adds drinks left at your last close for this bar.
+            Date: {data.logDate}. Opening stock is yesterday&apos;s closing count for this bar.
           </p>
         )}
       </form>
 
-      {today === undefined ? (
-        <p className="text-gray-500">Loading today&apos;s stock…</p>
+      {today === undefined || (autofilling && logs.length === 0) ? (
+        <p className="text-gray-500">
+          {autofilling ? 'Opening today from yesterday\'s close…' : 'Loading today\'s stock…'}
+        </p>
       ) : logs.length === 0 ? (
         <p className="text-gray-600">
-          No beverages on today&apos;s log yet. Autofill carry-over drinks, add one, wait for a store
-          issue, or request stock.
+          No drinks carried over from yesterday. Add a beverage, wait for a store issue, or request
+          stock.
         </p>
       ) : (
         <>
