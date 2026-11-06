@@ -633,12 +633,17 @@ export const getMyTodayStock = query({
   args: {
     propertyId: v.id('properties'),
     barId: v.optional(v.id('bars')),
+    logDate: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const access = await authorizeStockRead(ctx, args.propertyId);
     if ('error' in access) return stockReadFailure(access.error, null);
     const auth = access.auth;
-    const logDate = await propertyDateKey(ctx, args.propertyId);
+    const today = await propertyDateKey(ctx, args.propertyId);
+    const requested = args.logDate?.trim() ?? '';
+    const logDate =
+      /^\d{4}-\d{2}-\d{2}$/.test(requested) && requested <= today ? requested : today;
+    const viewingToday = logDate === today;
 
     const scope = await assignedBarIdsForUser(ctx, auth, args.propertyId);
     const bars = (
@@ -672,8 +677,10 @@ export const getMyTodayStock = query({
     }
 
     const priorLogs: Doc<'userStockLogs'>[] = [];
-    for (const barId of targetIds) {
-      priorLogs.push(...(await openPriorBarBooks(ctx, { barId, beforeDate: logDate })));
+    if (viewingToday) {
+      for (const barId of targetIds) {
+        priorLogs.push(...(await openPriorBarBooks(ctx, { barId, beforeDate: today })));
+      }
     }
 
     const poured = await posPouredQtyByBarBeverage(ctx, {
@@ -713,6 +720,7 @@ export const getMyTodayStock = query({
       success: true,
       data: {
         logDate,
+        today,
         userId: auth.user._id,
         logs: stockLogsWithData,
         priorLogs: priorLogsWithData,

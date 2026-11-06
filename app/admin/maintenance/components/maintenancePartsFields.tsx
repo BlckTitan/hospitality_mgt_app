@@ -149,8 +149,8 @@ export function MaintenancePartsFields({
                   />
                 </Field>
               </div>
-              <div className={`${fieldRowClassName} !mb-0`}>
-                <Field id={`part-qty-${part.key}`} label="Quantity *" widthClass={fieldWidthClass('w-3/12')}>
+              <div className="flex w-full flex-row items-end gap-2">
+                <Field id={`part-qty-${part.key}`} label="Quantity *" widthClass="min-w-0 flex-1">
                   <input
                     id={`part-qty-${part.key}`}
                     type="number"
@@ -161,7 +161,7 @@ export function MaintenancePartsFields({
                     onChange={(event) => updatePart(part.key, { quantity: event.target.value })}
                   />
                 </Field>
-                <Field id={`part-cost-${part.key}`} label={`Unit cost (${currency}) *`} widthClass={fieldWidthClass('w-3/12')}>
+                <Field id={`part-cost-${part.key}`} label={`Unit cost (${currency}) *`} widthClass="min-w-0 flex-1">
                   <input
                     id={`part-cost-${part.key}`}
                     type="number"
@@ -172,7 +172,7 @@ export function MaintenancePartsFields({
                     onChange={(event) => updatePart(part.key, { unitCost: event.target.value })}
                   />
                 </Field>
-                <Field label="Line total" widthClass={fieldWidthClass('w-3/12')}>
+                <Field label="Line total" widthClass="min-w-0 flex-1">
                   <p className="w-full max-w-full min-w-0 h-10 p-2 border rounded-sm bg-slate-50 mb-0 flex items-center">
                     {Number.isFinite(lineTotal) ? formatPropertyMoney(lineTotal, currency) : '—'}
                   </p>

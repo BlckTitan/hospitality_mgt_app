@@ -121,6 +121,13 @@ export async function findBarDayLog(
   return null;
 }
 
+/** A requested calendar day, or today when the request is missing, invalid, or still in the future. */
+export function resolveViewDateKey(today: string, requested?: string): string {
+  const value = requested?.trim() ?? "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value) && value <= today) return value;
+  return today;
+}
+
 /** Calendar day before a property date key. The key is already in the property timezone. */
 export function previousDateKey(dateKey: string): string {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey);

@@ -2,7 +2,7 @@ import { query } from "./_generated/server";
 import { v } from "convex/values";
 import { Id } from "./_generated/dataModel";
 import { requirePermission, tryRequirePermission } from "./lib/rbac";
-import { periodDateKeys, percentChange, propertyDateKey } from "./lib/barStock";
+import { periodDateKeys, percentChange, propertyDateKey, resolveViewDateKey } from "./lib/barStock";
 
 const STALE_MS = 24 * 60 * 60 * 1000;
 
@@ -16,10 +16,12 @@ export const getBarHealthMetrics = query({
       v.literal("yearly"),
       v.literal("yoy"),
     ),
+    dateKey: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     await requirePermission(ctx, "fnb.read", args.propertyId);
-    const dateKey = await propertyDateKey(ctx, args.propertyId);
+    const today = await propertyDateKey(ctx, args.propertyId);
+    const dateKey = resolveViewDateKey(today, args.dateKey);
     const logPeriod = args.periodType === "yoy" ? "yearly" : args.periodType;
     const keys = periodDateKeys(dateKey, logPeriod);
 

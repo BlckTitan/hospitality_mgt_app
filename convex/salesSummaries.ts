@@ -7,6 +7,7 @@ import {
   monthDateKeys,
   percentChange,
   propertyDateKey,
+  resolveViewDateKey,
   upsertSalesSummaryDoc,
 } from './lib/barStock';
 import { Id } from './_generated/dataModel';
@@ -41,6 +42,15 @@ async function sumPeriod(
   };
 }
 
+async function anchorDate(
+  ctx: QueryCtx,
+  propertyId: Id<'properties'>,
+  requested?: string,
+) {
+  const today = await propertyDateKey(ctx, propertyId);
+  return { today, dateKey: resolveViewDateKey(today, requested) };
+}
+
 async function sumDailyKeys(
   ctx: QueryCtx,
   propertyId: Id<'properties'>,
@@ -70,13 +80,14 @@ export const getSalesSummaries = query({
     userId: v.optional(v.id('users')),
     beverageId: v.optional(v.id('beverages')),
     periodKey: v.optional(v.string()),
+    dateKey: v.optional(v.string()),
     year: v.optional(v.number()),
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     await requirePermission(ctx, 'reports.read', args.propertyId);
     try {
-      const dateKey = await propertyDateKey(ctx, args.propertyId);
+      const { dateKey } = await anchorDate(ctx, args.propertyId, args.dateKey);
       const periodKey = args.periodKey ?? currentPeriodKey(dateKey, args.periodType);
       let summaries = await summariesForPeriod(
         ctx,
@@ -133,11 +144,12 @@ export const getSalesByBarPeriod = query({
     propertyId: v.id('properties'),
     periodType: v.union(v.literal("daily"), v.literal("weekly"), v.literal("monthly"), v.literal("yearly")),
     periodKey: v.optional(v.string()),
+    dateKey: v.optional(v.string()),
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     await requirePermission(ctx, 'reports.read', args.propertyId);
-    const dateKey = await propertyDateKey(ctx, args.propertyId);
+    const { today, dateKey } = await anchorDate(ctx, args.propertyId, args.dateKey);
     const periodKey = args.periodKey ?? currentPeriodKey(dateKey, args.periodType);
 
     const summaries = await summariesForPeriod(ctx, args.propertyId, args.periodType, periodKey);
@@ -187,7 +199,7 @@ export const getSalesByBarPeriod = query({
         result.splice(args.limit);
       }
 
-      return { success: true, data: result };
+      return { success: true, data: result, today, dateKey, periodKey };
   },
 });
 
@@ -196,11 +208,12 @@ export const getSalesByUserPeriod = query({
     propertyId: v.id('properties'),
     periodType: v.union(v.literal("daily"), v.literal("weekly"), v.literal("monthly"), v.literal("yearly")),
     periodKey: v.optional(v.string()),
+    dateKey: v.optional(v.string()),
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     await requirePermission(ctx, 'reports.read', args.propertyId);
-    const dateKey = await propertyDateKey(ctx, args.propertyId);
+    const { dateKey } = await anchorDate(ctx, args.propertyId, args.dateKey);
     const periodKey = args.periodKey ?? currentPeriodKey(dateKey, args.periodType);
     let summaries = await summariesForPeriod(ctx, args.propertyId, args.periodType, periodKey);
 
@@ -257,11 +270,12 @@ export const getSalesByBeveragePeriod = query({
     propertyId: v.id('properties'),
     periodType: v.union(v.literal('daily'), v.literal('weekly'), v.literal('monthly'), v.literal('yearly')),
     periodKey: v.optional(v.string()),
+    dateKey: v.optional(v.string()),
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     await requirePermission(ctx, 'reports.read', args.propertyId);
-    const dateKey = await propertyDateKey(ctx, args.propertyId);
+    const { dateKey } = await anchorDate(ctx, args.propertyId, args.dateKey);
     const periodKey = args.periodKey ?? currentPeriodKey(dateKey, args.periodType);
     const summaries = await summariesForPeriod(ctx, args.propertyId, args.periodType, periodKey);
 
@@ -420,10 +434,11 @@ const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'S
 export const getYearOnYearOverview = query({
   args: {
     propertyId: v.id('properties'),
+    dateKey: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     await requirePermission(ctx, 'reports.read', args.propertyId);
-    const dateKey = await propertyDateKey(ctx, args.propertyId);
+    const { dateKey } = await anchorDate(ctx, args.propertyId, args.dateKey);
     const thisYear = Number(dateKey.slice(0, 4));
     const lastYear = thisYear - 1;
     const throughMonth = Number(dateKey.slice(5, 7));
@@ -524,11 +539,12 @@ export const getRevenueTrend = query({
   args: {
     propertyId: v.id('properties'),
     periodType: v.union(v.literal("daily"), v.literal("weekly"), v.literal("monthly"), v.literal("yearly")),
+    dateKey: v.optional(v.string()),
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     await requirePermission(ctx, 'reports.read', args.propertyId);
-    const dateKey = await propertyDateKey(ctx, args.propertyId);
+    const { dateKey } = await anchorDate(ctx, args.propertyId, args.dateKey);
     const limit = args.limit && args.limit > 0 ? Math.min(args.limit, 14) : 7;
     const keys =
       args.periodType === 'daily'

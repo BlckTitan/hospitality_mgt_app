@@ -8,7 +8,8 @@ import { Button } from '../../../../../shared/button';
 import Spinner from '../../../../../shared/spinner'
 import Image from 'next/image'
 import { Id } from '../../../../../convex/_generated/dataModel';
-import Avatar from '../../../../../public/profileAvatar.webp'
+import { cloudinaryDeliveryUrl } from '../../../../../lib/cloudinary-url'
+import { staffAvatarSrc } from '../../../../../lib/staffAvatar'
 import { toast } from 'sonner'
 import { usePermissions } from '../../../../../hooks/usePermissions'
 import { fieldWidthClass } from '../../../../../shared/field'
@@ -101,16 +102,25 @@ export default function StaffViewComponent() {
     </div>
   )
 
+  const avatarSrc = staffAvatarSrc(staffData.imageUrl)
+
   return (
     <div className='w-full h-full'>
       <div className='flex items-center gap-4 mb-4'>
         <Image
-          src={staffData.imageUrl || Avatar}
+          src={
+            cloudinaryDeliveryUrl(avatarSrc, {
+              width: 96,
+              height: 96,
+              crop: 'fill',
+              aspectRatio: '1:1',
+            }) ?? avatarSrc
+          }
           alt='profile avatar'
           width={100}
           height={100}
           className='w-24 h-24 rounded-full object-cover'
-          unoptimized={Boolean(staffData.imageUrl)}
+          unoptimized={!avatarSrc.includes('res.cloudinary.com')}
         />
         <div>
           <h4>{staffData.lastName} {staffData.firstName}</h4>

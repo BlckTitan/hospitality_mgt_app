@@ -112,6 +112,12 @@ async function unsetStaffManagerId(ctx: MutationCtx, staff: Doc<'staffs'>) {
   await ctx.db.replace(_id, rest);
 }
 
+async function unsetStaffImageUrl(ctx: MutationCtx, staff: Doc<'staffs'>) {
+  if (!staff.imageUrl) return;
+  const { _id, _creationTime, imageUrl: _imageUrl, ...rest } = staff;
+  await ctx.db.replace(_id, rest);
+}
+
 async function emailTaken(
   ctx: DbCtx,
   email: string,
@@ -488,7 +494,7 @@ export const createStaff = mutation({
     contractStartDate: v.optional(v.string()),
     contractEndDate: v.optional(v.string()),
     probationEndDate: v.optional(v.string()),
-    imageUrl: v.string(),
+    imageUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const auth = await requirePermission(ctx, 'staff.create');
@@ -496,10 +502,7 @@ export const createStaff = mutation({
     const canPay = canUpdateCompensation(auth);
 
     try {
-      const trimmedImage = args.imageUrl.trim();
-      if (!trimmedImage) {
-        return { success: false, message: 'Staff photo is required' };
-      }
+      const trimmedImage = args.imageUrl?.trim();
       const profileError = staffProfileError(args);
       if (profileError) return { success: false, message: profileError };
 
@@ -614,7 +617,7 @@ export const createStaff = mutation({
         contractEndDate: args.contractEndDate,
         probationEndDate: args.probationEndDate,
         searchName: peopleSearchName(args.firstName, args.lastName),
-        imageUrl: trimmedImage,
+        ...(trimmedImage ? { imageUrl: trimmedImage } : {}),
         ...(args.userId ? { userId: args.userId } : {}),
       });
 
@@ -685,7 +688,7 @@ export const updateStaff = mutation({
     contractStartDate: v.optional(v.string()),
     contractEndDate: v.optional(v.string()),
     probationEndDate: v.optional(v.string()),
-    imageUrl: v.string(),
+    imageUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const existingStaff = await ctx.db.get(args.id);
@@ -697,10 +700,7 @@ export const updateStaff = mutation({
     const propertyId = existingStaff.propertyId;
 
     try {
-      const trimmedImage = args.imageUrl.trim();
-      if (!trimmedImage) {
-        return { success: false, message: 'Staff photo is required' };
-      }
+      const trimmedImage = args.imageUrl?.trim();
       const profileError = staffProfileError(args);
       if (profileError) return { success: false, message: profileError };
 
@@ -787,7 +787,7 @@ export const updateStaff = mutation({
         probationEndDate: args.probationEndDate,
         searchName: peopleSearchName(args.firstName, args.lastName),
         clockMethod: nextClockMethod,
-        imageUrl: trimmedImage,
+        ...(trimmedImage ? { imageUrl: trimmedImage } : {}),
         ...(args.userId ? { userId: args.userId } : {}),
         ...(args.managerId ? { managerId: args.managerId } : {}),
       });
@@ -812,6 +812,11 @@ export const updateStaff = mutation({
           existingStaff.propertyId,
           department,
         );
+      }
+
+      if (!trimmedImage) {
+        const latest = await ctx.db.get(existingStaff._id);
+        if (latest) await unsetStaffImageUrl(ctx, latest);
       }
 
       return { success: true, message: 'Staff updated successfully' };

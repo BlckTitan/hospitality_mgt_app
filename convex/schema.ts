@@ -153,7 +153,7 @@ export default defineSchema({
     ),
     // firstName + lastName for people search. Optional until existing staff are backfilled.
     searchName: v.optional(v.string()),
-    // Cloudinary secure_url — required in UI; optional in schema for existing rows.
+    // Cloudinary secure_url. Empty means the UI shows the default staff avatar.
     imageUrl: v.optional(v.string()),
   })
     .index("email", ["email"])

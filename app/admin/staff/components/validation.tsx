@@ -131,8 +131,9 @@ export const formSchema = yup.object().shape({
   imageUrl: yup
     .string()
     .trim()
+    .transform(emptyStringToUndefined)
     .url("Upload a valid image")
-    .required("Staff photo is required"),
+    .optional(),
 });
 
 export const CLOCK_METHOD_OPTIONS = [

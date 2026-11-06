@@ -19,6 +19,17 @@ const selectClassName = 'w-full px-3 py-2 border border-gray-300 rounded-md';
 const qtyInputClassName = 'w-20! max-w-[1.75rem] border rounded p-1 text-right';
 const PAGE_SIZE = 10;
 
+function previousDateKey(dateKey: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey);
+  if (!match) return dateKey;
+  const utc = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+  utc.setUTCDate(utc.getUTCDate() - 1);
+  const year = utc.getUTCFullYear();
+  const month = String(utc.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(utc.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export default function MyStock() {
   const { isAuthenticated } = useConvexAuth()
   const propertiesResponse = useQuery(
@@ -38,12 +49,16 @@ export default function MyStock() {
   const canSelectProperty = useCanSelectProperty()
   const [beverageQuery, setBeverageQuery] = useState('')
   const [debouncedBeverageQuery] = useDebounce(beverageQuery, 300)
+  const [logDate, setLogDate] = useState('')
 
   const currentPropertyId = propertyId || properties[0]?._id || ''
   const today = useQuery(
     api.userStockLogs.getMyTodayStock,
     isAuthenticated && currentPropertyId
-      ? { propertyId: currentPropertyId as Id<'properties'> }
+      ? {
+          propertyId: currentPropertyId as Id<'properties'>,
+          ...(logDate ? { logDate } : {}),
+        }
       : 'skip',
   )
 
@@ -57,6 +72,16 @@ export default function MyStock() {
   const data = today?.success ? today.data : null
   const bars = data?.bars ?? []
   const selectedBarId = barId || bars[0]?._id || ''
+  const propertyToday = data?.today ?? ''
+  const selectedDate = logDate || propertyToday
+  const knownPast = Boolean(propertyToday && selectedDate && selectedDate !== propertyToday)
+  const viewingToday = Boolean(propertyToday && selectedDate === propertyToday)
+  const viewingYesterday = Boolean(propertyToday && selectedDate === previousDateKey(propertyToday))
+  const canEditOpenRow = viewingToday || viewingYesterday
+  const requestedDate = logDate || propertyToday
+  const sheetStale = Boolean(
+    today?.success && requestedDate && data?.logDate && data.logDate !== requestedDate,
+  )
   const { ready, currentPage, setCurrentPage } = useRememberedList(
     `my-stock:${currentPropertyId}:${selectedBarId}`,
   )
@@ -114,13 +139,24 @@ export default function MyStock() {
     previousBeverageQuery.current = debouncedBeverageQuery
     setCurrentPage(1)
   }, [debouncedBeverageQuery, setCurrentPage])
+  const previousLogDate = useRef(logDate)
+  useEffect(() => {
+    if (previousLogDate.current === logDate) return
+    previousLogDate.current = logDate
+    setCurrentPage(1)
+    setClosingEdits({})
+    setWasteEdits({})
+    setCompEdits({})
+  }, [logDate, setCurrentPage])
 
   const carryKey = useRef('')
   const carryRun = useRef(0)
   const todayLogs = data?.logs
   const priorLogs = data?.priorLogs
   useEffect(() => {
-    if (!currentPropertyId || !selectedBarId || !data?.logDate) return
+    if (!currentPropertyId || !selectedBarId || !data?.logDate || !data.today) return
+    if (logDate && logDate !== data.today) return
+    if (data.logDate !== data.today) return
     if ((priorLogs ?? []).some((log) => log.barId === selectedBarId)) return
     const barLogs = (todayLogs ?? []).filter((log) => log.barId === selectedBarId)
     if (barLogs.some((log) => log.isFinalized)) return
@@ -165,7 +201,7 @@ export default function MyStock() {
         if (carryRun.current === run) setAutofilling(false)
       }
     })()
-  }, [autofillToday, currentPropertyId, data?.logDate, priorLogs, selectedBarId, todayLogs])
+  }, [autofillToday, currentPropertyId, data?.logDate, data?.today, logDate, priorLogs, selectedBarId, todayLogs])
 
   const availableBeverages = useMemo(() => {
     const used = new Set(logs.map((log) => log.beverageId))
@@ -182,6 +218,10 @@ export default function MyStock() {
 
   const handleAdd = async (event: FormEvent) => {
     event.preventDefault()
+    if (!viewingToday) {
+      toast.error('Drinks can only be added to today')
+      return
+    }
     if (!currentPropertyId || !selectedBarId || !beverageId) {
       toast.error('Select a bar and beverage')
       return
@@ -205,6 +245,7 @@ export default function MyStock() {
   const barFinalized = logs.some((log) => log.isFinalized)
 
   const handleAutofill = async () => {
+    if (!viewingToday) return
     if (!currentPropertyId || !selectedBarId) {
       toast.error('Select a bar first')
       return
@@ -359,6 +400,10 @@ export default function MyStock() {
   }
 
   const handleFinalize = async () => {
+    if (!viewingToday) {
+      toast.error('Only today can be finalized from this button')
+      return
+    }
     if (!selectedBarId) {
       toast.error('Select a bar first')
       return
@@ -381,7 +426,10 @@ export default function MyStock() {
       toast.error('Select a bar first')
       return
     }
-    if (!confirm(`${priorCloseMessage} Close yesterday now?`)) return
+    const closeMessage = viewingYesterday
+      ? `Close ${bars.find((bar) => bar._id === selectedBarId)?.name || 'this bar'} for ${selectedDate}?`
+      : `${priorCloseMessage} Close yesterday now?`
+    if (!confirm(closeMessage)) return
     try {
       const response = await finalizePriorDay({
         propertyId: currentPropertyId as Id<'properties'>,
@@ -405,6 +453,7 @@ export default function MyStock() {
             onChange={(event) => {
               setPropertyId(event.target.value)
               setBarId('')
+              setLogDate('')
             }}
           >
             {properties.map((property: any) => (
@@ -416,7 +465,7 @@ export default function MyStock() {
         </div>
       )}
 
-      <form onSubmit={handleAdd} className="mb-6">
+      <div className="mb-6">
         <div className="flex flex-col lg:flex-row lg:flex-wrap gap-3 lg:items-end">
           <div className="w-full lg:w-3/12">
             <label className="block text-sm mb-1">Bar</label>
@@ -433,53 +482,86 @@ export default function MyStock() {
               ))}
             </select>
           </div>
-          <div className="w-full lg:w-3/12">
-            <label className="block text-sm mb-1">Add beverage</label>
-            <select
+          <div className="w-full sm:w-52">
+            <label className="block text-sm mb-1" htmlFor="my-stock-date">
+              Date
+            </label>
+            <input
+              id="my-stock-date"
+              type="date"
               className={selectClassName}
-              value={beverageId}
-              onChange={(event) => setBeverageId(event.target.value)}
-            >
-              <option value="">Select a beverage</option>
-              {availableBeverages.map((beverage) => (
-                <option key={beverage._id} value={beverage._id}>
-                  {beverage.name}
-                </option>
-              ))}
-            </select>
+              value={selectedDate}
+              max={propertyToday || undefined}
+              onChange={(event) => {
+                const next = event.target.value
+                if (!next || (propertyToday && next >= propertyToday)) {
+                  setLogDate('')
+                  return
+                }
+                setLogDate(next)
+              }}
+            />
           </div>
-          <Button
-            variant="dark"
-            type="submit"
-            disabled={!selectedBarId || autofilling || priorForBar.length > 0}
-            title={priorForBar.length > 0 ? priorCloseMessage : undefined}
-          >
-            Add to today
-          </Button>
-          <Button
-            variant="outline-dark"
-            type="button"
-            disabled={!selectedBarId || barFinalized || autofilling || priorForBar.length > 0}
-            title={
-              priorForBar.length > 0
-                ? priorCloseMessage
-                : barFinalized
-                ? 'Today is already finalized for this bar'
-                : 'Add any drinks still missing from yesterday\'s close'
-            }
-            onClick={handleAutofill}
-          >
-            {autofilling ? 'Autofilling…' : 'Autofill'}
-          </Button>
+          {!knownPast && (
+            <form onSubmit={handleAdd} className="contents">
+              <div className="w-full lg:w-3/12">
+                <label className="block text-sm mb-1">Add beverage</label>
+                <select
+                  className={selectClassName}
+                  value={beverageId}
+                  onChange={(event) => setBeverageId(event.target.value)}
+                >
+                  <option value="">Select a beverage</option>
+                  {availableBeverages.map((beverage) => (
+                    <option key={beverage._id} value={beverage._id}>
+                      {beverage.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <Button
+                variant="dark"
+                type="submit"
+                disabled={!selectedBarId || autofilling || priorForBar.length > 0}
+                title={priorForBar.length > 0 ? priorCloseMessage : undefined}
+              >
+                Add to today
+              </Button>
+              <Button
+                variant="outline-dark"
+                type="button"
+                disabled={!selectedBarId || barFinalized || autofilling || priorForBar.length > 0}
+                title={
+                  priorForBar.length > 0
+                    ? priorCloseMessage
+                    : barFinalized
+                    ? 'Today is already finalized for this bar'
+                    : 'Add any drinks still missing from yesterday\'s close'
+                }
+                onClick={handleAutofill}
+              >
+                {autofilling ? 'Autofilling…' : 'Autofill'}
+              </Button>
+            </form>
+          )}
+          {knownPast && (
+            <Button type="button" variant="outline-dark" onClick={() => setLogDate('')}>
+              Today
+            </Button>
+          )}
         </div>
-        {data?.logDate && (
+        {selectedDate && !sheetStale && (
           <p className="text-sm text-gray-500 mt-2">
-            Date: {data.logDate}. Opening stock is yesterday&apos;s closing count for this bar.
+            {viewingToday
+              ? `Date: ${selectedDate}. Opening stock is yesterday's closing count for this bar.`
+              : viewingYesterday && logs.some((log) => !log.isFinalized)
+                ? `Showing ${selectedDate}. Save the count and finalize it before today's stock can open.`
+                : `Showing ${selectedDate}. This day's sheet is read-only.`}
           </p>
         )}
-      </form>
+      </div>
 
-      {priorForBar.length > 0 && (
+      {!sheetStale && priorForBar.length > 0 && (
         <section className="mb-6 rounded-md border border-amber-300 bg-amber-50 p-4">
           <h3 className="text-base font-semibold">Close yesterday first</h3>
           <p className="mt-1 text-sm text-gray-700">
@@ -579,15 +661,21 @@ export default function MyStock() {
         </section>
       )}
 
-      {today === undefined || (autofilling && logs.length === 0) ? (
+      {today === undefined || sheetStale || (viewingToday && autofilling && logs.length === 0) ? (
         <p className="text-gray-500">
-          {autofilling ? 'Opening today from yesterday\'s close…' : 'Loading today\'s stock…'}
+          {viewingToday && autofilling && !sheetStale
+            ? 'Opening today from yesterday\'s close…'
+            : 'Loading stock…'}
         </p>
+      ) : today.success === false ? (
+        <p className="text-gray-600">{today.message}</p>
       ) : logs.length === 0 ? (
         <p className="text-gray-600">
           {priorForBar.length > 0
             ? 'Today stays closed until yesterday is finalized.'
-            : 'No drinks carried over from yesterday. Add a beverage, wait for a store issue, or request stock.'}
+            : knownPast
+              ? `No stock was recorded for this bar on ${selectedDate}.`
+              : 'No drinks carried over from yesterday. Add a beverage, wait for a store issue, or request stock.'}
         </p>
       ) : (
         <>
@@ -603,7 +691,7 @@ export default function MyStock() {
           placeholder="Search by beverage"
           setSearchQuery={setBeverageQuery}
           leading={
-            logs.some((log) => !log.isFinalized) ? (
+            canEditOpenRow && logs.some((log) => !log.isFinalized) ? (
               <Button
                 type="button"
                 variant="success"
@@ -632,7 +720,14 @@ export default function MyStock() {
                 <th className="p-2 text-left text-sm">Comps</th>
                 <th className="p-2 text-left text-sm">Sales</th>
                 <th className="p-2 text-left text-sm">Amount</th>
-                <th className="p-2 text-left text-sm" title="Quantity rung on your checks opened today">
+                <th
+                  className="p-2 text-left text-sm"
+                  title={
+                    viewingToday
+                      ? 'Quantity rung on checks opened today'
+                      : `Quantity rung on checks opened ${selectedDate}`
+                  }
+                >
                   POS
                 </th>
                 <th
@@ -677,7 +772,7 @@ export default function MyStock() {
                         min={0}
                         className={qtyInputClassName}
                         value={closingValue}
-                        disabled={log.isFinalized || savingAll || savingId === log._id}
+                        disabled={!canEditOpenRow || log.isFinalized || savingAll || savingId === log._id}
                         onChange={(event) =>
                           setClosingEdits((current) => ({
                             ...current,
@@ -692,7 +787,7 @@ export default function MyStock() {
                         min={0}
                         className={qtyInputClassName}
                         value={wasteValue}
-                        disabled={log.isFinalized || savingAll || savingId === log._id}
+                        disabled={!canEditOpenRow || log.isFinalized || savingAll || savingId === log._id}
                         onChange={(event) =>
                           setWasteEdits((current) => ({
                             ...current,
@@ -707,7 +802,7 @@ export default function MyStock() {
                         min={0}
                         className={qtyInputClassName}
                         value={compValue}
-                        disabled={log.isFinalized || savingAll || savingId === log._id}
+                        disabled={!canEditOpenRow || log.isFinalized || savingAll || savingId === log._id}
                         onChange={(event) =>
                           setCompEdits((current) => ({
                             ...current,
@@ -728,7 +823,7 @@ export default function MyStock() {
                     </td>
                     <td className="p-2">{log.isFinalized ? 'Finalized' : 'Open'}</td>
                     <td className="p-2">
-                      {!log.isFinalized && (
+                      {canEditOpenRow && !log.isFinalized && (
                         <Button
                           type="button"
                           size="sm"
@@ -779,9 +874,14 @@ export default function MyStock() {
               Request stock
             </Button>
           </Link>
-          {logs.some((log) => !log.isFinalized) && (
+          {viewingToday && logs.some((log) => !log.isFinalized) && (
             <Button type="button" variant="success" onClick={handleFinalize}>
               Finalize today
+            </Button>
+          )}
+          {viewingYesterday && logs.some((log) => !log.isFinalized) && (
+            <Button type="button" variant="success" onClick={handleFinalizePrior}>
+              Finalize yesterday
             </Button>
           )}
         </div>

@@ -57,22 +57,34 @@ interface SalesSummaryChartsProps {
   currency?: string;
 }
 
+function periodCaption(period: PeriodView, dateKey: string, periodKey: string) {
+  if (period === 'daily') return `Showing ${dateKey}`;
+  if (period === 'weekly') return `Showing the week containing ${dateKey}`;
+  if (period === 'monthly') return `Showing ${periodKey || dateKey.slice(0, 7)}`;
+  if (period === 'yearly') return `Showing ${periodKey || dateKey.slice(0, 4)}`;
+  return `Year to date through ${dateKey}`;
+}
+
 const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentPropertyId, currency }) => {
   const [periodType, setPeriodType] = useState<PeriodView>('daily');
   const [tab, setTab] = useState<(typeof CHART_TABS)[number]>('Bar Performance');
+  const [pickedDate, setPickedDate] = useState('');
   const summaryPeriod = periodType === 'yoy' ? 'yearly' : periodType;
+  const dateArg = pickedDate ? { dateKey: pickedDate } : {};
   
   // Fetch sales data
   const salesByBarData = useQuery(api.salesSummaries.getSalesByBarPeriod, {
     propertyId: currentPropertyId,
     periodType: summaryPeriod,
     limit: 10,
+    ...dateArg,
   });
 
   const salesByUserData = useQuery(api.salesSummaries.getSalesByUserPeriod, {
     propertyId: currentPropertyId,
     periodType: summaryPeriod,
     limit: 10,
+    ...dateArg,
   });
 
   const salesData = useQuery(
@@ -83,12 +95,13 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
           propertyId: currentPropertyId,
           periodType: summaryPeriod,
           limit: periodType === 'yearly' ? 5 : 7,
+          ...dateArg,
         },
   );
 
   const yoyOverview = useQuery(
     api.salesSummaries.getYearOnYearOverview,
-    periodType === 'yoy' ? { propertyId: currentPropertyId } : 'skip',
+    periodType === 'yoy' ? { propertyId: currentPropertyId, ...dateArg } : 'skip',
   );
 
   const categorySource = useQuery(
@@ -97,6 +110,7 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
       ? {
           propertyId: currentPropertyId,
           periodType: summaryPeriod,
+          ...dateArg,
         }
       : 'skip',
   );
@@ -108,6 +122,7 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
           propertyId: currentPropertyId,
           periodType: summaryPeriod,
           limit: 12,
+          ...dateArg,
         }
       : 'skip',
   );
@@ -115,6 +130,7 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
   const health = useQuery(api.barHealth.getBarHealthMetrics, {
     propertyId: currentPropertyId,
     periodType,
+    ...dateArg,
   });
 
   const formatCurrency = (value: number) => formatPropertyMoney(value, currency);
@@ -371,20 +387,68 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
     },
   };
 
-  if (
+  const salesReady = salesByBarData?.success === true;
+  const viewDate = salesReady ? salesByBarData.dateKey : pickedDate;
+  const propertyToday = salesReady ? salesByBarData.today : '';
+  const salesLoading =
     salesByBarData === undefined ||
     salesByUserData === undefined ||
-    (periodType === 'yoy' ? yoyOverview === undefined : salesData === undefined)
-  ) {
+    (periodType === 'yoy' ? yoyOverview === undefined : salesData === undefined);
+
+  const dateControl = (
+    <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <div>
+        <h2 className="text-lg font-semibold text-gray-800">Sales</h2>
+        {viewDate && (
+          <p className="text-sm text-gray-500">
+            {periodCaption(periodType, viewDate, salesReady ? salesByBarData.periodKey : '')}
+          </p>
+        )}
+      </div>
+      <div className="flex items-end gap-2">
+        <div className="w-44">
+          <label className="block text-sm mb-1" htmlFor="bar-sales-date">
+            Date
+          </label>
+          <input
+            id="bar-sales-date"
+            type="date"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md"
+            value={viewDate}
+            max={propertyToday || undefined}
+            onChange={(event) => {
+              const next = event.target.value;
+              if (!next || (propertyToday && next >= propertyToday)) {
+                setPickedDate('');
+                return;
+              }
+              setPickedDate(next);
+            }}
+          />
+        </div>
+        {pickedDate && (
+          <Button type="button" variant="outline-dark" onClick={() => setPickedDate('')}>
+            Today
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+
+  if (salesLoading) {
     return (
-      <div className="w-full p-4 text-center">
-        <p>Loading sales summary data...</p>
+      <div className="w-full">
+        {dateControl}
+        <div className="w-full p-4 text-center">
+          <p>Loading sales summary data...</p>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="w-full">
+      {dateControl}
       <div className="mb-6 grid grid-cols-1 md:grid-cols-3 xl:grid-cols-7 gap-4">
         <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
           <div className="text-sm text-blue-600 font-medium">Total Revenue</div>

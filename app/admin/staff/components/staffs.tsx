@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { useState } from "react";
 import { usePermissions } from "../../../../hooks/usePermissions";
 import ImageThumbnail from "../../../../shared/imageThumbnail";
+import { staffAvatarSrc } from "../../../../lib/staffAvatar";
 
 export default function Staff() {
   const [includeTerminated, setIncludeTerminated] = useState(false);
@@ -121,7 +122,7 @@ export default function Staff() {
               <tr key={row._id} className="border-t">
                 <td className="p-2">
                   <ImageThumbnail
-                    src={row.imageUrl}
+                    src={staffAvatarSrc(row.imageUrl)}
                     alt={`${row.firstName} ${row.lastName}`}
                     size={36}
                     rounded="full"

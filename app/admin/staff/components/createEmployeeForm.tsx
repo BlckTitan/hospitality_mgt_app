@@ -148,9 +148,9 @@ export function FormComponent() {
         <ImageUpload
           id="imageUrl"
           label="Staff photo"
-          required
           folder="staff"
           inputWidth="w-full"
+          helperText="JPEG, PNG, or WebP. Leave empty to use the default staff avatar."
           value={imageUrl || null}
           onChange={(url) => setValue("imageUrl", url ?? "", { shouldValidate: true, shouldDirty: true })}
           error={errors.imageUrl}
