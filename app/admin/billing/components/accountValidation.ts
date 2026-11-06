@@ -13,6 +13,12 @@ export const accountFormSchema = yup.object().shape({
   accountNumber: yup.string().trim().optional().nullable(),
   supplierId: yup.string().optional().nullable(),
   expectedAmount: yup.number().transform((value, original) => (original === '' || original === null ? undefined : value)).optional().nullable(),
+  cycleDate: yup
+    .date()
+    .nullable()
+    .transform((value, original) => (original == null || original === '' ? null : value))
+    .typeError('Choose a valid billing cycle date')
+    .optional(),
   glAccountCode: yup.string().trim().optional().nullable(),
   isActive: yup.boolean().required(),
 });

@@ -1,7 +1,7 @@
 'use client';
 
 import TableComponent, { TableColumn } from '../../../../shared/table';
-import { billTypeLabel, formatDate, formatMoney } from './labels';
+import { billTypeLabel, formatMoney, formatUtcDate } from './labels';
 
 export type HubBillRow = {
   _id: string;
@@ -22,7 +22,7 @@ const columns: TableColumn<HubBillRow>[] = [
   {
     label: 'Due',
     key: 'dueDate',
-    render: (_value, row) => formatDate(row.dueDate),
+    render: (_value, row) => formatUtcDate(row.dueDate),
   },
   {
     label: 'Amount',

@@ -19,6 +19,18 @@ export function dateInputToTimestamp(value: string) {
   return new Date(year, month - 1, day, 9, 0, 0, 0).getTime();
 }
 
+export function dateToDueTimestamp(value?: Date | null) {
+  if (!value || Number.isNaN(value.getTime())) return undefined;
+  return new Date(value.getFullYear(), value.getMonth(), value.getDate(), 9, 0, 0, 0).getTime();
+}
+
+export function dueTimestampToDate(value?: number): Date | null {
+  if (value == null) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
 export function timestampToDateInput(value?: number) {
   if (!value) return '';
   const date = new Date(value);

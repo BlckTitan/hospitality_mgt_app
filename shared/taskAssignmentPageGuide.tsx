@@ -1,5 +1,7 @@
 'use client'
 
+import { PageGuide } from './pageGuide'
+
 type GuidePage =
   | 'housekeeping'
   | 'housekeeping-edit'
@@ -16,9 +18,9 @@ const DESCRIPTIONS: Record<GuidePage, string> = {
   'housekeeping-edit':
     'Update type, lead, helpers, and status. Any assignee may start. Only the lead or a supervisor can complete or skip — skip requires notes. Completing a checkout task updates Room last cleaned.',
   maintenance:
-    'Create a work order with +. Add a description, estimated cost, and any parts purchased for the job. Schedule a repeat, such as every month or every 3 months, and a reminder appears when that date is close. Name a staff lead (and optional helpers) plus an optional vendor. Filter Unassigned, Mine, Overdue, or Due soon.',
+    'Create a work order with +. Add a description, a due date, estimated cost, and any parts purchased for the job. Schedule a repeat, such as every month or every 3 months, and a reminder appears when that date is close. Name a staff lead (and optional helpers) plus an optional vendor. Filter Unassigned, Mine, Overdue, or Due soon.',
   'maintenance-edit':
-    'Start, complete, or cancel this order. Update the description, cost, purchased items, and schedule. Any assignee may start; only the lead or a supervisor can complete. Cancel requires notes. Completing a repeating schedule creates the next visit.',
+    'Start, complete, or cancel this order. Update the description, due date, cost, purchased items, and schedule. Any assignee may start; only the lead or a supervisor can complete. Cancel requires notes. Completing a repeating schedule creates the next visit.',
   inventory:
     'Restock when quantity hits the reorder point, or putaway when a purchase order is received. Create with + — putaway needs a received PO. Completing restock does not raise a purchase order.',
   'inventory-edit':
@@ -30,9 +32,5 @@ const DESCRIPTIONS: Record<GuidePage, string> = {
 };
 
 export function TaskAssignmentPageGuide({ page }: { page: GuidePage }) {
-  return (
-    <p className="text-gray-600">
-      {DESCRIPTIONS[page]}
-    </p>
-  );
+  return <PageGuide text={DESCRIPTIONS[page]} />;
 }

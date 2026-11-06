@@ -1,8 +1,8 @@
 import { mutation, query, MutationCtx, QueryCtx } from './_generated/server';
 import { v } from 'convex/values';
 import { Doc, Id } from './_generated/dataModel';
-import { requirePermission } from './lib/rbac';
-import { canViewTeamRecords, rolesForProperty } from './lib/staffScope';
+import { AuthContext, requirePermission } from './lib/rbac';
+import { canViewTeamRecords, isFloorServiceOnly, rolesForProperty } from './lib/staffScope';
 import { findBarDayLog, lastFinalizedClosingStock, propertyDateKey, remainingSellableQty } from './lib/barStock';
 import { requireFnBSaleShift } from './lib/dutyContext';
 import { rowMatchesSearch } from './lib/rowSearch';
@@ -87,7 +87,7 @@ async function enrichOrder(ctx: DbCtx, order: Doc<'orders'>) {
     order.barId ? ctx.db.get(order.barId) : null,
     order.reservationId ? ctx.db.get(order.reservationId) : null,
     order.employeeId ? ctx.db.get(order.employeeId) : null,
-    ctx.db.get(order.serverUserId),
+    order.serverUserId ? ctx.db.get(order.serverUserId) : null,
   ]);
   let roomLabel: string | null = null;
   let guestName: string | null = null;
@@ -116,18 +116,24 @@ async function enrichOrder(ctx: DbCtx, order: Doc<'orders'>) {
 async function assertCanWorkOrder(
   ctx: MutationCtx,
   order: Doc<'orders'>,
-  userId: Id<'users'>,
+  auth: AuthContext,
 ): Promise<{ ok: true } | { ok: false; message: string }> {
   if (!order.shiftId && !order.barId) return { ok: true };
   const duty = await requireFnBSaleShift(ctx, {
-    userId,
+    userId: auth.user._id,
     propertyId: order.propertyId,
   });
   if (duty.ok === false) return duty;
   if (order.barId && order.barId !== duty.barId) {
     return { ok: false, message: 'This check belongs to another bar.' };
   }
-  if (order.shiftId && order.serverUserId !== userId) {
+  if (!order.shiftId) return { ok: true };
+  const floorSeller = isFloorServiceOnly(rolesForProperty(auth, order.propertyId));
+  if (!order.serverUserId) {
+    if (floorSeller) return { ok: false, message: 'This check has no waiter.' };
+    return { ok: true };
+  }
+  if (order.serverUserId !== auth.user._id) {
     return { ok: false, message: 'This check belongs to another waiter.' };
   }
   return { ok: true };
@@ -451,7 +457,7 @@ async function posOrdersMatching(ctx: QueryCtx, orders: Doc<'orders'>[], term: s
 
   return orders.filter((order) => {
     const employee = order.employeeId ? staffById.get(order.employeeId) : undefined;
-    const server = userById.get(order.serverUserId);
+    const server = order.serverUserId ? userById.get(order.serverUserId) : undefined;
     const bar = order.barId ? barById.get(order.barId) : undefined;
     const reservation = order.reservationId ? reservationById.get(order.reservationId) : undefined;
     const room = reservation ? roomById.get(reservation.roomId) : undefined;
@@ -643,7 +649,7 @@ export const getOrder = query({
     }
     const data = await enrichOrder(ctx, order);
     const [server, payments] = await Promise.all([
-      ctx.db.get(order.serverUserId),
+      order.serverUserId ? ctx.db.get(order.serverUserId) : null,
       ctx.db
         .query('payments')
         .withIndex('by_reference', (q) =>
@@ -675,7 +681,7 @@ export const findOrdersByCheckId = query({
   handler: async (ctx, args) => {
     const auth = await requirePermission(ctx, 'fnb.read', args.propertyId);
     const seeAll = canViewTeamRecords(rolesForProperty(auth, args.propertyId));
-    const owns = (order: { serverUserId: Id<'users'> }) =>
+    const owns = (order: { serverUserId?: Id<'users'> }) =>
       seeAll || order.serverUserId === auth.user._id;
     const checkId = normalizeCheckQuery(args.checkId);
     if (checkId.length < 6) {
@@ -877,15 +883,20 @@ export const createOrder = mutation({
 
     const now = Date.now();
     const openedAtDateKey = await propertyDateKey(ctx, args.propertyId, now);
+    const floorSeller = isFloorServiceOnly(rolesForProperty(auth, args.propertyId));
     const orderId = await ctx.db.insert('orders', {
       propertyId: args.propertyId,
       barId: duty.barId,
       shiftId: duty.shift._id,
-      employeeId: duty.staff._id,
+      ...(floorSeller
+        ? {
+            employeeId: duty.staff._id,
+            serverUserId: duty.shift.userId ?? auth.user._id,
+          }
+        : {}),
       reservationId: args.reservationId,
       orderType: args.orderType,
       status: 'open',
-      serverUserId: duty.shift.userId ?? auth.user._id,
       guestLabel: args.guestLabel?.trim() || undefined,
       subtotal: 0,
       totalAmount: 0,
@@ -907,7 +918,7 @@ export const setRoomContext = mutation({
   handler: async (ctx, args) => {
     const order = await loadOrderOrThrow(ctx, args.orderId);
     const auth = await requirePermission(ctx, 'fnb.update', order.propertyId);
-    const access = await assertCanWorkOrder(ctx, order, auth.user._id);
+    const access = await assertCanWorkOrder(ctx, order, auth);
     if (access.ok === false) return { success: false, message: access.message };
     if (order.status !== 'open' && order.status !== 'open_tab') {
       return { success: false, message: 'Only open checks can change room context' };
@@ -936,7 +947,7 @@ export const addLine = mutation({
   handler: async (ctx, args) => {
     const order = await loadOrderOrThrow(ctx, args.orderId);
     const auth = await requirePermission(ctx, 'fnb.update', order.propertyId);
-    const access = await assertCanWorkOrder(ctx, order, auth.user._id);
+    const access = await assertCanWorkOrder(ctx, order, auth);
     if (access.ok === false) return { success: false, message: access.message };
     if (order.status !== 'open') {
       return { success: false, message: 'Can only add lines to an open check' };
@@ -1020,7 +1031,7 @@ export const voidLine = mutation({
     if (!line) return { success: false, message: 'Line not found' };
     const order = await loadOrderOrThrow(ctx, line.orderId);
     const auth = await requirePermission(ctx, 'fnb.update', order.propertyId);
-    const access = await assertCanWorkOrder(ctx, order, auth.user._id);
+    const access = await assertCanWorkOrder(ctx, order, auth);
     if (access.ok === false) return { success: false, message: access.message };
     if (order.status !== 'open') {
       return { success: false, message: 'Can only void lines on an open check' };
@@ -1039,7 +1050,7 @@ export const voidOrder = mutation({
   handler: async (ctx, args) => {
     const order = await loadOrderOrThrow(ctx, args.orderId);
     const auth = await requirePermission(ctx, 'fnb.update', order.propertyId);
-    const access = await assertCanWorkOrder(ctx, order, auth.user._id);
+    const access = await assertCanWorkOrder(ctx, order, auth);
     if (access.ok === false) return { success: false, message: access.message };
     if (order.status !== 'open') {
       return { success: false, message: 'Only unpaid open checks can be voided' };
@@ -1073,7 +1084,7 @@ async function settleWithTenders(
 ) {
   const order = await loadOrderOrThrow(ctx, args.orderId);
   const auth = await requirePermission(ctx, 'fnb.update', order.propertyId);
-  const access = await assertCanWorkOrder(ctx, order, auth.user._id);
+  const access = await assertCanWorkOrder(ctx, order, auth);
   if (access.ok === false) return { success: false as const, message: access.message };
   if (args.allowOpenTabOnly) {
     if (order.status !== 'open_tab') {
@@ -1180,7 +1191,7 @@ export const markOpenTab = mutation({
   handler: async (ctx, args) => {
     const order = await loadOrderOrThrow(ctx, args.orderId);
     const auth = await requirePermission(ctx, 'fnb.update', order.propertyId);
-    const access = await assertCanWorkOrder(ctx, order, auth.user._id);
+    const access = await assertCanWorkOrder(ctx, order, auth);
     if (access.ok === false) return { success: false, message: access.message };
     if (order.status !== 'open') {
       return { success: false, message: 'Only an open check can become an open tab' };

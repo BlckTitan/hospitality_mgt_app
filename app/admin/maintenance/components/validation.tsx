@@ -36,6 +36,13 @@ export const formSchema = yup.object().shape({
 
   isScheduled: yup.boolean().default(false),
 
+  dueDate: yup
+    .date()
+    .nullable()
+    .transform((value, original) => (original == null || original === '' ? null : value))
+    .typeError('Choose a valid due date')
+    .optional(),
+
   scheduledDate: yup.string().when('isScheduled', {
     is: true,
     then: (schema) => schema.required('Choose the maintenance date'),

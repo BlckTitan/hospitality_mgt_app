@@ -108,6 +108,14 @@ type ScheduleResult =
   | { ok: true; value: ScheduleValue }
   | { ok: false; message: string };
 
+function readDueAt(value: number | undefined): { ok: true; value?: number } | { ok: false; message: string } {
+  if (value == null) return { ok: true };
+  if (!Number.isFinite(value)) return { ok: false, message: 'Choose a valid due date' };
+  const year = new Date(value).getFullYear();
+  if (year < 2000 || year > 2100) return { ok: false, message: 'Choose a valid due date' };
+  return { ok: true, value };
+}
+
 function readSchedule(args: ScheduleInput): ScheduleResult {
   if (!args.isScheduled) {
     return { ok: true, value: { isScheduled: false } };
@@ -374,6 +382,7 @@ export const createMaintenanceOrder = mutation({
     scheduledDate: v.optional(v.number()),
     intervalMonths: v.optional(v.number()),
     reminderDays: v.optional(v.number()),
+    dueAt: v.optional(v.number()),
     estimatedCost: v.optional(v.number()),
     leadId: v.optional(v.id('staffs')),
     helperIds: v.optional(v.array(v.id('staffs'))),
@@ -406,10 +415,13 @@ export const createMaintenanceOrder = mutation({
     }
     const schedule = readSchedule(args);
     if (schedule.ok === false) return { success: false, message: schedule.message };
+    const chosenDue = readDueAt(args.dueAt);
+    if (chosenDue.ok === false) return { success: false, message: chosenDue.message };
     const now = Date.now();
-    const dueAt = schedule.value.isScheduled && schedule.value.scheduledDate
-      ? schedule.value.scheduledDate
-      : await dueAtFor(ctx, args.propertyId, 'maintenance', args.orderType, now);
+    const dueAt = chosenDue.value
+      ?? (schedule.value.isScheduled && schedule.value.scheduledDate
+        ? schedule.value.scheduledDate
+        : await dueAtFor(ctx, args.propertyId, 'maintenance', args.orderType, now));
     const snap = await snapshotChecklist(ctx, args.propertyId, 'maintenance', args.orderType);
     const leadId = args.leadId ?? await defaultLeadStaffId(ctx, args.propertyId, 'maintenance', auth.user._id);
     const requestedBy = await linkedStaffForUser(ctx, auth.user._id);
@@ -530,6 +542,7 @@ export const updateMaintenanceOrder = mutation({
     scheduledDate: v.optional(v.number()),
     intervalMonths: v.optional(v.number()),
     reminderDays: v.optional(v.number()),
+    dueAt: v.optional(v.number()),
     estimatedCost: v.optional(v.number()),
     actualCost: v.optional(v.number()),
     resolutionNotes: v.optional(v.string()),
@@ -597,6 +610,8 @@ export const updateMaintenanceOrder = mutation({
       partsCost = partsCostOf(parts);
     }
 
+    const chosenDue = readDueAt(args.dueAt);
+    if (chosenDue.ok === false) return { success: false, message: chosenDue.message };
     const now = Date.now();
     const patch: Record<string, unknown> = { updatedAt: now };
     for (const key of [
@@ -614,10 +629,14 @@ export const updateMaintenanceOrder = mutation({
         patch.scheduledDate = schedule.value.scheduledDate;
         patch.intervalMonths = schedule.value.intervalMonths;
         patch.reminderDays = schedule.value.reminderDays;
-        if (isOpenStatus(args.status ?? existing.status) && schedule.value.scheduledDate) {
+        if (
+          chosenDue.value == null
+          && isOpenStatus(args.status ?? existing.status)
+          && schedule.value.scheduledDate
+        ) {
           patch.dueAt = schedule.value.scheduledDate;
         }
-      } else if (isOpenStatus(args.status ?? existing.status)) {
+      } else if (chosenDue.value == null && isOpenStatus(args.status ?? existing.status)) {
         patch.dueAt = await dueAtFor(
           ctx,
           existing.propertyId,
@@ -626,6 +645,9 @@ export const updateMaintenanceOrder = mutation({
           now,
         );
       }
+    }
+    if (chosenDue.value != null) {
+      patch.dueAt = chosenDue.value;
     }
     if (args.actualCost === undefined && partsCost !== undefined && partsCost > 0) {
       patch.actualCost = partsCost;

@@ -119,9 +119,7 @@ export default function MaintenanceOrders({ currentPropertyId }: { currentProper
                 </td>
                 <td className="p-2">
                   <span className={row.overdue ? "text-red-600 font-semibold" : ""}>
-                    {row.isScheduled && row.scheduledDate
-                      ? new Date(row.scheduledDate).toLocaleDateString()
-                      : new Date(row.dueAt).toLocaleString()}
+                    {new Date(row.dueAt).toLocaleDateString()}
                     {row.reminder
                       ? ` (${reminderPhrase(row.reminder.daysUntil)})`
                       : row.overdue

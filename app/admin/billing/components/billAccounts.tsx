@@ -9,13 +9,14 @@ import { Id } from '../../../../convex/_generated/dataModel';
 import { TableColumn } from '../../../../shared/table';
 import PaginationComponent from '../../../../shared/pagination';
 import { usePermissions } from '../../../../hooks/usePermissions';
-import { billTypeLabel, frequencyLabel } from './labels';
+import { billTypeLabel, formatUtcDate, frequencyLabel } from './labels';
 
 type AccountRow = {
   _id: Id<'billAccounts'>;
   name: string;
   billType: string;
   frequency: string;
+  cycleDate?: number;
   provider: string;
   isMetered: boolean;
   isActive: boolean;
@@ -38,6 +39,11 @@ export function BillAccounts({ currentPropertyId }: { currentPropertyId: Id<'pro
       label: 'Frequency',
       key: 'frequency',
       render: (_value, row) => frequencyLabel(row.frequency),
+    },
+    {
+      label: 'Cycle date',
+      key: 'cycleDate',
+      render: (_value, row) => (row.cycleDate ? formatUtcDate(row.cycleDate) : 'Period end'),
     },
     { label: 'Provider', key: 'provider' },
     {

@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import { Id } from "./_generated/dataModel";
 import { requirePermission, tryRequirePermission } from "./lib/rbac";
 import { periodDateKeys, percentChange, propertyDateKey, resolveViewDateKey } from "./lib/barStock";
+import { isFloorSellerAtProperty } from "./lib/staffAccess";
 
 const STALE_MS = 24 * 60 * 60 * 1000;
 
@@ -50,6 +51,14 @@ export const getBarHealthMetrics = query({
     let totalRevenue = 0;
     let totalQtySold = 0;
     let finalizedLogCount = 0;
+    const sellerCache = new Map<string, boolean>();
+    const countsAsSalesPerson = async (userId: Id<"users">) => {
+      const cached = sellerCache.get(userId);
+      if (cached !== undefined) return cached;
+      const ok = await isFloorSellerAtProperty(ctx, userId, args.propertyId);
+      sellerCache.set(userId, ok);
+      return ok;
+    };
 
     for (const log of logs) {
       totalRevenue += log.salesValue;
@@ -63,17 +72,19 @@ export const getBarHealthMetrics = query({
         sessionFinalized === undefined ? log.isFinalized : sessionFinalized && log.isFinalized,
       );
 
-      const shiftKey = log.shiftId ?? `${log.userId}:${log.logDate}`;
-      waiterShifts.add(shiftKey);
+      if (await countsAsSalesPerson(log.userId)) {
+        const shiftKey = log.shiftId ?? `${log.userId}:${log.logDate}`;
+        waiterShifts.add(shiftKey);
 
-      let waiter = waiterAgg.get(log.userId);
-      if (!waiter) {
-        waiter = { userId: log.userId, revenue: 0, qty: 0, shifts: new Set() };
-        waiterAgg.set(log.userId, waiter);
+        let waiter = waiterAgg.get(log.userId);
+        if (!waiter) {
+          waiter = { userId: log.userId, revenue: 0, qty: 0, shifts: new Set() };
+          waiterAgg.set(log.userId, waiter);
+        }
+        waiter.revenue += log.salesValue;
+        waiter.qty += log.salesQuantity;
+        waiter.shifts.add(shiftKey);
       }
-      waiter.revenue += log.salesValue;
-      waiter.qty += log.salesQuantity;
-      waiter.shifts.add(shiftKey);
 
       const sku = skuAgg.get(log.beverageId) ?? {
         beverageId: log.beverageId,
@@ -118,7 +129,7 @@ export const getBarHealthMetrics = query({
           sku.qty += row.totalQtySold;
           sku.revenue += row.totalRevenue;
           skuAgg.set(row.beverageId, sku);
-          if (row.userId) {
+          if (row.userId && (await countsAsSalesPerson(row.userId))) {
             let waiter = waiterAgg.get(row.userId);
             if (!waiter) {
               waiter = { userId: row.userId, revenue: 0, qty: 0, shifts: new Set() };

@@ -10,6 +10,7 @@ import { SubmitHandler, useForm } from "react-hook-form";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { toast } from "sonner";
 import InputComponent from "../../../../shared/input";
+import DatepickerComponent from "../../../../shared/datepicker";
 import SelectComponent from "../../../../shared/select";
 import { Field, fieldRowClassName, fieldWidthClass } from "../../../../shared/field";
 import { useState } from "react";
@@ -23,6 +24,8 @@ import {
 import { usePropertyCurrency } from "../../inventory-management/components/money";
 import {
   dateInputToTimestamp,
+  dateToDueTimestamp,
+  dueTimestampToDate,
   intervalMonthsOf,
   MaintenanceScheduleFields,
   repeatEveryFrom,
@@ -37,6 +40,7 @@ type FormData = {
   priority: 'low' | 'medium' | 'high' | 'urgent';
   estimatedCost?: number;
   actualCost?: number;
+  dueDate?: Date | null;
   isScheduled?: boolean;
   scheduledDate?: string;
   repeatEvery?: string;
@@ -64,6 +68,7 @@ export function FormComponent({
   priority,
   estimatedCost,
   actualCost,
+  dueAt,
   isScheduled,
   scheduledDate,
   intervalMonths,
@@ -83,6 +88,7 @@ export function FormComponent({
   priority: string;
   estimatedCost?: number;
   actualCost?: number;
+  dueAt?: number;
   isScheduled?: boolean;
   scheduledDate?: number;
   intervalMonths?: number;
@@ -114,7 +120,7 @@ export function FormComponent({
     })),
   );
 
-  const { register, handleSubmit, watch, formState: { errors } } = useForm<FormData>({
+  const { control, register, handleSubmit, watch, formState: { errors } } = useForm<FormData>({
     resolver: yupResolver(formSchema) as any,
     defaultValues: {
       title,
@@ -124,6 +130,7 @@ export function FormComponent({
       priority: priority as FormData['priority'],
       estimatedCost,
       actualCost,
+      dueDate: dueTimestampToDate(dueAt),
       isScheduled: Boolean(isScheduled),
       scheduledDate: timestampToDateInput(scheduledDate),
       repeatEvery: isScheduled ? repeatEveryFrom(intervalMonths) : '1',
@@ -153,6 +160,7 @@ export function FormComponent({
         orderType: data.orderType,
         status: data.status,
         priority: data.priority,
+        dueAt: dateToDueTimestamp(data.dueDate),
         isScheduled: scheduled,
         scheduledDate: nextDate,
         intervalMonths: scheduled ? intervalMonthsOf(data) : 0,
@@ -270,6 +278,21 @@ export function FormComponent({
           placeholder="Leave blank to use items total"
         />
       </div>
+
+      <div className={fieldRowClassName}>
+        <DatepickerComponent
+          id="dueDate"
+          label="Due date"
+          dateWidth="w-4/12"
+          name="dueDate"
+          control={control}
+          required={false}
+          error={errors.dueDate}
+        />
+      </div>
+      <p className="text-sm text-gray-600 -mt-2 mb-3">
+        When this work should be finished. Leave blank to use the maintenance date, or the usual response time.
+      </p>
 
       <MaintenanceScheduleFields
         register={register as any}

@@ -46,27 +46,61 @@ function ymdInZone(now: number, timeZone: string): { y: number; m: number; d: nu
   return { y: date.getUTCFullYear(), m: date.getUTCMonth() + 1, d: date.getUTCDate() };
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function lastUtcDay(year: number, month: number): number {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+/** Due date inside the current calendar period, taken from the chosen cycle date. */
+export function dueDateForCycle(
+  periodStart: number,
+  frequency: Frequency,
+  cycleDate: number,
+): number {
+  const cycle = new Date(cycleDate);
+  const start = new Date(periodStart);
+  const year = start.getUTCFullYear();
+  const month = start.getUTCMonth() + 1;
+  if (frequency === "weekly") {
+    const daysFromMonday = (cycle.getUTCDay() + 6) % 7;
+    return periodStart + daysFromMonday * DAY_MS;
+  }
+  if (frequency === "monthly") {
+    const day = Math.min(cycle.getUTCDate(), lastUtcDay(year, month));
+    return Date.UTC(year, month - 1, day);
+  }
+  const cycleMonth = cycle.getUTCMonth() + 1;
+  const day = Math.min(cycle.getUTCDate(), lastUtcDay(year, cycleMonth));
+  return Date.UTC(year, cycleMonth - 1, day);
+}
+
 export function currentPeriodBounds(
   now: number,
   frequency: Frequency,
   timeZone: string,
+  cycleDate?: number,
 ): { periodStart: number; periodEnd: number; dueDate: number } {
   const { y, m, d } = ymdInZone(now, timeZone || "UTC");
+  let periodStart: number;
+  let periodEnd: number;
   if (frequency === "weekly") {
     const date = new Date(Date.UTC(y, m - 1, d));
     const daysFromMonday = (date.getUTCDay() + 6) % 7;
-    const periodStart = Date.UTC(y, m - 1, d - daysFromMonday);
-    const periodEnd = periodStart + 7 * 24 * 60 * 60 * 1000 - 1;
-    return { periodStart, periodEnd, dueDate: periodEnd };
+    periodStart = Date.UTC(y, m - 1, d - daysFromMonday);
+    periodEnd = periodStart + 7 * DAY_MS - 1;
+  } else if (frequency === "monthly") {
+    periodStart = Date.UTC(y, m - 1, 1);
+    periodEnd = Date.UTC(y, m, 1) - 1;
+  } else {
+    periodStart = Date.UTC(y, 0, 1);
+    periodEnd = Date.UTC(y + 1, 0, 1) - 1;
   }
-  if (frequency === "monthly") {
-    const periodStart = Date.UTC(y, m - 1, 1);
-    const periodEnd = Date.UTC(y, m, 1) - 1;
-    return { periodStart, periodEnd, dueDate: periodEnd };
-  }
-  const periodStart = Date.UTC(y, 0, 1);
-  const periodEnd = Date.UTC(y + 1, 0, 1) - 1;
-  return { periodStart, periodEnd, dueDate: periodEnd };
+  const dueDate =
+    cycleDate != null && Number.isFinite(cycleDate)
+      ? dueDateForCycle(periodStart, frequency, cycleDate)
+      : periodEnd;
+  return { periodStart, periodEnd, dueDate };
 }
 
 export function weekWindow(now: number, timeZone: string) {

@@ -6,11 +6,12 @@ import { yupResolver } from '@hookform/resolvers/yup';
 import { toast } from 'sonner';
 import { Button } from '../../../../shared/button';
 import InputComponent from '../../../../shared/input';
+import DatepickerComponent from '../../../../shared/datepicker';
 import SelectComponent from '../../../../shared/select';
 import { Id } from '../../../../convex/_generated/dataModel';
 import { api } from '../../../../convex/_generated/api';
 import { accountFormSchema } from './accountValidation';
-import { BILL_TYPE_OPTIONS, FREQUENCY_OPTIONS } from './labels';
+import { BILL_TYPE_OPTIONS, FREQUENCY_OPTIONS, cycleDateHint, dateToUtcTimestamp } from './labels';
 import { usePermissions } from '../../../../hooks/usePermissions';
 
 export type AccountFormData = {
@@ -22,6 +23,7 @@ export type AccountFormData = {
   accountNumber?: string | null;
   supplierId?: string | null;
   expectedAmount?: number | null;
+  cycleDate?: Date | null;
   glAccountCode?: string | null;
   isActive: boolean;
 };
@@ -41,7 +43,7 @@ export function CreateAccountForm({
     canReadSuppliers ? { propertyId: propertyId as Id<'properties'>, activeOnly: true } : 'skip',
   );
 
-  const { register, handleSubmit, formState: { errors } } = useForm<AccountFormData>({
+  const { control, register, handleSubmit, watch, formState: { errors } } = useForm<AccountFormData>({
     resolver: yupResolver(accountFormSchema) as any,
     defaultValues: {
       name: '',
@@ -52,6 +54,7 @@ export function CreateAccountForm({
       accountNumber: '',
       supplierId: '',
       expectedAmount: undefined,
+      cycleDate: null,
       glAccountCode: '',
       isActive: true,
     },
@@ -69,6 +72,7 @@ export function CreateAccountForm({
         accountNumber: data.accountNumber || undefined,
         supplierId: data.supplierId ? (data.supplierId as Id<'suppliers'>) : undefined,
         expectedAmount: data.expectedAmount ?? undefined,
+        cycleDate: dateToUtcTimestamp(data.cycleDate),
         glAccountCode: data.glAccountCode || undefined,
         isActive: data.isActive,
       });
@@ -101,6 +105,18 @@ export function CreateAccountForm({
         <div className='flex-1'>
           <SelectComponent id='frequency' label='Frequency *' selectWidth='w-full' options={FREQUENCY_OPTIONS} register={register('frequency')} error={errors.frequency} />
         </div>
+      </div>
+      <div className='mb-3'>
+        <DatepickerComponent
+          id='cycleDate'
+          label='Billing cycle date'
+          dateWidth='w-full'
+          name='cycleDate'
+          control={control}
+          required={false}
+          error={errors.cycleDate}
+        />
+        <p className='text-sm text-gray-600 mt-1'>{cycleDateHint(watch('frequency'))}</p>
       </div>
       <div className='flex flex-col lg:flex-row gap-2 mb-3'>
         <div className='flex-1'>

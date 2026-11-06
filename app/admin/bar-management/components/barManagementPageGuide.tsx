@@ -1,5 +1,7 @@
 'use client';
 
+import { PageGuide } from '../../../../shared/pageGuide';
+
 type GuidePage =
   | 'bars'
   | 'beverages'
@@ -32,5 +34,5 @@ const DESCRIPTIONS: Record<GuidePage, string> = {
 };
 
 export function BarManagementPageGuide({ page }: { page: GuidePage }) {
-  return <p className="text-gray-600">{DESCRIPTIONS[page]}</p>;
+  return <PageGuide text={DESCRIPTIONS[page]} />;
 }

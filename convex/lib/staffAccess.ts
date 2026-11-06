@@ -2,6 +2,7 @@ import { Doc, Id } from "../_generated/dataModel";
 import { MutationCtx, QueryCtx } from "../_generated/server";
 import { AuthContext, hasGranularPermission } from "./rbac";
 import { peopleSearchName } from "./searchNames";
+import { isFloorServiceOnly } from "./staffScope";
 
 type DbCtx = MutationCtx | QueryCtx;
 
@@ -51,6 +52,24 @@ export const ONBOARDING_TEMPLATE: Array<{
 
 export function isActiveStatus(status: string | undefined) {
   return status === "active" || status === "employed" || status === "on-leave";
+}
+
+/** A salesperson is a login whose only roles at the property are Waiter and Bartender. */
+export async function isFloorSellerAtProperty(
+  ctx: DbCtx,
+  userId: Id<"users">,
+  propertyId: Id<"properties">,
+): Promise<boolean> {
+  const rows = await ctx.db
+    .query("userRoles")
+    .withIndex("by_userId_propertyId", (q) => q.eq("userId", userId).eq("propertyId", propertyId))
+    .collect();
+  const names: string[] = [];
+  for (const row of rows) {
+    const role = await ctx.db.get(row.roleId);
+    if (role?.name) names.push(role.name);
+  }
+  return isFloorServiceOnly(names);
 }
 
 export function normalizeEmploymentStatus(status: string | undefined): "active" | "terminated" {

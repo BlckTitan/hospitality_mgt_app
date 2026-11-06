@@ -1,11 +1,15 @@
 'use client';
 
-type GuidePage = 'hub' | 'occupancy' | 'room-types' | 'rooms' | 'reservations' | 'guests';
+import { PageGuide } from '../../../../shared/pageGuide';
+
+type GuidePage = 'hub' | 'occupancy' | 'summary' | 'room-types' | 'rooms' | 'reservations' | 'guests';
 
 const DESCRIPTIONS: Record<GuidePage, string> = {
-  hub: 'Front desk home for this property. Reminders list short stays ending within the hour and overnight guests whose checkout is near. The month chart shows who is in each room each night. Create room types and rooms first, then book stays from Reservations. Housekeeping readiness is inferred from open tasks — room status is not dirty or cleaning.',
+  hub: 'Front desk home for this property. Reminders list short stays ending within the hour and overnight guests whose checkout is near. Lodging shows revenue, collections, occupancy, and ADR for the selected day, week, month, or year, compared with the same dates last year. The month chart shows who is in each room each night. Create room types and rooms first, then book stays from Reservations. Housekeeping readiness is inferred from open tasks — room status is not dirty or cleaning.',
   occupancy:
     'Month tape chart of nights by room. Color is checked-in, confirmed, pending, short stay, or blocked (out-of-order / maintenance). A short stay is a 1–7 hour visit and does not count as a sold night. An amber dot means open housekeeping; Not ready means an open checkout-clean. Click a stay to open the reservation. Filter by room type. Occupancy % counts confirmed and in-house nights, not pending holds or short stays.',
+  summary:
+    'Lodging results for this property. Pick a date, then Day, Week, Month, or Year. Figures run through today when the period is still open, and the comparison is the same elapsed dates last year. Shift close lists each finalized front-office shift that ended on the selected date: what that person booked and what they collected. An open shift is left out until it is ended. Trends, Rooms, Days, and Staff use confirmed, in-house, and checked-out stays. Pending and cancelled stays are left out. Room revenue is the nightly rate for nights inside the period. Short stays count on the day they start and are not sold nights. Collected is reservation money taken at the desk. Booked value is the full price of stays sold in the period, including nights that fall later. Occupancy uses rooms that are sellable now, so a room that is out of order today is left out of earlier dates too.',
   'room-types':
     'Categories such as Standard or Deluxe: max guests, nightly base rate, short-stay prices for 1–7 hours, and amenities. A blank short-stay length is not sold. Create a type before you add rooms. You cannot delete a type that still has rooms.',
   rooms:
@@ -17,5 +21,5 @@ const DESCRIPTIONS: Record<GuidePage, string> = {
 };
 
 export function RoomPageGuide({ page }: { page: GuidePage }) {
-  return <p className="text-gray-600">{DESCRIPTIONS[page]}</p>;
+  return <PageGuide text={DESCRIPTIONS[page]} />;
 }

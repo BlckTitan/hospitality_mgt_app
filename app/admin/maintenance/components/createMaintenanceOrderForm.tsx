@@ -8,6 +8,7 @@ import { yupResolver } from "@hookform/resolvers/yup";
 import { formSchema } from "./validation";
 import { toast } from "sonner";
 import InputComponent from "../../../../shared/input";
+import DatepickerComponent from "../../../../shared/datepicker";
 import SelectComponent from "../../../../shared/select";
 import { Field, fieldRowClassName, fieldWidthClass } from "../../../../shared/field";
 import { Button } from '../../../../shared/button';
@@ -23,6 +24,7 @@ import {
 import { usePropertyCurrency } from "../../inventory-management/components/money";
 import {
   dateInputToTimestamp,
+  dateToDueTimestamp,
   intervalMonthsOf,
   MaintenanceScheduleFields,
 } from "./maintenanceScheduleFields";
@@ -33,6 +35,7 @@ type FormData = {
   orderType: 'preventive' | 'corrective' | 'emergency' | 'inspection';
   priority: 'low' | 'medium' | 'high' | 'urgent';
   estimatedCost?: number;
+  dueDate?: Date | null;
   isScheduled?: boolean;
   scheduledDate?: string;
   repeatEvery?: string;
@@ -56,7 +59,7 @@ export function FormComponent({ onClose, propertyId }: { onClose?: () => void; p
   }) ?? [];
   const [parts, setParts] = useState<MaintenancePartDraft[]>([]);
 
-  const { register, handleSubmit, watch, formState: { errors } } = useForm<FormData>({
+  const { control, register, handleSubmit, watch, formState: { errors } } = useForm<FormData>({
     resolver: yupResolver(formSchema) as any,
     defaultValues: {
       title: '',
@@ -64,6 +67,7 @@ export function FormComponent({ onClose, propertyId }: { onClose?: () => void; p
       orderType: 'corrective',
       priority: 'medium',
       estimatedCost: undefined,
+      dueDate: null,
       isScheduled: false,
       scheduledDate: '',
       repeatEvery: '1',
@@ -89,6 +93,7 @@ export function FormComponent({ onClose, propertyId }: { onClose?: () => void; p
         description: data.description,
         orderType: data.orderType,
         priority: data.priority,
+        dueAt: dateToDueTimestamp(data.dueDate),
         isScheduled: scheduled,
         scheduledDate,
         intervalMonths: scheduled ? intervalMonthsOf(data) : undefined,
@@ -179,6 +184,21 @@ export function FormComponent({ onClose, propertyId }: { onClose?: () => void; p
           placeholder="0.00"
         />
       </div>
+
+      <div className={fieldRowClassName}>
+        <DatepickerComponent
+          id="dueDate"
+          label="Due date"
+          dateWidth="w-1/2"
+          name="dueDate"
+          control={control}
+          required={false}
+          error={errors.dueDate}
+        />
+      </div>
+      <p className="text-sm text-gray-600 -mt-2 mb-3">
+        When this work should be finished. Leave blank to use the maintenance date, or the usual response time.
+      </p>
 
       <MaintenanceScheduleFields
         register={register as any}

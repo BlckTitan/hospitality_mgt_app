@@ -53,6 +53,24 @@ function isFrequency(value: string): value is Frequency {
   return (FREQUENCIES as readonly string[]).includes(value);
 }
 
+function normalizeCycleDate(
+  value: number | undefined,
+): { ok: true; cycleDate?: number } | { ok: false; message: string } {
+  if (value == null) return { ok: true };
+  if (!Number.isFinite(value)) {
+    return { ok: false, message: "Choose a valid billing cycle date" };
+  }
+  const date = new Date(value);
+  const year = date.getUTCFullYear();
+  if (year < 2000 || year > 2100) {
+    return { ok: false, message: "Choose a valid billing cycle date" };
+  }
+  return {
+    ok: true,
+    cycleDate: Date.UTC(year, date.getUTCMonth(), date.getUTCDate()),
+  };
+}
+
 async function findPeriodByStart(
   ctx: QueryCtx | MutationCtx,
   accountId: Id<"billAccounts">,
@@ -119,12 +137,15 @@ export const createAccount = mutation({
     accountNumber: v.optional(v.string()),
     supplierId: v.optional(v.id("suppliers")),
     expectedAmount: v.optional(v.number()),
+    cycleDate: v.optional(v.number()),
     contractEndDate: v.optional(v.number()),
     glAccountCode: v.optional(v.string()),
     isActive: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     await requirePermission(ctx, "billing.account.create", args.propertyId);
+    const cycle = normalizeCycleDate(args.cycleDate);
+    if (cycle.ok === false) return { success: false, message: cycle.message };
     const name = args.name.trim();
     const provider = args.provider.trim();
     if (name.length < 2) {
@@ -150,6 +171,7 @@ export const createAccount = mutation({
       accountNumber: args.accountNumber?.trim() || undefined,
       supplierId: args.supplierId,
       expectedAmount: args.expectedAmount,
+      cycleDate: cycle.cycleDate,
       contractEndDate: args.contractEndDate,
       glAccountCode: args.glAccountCode?.trim() || undefined,
       isActive: args.isActive ?? true,
@@ -176,6 +198,7 @@ export const updateAccount = mutation({
     accountNumber: v.optional(v.string()),
     supplierId: v.optional(v.id("suppliers")),
     expectedAmount: v.optional(v.number()),
+    cycleDate: v.optional(v.number()),
     contractEndDate: v.optional(v.number()),
     glAccountCode: v.optional(v.string()),
     isActive: v.boolean(),
@@ -186,6 +209,8 @@ export const updateAccount = mutation({
       return { success: false, message: "Bill account not found" };
     }
     await requirePermission(ctx, "billing.account.update", account.propertyId);
+    const cycle = normalizeCycleDate(args.cycleDate);
+    if (cycle.ok === false) return { success: false, message: cycle.message };
     const name = args.name.trim();
     const provider = args.provider.trim();
     if (name.length < 2) {
@@ -200,6 +225,8 @@ export const updateAccount = mutation({
         return { success: false, message: "Supplier is not at this property" };
       }
     }
+    const cycleChanged =
+      cycle.cycleDate !== account.cycleDate || args.frequency !== account.frequency;
     await ctx.db.patch(args.accountId, {
       name,
       billType: args.billType,
@@ -212,13 +239,26 @@ export const updateAccount = mutation({
       contractEndDate: args.contractEndDate,
       glAccountCode: args.glAccountCode?.trim() || undefined,
       isActive: args.isActive,
+      ...(cycle.cycleDate != null ? { cycleDate: cycle.cycleDate } : {}),
       updatedAt: Date.now(),
     });
+    if (cycle.cycleDate == null && account.cycleDate != null) {
+      const fresh = await ctx.db.get(args.accountId);
+      if (fresh) {
+        const { _id, _creationTime, cycleDate: _cycleDate, ...rest } = fresh;
+        await ctx.db.replace(args.accountId, rest);
+      }
+    }
     if (args.isActive) {
       const updated = await ctx.db.get(args.accountId);
       if (updated) {
         const property = await ctx.db.get(updated.propertyId);
-        await openCurrentPeriod(ctx, updated, Date.now(), propertyTimeZone(property));
+        const now = Date.now();
+        const timeZone = propertyTimeZone(property);
+        await openCurrentPeriod(ctx, updated, now, timeZone);
+        if (cycleChanged) {
+          await refreshCurrentDueDate(ctx, updated, now, timeZone);
+        }
       }
     }
     return { success: true, message: "Bill account updated" };
@@ -337,6 +377,29 @@ export const listDashboard = query({
   },
 });
 
+async function refreshCurrentDueDate(
+  ctx: MutationCtx,
+  account: Doc<"billAccounts">,
+  now: number,
+  timeZone: string,
+) {
+  if (!isFrequency(account.frequency)) return;
+  const bounds = currentPeriodBounds(now, account.frequency, timeZone, account.cycleDate);
+  const existing = await findPeriodByStart(ctx, account._id, bounds.periodStart);
+  if (!existing || existing.status === "paid" || existing.dueDate === bounds.dueDate) return;
+  const status =
+    bounds.dueDate < now
+      ? "overdue"
+      : existing.amount != null
+        ? "pending"
+        : "expected";
+  await ctx.db.patch(existing._id, {
+    dueDate: bounds.dueDate,
+    status,
+    updatedAt: now,
+  });
+}
+
 async function openCurrentPeriod(
   ctx: MutationCtx,
   account: Doc<"billAccounts">,
@@ -346,7 +409,7 @@ async function openCurrentPeriod(
   if (!account.isActive || !isFrequency(account.frequency)) {
     return null;
   }
-  const bounds = currentPeriodBounds(now, account.frequency, timeZone);
+  const bounds = currentPeriodBounds(now, account.frequency, timeZone, account.cycleDate);
   const existing = await findPeriodByStart(ctx, account._id, bounds.periodStart);
   if (existing) {
     return existing._id;

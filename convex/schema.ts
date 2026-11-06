@@ -360,6 +360,8 @@ export default defineSchema({
     accountNumber: v.optional(v.string()),
     supplierId: v.optional(v.id("suppliers")),
     expectedAmount: v.optional(v.number()),
+    // Calendar date that sets when the bill is due in each cycle. Absent means the period end.
+    cycleDate: v.optional(v.number()),
     contractEndDate: v.optional(v.number()),
     glAccountCode: v.optional(v.string()),
     isActive: v.boolean(),
@@ -688,7 +690,11 @@ export default defineSchema({
     .index("by_propertyId_status", ["propertyId", "status"])
     .index("by_propertyId_checkInDate", ["propertyId", "checkInDate"])
     .index("by_propertyId_checkOutDate", ["propertyId", "checkOutDate"])
-    .index("by_bookedByUserId", ["bookedByUserId"]),
+    .index("by_bookedByUserId", ["bookedByUserId"])
+    .index("by_propertyId_and_createdAt", ["propertyId", "createdAt"])
+    .index("by_bookedShiftId", ["bookedShiftId"])
+    .index("by_checkedInShiftId", ["checkedInShiftId"])
+    .index("by_checkedOutShiftId", ["checkedOutShiftId"]),
 
   ratePlans: defineTable({
     propertyId: v.id("properties"),
@@ -1439,7 +1445,8 @@ export default defineSchema({
       v.literal("voided"),
       v.literal("open_tab"),
     ),
-    serverUserId: v.id("users"),
+    // Waiter or bartender who rang the check. Omitted when a team role operates the bar.
+    serverUserId: v.optional(v.id("users")),
     guestLabel: v.optional(v.string()),
     subtotal: v.number(),
     totalAmount: v.number(),
@@ -2084,6 +2091,7 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index("by_propertyId", ["propertyId"])
+    .index("by_propertyId_and_paidAt", ["propertyId", "paidAt"])
     .index("by_reference", ["referenceType", "referenceId"]),
 
   // Guest payment evidence for reservation check-in / check-out collections.

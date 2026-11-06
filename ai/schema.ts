@@ -1413,6 +1413,7 @@ export default defineSchema({
     accountNumber: v.optional(v.string()),
     supplierId: v.optional(v.id("suppliers")),
     expectedAmount: v.optional(v.number()),
+    cycleDate: v.optional(v.number()),
     contractEndDate: v.optional(v.number()),
     glAccountCode: v.optional(v.string()),
     isActive: v.boolean(),

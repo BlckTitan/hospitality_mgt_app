@@ -69,6 +69,7 @@ import type * as lib_tableVisibility from "../lib/tableVisibility.js";
 import type * as lib_taskAssignment from "../lib/taskAssignment.js";
 import type * as lib_userIdentity from "../lib/userIdentity.js";
 import type * as lib_userRoleAssignment from "../lib/userRoleAssignment.js";
+import type * as lodgingSummary from "../lodgingSummary.js";
 import type * as maintenanceOrders from "../maintenanceOrders.js";
 import type * as occupancy from "../occupancy.js";
 import type * as payrollConfig from "../payrollConfig.js";
@@ -179,6 +180,7 @@ declare const fullApi: ApiFromModules<{
   "lib/taskAssignment": typeof lib_taskAssignment;
   "lib/userIdentity": typeof lib_userIdentity;
   "lib/userRoleAssignment": typeof lib_userRoleAssignment;
+  lodgingSummary: typeof lodgingSummary;
   maintenanceOrders: typeof maintenanceOrders;
   occupancy: typeof occupancy;
   payrollConfig: typeof payrollConfig;

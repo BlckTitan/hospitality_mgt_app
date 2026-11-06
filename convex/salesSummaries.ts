@@ -11,6 +11,7 @@ import {
   upsertSalesSummaryDoc,
 } from './lib/barStock';
 import { Id } from './_generated/dataModel';
+import { isFloorSellerAtProperty } from './lib/staffAccess';
 
 async function summariesForPeriod(
   ctx: QueryCtx,
@@ -217,13 +218,23 @@ export const getSalesByUserPeriod = query({
     const periodKey = args.periodKey ?? currentPeriodKey(dateKey, args.periodType);
     let summaries = await summariesForPeriod(ctx, args.propertyId, args.periodType, periodKey);
 
-      // Filter only summaries with userId (user-specific records)
-      summaries = summaries.filter(s => s.userId !== undefined);
+      // Salesperson totals include waiters and bartenders only.
+      const sellerCache = new Map<string, boolean>();
+      const sellerSummaries = [];
+      for (const summary of summaries) {
+        if (!summary.userId) continue;
+        let seller = sellerCache.get(summary.userId);
+        if (seller === undefined) {
+          seller = await isFloorSellerAtProperty(ctx, summary.userId, args.propertyId);
+          sellerCache.set(summary.userId, seller);
+        }
+        if (seller) sellerSummaries.push(summary);
+      }
 
       // Group by user and aggregate
       const userAggregates = new Map();
       
-      summaries.forEach(summary => {
+      sellerSummaries.forEach(summary => {
         const userId = summary.userId!;
         if (!userAggregates.has(userId)) {
           userAggregates.set(userId, {

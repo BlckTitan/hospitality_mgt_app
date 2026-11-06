@@ -717,7 +717,7 @@ export const getMyTodayStock = query({
       .collect();
 
     return {
-      success: true,
+      success: true as const,
       data: {
         logDate,
         today,

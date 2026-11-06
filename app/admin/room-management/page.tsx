@@ -6,6 +6,7 @@ import { api } from '../../../convex/_generated/api';
 import { OccupancyCalendar } from './occupancy/occupancyCalendar';
 import { RoomPageGuide } from './components/roomPageGuide';
 import { DeskReminders } from './components/deskReminders';
+import { LodgingSummary } from './summary/lodgingSummary';
 
 export default function RoomManagementPage() {
   const propertiesResponse = useQuery(api.property.getAllProperties);
@@ -38,12 +39,14 @@ export default function RoomManagementPage() {
     <div className="w-full p-4 bg-white">
       <header className="w-full border-b mb-4 pb-3 flex justify-between items-start gap-3">
       <div className="min-w-0">
-        <h1 className="text-2xl font-bold text-gray-800">Occupancy</h1>
+        <h1 className="text-2xl font-bold text-gray-800">Room management</h1>
         <RoomPageGuide page="hub" />
       </div>
         <BackLink />
       </header>
       <DeskReminders propertyId={currentPropertyId} />
+      <LodgingSummary propertyId={currentPropertyId} />
+      <h2 className="mb-3 text-base font-semibold text-slate-900">Occupancy</h2>
       <OccupancyCalendar propertyId={currentPropertyId} />
     </div>
   );

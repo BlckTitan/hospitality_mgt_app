@@ -8,6 +8,7 @@ import { api } from '../../../../convex/_generated/api';
 import { Id } from '../../../../convex/_generated/dataModel';
 import InputComponent from '../../../../shared/input';
 import { useForm } from 'react-hook-form';
+import { dateInputToUtcTimestamp, utcTimestampToDateInput } from './labels';
 
 export function CaptureBillForm({
   period,
@@ -17,6 +18,7 @@ export function CaptureBillForm({
   period: {
     _id: Id<'billPeriods'>;
     amount?: number;
+    dueDate: number;
     invoiceNumber?: string;
     usageAmount?: number;
     unitRate?: number;
@@ -34,6 +36,7 @@ export function CaptureBillForm({
   const { register, handleSubmit, formState: { errors } } = useForm({
     defaultValues: {
       amount: period.amount ?? undefined,
+      dueDate: utcTimestampToDateInput(period.dueDate),
       invoiceNumber: period.invoiceNumber ?? '',
       usageAmount: period.usageAmount ?? undefined,
       unitRate: period.unitRate ?? undefined,
@@ -50,9 +53,15 @@ export function CaptureBillForm({
           toast.error('Enter an amount greater than 0');
           return;
         }
+        const dueDate = dateInputToUtcTimestamp(String(data.dueDate ?? ''));
+        if (!dueDate) {
+          toast.error('Choose a due date');
+          return;
+        }
         const captured = await capturePeriod({
           periodId: period._id,
           amount,
+          dueDate,
           invoiceNumber: data.invoiceNumber || undefined,
           usageAmount: data.usageAmount ? Number(data.usageAmount) : undefined,
           unitRate: data.unitRate ? Number(data.unitRate) : undefined,
@@ -100,6 +109,13 @@ export function CaptureBillForm({
         inputWidth='w-full'
         register={register('amount', { valueAsNumber: true })}
         error={errors.amount as any}
+      />
+      <InputComponent
+        id='dueDate'
+        label='Due date *'
+        type='date'
+        inputWidth='w-full'
+        register={register('dueDate')}
       />
       <InputComponent
         id='invoiceNumber'

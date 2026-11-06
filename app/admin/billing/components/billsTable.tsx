@@ -9,7 +9,7 @@ import PaginationComponent from '../../../../shared/pagination';
 import BootstrapModal from '../../../../shared/modal';
 import { usePermissions } from '../../../../hooks/usePermissions';
 import { toast } from 'sonner';
-import { billTypeLabel, formatDate, formatMoney, frequencyLabel } from './labels';
+import { billTypeLabel, formatMoney, formatUtcDate, frequencyLabel } from './labels';
 import { CaptureBillForm } from './captureBillForm';
 import { PayBillForm } from './payBillForm';
 
@@ -56,12 +56,12 @@ export function BillsTable({ currentPropertyId }: { currentPropertyId: Id<'prope
     {
       label: 'Period',
       key: 'periodStart',
-      render: (_value, row) => `${formatDate(row.periodStart)} – ${formatDate(row.periodEnd)}`,
+      render: (_value, row) => `${formatUtcDate(row.periodStart)} – ${formatUtcDate(row.periodEnd)}`,
     },
     {
       label: 'Due',
       key: 'dueDate',
-      render: (_value, row) => formatDate(row.dueDate),
+      render: (_value, row) => formatUtcDate(row.dueDate),
     },
     {
       label: 'Amount',

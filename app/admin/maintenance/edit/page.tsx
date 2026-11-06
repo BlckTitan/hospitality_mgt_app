@@ -42,6 +42,7 @@ export default function Page() {
         priority={row.priority}
         estimatedCost={row.estimatedCost}
         actualCost={row.actualCost}
+        dueAt={row.dueAt}
         isScheduled={row.isScheduled}
         scheduledDate={row.scheduledDate}
         intervalMonths={row.intervalMonths}
