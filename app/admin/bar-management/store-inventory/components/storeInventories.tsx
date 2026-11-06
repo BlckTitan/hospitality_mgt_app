@@ -12,6 +12,7 @@ import { TableColumn } from "../../../../../shared/table";
 import PaginationComponent from "../../../../../shared/pagination";
 import Spinner from "../../../../../shared/spinner";
 import { Id } from "../../../../../convex/_generated/dataModel";
+import { formatPropertyMoney, usePropertyCurrency } from "../../../inventory-management/components/money";
 
 interface StoreInventoryProps {
   _id: string;
@@ -19,6 +20,8 @@ interface StoreInventoryProps {
   beverageId: string;
   qtyInStore: number;
   reorderThreshold: number;
+  unitCost?: number;
+  stockValue?: number;
   lastUpdated: number;
   beverage?: {
     _id: string;
@@ -33,6 +36,7 @@ interface StoreInventoryProps {
 
 const StoreInventories = ({ currentPropertyId }: { currentPropertyId: Id<"properties"> }) => {
   const storeInventoryData = useQuery(api.storeInventories.getAllStoreInventories, { propertyId: currentPropertyId });
+  const currency = usePropertyCurrency(currentPropertyId);
   const removeStoreInventory = useMutation(api.storeInventories.deleteStoreInventory);
 
   const handleDelete = async (id: string, beverageName: string) => {
@@ -113,6 +117,20 @@ const StoreInventories = ({ currentPropertyId }: { currentPropertyId: Id<"proper
       key: 'reorderThreshold',
       render: (value, row) => (
         <span>{row.reorderThreshold} {row.beverage?.unitOfMeasure || ''}</span>
+      )
+    },
+    {
+      label: 'Unit cost',
+      key: 'unitCost',
+      render: (value, row) => (
+        <span>{formatPropertyMoney(row.unitCost, currency)}</span>
+      )
+    },
+    {
+      label: 'Stock value',
+      key: 'stockValue',
+      render: (value, row) => (
+        <span>{formatPropertyMoney(row.stockValue, currency)}</span>
       )
     },
     {

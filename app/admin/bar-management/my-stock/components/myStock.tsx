@@ -50,6 +50,8 @@ export default function MyStock() {
   const [beverageQuery, setBeverageQuery] = useState('')
   const [debouncedBeverageQuery] = useDebounce(beverageQuery, 300)
   const [logDate, setLogDate] = useState('')
+  const [salesUserId, setSalesUserId] = useState('')
+  const [priorSalesUserId, setPriorSalesUserId] = useState('')
 
   const currentPropertyId = propertyId || properties[0]?._id || ''
   const today = useQuery(
@@ -74,6 +76,37 @@ export default function MyStock() {
   const selectedBarId = barId || bars[0]?._id || ''
   const propertyToday = data?.today ?? ''
   const selectedDate = logDate || propertyToday
+  const priorDate = propertyToday ? previousDateKey(propertyToday) : ''
+  const salesRoster = useQuery(
+    api.barSales.listOnShiftSellers,
+    isAuthenticated && currentPropertyId && selectedBarId
+      ? {
+          propertyId: currentPropertyId as Id<'properties'>,
+          barId: selectedBarId as Id<'bars'>,
+          includeEnded: true,
+          ...(selectedDate ? { logDate: selectedDate } : {}),
+        }
+      : 'skip',
+  )
+  const priorRoster = useQuery(
+    api.barSales.listOnShiftSellers,
+    isAuthenticated && currentPropertyId && selectedBarId && priorDate
+      ? {
+          propertyId: currentPropertyId as Id<'properties'>,
+          barId: selectedBarId as Id<'bars'>,
+          includeEnded: true,
+          logDate: priorDate,
+        }
+      : 'skip',
+  )
+  const salesChoice =
+    salesRoster?.mustChoose && salesUserId
+      ? { salesUserId: salesUserId as Id<'users'> }
+      : {}
+  const priorSalesChoice =
+    priorRoster?.mustChoose && priorSalesUserId
+      ? { salesUserId: priorSalesUserId as Id<'users'> }
+      : {}
   const knownPast = Boolean(propertyToday && selectedDate && selectedDate !== propertyToday)
   const viewingToday = Boolean(propertyToday && selectedDate === propertyToday)
   const viewingYesterday = Boolean(propertyToday && selectedDate === previousDateKey(propertyToday))
@@ -155,6 +188,9 @@ export default function MyStock() {
   const priorLogs = data?.priorLogs
   useEffect(() => {
     if (!currentPropertyId || !selectedBarId || !data?.logDate || !data.today) return
+    if (!salesRoster) return
+    if (salesRoster.mode === 'blocked' || salesRoster.sellers.length === 0) return
+    if (salesRoster.mustChoose && !salesUserId) return
     if (logDate && logDate !== data.today) return
     if (data.logDate !== data.today) return
     if ((priorLogs ?? []).some((log) => log.barId === selectedBarId)) return
@@ -173,6 +209,7 @@ export default function MyStock() {
           const response = await autofillToday({
             propertyId: currentPropertyId as Id<'properties'>,
             barId: selectedBarId as Id<'bars'>,
+            ...salesChoice,
           })
           added += response.added ?? 0
           if (response.success === false) {
@@ -201,7 +238,7 @@ export default function MyStock() {
         if (carryRun.current === run) setAutofilling(false)
       }
     })()
-  }, [autofillToday, currentPropertyId, data?.logDate, data?.today, logDate, priorLogs, selectedBarId, todayLogs])
+  }, [autofillToday, currentPropertyId, data?.logDate, data?.today, logDate, priorLogs, salesRoster, salesUserId, selectedBarId, todayLogs])
 
   const availableBeverages = useMemo(() => {
     const used = new Set(logs.map((log) => log.beverageId))
@@ -231,6 +268,7 @@ export default function MyStock() {
         propertyId: currentPropertyId as Id<'properties'>,
         barId: selectedBarId as Id<'bars'>,
         beverageId: beverageId as Id<'beverages'>,
+        ...salesChoice,
       })
       if (response.success === false) toast.error(response.message)
       else {
@@ -262,6 +300,7 @@ export default function MyStock() {
       const response = await autofillToday({
         propertyId: currentPropertyId as Id<'properties'>,
         barId: selectedBarId as Id<'bars'>,
+        ...salesChoice,
       })
       if (response.success === false) toast.error(response.message)
       else toast.success(response.message)
@@ -297,6 +336,7 @@ export default function MyStock() {
         closingStock,
         wasteQuantity,
         compQuantity,
+        ...salesChoice,
       })
       if (response.success === false) toast.error(response.message)
       else {
@@ -377,7 +417,7 @@ export default function MyStock() {
     try {
       for (let index = 0; index < lines.length; index += 10) {
         const batch = lines.slice(index, index + 10)
-        const response = await saveClosings({ lines: batch })
+        const response = await saveClosings({ lines: batch, ...salesChoice })
         if (response.success !== true) {
           clearSavedEdits(savedIds)
           toast.error(
@@ -413,6 +453,7 @@ export default function MyStock() {
       const response = await finalizeToday({
         propertyId: currentPropertyId as Id<'properties'>,
         barId: selectedBarId as Id<'bars'>,
+        ...salesChoice,
       })
       if (response.success === false) toast.error(response.message)
       else toast.success(response.message)
@@ -434,6 +475,7 @@ export default function MyStock() {
       const response = await finalizePriorDay({
         propertyId: currentPropertyId as Id<'properties'>,
         barId: selectedBarId as Id<'bars'>,
+        ...priorSalesChoice,
       })
       if (response.success === false) toast.error(response.message)
       else toast.success(response.message)
@@ -482,6 +524,46 @@ export default function MyStock() {
               ))}
             </select>
           </div>
+          {salesRoster?.mode === 'admin' && salesRoster.mustChoose && (
+            <div className="w-full lg:w-3/12">
+              <label className="block text-sm mb-1">Waiter</label>
+              <select
+                className={selectClassName}
+                value={salesUserId}
+                onChange={(event) => setSalesUserId(event.target.value)}
+              >
+                <option value="">Choose the waiter</option>
+                {salesRoster.sellers.map((seller) => (
+                  <option key={seller.userId} value={seller.userId}>
+                    {seller.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          {salesRoster?.mode === 'admin' && salesRoster.sellers.length === 1 && (
+            <p className="text-sm text-gray-700 m-0">Sales for {salesRoster.sellers[0].name}</p>
+          )}
+          {salesRoster?.message && (
+            <p className="text-sm text-amber-800 m-0">{salesRoster.message}</p>
+          )}
+          {priorRoster?.mode === 'admin' && priorRoster.mustChoose && priorForBar.length > 0 && (
+            <div className="w-full lg:w-3/12">
+              <label className="block text-sm mb-1">Yesterday&apos;s waiter</label>
+              <select
+                className={selectClassName}
+                value={priorSalesUserId}
+                onChange={(event) => setPriorSalesUserId(event.target.value)}
+              >
+                <option value="">Choose the waiter</option>
+                {priorRoster.sellers.map((seller) => (
+                  <option key={seller.userId} value={seller.userId}>
+                    {seller.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="w-full sm:w-52">
             <label className="block text-sm mb-1" htmlFor="my-stock-date">
               Date

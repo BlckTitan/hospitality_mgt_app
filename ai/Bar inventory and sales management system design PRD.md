@@ -3,10 +3,10 @@
 
 | Field         | Detail                          |
 |---------------|---------------------------------|
-| Version       | 2.4                             |
+| Version       | 2.5                             |
 | Status        | Implemented. The bar holds the stock. Staff are linked to operate it. |
 | Database      | Convex                          |
-| Date          | 2026-09-27                      |
+| Date          | 2026-11-06                      |
 | Prepared by   | Product Team                    |
 
 ---
@@ -117,7 +117,8 @@ store issues to the bar, sales, and the closing count.
 **Convex access pattern:** Queries on `barAssignments` and `userStockLogs` for
 the bars the caller may operate, for today's `logDate`. The operating row has
 `holder: "bar"` and is unique per `(barId, beverageId, logDate)`. `userId` on
-that row is the operator who last wrote it, not the owner of the bottles.
+that row is the waiter or bartender the sale belongs to. `recordedByUserId` is
+the login that entered the count. An administrator is never the salesperson.
 
 ### 3.4 Convex Scheduler (System)
 
@@ -169,8 +170,9 @@ shall contain:
 
 | Field              | Source                                                                      |
 |--------------------|-----------------------------------------------------------------------------|
-| `shiftId`          | Reference to the shift that opened this day                                 |
-| `userId`           | Operator who last wrote the row. Not the owner of the stock.               |
+| `shiftId`          | The waiter's F&B shift at this bar                                          |
+| `userId`           | Waiter or bartender the sale belongs to. Not an administrator.             |
+| `recordedByUserId` | Optional. Login that entered the count. An administrator helping a waiter is stored here. |
 | `holder`           | `"bar"` on the operating book. Omitted on older personal-float rows.       |
 | `barId`            | The bar that holds this stock                                               |
 | `beverageId`       | The beverage being tracked                                                  |
@@ -201,7 +203,8 @@ efficient day-scoped queries:
 | Index                       | Fields                                 | Use case                                     |
 |-----------------------------|----------------------------------------|----------------------------------------------|
 | `by_shiftId`                | `[shiftId]`                            | Load all beverage logs for a shift           |
-| `by_userId_barId_bev_date`  | `[userId, barId, beverageId, logDate]` | Primary lookup — one record per beverage/day |
+| `by_barId_beverage_date`    | `[barId, beverageId, logDate]`         | Operating lookup — one bar book per beverage/day |
+| `by_userId_barId_bev_date`  | `[userId, barId, beverageId, logDate]` | That waiter's row for a beverage on a day |
 | `by_userId_barId_date`      | `[userId, barId, logDate]`             | All beverages for a user at a bar on a day   |
 | `by_barId_date`             | `[barId, logDate]`                     | All stock at a bar on a given day            |
 
@@ -212,18 +215,37 @@ be rejected unless the caller has a manager or administrator role. The parent
 `shifts` document shall also be set to `isFinalized: true`.
 
 **FR-SHF-006** — The opening stock for a new day's `userStockLogs` entry shall
-be pre-filled by querying the most recent finalized `userStockLogs` document for
-the same `(userId, barId, beverageId)`, ordered by `logDate` descending, using
-the `by_userId_barId_bev_date` index. If no prior record exists, `openingStock`
-defaults to `0`.
+be the bar's last finalized `closingStock` for that beverage. If no prior
+finalized close exists, `openingStock` defaults to `0`. Opening is not taken
+from another waiter's personal row.
 
-**FR-SHF-007** — Waiters with `beverages.read` use **My Stock Today**
-(`/admin/bar-management/my-stock`). Queries `getMyTodayStock` and mutations
-`addMyTodayBeverage`, `saveMyClosingStock`, and `finalizeMyToday` are scoped to
-the authenticated `userId` and the property timezone `logDate` from
-`propertyDateKey`. Waiters cannot edit another user's logs from this page.
+**FR-SHF-007** — Waiters and bartenders with `beverages.read` use **My Stock
+Today** (`/admin/bar-management/my-stock`) for a bar they are linked to, on
+their own open shift. An administrator may use the same page, and User Stock
+Logs, to enter that bar's count. Queries `getMyTodayStock` and mutations
+`addMyTodayBeverage`, `saveMyClosingStock`, `saveMyClosingStocks`, and
+`finalizeMyToday` use the property timezone `logDate` from `propertyDateKey`.
 Sales = Total − Closing − Waste − Comps. **Received** increments only when the
 store issues stock (including approve of a stock request).
+
+**FR-SHF-009** — Every stock-sheet sale and every beverage POS check belongs to
+a waiter or bartender, meaning a login whose only roles at the property are
+Waiter and Bartender, who is linked to the bar and has an F&B shift there.
+`resolveBarSalesPerson` (`convex/lib/barSalesPerson.ts`) is the shared check.
+`listOnShiftSellers` (`convex/barSales.ts`) feeds the waiter picker.
+
+- A waiter or bartender records only their own sales.
+- An administrator is never the salesperson. With one waiter on shift at the
+  bar, that waiter is used. With more than one, the administrator must choose.
+  With none, the sale is refused until a shift is started.
+- No other role may record a sale for the person on shift.
+- POS (`createOrder`, `listSellableBeverages`) requires that shift to still be
+  open. The stock sheet for that calendar day may still be saved and finalized
+  after the shift has ended, and the sale stays with the waiter who worked it.
+- `orders.serverUserId` and `orders.employeeId` are that waiter. The payment
+  `createdBy` stays the login that settled the check.
+- `getSalesByUserPeriod` and the hub waiter ranks include only Waiter and
+  Bartender logins.
 
 **FR-SHF-008** — Waiters may submit a **stock request**
 (`/admin/bar-management/stock-requests`) with one or more beverage lines and an
@@ -241,24 +263,38 @@ beverage. The `by_beverageId` index on this table shall be used to retrieve or
 upsert a beverage's inventory record within a single indexed query.
 
 **FR-INV-001a** — Creating a store inventory row (`createStoreInventory`) takes
-the beverage, Quantity in Store (≥ 0), and a reorder threshold. The row is
-inserted at 0; a quantity above 0 is applied in the same mutation and recorded
-as a `storeTransactions` receive with notes "Opening quantity". When the
-beverage is linked to a catalog item, that opening quantity is synced onto the
-Bar store location as an adjustment. It does not transfer stock out of the
-storeroom. Quantity 0 creates the row only. If the opening quantity is at or
-below the reorder threshold, an open reorder alert is created. Editing the row
-updates `reorderThreshold` only.
+the beverage, Quantity in Store (≥ 0), a reorder threshold, and a unit cost
+when the quantity is a purchase. The add form places Quantity in Store and
+Reorder Threshold on one row, and Unit cost with a read-only Total cost
+(quantity × unit cost, in the property currency) on the next. The row is
+inserted at 0; a quantity above 0 requires a unit cost of 0 or more, is applied
+in the same mutation, and is recorded as a `storeTransactions` receive with
+notes "Opening quantity", `unitCost`, and `totalCost`. That purchase sets
+`storeInventory.unitCost` to the weighted average of on-hand stock and the new
+quantity. Stock value on the list is on-hand quantity times that average. When
+the beverage is linked to a catalog item, that opening quantity is synced onto
+the Bar store location as an adjustment. It does not transfer stock out of the
+storeroom. Quantity 0 creates the row only and does not require a unit cost. If
+the opening quantity is at or below the reorder threshold, an open reorder
+alert is created. Editing the row shows quantity, unit cost, and stock value
+as read-only and updates `reorderThreshold` only.
 
 **FR-INV-002** — When new supplier stock arrives, a Convex mutation shall:
 1. Insert a `storeTransactions` document with `txnType: "receive"`, setting both
-   `txnDate` (epoch ms) and `txnDateKey` (ISO 8601 date string).
+   `txnDate` (epoch ms) and `txnDateKey` (ISO 8601 date string), plus `unitCost`
+   and `totalCost` (quantity × unit cost).
 2. Increment `qtyInStore` on the corresponding `storeInventory` document.
-3. Update `lastUpdated` to `Date.now()`.
+3. Set `storeInventory.unitCost` to the weighted average of the quantity already
+   on hand and this purchase, then set `lastUpdated` to `Date.now()`.
 
-All three writes shall occur within the same Convex mutation to guarantee atomicity.
+All of these writes shall occur within the same Convex mutation to guarantee atomicity.
 
-When the beverage is linked to a catalog item, a receive does not create new bottles. It transfers that item from the main storeroom (or the location outside the bar that has enough) into the Bar store location, and `qtyInStore` follows that catalog balance. If the storeroom is short, the receive is refused until a purchase order is received there. Issuing to a bartender and posting a bar count update the same catalog balance. A beverage with no catalog item still increments `qtyInStore` only.
+The add and edit transaction forms place Quantity and Transaction Type on one
+row. A receive shows Unit cost and read-only Total cost on the next row. An
+issue does not collect a cost. Unit cost is required and must be 0 or more for
+every receive, including each item purchased.
+
+When the beverage is linked to a catalog item, a receive does not create new bottles. It transfers that item from the main storeroom (or the location outside the bar that has enough) into the Bar store location, and `qtyInStore` follows that catalog balance. The entered unit cost and total cost are still stored on the transaction. If the storeroom is short, the receive is refused until a purchase order is received there. Issuing to a bartender and posting a bar count update the same catalog balance. A beverage with no catalog item increments `qtyInStore` and updates the average unit cost from the purchase.
 
 **FR-INV-003** — When a user collects stock from the store, a Convex mutation
 shall:
@@ -352,7 +388,9 @@ year (`getYearOnYearOverview`).
 `salesSummaries` (`by_propertyId_periodType_periodKey`) by `barId`.
 
 **FR-ANA-005** — Waiter comparison: `getSalesByUserPeriod` groups the same
-rows by `userId`. Health ranks waiters by revenue per shift, not raw total.
+rows by `userId`, and keeps only Waiter and Bartender logins. Health ranks
+those waiters by revenue per shift, not raw total. An administrator who entered
+the count does not appear.
 
 **FR-ANA-006** — Revenue trend: `getRevenueTrend` returns the last N
 `periodKey`s (daily 7, weekly 7, monthly 7, yearly up to 5). YoY trend is two
@@ -365,10 +403,13 @@ live logs (health). Pour cost % and gross profit use snapshotted COGS on
 
 **FR-ANA-008** — Issue and receive are single mutations that **validate then
 write** (throw on failure). Editing or deleting an issue reverses
-`userStockLogs` and store qty. Issue requires bar, user, existing inventory,
-and quantity. Inventory create saves the entered Quantity in Store; a quantity
-above 0 is an opening receive. Later quantity changes are receive, issue, or a
-posted store count. Editing the inventory row does not change quantity.
+`userStockLogs` and store qty. Editing or deleting a receive reverses its
+quantity and, when it carried a unit cost, its effect on the average unit cost.
+Issue requires bar, user, existing inventory, and quantity. A receive requires
+quantity and a unit cost of 0 or more. Inventory create saves the entered
+Quantity in Store; a quantity above 0 is an opening receive with that unit cost
+and its total cost. Later quantity changes are receive, issue, or a posted
+store count. Editing the inventory row does not change quantity or unit cost.
 
 ---
 
@@ -631,12 +672,13 @@ The following Convex functions shall be implemented. All files reside in the
 |----------------------------------|------------------------------|-------------------------------------------------------------------|
 | `getBarHealthMetrics`            | `convex/barHealth.ts`        | Finalization, reorders, revenue/shift, SKU ranks, YoY deltas      |
 | `getSalesByBarPeriod`            | `convex/salesSummaries.ts`   | Current period grouped by bar                                     |
-| `getSalesByUserPeriod`           | `convex/salesSummaries.ts`   | Current period grouped by waiter                                  |
+| `getSalesByUserPeriod`           | `convex/salesSummaries.ts`   | Current period grouped by waiter or bartender only                |
 | `getRevenueTrend`                | `convex/salesSummaries.ts`   | Last N period keys (daily/weekly/monthly/yearly)                  |
 | `getYearOnYearOverview`          | `convex/salesSummaries.ts`   | Monthly this year vs last year through current month              |
 | `getSalesSummaries`              | `convex/salesSummaries.ts`   | Filtered summary rows (category mix)                              |
 | `getOpenReorderAlerts`           | `convex/reorderAlerts.ts`    | Open alerts with beverage + qty in store                          |
-| `getMyTodayStock`                | `convex/userStockLogs.ts`    | Authenticated waiter's logs for property-local today              |
+| `getMyTodayStock`                | `convex/userStockLogs.ts`    | Bar sheet for the property-local day                              |
+| `listOnShiftSellers`             | `convex/barSales.ts`         | Waiters on shift; administrator must choose when there are several |
 | `listStockRequests`              | `convex/stockRequests.ts`    | Pending / filtered stock requests with lines                      |
 | `getActiveStoreCount`            | `convex/storeCounts.ts`      | Draft or latest count with book/counted lines                     |
 
@@ -678,11 +720,13 @@ are not used. CRUD lives in `convex/bars.ts`, `convex/beverages.ts`,
 
 - The data model supports any number of active bars at a property.
 - Each waiter works at one bar per Beverages shift. Multi-bar shifts are out of scope.
-- One `userStockLogs` document exists per `(userId, barId, beverageId, logDate)`.
-  If a waiter covers multiple shifts in one day at the same bar, they share a
-  single daily stock log per beverage.
-- Beverage pricing is `unitPrice` at log time. There is no cost price, so pour
-  cost is out of scope.
+- One `userStockLogs` document exists per `(barId, beverageId, logDate)` for the
+  bar's book. `userId` names the waiter or bartender that day's sales belong
+  to. Several shifts by that waiter at the same bar share that row.
+- Beverage selling price is `unitPrice` at log time. Purchase cost is separate:
+  each receive and each opening quantity above 0 stores a unit cost, and total
+  cost is quantity times that unit cost. Store inventory keeps the weighted
+  average. Pour cost on the hub uses snapshotted COGS, not the selling price.
 - The bar module does not process payments or customer-facing orders. Sales
   volume is inferred from stock counts.
 - `logDate` and `txnDateKey` are property-local dates from `propertyDateKey`.
@@ -697,7 +741,7 @@ are not used. CRUD lives in `convex/bars.ts`, `convex/beverages.ts`,
 The following are explicitly excluded from v1 of the **stock-control** module:
 
 - Customer-facing ordering or point-of-sale tickets (sales ≠ POS covers). Guest tickets and cash-up live under POS (`/admin/pos`, `/admin/pos/cash-up`); shortage follow-up under Staff liabilities (`/admin/bar-management/liabilities`) — see `ai/prd.md` / `ai/pageSetup.md`.
-- Beverage unit cost, pour cost %, comps/wastage reasons
+- Comps and wastage as a separate accounting ledger beyond the quantities already stored on the daily stock sheet
 - Average check and RevPASH (no guest/seat counts)
 - Integration with external accounting software (QuickBooks, Sage, etc.)
 - Bar restock as Task Assignment (`reorderAlerts` stay on this module)
@@ -723,9 +767,13 @@ The following are explicitly excluded from v1 of the **stock-control** module:
 | `Date.now()`          | The standard way to record the current epoch ms timestamp within a Convex mutation.                           |
 | Issue                 | A `storeTransactions` record with `txnType: "issue"` — stock moved from store to a bar/user.                  |
 | `logDate`             | ISO 8601 date string (e.g. `"2026-03-26"`) stored on `userStockLogs` identifying the calendar day the record covers. |
-| Opening Stock         | Units a user starts the day with; last **finalized** `closingStock` for the same waiter, bar, and beverage, or 0. |
+| Opening Stock         | The bar's last **finalized** `closingStock` for that beverage, or 0. The stock stays with the bar when the waiter changes. |
+| Salesperson           | The waiter or bartender on shift at the bar. An administrator may enter the sale and is stored on `recordedByUserId`, not as the salesperson. |
 | `periodKey`           | A string encoding the summary period: `"YYYY-MM-DD"` (daily), `"YYYY-WNN"` (weekly), etc.                    |
-| Receive               | A `storeTransactions` record with `txnType: "receive"` — stock received from a supplier.                      |
+| Receive               | A `storeTransactions` record with `txnType: "receive"` — stock received from a supplier. Records quantity and unit cost. |
+| Stock value           | On-hand quantity times the store row's average unit cost.                                                    |
+| Total cost            | Quantity purchased times the unit cost of that purchase.                                                      |
+| Unit cost             | Price paid per unit. Store inventory keeps the weighted average of purchases.                                 |
 | Reorder Alert         | A `reorderAlerts` document created when a beverage's `qtyInStore` falls to or below `reorderThreshold`.       |
 | Sales Quantity        | `totalStock − closingStock`; units that left stock that day (sold, spilled, or uncounted). Persisted in `userStockLogs`. |
 | YoY                   | Hub period: this year YTD through the current property month vs the same months last year. |

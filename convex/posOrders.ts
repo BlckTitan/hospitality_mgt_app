@@ -1,9 +1,10 @@
 import { mutation, query, MutationCtx, QueryCtx } from './_generated/server';
 import { v } from 'convex/values';
 import { Doc, Id } from './_generated/dataModel';
-import { AuthContext, requirePermission } from './lib/rbac';
+import { AuthContext, isAdministratorAtProperty, requirePermission } from './lib/rbac';
+import { resolvePosSalesPerson } from './lib/barSalesPerson';
 import { canViewTeamRecords, isFloorServiceOnly, rolesForProperty } from './lib/staffScope';
-import { findBarDayLog, lastFinalizedClosingStock, propertyDateKey, remainingSellableQty } from './lib/barStock';
+import { findBarDayLog, lastFinalizedClosingStock, priorStockHandoverBlock, propertyDateKey, remainingSellableQty } from './lib/barStock';
 import { requireFnBSaleShift } from './lib/dutyContext';
 import { rowMatchesSearch } from './lib/rowSearch';
 import { activeSearchTerm, docsById, offsetPage } from './lib/listSearch';
@@ -119,6 +120,18 @@ async function assertCanWorkOrder(
   auth: AuthContext,
 ): Promise<{ ok: true } | { ok: false; message: string }> {
   if (!order.shiftId && !order.barId) return { ok: true };
+  if (isAdministratorAtProperty(auth, order.propertyId)) {
+    if (!order.barId || !order.serverUserId) {
+      return { ok: false, message: 'This check has no waiter.' };
+    }
+    return { ok: true };
+  }
+  if (!isFloorServiceOnly(rolesForProperty(auth, order.propertyId))) {
+    return {
+      ok: false,
+      message: 'Only an administrator can record a sale for the waiter on shift.',
+    };
+  }
   const duty = await requireFnBSaleShift(ctx, {
     userId: auth.user._id,
     propertyId: order.propertyId,
@@ -126,12 +139,6 @@ async function assertCanWorkOrder(
   if (duty.ok === false) return duty;
   if (order.barId && order.barId !== duty.barId) {
     return { ok: false, message: 'This check belongs to another bar.' };
-  }
-  if (!order.shiftId) return { ok: true };
-  const floorSeller = isFloorServiceOnly(rolesForProperty(auth, order.propertyId));
-  if (!order.serverUserId) {
-    if (floorSeller) return { ok: false, message: 'This check has no waiter.' };
-    return { ok: true };
   }
   if (order.serverUserId !== auth.user._id) {
     return { ok: false, message: 'This check belongs to another waiter.' };
@@ -266,18 +273,30 @@ function stockRefusalMessage(name: string, availableQty: number, closed: boolean
 }
 
 export const listSellableBeverages = query({
-  args: { propertyId: v.id('properties') },
+  args: {
+    propertyId: v.id('properties'),
+    salesUserId: v.optional(v.id('users')),
+  },
   handler: async (ctx, args) => {
     const auth = await requirePermission(ctx, 'fnb.read', args.propertyId);
-    const duty = await requireFnBSaleShift(ctx, {
-      userId: auth.user._id,
-      propertyId: args.propertyId,
-    });
-    if (duty.ok === false) {
-      return { success: true, data: [], message: duty.message };
-    }
-
     const logDate = await propertyDateKey(ctx, args.propertyId);
+    const seller = await resolvePosSalesPerson(ctx, {
+      auth,
+      propertyId: args.propertyId,
+      logDate,
+      salesUserId: args.salesUserId,
+    });
+    if (seller.ok === false) {
+      return { success: true, data: [], message: seller.message };
+    }
+    const barId = seller.seller.barId;
+    const blocked = await priorStockHandoverBlock(ctx, {
+      barId,
+      beforeDate: logDate,
+      actorUserId: seller.seller.userId,
+      action: 'selling',
+    });
+    if (blocked) return { success: true, data: [], message: blocked };
     const [beverages, todayLogs, poured] = await Promise.all([
       ctx.db
         .query('beverages')
@@ -285,11 +304,11 @@ export const listSellableBeverages = query({
         .collect(),
       ctx.db
         .query('userStockLogs')
-        .withIndex('by_barId_date', (q) => q.eq('barId', duty.barId).eq('logDate', logDate))
+        .withIndex('by_barId_date', (q) => q.eq('barId', barId).eq('logDate', logDate))
         .collect(),
       posPouredQtyByBarBeverage(ctx, {
         propertyId: args.propertyId,
-        barId: duty.barId,
+        barId,
         dateKey: logDate,
       }),
     ]);
@@ -314,8 +333,8 @@ export const listSellableBeverages = query({
           if (!beverage.isActive) return null;
           const stock = await availableQtyForUserBarBeverage(ctx, {
             propertyId: args.propertyId,
-            userId: auth.user._id,
-            barId: duty.barId,
+            userId: seller.seller.userId,
+            barId,
             beverageId: beverage._id,
             logDate,
             pouredByBarBeverage: poured,
@@ -863,17 +882,13 @@ export const createOrder = mutation({
     orderType: orderTypeValidator,
     reservationId: v.optional(v.id('reservations')),
     guestLabel: v.optional(v.string()),
+    salesUserId: v.optional(v.id('users')),
   },
   handler: async (ctx, args) => {
     const auth = await requirePermission(ctx, 'fnb.create', args.propertyId);
     if (args.orderType === 'room_service' && !args.reservationId) {
       return { success: false, message: 'Room service requires a reservation' };
     }
-    const duty = await requireFnBSaleShift(ctx, {
-      userId: auth.user._id,
-      propertyId: args.propertyId,
-    });
-    if (duty.ok === false) return { success: false, message: duty.message };
     if (args.reservationId) {
       const reservation = await ctx.db.get(args.reservationId);
       if (!reservation || reservation.propertyId !== args.propertyId) {
@@ -883,17 +898,26 @@ export const createOrder = mutation({
 
     const now = Date.now();
     const openedAtDateKey = await propertyDateKey(ctx, args.propertyId, now);
-    const floorSeller = isFloorServiceOnly(rolesForProperty(auth, args.propertyId));
+    const seller = await resolvePosSalesPerson(ctx, {
+      auth,
+      propertyId: args.propertyId,
+      logDate: openedAtDateKey,
+      salesUserId: args.salesUserId,
+    });
+    if (seller.ok === false) return { success: false, message: seller.message };
+    const blocked = await priorStockHandoverBlock(ctx, {
+      barId: seller.seller.barId,
+      beforeDate: openedAtDateKey,
+      actorUserId: seller.seller.userId,
+      action: 'selling',
+    });
+    if (blocked) return { success: false, message: blocked };
     const orderId = await ctx.db.insert('orders', {
       propertyId: args.propertyId,
-      barId: duty.barId,
-      shiftId: duty.shift._id,
-      ...(floorSeller
-        ? {
-            employeeId: duty.staff._id,
-            serverUserId: duty.shift.userId ?? auth.user._id,
-          }
-        : {}),
+      barId: seller.seller.barId,
+      shiftId: seller.seller.shiftId,
+      employeeId: seller.seller.staffId,
+      serverUserId: seller.seller.userId,
       reservationId: args.reservationId,
       orderType: args.orderType,
       status: 'open',
@@ -960,16 +984,23 @@ export const addLine = mutation({
     if (!beverage || beverage.propertyId !== order.propertyId || !beverage.isActive) {
       return { success: false, message: 'Beverage not available' };
     }
-    const duty = await requireFnBSaleShift(ctx, {
-      userId: auth.user._id,
-      propertyId: order.propertyId,
-    });
-    if (duty.ok === false) return { success: false, message: duty.message };
-    const barId = order.barId ?? duty.barId;
-    if (order.barId && order.barId !== duty.barId) {
-      return { success: false, message: 'This check belongs to another bar.' };
+    let barId = order.barId;
+    if (!barId) {
+      const duty = await requireFnBSaleShift(ctx, {
+        userId: auth.user._id,
+        propertyId: order.propertyId,
+      });
+      if (duty.ok === false) return { success: false, message: duty.message };
+      barId = duty.barId;
     }
     const logDate = await propertyDateKey(ctx, order.propertyId);
+    const blocked = await priorStockHandoverBlock(ctx, {
+      barId,
+      beforeDate: logDate,
+      actorUserId: order.serverUserId ?? auth.user._id,
+      action: 'selling',
+    });
+    if (blocked) return { success: false, message: blocked };
     if (order.openedAtDateKey !== logDate) {
       return {
         success: false,
@@ -983,7 +1014,7 @@ export const addLine = mutation({
     });
     const stock = await availableQtyForUserBarBeverage(ctx, {
       propertyId: order.propertyId,
-      userId: auth.user._id,
+      userId: order.serverUserId ?? auth.user._id,
       barId,
       beverageId: args.beverageId,
       logDate,

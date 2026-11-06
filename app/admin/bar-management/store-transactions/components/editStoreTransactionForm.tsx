@@ -7,15 +7,20 @@ import { editFormSchema } from "./validation";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { toast } from "sonner";
 import { Button } from '../../../../../shared/button';
-import InputComponent from "../../../../../shared/input";
+import { Field } from "../../../../../shared/field";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { api } from "../../../../../convex/_generated/api";
+import { formatPropertyMoney, usePropertyCurrency } from "../../../inventory-management/components/money";
+
+const alignedLabel = "mb-1 flex w-full min-h-12 items-end leading-snug";
+const alignedField = "min-w-0 flex-1";
 
 type FormData = {
   beverageId: string;
   barId?: string;
   txnType: 'receive' | 'issue';
   qty: number;
+  unitCost?: number;
   notes?: string;
 };
 
@@ -41,18 +46,24 @@ export function EditStoreTransactionForm({
   const beverages = beveragesResponse?.data || [];
   const bars = barsResponse?.data || [];
 
-  const { register, handleSubmit, formState: { errors }, reset, watch } = useForm<FormData>({
+  const currency = usePropertyCurrency(transactionData.propertyId);
+  const { register, handleSubmit, formState: { errors }, watch } = useForm<FormData>({
     resolver: yupResolver(editFormSchema) as any,
     defaultValues: {
       beverageId: transactionData.beverageId || '',
       barId: transactionData.barId || '',
       txnType: transactionData.txnType || 'receive',
       qty: transactionData.qty || 1,
+      unitCost: transactionData.unitCost,
       notes: transactionData.notes || '',
     },
   });
 
   const watchedTxnType = watch('txnType');
+  const qty = watch('qty');
+  const unitCost = watch('unitCost');
+  const totalCost =
+    Number.isFinite(qty) && Number.isFinite(unitCost) ? qty * Number(unitCost) : undefined;
 
   const onSubmit: SubmitHandler<FormData> = async (data) => {
     try {
@@ -62,6 +73,7 @@ export function EditStoreTransactionForm({
         barId: data.barId ? data.barId as Id<'bars'> : undefined,
         txnType: data.txnType,
         qty: data.qty,
+        ...(data.txnType === 'receive' && Number.isFinite(data.unitCost) ? { unitCost: data.unitCost } : {}),
         notes: data.notes,
       });
 
@@ -113,30 +125,53 @@ goToList('/admin/bar-management/store-transactions');
         </div>
       </div>
 
-      <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-start gap-2 mb-2 lg:mb-4">
-        <div className="flex-1">
-          <label htmlFor="txnType" className="block mb-2">Transaction Type *</label>
-          <select
-            id="txnType"
-            {...register('txnType', { required: true })}
-            className="w-full border rounded p-2"
-          >
+      <div className="mb-4 flex w-full flex-nowrap flex-row items-start gap-3">
+        <Field id="qty" label="Quantity *" widthClass={alignedField} labelClassName={alignedLabel}>
+          <input
+            id="qty"
+            type="number"
+            min={1}
+            step="any"
+            {...register('qty', { valueAsNumber: true })}
+          />
+          {errors.qty && <span className="text-red-500 text-sm">{errors.qty.message}</span>}
+        </Field>
+        <Field id="txnType" label="Transaction Type *" widthClass={alignedField} labelClassName={alignedLabel}>
+          <select id="txnType" {...register('txnType', { required: true })}>
             <option value="receive">Receive (Stock In)</option>
             <option value="issue">Issue (Stock Out)</option>
           </select>
           {errors.txnType && <span className="text-red-500 text-sm">{errors.txnType.message}</span>}
-        </div>
-        <div className="flex-1">
-          <InputComponent
-            id="qty"
-            label="Quantity *"
-            type="number"
-            inputWidth="w-full"
-            register={register('qty', { valueAsNumber: true, min: 1 })}
-            error={errors.qty}
-          />
-        </div>
+        </Field>
       </div>
+
+      {watchedTxnType === 'receive' && (
+        <>
+          <div className="mb-1 flex w-full flex-nowrap flex-row items-start gap-3">
+            <Field id="unitCost" label="Unit cost *" widthClass={alignedField} labelClassName={alignedLabel}>
+              <input
+                id="unitCost"
+                type="number"
+                min={0}
+                step="any"
+                {...register('unitCost', { valueAsNumber: true })}
+              />
+              {errors.unitCost && <span className="text-red-500 text-sm">{errors.unitCost.message}</span>}
+            </Field>
+            <Field id="purchaseTotalCost" label="Total cost" widthClass={alignedField} labelClassName={alignedLabel}>
+              <input
+                id="purchaseTotalCost"
+                readOnly
+                value={totalCost === undefined ? '' : formatPropertyMoney(totalCost, currency)}
+                className="bg-gray-100"
+              />
+            </Field>
+          </div>
+          <p className="text-xs text-gray-500 mb-4">
+            For each item purchased, total cost is the quantity times the unit cost. That purchase updates the average unit cost on Store inventory.
+          </p>
+        </>
+      )}
 
       {(watchedTxnType === 'issue') && (
         <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-start gap-2 mb-2 lg:mb-4">

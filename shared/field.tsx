@@ -25,16 +25,18 @@ export function Field({
   id,
   label,
   widthClass,
+  labelClassName,
   children,
 }: {
   id?: string;
   label: ReactNode;
   widthClass?: string;
+  labelClassName?: string;
   children: ReactNode;
 }) {
   return (
     <div className={`flex flex-col items-start justify-start min-w-0 ${widthClass ?? 'w-full max-w-full'}`}>
-      <label htmlFor={id}>{label}</label>
+      <label htmlFor={id} className={labelClassName}>{label}</label>
       {children}
     </div>
   );

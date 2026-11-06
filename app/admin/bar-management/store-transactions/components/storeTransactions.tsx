@@ -11,6 +11,7 @@ import { api } from "../../../../../convex/_generated/api";
 import { TableColumn } from "../../../../../shared/table";
 import PaginationComponent from "../../../../../shared/pagination";
 import { Id } from "../../../../../convex/_generated/dataModel";
+import { formatPropertyMoney, usePropertyCurrency } from "../../../inventory-management/components/money";
 
 interface StoreTransactionProps {
   _id: string;
@@ -20,6 +21,8 @@ interface StoreTransactionProps {
   userId?: string;
   txnType: 'receive' | 'issue';
   qty: number;
+  unitCost?: number;
+  totalCost?: number;
   txnDate: number;
   txnDateKey: string;
   notes?: string;
@@ -45,6 +48,7 @@ interface StoreTransactionProps {
 
 const StoreTransactions = ({ currentPropertyId }: { currentPropertyId: Id<"properties"> }) => {
   const transactionData = useQuery(api.storeTransactions.getAllStoreTransactions, { propertyId: currentPropertyId });
+  const currency = usePropertyCurrency(currentPropertyId);
   const removeTransaction = useMutation(api.storeTransactions.deleteStoreTransaction);
 
   const handleDelete = async (id: string, transactionInfo: string) => {
@@ -113,6 +117,20 @@ const StoreTransactions = ({ currentPropertyId }: { currentPropertyId: Id<"prope
         <span className={row.txnType === 'issue' ? 'text-blue-600 font-semibold' : 'text-green-600'}>
           {row.txnType === 'issue' ? '-' : '+'}{row.qty} {row.beverage?.unitOfMeasure || 'units'}
         </span>
+      )
+    },
+    {
+      label: 'Unit cost',
+      key: 'unitCost',
+      render: (value, row) => (
+        <span>{row.txnType === 'receive' ? formatPropertyMoney(row.unitCost, currency) : '—'}</span>
+      )
+    },
+    {
+      label: 'Total cost',
+      key: 'totalCost',
+      render: (value, row) => (
+        <span>{row.txnType === 'receive' ? formatPropertyMoney(row.totalCost, currency) : '—'}</span>
       )
     },
     {

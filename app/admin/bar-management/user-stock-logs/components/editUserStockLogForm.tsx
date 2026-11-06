@@ -2,6 +2,7 @@
 import { goToList } from '../../../../../shared/goToList';
 
 import { useMutation, useQuery } from "convex/react";
+import { useState } from "react";
 import { SubmitHandler, useForm } from "react-hook-form";
 import { COMP_REASONS, editFormSchema, WASTE_REASONS } from "./validation";
 import { yupResolver } from "@hookform/resolvers/yup";
@@ -41,6 +42,18 @@ interface EditUserStockLogFormProps {
 
 export function EditUserStockLogForm({ stockLogData, stockLogId, onSuccess, onClose }: EditUserStockLogFormProps) {
   const updateUserStockLog = useMutation(api.userStockLogs.updateUserStockLog);
+  const [salesUserId, setSalesUserId] = useState('')
+  const salesRoster = useQuery(
+    api.barSales.listOnShiftSellers,
+    stockLogData?.propertyId && stockLogData?.barId
+      ? {
+          propertyId: stockLogData.propertyId as Id<'properties'>,
+          barId: stockLogData.barId as Id<'bars'>,
+          includeEnded: true,
+          ...(stockLogData.logDate ? { logDate: stockLogData.logDate as string } : {}),
+        }
+      : 'skip',
+  )
   const currency = usePropertyCurrency(stockLogData.propertyId);
   const money = (amount: number) => formatPropertyMoney(amount, currency);
 
@@ -70,6 +83,10 @@ export function EditUserStockLogForm({ stockLogData, stockLogId, onSuccess, onCl
   const cogsValue = disappeared * unitCost;
 
   const onSubmit: SubmitHandler<FormData> = async (data) => {
+    if (salesRoster?.mustChoose && !salesUserId) {
+      toast.error('Choose the waiter this sale belongs to.')
+      return
+    }
     try {
       const response = await updateUserStockLog({
         stockLogId: stockLogId as Id<'userStockLogs'>,
@@ -79,6 +96,9 @@ export function EditUserStockLogForm({ stockLogData, stockLogId, onSuccess, onCl
         wasteReason: data.wasteReason || undefined,
         compQuantity: Number(data.compQuantity) || 0,
         compReason: data.compReason || undefined,
+        ...(salesRoster?.mustChoose && salesUserId
+          ? { salesUserId: salesUserId as Id<'users'> }
+          : {}),
       });
 
       if (response.success === false) {
@@ -105,6 +125,25 @@ goToList('/admin/bar-management/user-stock-logs');
             disabled
             className="w-full border rounded p-2 bg-gray-100"
           />
+          {salesRoster?.mode === 'admin' && salesRoster.mustChoose && (
+            <div className="mt-3">
+              <label htmlFor="salesUserId" className="block mb-2">Waiter *</label>
+              <select
+                id="salesUserId"
+                className="w-full border rounded p-2"
+                value={salesUserId}
+                onChange={(event) => setSalesUserId(event.target.value)}
+              >
+                <option value="">Choose the waiter</option>
+                {salesRoster.sellers.map((seller) => (
+                  <option key={seller.userId} value={seller.userId}>{seller.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          {salesRoster?.mode === 'admin' && salesRoster.sellers.length === 1 && (
+            <p className="mt-2 text-sm text-gray-600">Sales for {salesRoster.sellers[0].name}</p>
+          )}
         </div>
         <div className="flex-1">
           <label className="block mb-2">Date & Beverage</label>

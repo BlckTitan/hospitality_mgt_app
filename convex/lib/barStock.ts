@@ -1,5 +1,5 @@
 import { MutationCtx, QueryCtx } from "../_generated/server";
-import { mirrorStoreQtyToBarLocation } from "./inventoryStock";
+import { mirrorStoreQtyToBarLocation, weightedAverageCost } from "./inventoryStock";
 import { Doc, Id } from "../_generated/dataModel";
 import { localDayBounds, propertyTimeZone } from "./billingPeriods";
 import { ensureBarDayShift } from "./shiftHelpers";
@@ -265,6 +265,8 @@ export async function openBarBookLine(
     beverageId: Id<"beverages">;
     logDate: string;
     operatorUserId: Id<"users">;
+    recordedByUserId?: Id<"users">;
+    shiftId?: Id<"shifts">;
     openingStock: number;
     unitCost: number;
     closingStock?: number;
@@ -277,12 +279,14 @@ export async function openBarBookLine(
 ): Promise<Id<"userStockLogs">> {
   const existing = await findBarDayLog(ctx, args.barId, args.beverageId, args.logDate);
   if (existing) return existing._id;
-  const shiftId = await ensureBarDayShift(ctx, {
-    propertyId: args.propertyId,
-    barId: args.barId,
-    shiftDate: args.logDate,
-    operatorUserId: args.operatorUserId,
-  });
+  const shiftId =
+    args.shiftId ??
+    (await ensureBarDayShift(ctx, {
+      propertyId: args.propertyId,
+      barId: args.barId,
+      shiftDate: args.logDate,
+      operatorUserId: args.operatorUserId,
+    }));
   const openingStock = args.openingStock;
   const totalStock = openingStock;
   const closingStock = args.closingStock ?? totalStock;
@@ -298,6 +302,7 @@ export async function openBarBookLine(
     propertyId: args.propertyId,
     shiftId,
     userId: args.operatorUserId,
+    recordedByUserId: args.recordedByUserId ?? args.operatorUserId,
     holder: "bar",
     barId: args.barId,
     beverageId: args.beverageId,
@@ -581,6 +586,73 @@ export async function previewIssueToStockLog(
     return { error: "This change would make closing stock greater than total stock" };
   }
   return {};
+}
+
+export function purchaseUnitCost(value: number | undefined): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+
+export function lineTotalCost(qty: number, unitCost: number) {
+  return Math.round(qty * unitCost * 100) / 100;
+}
+
+function roundUnitCost(value: number) {
+  return Math.round(value * 10000) / 10000;
+}
+
+export function reversedAverageCost(
+  onHandQty: number,
+  onHandCost: number,
+  purchaseQty: number,
+  purchaseUnitCost: number,
+) {
+  const remaining = onHandQty - purchaseQty;
+  if (!(remaining > 0)) return roundUnitCost(Math.max(onHandCost, 0));
+  const value = onHandQty * onHandCost - purchaseQty * purchaseUnitCost;
+  return roundUnitCost(Math.max(0, value / remaining));
+}
+
+async function drinkCostFollowsStorePurchases(ctx: MutationCtx, beverage: Doc<"beverages">) {
+  if (beverage.inventoryItemId) return false;
+  const recipeLine = await ctx.db
+    .query("beverageRecipeLines")
+    .withIndex("by_beverageId", (q) => q.eq("beverageId", beverage._id))
+    .first();
+  return !recipeLine;
+}
+
+/** Records a purchase against on-hand quantity, then the caller changes that quantity. */
+export async function applyStorePurchaseCost(
+  ctx: MutationCtx,
+  inventory: Doc<"storeInventories">,
+  beverage: Doc<"beverages">,
+  qty: number,
+  unitCost: number,
+) {
+  const next = roundUnitCost(
+    weightedAverageCost(inventory.qtyInStore, resolveUnitCost(inventory.unitCost ?? beverage.unitCost), qty, unitCost),
+  );
+  await ctx.db.patch(inventory._id, { unitCost: next });
+  if (await drinkCostFollowsStorePurchases(ctx, beverage)) {
+    await ctx.db.patch(beverage._id, { unitCost: next });
+  }
+  return { unitCost, totalCost: lineTotalCost(qty, unitCost) };
+}
+
+/** Removes a purchase from the average while that quantity is still on hand. */
+export async function reverseStorePurchaseCost(
+  ctx: MutationCtx,
+  inventory: Doc<"storeInventories">,
+  beverage: Doc<"beverages"> | null,
+  qty: number,
+  unitCost: number,
+) {
+  if (inventory.unitCost === undefined) return;
+  const next = reversedAverageCost(inventory.qtyInStore, inventory.unitCost, qty, unitCost);
+  await ctx.db.patch(inventory._id, { unitCost: next });
+  if (beverage && (await drinkCostFollowsStorePurchases(ctx, beverage))) {
+    await ctx.db.patch(beverage._id, { unitCost: next });
+  }
 }
 
 export async function applyStoreQtyChange(

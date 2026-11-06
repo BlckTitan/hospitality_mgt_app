@@ -1223,11 +1223,13 @@ export default defineSchema({
 
   // User Stock Logs table for per-shift, per-beverage stock and sales reconciliation
   // v2.1: barId, userId, logDate, isFinalized added; recordedAt → lastUpdatedAt
-  // Operating key: (barId, beverageId, logDate) for holder "bar". userId is the operator.
+  // Operating key: (barId, beverageId, logDate) for holder "bar".
+  // userId is the waiter or bartender the sale belongs to. recordedByUserId is who entered it.
   userStockLogs: defineTable({
     propertyId: v.id("properties"),
-    shiftId: v.id("shifts"),     // back-reference to the shift that opened this day
-    userId: v.id("users"),      // operator who last wrote the row, not the owner of the stock
+    shiftId: v.id("shifts"),     // the waiter's open shift at this bar
+    userId: v.id("users"),
+    recordedByUserId: v.optional(v.id("users")),
     // "bar" is the bar's book. Older rows omit this and were a personal float.
     holder: v.optional(v.literal("bar")),
     barId: v.optional(v.id("bars")),       // denormalized for direct day-scoped lookups
@@ -1266,6 +1268,8 @@ export default defineSchema({
     beverageId: v.id("beverages"),
     qtyInStore: v.number(),
     reorderThreshold: v.number(),
+    // Weighted average of purchase unit costs. Missing on rows created before purchase cost was recorded.
+    unitCost: v.optional(v.number()),
     lastUpdated: v.number(),
   })
     .index("by_propertyId", ["propertyId"])
@@ -1286,6 +1290,9 @@ export default defineSchema({
       v.literal("count_adjust"),
     ),
     qty: v.number(),
+    // Purchase price for a receive. Total cost is qty × unit cost.
+    unitCost: v.optional(v.number()),
+    totalCost: v.optional(v.number()),
     txnDate: v.number(),       // epoch ms — for ordering
     txnDateKey: v.string(),       // ISO 8601 e.g. "2026-03-26" — for day-scoped lookups
     notes: v.optional(v.string()),

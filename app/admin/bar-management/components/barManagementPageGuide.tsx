@@ -26,9 +26,9 @@ const DESCRIPTIONS: Record<GuidePage, string> = {
   'user-stock-logs':
     'Admin view of each bar’s daily stock sheet for the selected date. The bar and the staff on duty are named above that day’s drinks. The totals are opening stock value, total sales value, and the value of stock left, all at selling price in the property currency. Use + to add a drink to a bar. Opening comes from that bar’s last finalized close. Filter by bar, the person on duty, or date. Edit, finalize, and delete stay on the left while the drink columns scroll. Finalize all closes every open log in the current list. Staff can also close the day on My stock today.',
   'store-inventory':
-    'On-hand quantity for each beverage in the central store. Add a row with + and enter Quantity in Store plus a reorder threshold for hub alerts. Later quantity changes go through Store transactions or a posted Store count — not by editing the row alone.',
+    'On-hand quantity for each beverage in the central store. Add a row with + and enter Quantity in Store, a reorder threshold, and a unit cost when the quantity is a purchase. Unit cost is the average of those purchases. Stock value is on-hand quantity times that unit cost. Later quantity changes go through Store transactions or a posted Store count — not by editing the row alone.',
   'store-transactions':
-    'Record a store movement with +. Receive adds stock to the store. Issue removes it and posts to the chosen bar’s stock for today. Count adjustments appear after a posted store count. Transactions are dated today in the property timezone.',
+    'Record a store movement with +. Receive adds stock to the store and needs a unit cost for each item purchased. Total cost is quantity times that unit cost, and the average unit cost on Store inventory updates from it. Issue removes stock and posts to the chosen bar’s stock for today. Count adjustments appear after a posted store count. Transactions are dated today in the property timezone.',
   'store-count':
     'Physical count of the central bar store. Start a draft to snapshot book qty, enter counted amounts, Save, then Post. Posting sets on-hand to counted and records variance as count adjustments. Does not change the stock already at a bar.',
 };

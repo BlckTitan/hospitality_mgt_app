@@ -1,6 +1,7 @@
 'use client'
 
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
+import { useState } from "react";
 import { SubmitHandler, useForm } from "react-hook-form";
 import { formSchema } from "./validation";
 import { yupResolver } from "@hookform/resolvers/yup";
@@ -25,7 +26,8 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
   const beveragesResponse = useQuery(api.beverages.getAllBeverages, propertyArgs);
   const beverages = beveragesResponse?.data || [];
 
-  const { register, handleSubmit, formState: { errors }, reset } = useForm<FormData>({
+  const [salesUserId, setSalesUserId] = useState('')
+  const { register, handleSubmit, formState: { errors }, reset, watch } = useForm<FormData>({
     resolver: yupResolver(formSchema) as any,
     defaultValues: {
       barId: '',
@@ -33,12 +35,31 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
     },
   });
 
+  const watchedBarId = watch('barId')
+  const salesRoster = useQuery(
+    api.barSales.listOnShiftSellers,
+    isAuthenticated && propertyId && watchedBarId
+      ? {
+          propertyId: propertyId as Id<'properties'>,
+          barId: watchedBarId as Id<'bars'>,
+          includeEnded: true,
+        }
+      : 'skip',
+  )
+
   const onSubmit: SubmitHandler<FormData> = async (data) => {
+    if (salesRoster?.mustChoose && !salesUserId) {
+      toast.error('Choose the waiter this sale belongs to.')
+      return
+    }
     try {
       const response = await createUserStockLog({
         propertyId: propertyId as Id<'properties'>,
         barId: data.barId as Id<'bars'>,
         beverageId: data.beverageId as Id<'beverages'>,
+        ...(salesRoster?.mustChoose && salesUserId
+          ? { salesUserId: salesUserId as Id<'users'> }
+          : {}),
       });
 
       if (response.success === false) {
@@ -79,6 +100,28 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
               <option key={option.value} value={option.value}>{option.label}</option>
             ))}
           </select>
+          {salesRoster?.mode === 'admin' && salesRoster.mustChoose && (
+            <div className="mt-3">
+              <label htmlFor="salesUserId" className="block mb-2">Waiter *</label>
+              <select
+                id="salesUserId"
+                className="w-full border rounded p-2"
+                value={salesUserId}
+                onChange={(event) => setSalesUserId(event.target.value)}
+              >
+                <option value="">Choose the waiter</option>
+                {salesRoster.sellers.map((seller) => (
+                  <option key={seller.userId} value={seller.userId}>{seller.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          {salesRoster?.mode === 'admin' && salesRoster.sellers.length === 1 && (
+            <p className="mt-2 text-sm text-gray-600">Sales for {salesRoster.sellers[0].name}</p>
+          )}
+          {salesRoster?.message && (
+            <p className="mt-2 text-sm text-amber-800">{salesRoster.message}</p>
+          )}
           {errors.barId && <span className="text-red-500 text-sm">{errors.barId.message}</span>}
         </div>
         <div className="flex-1">

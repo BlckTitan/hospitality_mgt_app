@@ -1,9 +1,13 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import {
+  applyStorePurchaseCost,
   applyStoreQtyChange,
+  lineTotalCost,
   maybeOpenReorderAlert,
   propertyDateKey,
+  purchaseUnitCost,
+  resolveBeverageUnitCost,
 } from "./lib/barStock";
 import { requirePermission } from "./lib/rbac";
 
@@ -13,6 +17,7 @@ export const createStoreInventory = mutation({
     beverageId: v.id("beverages"),
     qtyInStore: v.number(),
     reorderThreshold: v.number(),
+    unitCost: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     await requirePermission(ctx, "inventory.create", args.propertyId);
@@ -52,6 +57,12 @@ export const createStoreInventory = mutation({
         message: "Reorder threshold cannot be negative",
       };
     }
+    if (args.qtyInStore > 0 && !purchaseUnitCost(args.unitCost)) {
+      return {
+        success: false,
+        message: "Enter a unit cost of 0 or more for the quantity purchased",
+      };
+    }
 
     const now = Date.now();
     const storeInventoryId = await ctx.db.insert("storeInventories", {
@@ -70,20 +81,23 @@ export const createStoreInventory = mutation({
       };
     }
 
-    const qtyInStore =
-      args.qtyInStore > 0 ? await applyStoreQtyChange(ctx, created, args.qtyInStore) : 0;
-
-    if (args.qtyInStore > 0) {
+    if (args.qtyInStore > 0 && purchaseUnitCost(args.unitCost)) {
+      await applyStorePurchaseCost(ctx, created, beverage, args.qtyInStore, args.unitCost);
       await ctx.db.insert("storeTransactions", {
         propertyId: args.propertyId,
         beverageId: args.beverageId,
         txnType: "receive",
         qty: args.qtyInStore,
+        unitCost: args.unitCost,
+        totalCost: lineTotalCost(args.qtyInStore, args.unitCost),
         txnDate: now,
         txnDateKey: await propertyDateKey(ctx, args.propertyId, now),
         notes: "Opening quantity",
       });
     }
+
+    const qtyInStore =
+      args.qtyInStore > 0 ? await applyStoreQtyChange(ctx, created, args.qtyInStore) : 0;
 
     await maybeOpenReorderAlert(ctx, {
       propertyId: args.propertyId,
@@ -115,9 +129,13 @@ export const getAllStoreInventories = query({
     const storeInventoriesWithBeverages = await Promise.all(
       storeInventories.map(async (inventory) => {
         const beverage = await ctx.db.get(inventory.beverageId);
+        const unitCost =
+          inventory.unitCost ?? (await resolveBeverageUnitCost(ctx, beverage));
         return {
           ...inventory,
           beverage,
+          unitCost,
+          stockValue: inventory.qtyInStore * unitCost,
         };
       })
     );

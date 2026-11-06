@@ -8,14 +8,19 @@ import { formSchema } from "./validation";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { toast } from "sonner";
 import { Button } from '../../../../../shared/button';
-import InputComponent from "../../../../../shared/input";
+import { Field } from "../../../../../shared/field";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { api } from "../../../../../convex/_generated/api";
+import { formatPropertyMoney, usePropertyCurrency } from "../../../inventory-management/components/money";
+
+const alignedLabel = "mb-1 flex w-full min-h-12 items-end leading-snug";
+const alignedField = "min-w-0 flex-1";
 
 type FormData = {
   beverageId: string;
   qtyInStore: number;
   reorderThreshold: number;
+  unitCost?: number;
 };
 
 export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: () => void; onClose: () => void; propertyId: string }) {
@@ -42,14 +47,20 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
       }));
   }, [beverages, inventoryResponse]);
 
-  const { register, handleSubmit, formState: { errors }, reset } = useForm<FormData>({
+  const currency = usePropertyCurrency(propertyId);
+  const { register, handleSubmit, formState: { errors }, reset, watch } = useForm<FormData>({
     resolver: yupResolver(formSchema) as any,
     defaultValues: {
       beverageId: '',
       qtyInStore: 0,
       reorderThreshold: 10,
+      unitCost: undefined,
     },
   });
+  const qtyInStore = watch('qtyInStore');
+  const unitCost = watch('unitCost');
+  const totalCost =
+    Number.isFinite(qtyInStore) && Number.isFinite(unitCost) ? qtyInStore * Number(unitCost) : undefined;
 
   const onSubmit: SubmitHandler<FormData> = async (data) => {
     try {
@@ -58,6 +69,7 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
         beverageId: data.beverageId as Id<'beverages'>,
         qtyInStore: data.qtyInStore,
         reorderThreshold: data.reorderThreshold,
+        ...(Number.isFinite(data.unitCost) ? { unitCost: data.unitCost } : {}),
       });
 
       if (response.success === false) {
@@ -102,36 +114,52 @@ goToList('/admin/bar-management/store-inventory');
         </div>
       </div>
 
-      <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-start gap-2 mb-2 lg:mb-4">
-        <div className="flex-1">
-          <InputComponent
+      <div className="mb-4 flex w-full flex-nowrap flex-row items-start gap-3">
+        <Field id="qtyInStore" label="Quantity in Store *" widthClass={alignedField} labelClassName={alignedLabel}>
+          <input
             id="qtyInStore"
-            label="Quantity in Store *"
             type="number"
-            inputWidth="w-full"
-            register={register('qtyInStore', { valueAsNumber: true, min: 0 })}
-            error={errors.qtyInStore}
+            min={0}
+            step="any"
+            {...register('qtyInStore', { valueAsNumber: true })}
           />
-          <p className="text-xs text-gray-500 mt-1">On-hand quantity when this row is created.</p>
-        </div>
-        <div className="flex-1">
-          <InputComponent
+          {errors.qtyInStore && <span className="text-red-500 text-sm">{errors.qtyInStore.message}</span>}
+        </Field>
+        <Field id="reorderThreshold" label="Reorder Threshold *" widthClass={alignedField} labelClassName={alignedLabel}>
+          <input
             id="reorderThreshold"
-            label="Reorder Threshold *"
             type="number"
-            inputWidth="w-full"
-            register={register('reorderThreshold', { valueAsNumber: true, min: 0 })}
-            error={errors.reorderThreshold}
+            min={0}
+            step="any"
+            {...register('reorderThreshold', { valueAsNumber: true })}
           />
-        </div>
+          {errors.reorderThreshold && <span className="text-red-500 text-sm">{errors.reorderThreshold.message}</span>}
+        </Field>
       </div>
 
-      <div className="w-full h-fit flex flex-col lg:flex-row lg:items-center gap-4 mb-4">
-        <div className="text-sm text-gray-500">
-          <p>• Quantity in Store: Current stock quantity available in the store</p>
-          <p>• Reorder Threshold: Minimum quantity before reorder alert is triggered</p>
-        </div>
+      <div className="mb-1 flex w-full flex-nowrap flex-row items-start gap-3">
+        <Field id="unitCost" label="Unit cost" widthClass={alignedField} labelClassName={alignedLabel}>
+          <input
+            id="unitCost"
+            type="number"
+            min={0}
+            step="any"
+            {...register('unitCost', { valueAsNumber: true })}
+          />
+          {errors.unitCost && <span className="text-red-500 text-sm">{errors.unitCost.message}</span>}
+        </Field>
+        <Field id="purchaseTotalCost" label="Total cost" widthClass={alignedField} labelClassName={alignedLabel}>
+          <input
+            id="purchaseTotalCost"
+            readOnly
+            value={totalCost === undefined ? '' : formatPropertyMoney(totalCost, currency)}
+            className="bg-gray-100"
+          />
+        </Field>
       </div>
+      <p className="text-xs text-gray-500 mb-4">
+        Enter the quantity purchased and the price paid per unit. Total cost is that quantity times the unit cost. The store keeps the average unit cost of purchases, and stock value is the on-hand quantity times that average.
+      </p>
 
       <div className="flex gap-2 justify-end">
         <Button variant="secondary" onClick={onClose}>

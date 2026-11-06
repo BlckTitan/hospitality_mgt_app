@@ -39,13 +39,28 @@ export default function PosTerminal() {
   const [tenderMethod, setTenderMethod] = useState<TenderMethod>('cash')
   const [tenderAmount, setTenderAmount] = useState('')
   const [busy, setBusy] = useState(false)
+  const [salesUserId, setSalesUserId] = useState('')
 
   const isRoom = mode === 'room_service'
 
   const duty = useQuery(api.attendance.getMyDuty, {})
+  const roster = useQuery(
+    api.barSales.listOnShiftSellers,
+    currentPropertyId ? { propertyId: currentPropertyId } : 'skip',
+  )
+  const adminSale = roster?.mode === 'admin'
+  const chosenSeller = adminSale
+    ? roster.sellers.find((seller) => seller.userId === salesUserId) ||
+      (roster.sellers.length === 1 ? roster.sellers[0] : undefined)
+    : undefined
   const beverages = useQuery(
     api.posOrders.listSellableBeverages,
-    currentPropertyId ? { propertyId: currentPropertyId } : 'skip',
+    currentPropertyId && (!adminSale || chosenSeller)
+      ? {
+          propertyId: currentPropertyId,
+          ...(adminSale && chosenSeller ? { salesUserId: chosenSeller.userId } : {}),
+        }
+      : 'skip',
   )
   const stays = useQuery(
     api.posOrders.listStayReservationsForPos,
@@ -79,8 +94,12 @@ export default function PosTerminal() {
   )
   const order = orderResponse?.success ? orderResponse.data : null
   const legacyCheck = Boolean(order && !order.barId && !order.shiftId)
-  const canSell = onBarShift
-  const dutyMessage = !duty
+  const canSell = adminSale ? Boolean(chosenSeller) : onBarShift
+  const dutyMessage = adminSale
+    ? chosenSeller
+      ? `Sales for ${chosenSeller.name} · ${chosenSeller.barName}`
+      : roster?.message || 'Choose the waiter this sale belongs to.'
+    : !duty
     ? 'Loading shift'
     : duty.success === false
       ? duty.message
@@ -138,6 +157,7 @@ export default function PosTerminal() {
         reservationId: reservationId
           ? (reservationId as Id<'reservations'>)
           : undefined,
+        ...(adminSale && chosenSeller ? { salesUserId: chosenSeller.userId } : {}),
       })
       if (!response.success || !response.data?.orderId) {
         toast.error(response.message || 'Could not open check')
@@ -301,6 +321,26 @@ export default function PosTerminal() {
         </label>
         )}
         <p className={`text-sm m-0 ${canSell ? 'text-gray-700' : 'text-amber-800'}`}>{dutyMessage}</p>
+        {adminSale && roster?.mustChoose && (
+          <label className="text-sm">
+            Waiter
+            <select
+              className={selectClassName + ' mt-1 min-w-[12rem]'}
+              value={salesUserId}
+              onChange={(event) => {
+                setSalesUserId(event.target.value)
+                setOrderId(null)
+              }}
+            >
+              <option value="">Choose the waiter</option>
+              {roster.sellers.map((seller) => (
+                <option key={seller.userId} value={seller.userId}>
+                  {seller.name} · {seller.barName}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <div className="flex gap-2">
           <Button
             size="sm"
@@ -447,8 +487,10 @@ export default function PosTerminal() {
             </div>
           </div>
           <p className="m-0 break-words text-xs text-gray-500">
-            {isRoom ? 'Room service' : openShift?.barName || 'Bar'}
-            {dutyData?.staffName ? ` · ${dutyData.staffName}` : ''}
+            {isRoom ? 'Room service' : order?.barName || chosenSeller?.barName || openShift?.barName || 'Bar'}
+            {(order?.waiterName || (adminSale ? chosenSeller?.name : dutyData?.staffName))
+              ? ` · ${order?.waiterName || (adminSale ? chosenSeller?.name : dutyData?.staffName)}`
+              : ''}
             {order?.roomLabel ? ` · Room ${order.roomLabel}` : ''}
             {order?.guestName ? ` · ${order.guestName}` : ''}
             {order?.status ? ` · ${order.status}` : ''}

@@ -415,7 +415,7 @@ Bar management, beverages catalog, and beverage POS. Spec: `ai/Bar inventory and
 ---
 
 ### 17e. Beverage POS terminal (`/admin/pos`)
-**Purpose**: Bar-first POS — open checks, add beverage lines, settle with cash / card (record) / room charge / open tab. No payment gateway.
+**Purpose**: Bar-first POS — open checks, add beverage lines, settle with cash / card (record) / room charge / open tab. No payment gateway. The check's waiter is the waiter or bartender with an open F&B shift at the bar. An administrator does not need their own bar shift: one waiter is used automatically, and several require a choice. The sale is refused until a waiter's shift is started. `serverUserId` and `employeeId` are that waiter. The payment `createdBy` is the login that settled.
 
 **Permission:** `beverages.read` to view; `beverages.create` to open checks; `beverages.update` to add/void lines and settle.
 
@@ -479,13 +479,13 @@ Bar management, beverages catalog, and beverage POS. Spec: `ai/Bar inventory and
 
 ---
 ### 17d. My Stock Today (`/admin/bar-management/my-stock`)
-**Purpose**: The linked bar's stock for today — Opening / Received / Total / Closing / Waste / Comps / Sales. Opening is the bar's last close, or the quantity entered on the bar during setup.
+**Purpose**: The linked bar's stock for today — Opening / Received / Total / Closing / Waste / Comps / Sales. Opening is the bar's last close, or the quantity entered on the bar during setup. Sales belong to the waiter or bartender on shift at that bar. An administrator may enter the count; with one waiter the page names them, and with more than one the administrator chooses. The sale is refused when no waiter has a shift there.
 
-**Permission:** `beverages.read`
+**Permission:** `beverages.read`. Recording a sale for someone else is Administrator only. A waiter or bartender records only their own sales.
 
 **Data Fetching:**
-- `getMyTodayStock` — authenticated user, `propertyDateKey` today
-- Mutations: `addMyTodayBeverage`, `saveMyClosingStock`, `finalizeMyToday`
+- `getMyTodayStock` — property timezone `logDate`; `listOnShiftSellers` with `includeEnded` so a finished shift can still close that day's sheet
+- Mutations: `addMyTodayBeverage`, `saveMyClosingStock`, `saveMyClosingStocks`, `finalizeMyToday` (optional `salesUserId` when several waiters are on shift)
 - Link to **Request stock** (`/admin/bar-management/stock-requests`)
 
 **Sales formula:** `salesQuantity = totalStock − closingStock − waste − comps`
@@ -508,13 +508,26 @@ Bar management, beverages catalog, and beverage POS. Spec: `ai/Bar inventory and
 ---
 
 ### 17d-iii. Store inventory (`/admin/bar-management/store-inventory`)
-**Purpose**: One on-hand row per beverage. Add with + and enter Quantity in Store (opening on-hand) plus a reorder threshold. A quantity above 0 is saved and recorded as an opening receive. Edit changes the threshold only; later quantity changes are Store transactions or a posted Store count.
+**Purpose**: One on-hand row per beverage. Add with +. Quantity in Store and Reorder Threshold sit on one row; Unit cost and Total cost sit on the next. Total cost is that quantity times the unit cost, shown in the property currency. A quantity above 0 requires a unit cost and is saved as an opening receive. The row's unit cost is the average of those purchases. The list shows unit cost and stock value (on-hand quantity times that average). Edit shows quantity, unit cost, and stock value as read-only and changes the reorder threshold only. Later quantity changes are Store transactions or a posted Store count.
 
 **Permission:** `inventory.read` to list; `inventory.create` to add; `inventory.update` to edit; `inventory.delete` to remove
 
 **Data Fetching:**
 - `getAllStoreInventories`, `getStoreInventoryById`
 - Mutations: `createStoreInventory`, `updateStoreInventory`, `deleteStoreInventory`
+
+**Rendering Strategy: SSR**
+
+---
+
+### 17d-iii-b. Store transactions (`/admin/bar-management/store-transactions`)
+**Purpose**: Record a store movement with +. Quantity and Transaction Type sit on one row. Receive adds stock and shows Unit cost and Total cost on the next row. Total cost is quantity times that unit cost, and the purchase updates the average unit cost on Store inventory. Issue removes stock and posts it to the chosen bar for today; it does not ask for a cost. Count adjustments appear after a posted Store count. Transactions are dated today in the property timezone.
+
+**Permission:** `inventory.read` to list; `inventory.create` to add; `inventory.update` to edit; `inventory.delete` to remove
+
+**Data Fetching:**
+- `getAllStoreTransactions`, `getStoreTransaction`
+- Mutations: `createStoreTransaction`, `updateStoreTransaction`, `deleteStoreTransaction`
 
 **Rendering Strategy: SSR**
 

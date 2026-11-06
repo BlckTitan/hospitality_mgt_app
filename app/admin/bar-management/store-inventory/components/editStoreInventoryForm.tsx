@@ -3,14 +3,18 @@ import { goToList } from '../../../../../shared/goToList';
 
 import { useMutation, useQuery, useConvexAuth } from "convex/react";
 import { SubmitHandler, useForm } from "react-hook-form";
-import { formSchema } from "./validation";
+import { editFormSchema } from "./validation";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { toast } from "sonner";
 import { Button } from '../../../../../shared/button';
 import { useEffect } from "react";
-import InputComponent from "../../../../../shared/input";
+import { Field } from "../../../../../shared/field";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { api } from "../../../../../convex/_generated/api";
+import { formatPropertyMoney, usePropertyCurrency } from "../../../inventory-management/components/money";
+
+const alignedLabel = "mb-1 flex w-full min-h-12 items-end leading-snug";
+const alignedField = "min-w-0 flex-1";
 
 type FormData = {
   beverageId: string;
@@ -27,8 +31,9 @@ export function EditFormComponent({ onSuccess, onClose, inventoryId }: { onSucce
   );
   const storeInventory = storeInventoryResponse;
 
+  const currency = usePropertyCurrency(storeInventory?.success ? storeInventory.data?.propertyId : undefined);
   const { register, handleSubmit, formState: { errors }, reset, setValue } = useForm<FormData>({
-    resolver: yupResolver(formSchema) as any,
+    resolver: yupResolver(editFormSchema) as any,
     defaultValues: {
       beverageId: '',
       qtyInStore: 0,
@@ -96,37 +101,58 @@ goToList('/admin/bar-management/store-inventory');
         </div>
       </div>
 
-      <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-start gap-2 mb-2 lg:mb-4">
-        <div className="flex-1">
-          <label className="block mb-2">Quantity in Store</label>
+      <div className="mb-4 flex w-full flex-nowrap flex-row items-start gap-3">
+        <Field id="qtyInStoreDisplay" label="Quantity in Store" widthClass={alignedField} labelClassName={alignedLabel}>
           <input
+            id="qtyInStoreDisplay"
             type="number"
-            className="w-full border rounded p-2 bg-gray-100"
             value={inventory.qtyInStore}
             disabled
             readOnly
+            className="bg-gray-100"
           />
-          <p className="text-xs text-gray-500 mt-1">Quantity changes through receive/issue transactions only.</p>
-        </div>
-        <div className="flex-1">
-          <InputComponent
+        </Field>
+        <Field id="reorderThreshold" label="Reorder Threshold *" widthClass={alignedField} labelClassName={alignedLabel}>
+          <input
             id="reorderThreshold"
-            label="Reorder Threshold *"
             type="number"
-            inputWidth="w-full"
-            register={register('reorderThreshold', { valueAsNumber: true, min: 0 })}
-            error={errors.reorderThreshold}
+            min={0}
+            step="any"
+            {...register('reorderThreshold', { valueAsNumber: true })}
           />
-        </div>
+          {errors.reorderThreshold && <span className="text-red-500 text-sm">{errors.reorderThreshold.message}</span>}
+        </Field>
       </div>
 
-      <div className="w-full h-fit flex flex-col lg:flex-row lg:items-center gap-4 mb-4">
-        <div className="text-sm text-gray-500">
-          <p>• Quantity in Store: Current stock quantity available in the store</p>
-          <p>• Reorder Threshold: Minimum quantity before reorder alert is triggered</p>
-          <p>• Last Updated: {new Date(inventory.lastUpdated).toLocaleString()}</p>
-        </div>
+      <div className="mb-1 flex w-full flex-nowrap flex-row items-start gap-3">
+        <Field id="unitCostDisplay" label="Unit cost" widthClass={alignedField} labelClassName={alignedLabel}>
+          <input
+            id="unitCostDisplay"
+            readOnly
+            value={formatPropertyMoney(inventory.unitCost, currency)}
+            className="bg-gray-100"
+          />
+        </Field>
+        <Field id="stockValueDisplay" label="Stock value" widthClass={alignedField} labelClassName={alignedLabel}>
+          <input
+            id="stockValueDisplay"
+            readOnly
+            value={
+              inventory.unitCost === undefined
+                ? ''
+                : formatPropertyMoney(inventory.qtyInStore * inventory.unitCost, currency)
+            }
+            className="bg-gray-100"
+          />
+        </Field>
       </div>
+      <p className="text-xs text-gray-500 mb-4">
+        Quantity changes through a purchase or issue. Unit cost is the average of purchase quantities and their costs. Stock value is the on-hand quantity times that unit cost.
+      </p>
+
+      <p className="text-sm text-gray-500 mb-4">
+        Last updated: {new Date(inventory.lastUpdated).toLocaleString()}
+      </p>
 
       <div className="flex gap-2 justify-end">
         <Button variant="secondary" onClick={onClose}>

@@ -113,7 +113,8 @@ entity userStockLogs {
     SYSTEM_FIELD(_creationTime)  : number
     --
     REF(shiftId)             : v.id("shifts")
-    NEW(REF(userId))         : v.id("users")
+    REF(userId)              : v.id("users") ' waiter or bartender
+    OPT(recordedByUserId)    : v.optional(v.id("users")) ' login that entered the count
     NEW(REF(barId))          : v.id("bars")
     REF(beverageId)          : v.id("beverages")
     NEW(logDate)             : v.string()
@@ -136,7 +137,8 @@ entity userStockLogs {
 }
 
 note bottom of userStockLogs
-  Natural unique key: (userId, barId, beverageId, logDate)
+  Natural unique key: (barId, beverageId, logDate) for holder "bar"
+  userId is the salesperson, not the login that typed the count.
   "issue" storeTransactions update newStockReceived on
   the record whose logDate = txnDateKey only.
   Prior day records are never mutated.

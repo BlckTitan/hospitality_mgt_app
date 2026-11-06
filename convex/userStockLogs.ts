@@ -2,7 +2,8 @@ import { mutation, query, MutationCtx, QueryCtx } from './_generated/server';
 import { v } from 'convex/values';
 import { Doc, Id } from './_generated/dataModel';
 import { posPouredQtyByBarBeverage } from './posOrders';
-import { requirePermission, tryRequirePermission } from './lib/rbac';
+import { AuthContext, requirePermission, tryRequirePermission } from './lib/rbac';
+import { BarSalesPerson, resolveBarSalesPerson } from './lib/barSalesPerson';
 import { assertCanOperateBar, assignedBarIdsForUser } from './lib/barAssignment';
 import { DutyPerson, listOnDutyStaffForBarDate, listOnDutyUsersForDate } from './lib/barDuty';
 import {
@@ -20,6 +21,55 @@ import {
   refreshSalesSummariesForLogs,
   resolveBeverageUnitCost,
 } from './lib/barStock';
+
+async function sellerForBarWrite(
+  ctx: MutationCtx,
+  auth: AuthContext,
+  args: {
+    propertyId: Id<'properties'>;
+    barId: Id<'bars'>;
+    logDate: string;
+    salesUserId?: Id<'users'>;
+    preferUserId?: Id<'users'>;
+  },
+) {
+  const today = await propertyDateKey(ctx, args.propertyId);
+  return await resolveBarSalesPerson(ctx, { auth, today, includeEnded: true, ...args });
+}
+
+async function claimStockLogSeller(
+  ctx: MutationCtx,
+  log: Doc<'userStockLogs'>,
+  seller: BarSalesPerson,
+  recordedByUserId: Id<'users'>,
+) {
+  if (log.userId !== seller.userId && log.barId) {
+    await refreshSalesSummariesForLog(ctx, {
+      propertyId: log.propertyId,
+      barId: log.barId,
+      userId: log.userId,
+      beverageId: log.beverageId,
+      logDate: log.logDate,
+      salesQuantity: 0,
+      salesValue: 0,
+      cogsValue: 0,
+      wasteQuantity: 0,
+      compQuantity: 0,
+    });
+  }
+  if (
+    log.userId !== seller.userId ||
+    log.shiftId !== seller.shiftId ||
+    log.recordedByUserId !== recordedByUserId
+  ) {
+    await ctx.db.patch(log._id, {
+      userId: seller.userId,
+      shiftId: seller.shiftId,
+      recordedByUserId,
+    });
+  }
+  return { ...log, userId: seller.userId, shiftId: seller.shiftId, recordedByUserId };
+}
 
 function stockReadFailure(error: unknown, data: null): { success: false; data: null; message: string };
 function stockReadFailure(error: unknown): { success: false; data: []; message: string };
@@ -373,6 +423,7 @@ export const createUserStockLog = mutation({
     wasteReason: v.optional(v.string()),
     compQuantity: v.optional(v.number()),
     compReason: v.optional(v.string()),
+    salesUserId: v.optional(v.id('users')),
   },
   handler: async (ctx, args) => {
     const auth = await requirePermission(ctx, 'fnb.create', args.propertyId);
@@ -404,13 +455,22 @@ export const createUserStockLog = mutation({
       action: "opening today's stock",
     });
     if (blocked) return { success: false, message: blocked };
+    const seller = await sellerForBarWrite(ctx, auth, {
+      propertyId: args.propertyId,
+      barId: args.barId,
+      logDate,
+      salesUserId: args.salesUserId,
+    });
+    if (seller.ok === false) return { success: false, message: seller.message };
     const unitCost = await resolveBeverageUnitCost(ctx, beverage);
     const stockLogId = await openBarBookLine(ctx, {
       propertyId: args.propertyId,
       barId: args.barId,
       beverageId: args.beverageId,
       logDate,
-      operatorUserId: auth.user._id,
+      operatorUserId: seller.seller.userId,
+      recordedByUserId: auth.user._id,
+      shiftId: seller.seller.shiftId,
       openingStock,
       unitCost,
       unitPrice: beverage.unitPrice,
@@ -423,7 +483,7 @@ export const createUserStockLog = mutation({
     await refreshSalesSummariesForLog(ctx, {
       propertyId: args.propertyId,
       barId: args.barId,
-      userId: auth.user._id,
+      userId: seller.seller.userId,
       beverageId: args.beverageId,
       logDate,
       salesQuantity: 0,
@@ -445,19 +505,31 @@ export const updateUserStockLog = mutation({
     wasteReason: v.optional(v.string()),
     compQuantity: v.optional(v.number()),
     compReason: v.optional(v.string()),
+    salesUserId: v.optional(v.id('users')),
   },
   handler: async (ctx, args) => {
     const existingLog = await ctx.db.get(args.stockLogId);
     if (!existingLog) {
       return { success: false, message: 'User stock log does not exist' };
     }
-    await requirePermission(ctx, 'fnb.update', existingLog.propertyId);
+    const auth = await requirePermission(ctx, 'fnb.update', existingLog.propertyId);
+    if (existingLog.isFinalized) {
+      return { success: false, message: 'Cannot update finalized stock log' };
+    }
+    if (!existingLog.barId) {
+      return { success: false, message: 'This stock row is not on a bar' };
+    }
+    const seller = await sellerForBarWrite(ctx, auth, {
+      propertyId: existingLog.propertyId,
+      barId: existingLog.barId,
+      logDate: existingLog.logDate,
+      salesUserId: args.salesUserId,
+      preferUserId: existingLog.userId,
+    });
+    if (seller.ok === false) return { success: false, message: seller.message };
+    const claimed = await claimStockLogSeller(ctx, existingLog, seller.seller, auth.user._id);
 
     try {
-      // Check if log is finalized
-      if (existingLog.isFinalized) {
-        return { success: false, message: 'Cannot update finalized stock log' };
-      }
 
       // Get beverage for unit price calculation
       const beverage = await ctx.db.get(existingLog.beverageId);
@@ -491,7 +563,7 @@ export const updateUserStockLog = mutation({
         lastUpdatedAt: Date.now(),
       });
       await refreshSalesSummariesForLog(ctx, {
-        ...existingLog,
+        ...claimed,
         salesQuantity: sales.salesQuantity,
         salesValue: sales.salesValue,
         cogsValue: sales.cogsValue,
@@ -555,20 +627,35 @@ async function finalizeOpenStockLog(
 
 // One log at a time. Bulk close uses finalizeUserStockLogs so sales summaries stay inside one transaction.
 export const finalizeUserStockLog = mutation({
-  args: { stockLogId: v.id('userStockLogs') },
+  args: {
+    stockLogId: v.id('userStockLogs'),
+    salesUserId: v.optional(v.id('users')),
+  },
   handler: async (ctx, args) => {
     const existingLog = await ctx.db.get(args.stockLogId);
     if (!existingLog) {
       return { success: false, message: 'User stock log does not exist' };
     }
-    await requirePermission(ctx, 'fnb.update', existingLog.propertyId);
+    const auth = await requirePermission(ctx, 'fnb.update', existingLog.propertyId);
 
     try {
       if (existingLog.isFinalized) {
         return { success: false, message: 'Stock log is already finalized' };
       }
+      if (!existingLog.barId) {
+        return { success: false, message: 'This stock row is not on a bar' };
+      }
+      const seller = await sellerForBarWrite(ctx, auth, {
+        propertyId: existingLog.propertyId,
+        barId: existingLog.barId,
+        logDate: existingLog.logDate,
+        salesUserId: args.salesUserId,
+        preferUserId: existingLog.userId,
+      });
+      if (seller.ok === false) return { success: false, message: seller.message };
+      const claimed = await claimStockLogSeller(ctx, existingLog, seller.seller, auth.user._id);
 
-      const finalized = await finalizeOpenStockLog(ctx, existingLog, Date.now());
+      const finalized = await finalizeOpenStockLog(ctx, claimed, Date.now());
       if (!finalized) {
         return { success: false, message: 'Stock log is already finalized' };
       }
@@ -586,7 +673,10 @@ export const finalizeUserStockLog = mutation({
 const FINALIZE_BATCH = 15;
 
 export const finalizeUserStockLogs = mutation({
-  args: { stockLogIds: v.array(v.id('userStockLogs')) },
+  args: {
+    stockLogIds: v.array(v.id('userStockLogs')),
+    salesUserId: v.optional(v.id('users')),
+  },
   handler: async (ctx, args) => {
     if (args.stockLogIds.length === 0) {
       return { success: false, message: 'No stock logs to finalize', finalized: 0 };
@@ -605,13 +695,30 @@ export const finalizeUserStockLogs = mutation({
     if (logs.some((log) => log.propertyId !== propertyId)) {
       return { success: false, message: 'Stock logs must belong to the same property', finalized: 0 };
     }
-    await requirePermission(ctx, 'fnb.update', propertyId);
+    const auth = await requirePermission(ctx, 'fnb.update', propertyId);
 
     try {
+      const planned = [];
+      for (const log of logs) {
+        if (log.isFinalized) continue;
+        if (!log.barId) {
+          return { success: false, message: 'This stock row is not on a bar', finalized: 0 };
+        }
+        const seller = await sellerForBarWrite(ctx, auth, {
+          propertyId: log.propertyId,
+          barId: log.barId,
+          logDate: log.logDate,
+          salesUserId: args.salesUserId,
+          preferUserId: log.userId,
+        });
+        if (seller.ok === false) return { success: false, message: seller.message, finalized: 0 };
+        planned.push({ log, seller: seller.seller });
+      }
       const now = Date.now();
       const finalized = [];
-      for (const log of logs) {
-        const updated = await finalizeOpenStockLog(ctx, log, now);
+      for (const { log, seller } of planned) {
+        const claimed = await claimStockLogSeller(ctx, log, seller, auth.user._id);
+        const updated = await finalizeOpenStockLog(ctx, claimed, now);
         if (updated) finalized.push(updated);
       }
       await refreshSalesSummariesForLogs(ctx, finalized);
@@ -736,6 +843,7 @@ export const addMyTodayBeverage = mutation({
     propertyId: v.id('properties'),
     barId: v.id('bars'),
     beverageId: v.id('beverages'),
+    salesUserId: v.optional(v.id('users')),
   },
   handler: async (ctx, args) => {
     const auth = await requirePermission(ctx, 'fnb.create', args.propertyId);
@@ -763,6 +871,13 @@ export const addMyTodayBeverage = mutation({
     });
     if (blocked) return { success: false, message: blocked };
 
+    const seller = await sellerForBarWrite(ctx, auth, {
+      propertyId: args.propertyId,
+      barId: args.barId,
+      logDate,
+      salesUserId: args.salesUserId,
+    });
+    if (seller.ok === false) return { success: false, message: seller.message };
     const openingStock = await carryOverOpeningStock(ctx, {
       barId: args.barId,
       beverageId: args.beverageId,
@@ -773,7 +888,9 @@ export const addMyTodayBeverage = mutation({
       barId: args.barId,
       beverageId: args.beverageId,
       logDate,
-      operatorUserId: auth.user._id,
+      operatorUserId: seller.seller.userId,
+      recordedByUserId: auth.user._id,
+      shiftId: seller.seller.shiftId,
       openingStock,
       unitCost: await resolveBeverageUnitCost(ctx, beverage),
       unitPrice: beverage.unitPrice,
@@ -781,7 +898,7 @@ export const addMyTodayBeverage = mutation({
     await refreshSalesSummariesForLog(ctx, {
       propertyId: args.propertyId,
       barId: args.barId,
-      userId: auth.user._id,
+      userId: seller.seller.userId,
       beverageId: args.beverageId,
       logDate,
       salesQuantity: 0,
@@ -799,6 +916,7 @@ export const autofillMyToday = mutation({
   args: {
     propertyId: v.id('properties'),
     barId: v.id('bars'),
+    salesUserId: v.optional(v.id('users')),
   },
   handler: async (ctx, args) => {
     const auth = await requirePermission(ctx, 'fnb.create', args.propertyId);
@@ -825,6 +943,15 @@ export const autofillMyToday = mutation({
       action: "opening today's stock",
     });
     if (blocked) return { success: false as const, message: blocked, added: 0, remaining: 0 };
+    const seller = await sellerForBarWrite(ctx, auth, {
+      propertyId: args.propertyId,
+      barId: args.barId,
+      logDate,
+      salesUserId: args.salesUserId,
+    });
+    if (seller.ok === false) {
+      return { success: false as const, message: seller.message, added: 0, remaining: 0 };
+    }
 
     if (todayRows.some((log) => log.holder === 'bar' && log.isFinalized)) {
       return { success: false as const, message: 'Today is already finalized for this bar', added: 0, remaining: 0 };
@@ -900,7 +1027,9 @@ export const autofillMyToday = mutation({
         barId: args.barId,
         beverageId: candidate.beverageId,
         logDate,
-        operatorUserId: auth.user._id,
+        operatorUserId: seller.seller.userId,
+        recordedByUserId: auth.user._id,
+        shiftId: seller.seller.shiftId,
         openingStock: candidate.closingStock,
         unitCost: await resolveBeverageUnitCost(ctx, beverage),
         unitPrice: beverage.unitPrice,
@@ -908,7 +1037,7 @@ export const autofillMyToday = mutation({
       inserted.push({
         propertyId: args.propertyId,
         barId: args.barId,
-        userId: auth.user._id,
+        userId: seller.seller.userId,
         beverageId: candidate.beverageId,
         logDate,
         salesQuantity: 0,
@@ -994,6 +1123,7 @@ export const saveMyClosingStock = mutation({
     wasteReason: v.optional(v.string()),
     compQuantity: v.optional(v.number()),
     compReason: v.optional(v.string()),
+    salesUserId: v.optional(v.id('users')),
   },
   handler: async (ctx, args) => {
     const existingLog = await ctx.db.get(args.stockLogId);
@@ -1009,6 +1139,15 @@ export const saveMyClosingStock = mutation({
     const today = await propertyDateKey(ctx, existingLog.propertyId);
     const prepared = await prepareClosingCount(ctx, existingLog, args, today);
     if (!prepared.ok) return { success: false, message: prepared.message };
+    const seller = await sellerForBarWrite(ctx, auth, {
+      propertyId: existingLog.propertyId,
+      barId: existingLog.barId,
+      logDate: existingLog.logDate,
+      salesUserId: args.salesUserId,
+      preferUserId: existingLog.userId,
+    });
+    if (seller.ok === false) return { success: false, message: seller.message };
+    const claimed = await claimStockLogSeller(ctx, existingLog, seller.seller, auth.user._id);
 
     await ctx.db.patch(args.stockLogId, {
       closingStock: args.closingStock,
@@ -1018,7 +1157,7 @@ export const saveMyClosingStock = mutation({
       lastUpdatedAt: Date.now(),
     });
     await refreshSalesSummariesForLog(ctx, {
-      ...existingLog,
+      ...claimed,
       salesQuantity: prepared.sales.salesQuantity,
       salesValue: prepared.sales.salesValue,
       cogsValue: prepared.sales.cogsValue,
@@ -1033,6 +1172,7 @@ const SAVE_BATCH = 10;
 
 export const saveMyClosingStocks = mutation({
   args: {
+    salesUserId: v.optional(v.id('users')),
     lines: v.array(
       v.object({
         stockLogId: v.id('userStockLogs'),
@@ -1061,6 +1201,16 @@ export const saveMyClosingStocks = mutation({
     const auth = await requirePermission(ctx, 'fnb.update', propertyId);
     const denied = await assertCanOperateBar(ctx, auth, barId);
     if (denied) return { success: false, message: denied, saved: 0 };
+    const seller = await sellerForBarWrite(ctx, auth, {
+      propertyId,
+      barId,
+      logDate: logs[0].log.logDate,
+      salesUserId: args.salesUserId,
+      preferUserId: logs.every(({ log }) => log.userId === logs[0].log.userId)
+        ? logs[0].log.userId
+        : undefined,
+    });
+    if (seller.ok === false) return { success: false, message: seller.message, saved: 0 };
 
     const today = await propertyDateKey(ctx, propertyId);
     const prepared = [];
@@ -1073,13 +1223,14 @@ export const saveMyClosingStocks = mutation({
     const now = Date.now();
     const summaries = [];
     for (const { log, line, sales } of prepared) {
+      const claimed = await claimStockLogSeller(ctx, log, seller.seller, auth.user._id);
       await ctx.db.patch(log._id, {
         closingStock: line.closingStock,
         ...sales,
         lastUpdatedAt: now,
       });
       summaries.push({
-        ...log,
+        ...claimed,
         salesQuantity: sales.salesQuantity,
         salesValue: sales.salesValue,
         cogsValue: sales.cogsValue,
@@ -1101,6 +1252,7 @@ export const finalizeMyToday = mutation({
   args: {
     propertyId: v.id('properties'),
     barId: v.id('bars'),
+    salesUserId: v.optional(v.id('users')),
   },
   handler: async (ctx, args) => {
     const auth = await requirePermission(ctx, 'fnb.update', args.propertyId);
@@ -1127,17 +1279,26 @@ export const finalizeMyToday = mutation({
     if (logs.length === 0) {
       return { success: false, message: 'No stock logs to finalize for today' };
     }
+    const seller = await sellerForBarWrite(ctx, auth, {
+      propertyId: args.propertyId,
+      barId: args.barId,
+      logDate,
+      salesUserId: args.salesUserId,
+      preferUserId: logs.every((log) => log.userId === logs[0].userId) ? logs[0].userId : undefined,
+    });
+    if (seller.ok === false) return { success: false, message: seller.message };
 
     const now = Date.now();
     const finalized: Array<(typeof logs)[number] & { cogsValue: number }> = [];
     for (const log of logs) {
-      const cogs = await computeCogsSnapshot(ctx, log);
+      const claimed = await claimStockLogSeller(ctx, log, seller.seller, auth.user._id);
+      const cogs = await computeCogsSnapshot(ctx, claimed);
       if (!log.isFinalized) {
         await ctx.db.patch(log._id, { isFinalized: true, ...cogs, lastUpdatedAt: now });
       } else if (log.cogsValue === undefined || log.unitCostAtSale === undefined) {
         await ctx.db.patch(log._id, { ...cogs, lastUpdatedAt: now });
       }
-      finalized.push({ ...log, ...cogs });
+      finalized.push({ ...claimed, ...cogs });
     }
     await refreshSalesSummariesForLogs(ctx, finalized);
     return { success: true, message: 'Today\'s stock logs finalized' };
@@ -1148,6 +1309,7 @@ export const finalizeMyPriorDay = mutation({
   args: {
     propertyId: v.id('properties'),
     barId: v.id('bars'),
+    salesUserId: v.optional(v.id('users')),
   },
   handler: async (ctx, args) => {
     const auth = await requirePermission(ctx, 'fnb.update', args.propertyId);
@@ -1162,13 +1324,22 @@ export const finalizeMyPriorDay = mutation({
     if (open.length === 0) {
       return { success: false, message: "Yesterday's stock is already closed" };
     }
+    const seller = await sellerForBarWrite(ctx, auth, {
+      propertyId: args.propertyId,
+      barId: args.barId,
+      logDate: open[0].logDate,
+      salesUserId: args.salesUserId,
+      preferUserId: open.every((log) => log.userId === open[0].userId) ? open[0].userId : undefined,
+    });
+    if (seller.ok === false) return { success: false, message: seller.message };
 
     const now = Date.now();
     const finalized = [];
     for (const log of open) {
-      const cogs = await computeCogsSnapshot(ctx, log);
+      const claimed = await claimStockLogSeller(ctx, log, seller.seller, auth.user._id);
+      const cogs = await computeCogsSnapshot(ctx, claimed);
       await ctx.db.patch(log._id, { isFinalized: true, ...cogs, lastUpdatedAt: now });
-      finalized.push({ ...log, ...cogs });
+      finalized.push({ ...claimed, ...cogs });
     }
     await refreshSalesSummariesForLogs(ctx, finalized);
     return { success: true, message: "Yesterday's stock is closed" };

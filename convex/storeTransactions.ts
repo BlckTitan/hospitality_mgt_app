@@ -4,14 +4,18 @@ import { Id } from './_generated/dataModel';
 import { requirePermission } from './lib/rbac';
 import {
   applyIssuedQtyToStockLog,
+  applyStorePurchaseCost,
   applyStoreQtyChange,
   ensureStoreInventoryForReceive,
   findStoreInventory,
   issueStockToUser,
+  lineTotalCost,
   maybeOpenReorderAlert,
   previewIssueToStockLog,
   propertyDateKey,
+  purchaseUnitCost,
   resolveBeverageUnitCost,
+  reverseStorePurchaseCost,
 } from './lib/barStock';
 import { moveCatalogStockToBar, reverseTransactionEffect } from './lib/inventoryStock';
 
@@ -107,6 +111,7 @@ export const createStoreTransaction = mutation({
     userId: v.optional(v.id('users')),
     txnType: v.union(v.literal('receive'), v.literal('issue')),
     qty: v.number(),
+    unitCost: v.optional(v.number()),
     txnDate: v.optional(v.number()),
     notes: v.optional(v.string()),
   },
@@ -115,6 +120,9 @@ export const createStoreTransaction = mutation({
 
     if (args.qty <= 0) {
       return { success: false, message: 'Quantity must be greater than 0' };
+    }
+    if (args.txnType === 'receive' && !purchaseUnitCost(args.unitCost)) {
+      return { success: false, message: 'Enter a unit cost of 0 or more for each item purchased' };
     }
 
     const beverage = await ctx.db.get(args.beverageId);
@@ -170,6 +178,9 @@ export const createStoreTransaction = mutation({
         beverageId: args.beverageId,
         txnType: 'receive',
         qty: args.qty,
+        ...(purchaseUnitCost(args.unitCost)
+          ? { unitCost: args.unitCost, totalCost: lineTotalCost(args.qty, args.unitCost) }
+          : {}),
         txnDate: now,
         txnDateKey,
         notes: args.notes,
@@ -187,6 +198,9 @@ export const createStoreTransaction = mutation({
       beverageId: args.beverageId,
       reorderThreshold: beverage.reorderLevel || 10,
     });
+    const purchased = purchaseUnitCost(args.unitCost)
+      ? await applyStorePurchaseCost(ctx, inventory, beverage, args.qty, args.unitCost)
+      : undefined;
     const transactionId = await ctx.db.insert('storeTransactions', {
       propertyId: args.propertyId,
       beverageId: args.beverageId,
@@ -194,6 +208,7 @@ export const createStoreTransaction = mutation({
       userId: undefined,
       txnType: 'receive',
       qty: args.qty,
+      ...(purchased ? { unitCost: purchased.unitCost, totalCost: purchased.totalCost } : {}),
       txnDate: now,
       txnDateKey,
       notes: args.notes,
@@ -211,6 +226,7 @@ export const updateStoreTransaction = mutation({
     userId: v.optional(v.id('users')),
     txnType: v.union(v.literal('receive'), v.literal('issue')),
     qty: v.number(),
+    unitCost: v.optional(v.number()),
     txnDate: v.optional(v.number()),
     notes: v.optional(v.string()),
   },
@@ -229,6 +245,9 @@ export const updateStoreTransaction = mutation({
 
     if (args.qty <= 0) {
       return { success: false, message: 'Quantity must be greater than 0' };
+    }
+    if (args.txnType === 'receive' && !purchaseUnitCost(args.unitCost)) {
+      return { success: false, message: 'Enter a unit cost of 0 or more for each item purchased' };
     }
 
     const beverage = await ctx.db.get(args.beverageId);
@@ -317,6 +336,9 @@ export const updateStoreTransaction = mutation({
         unitCost: oldUnitCost,
       });
     }
+    if (existing.txnType === 'receive' && purchaseUnitCost(existing.unitCost) && oldBeverage) {
+      await reverseStorePurchaseCost(ctx, oldInventory, oldBeverage, existing.qty, existing.unitCost);
+    }
     await applyStoreQtyChange(ctx, oldInventory, oldDelta);
 
     const inventoryForNew =
@@ -330,6 +352,10 @@ export const updateStoreTransaction = mutation({
             })
           : (await findStoreInventory(ctx, existing.propertyId, args.beverageId))!;
 
+    const purchased =
+      args.txnType === 'receive' && purchaseUnitCost(args.unitCost)
+        ? await applyStorePurchaseCost(ctx, inventoryForNew, beverage, args.qty, args.unitCost)
+        : undefined;
     const newStoreDelta = args.txnType === 'receive' ? args.qty : -args.qty;
     const newQty = await applyStoreQtyChange(ctx, inventoryForNew, newStoreDelta);
 
@@ -361,9 +387,13 @@ export const updateStoreTransaction = mutation({
         : {}),
       txnType: args.txnType,
       qty: args.qty,
+      ...(purchased ? { unitCost: purchased.unitCost, totalCost: purchased.totalCost } : {}),
       txnDate: existing.txnDate,
       txnDateKey: existing.txnDateKey,
       ...(args.notes ? { notes: args.notes } : {}),
+      ...(existing.stockRequestLineId ? { stockRequestLineId: existing.stockRequestLineId } : {}),
+      ...(existing.storeCountLineId ? { storeCountLineId: existing.storeCountLineId } : {}),
+      ...(existing.inventoryTransactionId ? { inventoryTransactionId: existing.inventoryTransactionId } : {}),
     });
 
     return { success: true, message: 'Store transaction updated successfully' };
@@ -419,6 +449,9 @@ export const deleteStoreTransaction = mutation({
     }
 
     const beverage = await ctx.db.get(existing.beverageId);
+    if (existing.txnType === 'receive' && purchaseUnitCost(existing.unitCost)) {
+      await reverseStorePurchaseCost(ctx, inventory, beverage, existing.qty, existing.unitCost);
+    }
     if (existing.txnType === 'issue' && existing.userId && existing.barId) {
       await applyIssuedQtyToStockLog(ctx, {
         propertyId: existing.propertyId,
