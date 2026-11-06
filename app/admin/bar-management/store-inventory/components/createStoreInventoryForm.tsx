@@ -1,7 +1,7 @@
 'use client'
 import { goToList } from '../../../../../shared/goToList';
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { SubmitHandler, useForm } from "react-hook-form";
 import { formSchema } from "./validation";
@@ -11,16 +11,24 @@ import { Button } from '../../../../../shared/button';
 import { Field } from "../../../../../shared/field";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { api } from "../../../../../convex/_generated/api";
-import { formatPropertyMoney, usePropertyCurrency } from "../../../inventory-management/components/money";
+import { usePropertyCurrency } from "../../../inventory-management/components/money";
+import { cratePurchaseError, landedCratePurchase } from "../../../../../lib/crateCost";
+import {
+  CratePurchaseFields,
+  blankSupplyCosts,
+  supplyCostsFromDrafts,
+  type SupplyCostDraft,
+} from "../../components/cratePurchaseFields";
 
 const alignedLabel = "mb-1 flex w-full min-h-12 items-end leading-snug";
 const alignedField = "min-w-0 flex-1";
 
 type FormData = {
   beverageId: string;
-  qtyInStore: number;
+  packQty: number;
+  packPrice?: number;
+  unitsPerPack?: number;
   reorderThreshold: number;
-  unitCost?: number;
 };
 
 export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: () => void; onClose: () => void; propertyId: string }) {
@@ -48,28 +56,66 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
   }, [beverages, inventoryResponse]);
 
   const currency = usePropertyCurrency(propertyId);
-  const { register, handleSubmit, formState: { errors }, reset, watch } = useForm<FormData>({
+  const [supplyCosts, setSupplyCosts] = useState<SupplyCostDraft[]>(blankSupplyCosts());
+  const { register, handleSubmit, formState: { errors }, reset, watch, setValue } = useForm<FormData>({
     resolver: yupResolver(formSchema) as any,
     defaultValues: {
       beverageId: '',
-      qtyInStore: 0,
+      packQty: 0,
+      packPrice: undefined,
+      unitsPerPack: undefined,
       reorderThreshold: 10,
-      unitCost: undefined,
     },
   });
-  const qtyInStore = watch('qtyInStore');
-  const unitCost = watch('unitCost');
-  const totalCost =
-    Number.isFinite(qtyInStore) && Number.isFinite(unitCost) ? qtyInStore * Number(unitCost) : undefined;
+  const beverageId = watch('beverageId');
+  const packQty = watch('packQty');
+  const packPrice = watch('packPrice');
+  const unitsPerPack = watch('unitsPerPack');
+  const selected = beverages.find((beverage) => beverage._id === beverageId);
+  const unitsPerPackLocked = typeof selected?.unitsPerPack === 'number';
+
+  useEffect(() => {
+    if (typeof selected?.unitsPerPack === 'number') {
+      setValue('unitsPerPack', selected.unitsPerPack);
+    }
+  }, [selected?._id, selected?.unitsPerPack, setValue]);
+
+  const preview = useMemo(() => {
+    const result = landedCratePurchase({
+      packQty: Number(packQty),
+      packPrice: Number(packPrice),
+      unitsPerPack: Number(unitsPerPack),
+      supplyCosts: supplyCostsFromDrafts(supplyCosts),
+    });
+    return cratePurchaseError(result) ? null : result;
+  }, [packQty, packPrice, unitsPerPack, supplyCosts]);
 
   const onSubmit: SubmitHandler<FormData> = async (data) => {
     try {
+      let receipt: { packPrice: number; unitsPerPack: number; supplyCosts: { label: string; amount: number }[] } | null = null;
+      if (data.packQty > 0) {
+        const purchase = landedCratePurchase({
+          packQty: data.packQty,
+          packPrice: Number(data.packPrice),
+          unitsPerPack: Number(data.unitsPerPack),
+          supplyCosts: supplyCostsFromDrafts(supplyCosts),
+        });
+        if (cratePurchaseError(purchase)) {
+          toast.error(purchase.error);
+          return;
+        }
+        receipt = {
+          packPrice: purchase.packPrice,
+          unitsPerPack: purchase.unitsPerPack,
+          supplyCosts: purchase.supplyCosts,
+        };
+      }
       const response = await createStoreInventory({
         propertyId: propertyId as Id<'properties'>,
         beverageId: data.beverageId as Id<'beverages'>,
-        qtyInStore: data.qtyInStore,
+        packQty: data.packQty,
         reorderThreshold: data.reorderThreshold,
-        ...(Number.isFinite(data.unitCost) ? { unitCost: data.unitCost } : {}),
+        ...(receipt ?? {}),
       });
 
       if (response.success === false) {
@@ -77,8 +123,9 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
       } else {
         toast.success('Store inventory created successfully!');
         reset();
+        setSupplyCosts(blankSupplyCosts());
         onSuccess();
-goToList('/admin/bar-management/store-inventory');
+        goToList('/admin/bar-management/store-inventory');
       }
     } catch (error: any) {
       console.error('Add new store inventory failed:', error);
@@ -114,18 +161,8 @@ goToList('/admin/bar-management/store-inventory');
         </div>
       </div>
 
-      <div className="mb-4 flex w-full flex-nowrap flex-row items-start gap-3">
-        <Field id="qtyInStore" label="Quantity in Store *" widthClass={alignedField} labelClassName={alignedLabel}>
-          <input
-            id="qtyInStore"
-            type="number"
-            min={0}
-            step="any"
-            {...register('qtyInStore', { valueAsNumber: true })}
-          />
-          {errors.qtyInStore && <span className="text-red-500 text-sm">{errors.qtyInStore.message}</span>}
-        </Field>
-        <Field id="reorderThreshold" label="Reorder Threshold *" widthClass={alignedField} labelClassName={alignedLabel}>
+      <div className="mb-4">
+        <Field id="reorderThreshold" label="Reorder threshold (bottles) *" widthClass={alignedField} labelClassName={alignedLabel}>
           <input
             id="reorderThreshold"
             type="number"
@@ -137,28 +174,18 @@ goToList('/admin/bar-management/store-inventory');
         </Field>
       </div>
 
-      <div className="mb-1 flex w-full flex-nowrap flex-row items-start gap-3">
-        <Field id="unitCost" label="Unit cost" widthClass={alignedField} labelClassName={alignedLabel}>
-          <input
-            id="unitCost"
-            type="number"
-            min={0}
-            step="any"
-            {...register('unitCost', { valueAsNumber: true })}
-          />
-          {errors.unitCost && <span className="text-red-500 text-sm">{errors.unitCost.message}</span>}
-        </Field>
-        <Field id="purchaseTotalCost" label="Total cost" widthClass={alignedField} labelClassName={alignedLabel}>
-          <input
-            id="purchaseTotalCost"
-            readOnly
-            value={totalCost === undefined ? '' : formatPropertyMoney(totalCost, currency)}
-            className="bg-gray-100"
-          />
-        </Field>
-      </div>
+      <CratePurchaseFields
+        register={register}
+        errors={errors}
+        currency={currency}
+        unitsPerPackLocked={unitsPerPackLocked}
+        supplyCosts={supplyCosts}
+        onSupplyCostsChange={setSupplyCosts}
+        preview={preview}
+        crateLabel="Crates in store *"
+      />
       <p className="text-xs text-gray-500 mb-4">
-        Enter the quantity purchased and the price paid per unit. Total cost is that quantity times the unit cost. The store keeps the average unit cost of purchases, and stock value is the on-hand quantity times that average.
+        Enter 0 crates to track the drink with no opening stock. Otherwise the store keeps bottles, and the bottle cost is the crate price plus supply costs, divided by the bottles in the crates. Later purchases update the average. Bar profit uses that cost unless the beverage has a manual unit cost.
       </p>
 
       <div className="flex gap-2 justify-end">

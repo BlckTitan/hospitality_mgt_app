@@ -1,5 +1,6 @@
 import { MutationCtx, QueryCtx } from "../_generated/server";
 import { mirrorStoreQtyToBarLocation, weightedAverageCost } from "./inventoryStock";
+import { landedCratePurchase, type CratePurchase } from "../../lib/crateCost";
 import { Doc, Id } from "../_generated/dataModel";
 import { localDayBounds, propertyTimeZone } from "./billingPeriods";
 import { ensureBarDayShift } from "./shiftHelpers";
@@ -331,11 +332,17 @@ export function recipeLineCost(quantity: number, unitCost: number, wastePercent?
   return quantity * unitCost * (1 + waste);
 }
 
-export async function resolveBeverageUnitCost(
+export type BeverageCostSource = "recipe" | "manual" | "purchase" | "inventory" | "none";
+
+function finiteCost(value?: number | null): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
+}
+
+export async function explainBeverageUnitCost(
   ctx: DbCtx,
   beverage: Doc<"beverages"> | null | undefined,
-): Promise<number> {
-  if (!beverage) return 0;
+): Promise<{ unitCost: number; costSource: BeverageCostSource }> {
+  if (!beverage) return { unitCost: 0, costSource: "none" };
 
   const recipeLines = await ctx.db
     .query("beverageRecipeLines")
@@ -347,17 +354,32 @@ export async function resolveBeverageUnitCost(
       const item = await ctx.db.get(line.inventoryItemId);
       cost += recipeLineCost(line.quantity, resolveUnitCost(item?.unitCost), line.wastePercent);
     }
-    return cost;
+    return { unitCost: cost, costSource: "recipe" };
   }
+
+  const manual = finiteCost(beverage.manualUnitCost);
+  if (manual !== undefined) return { unitCost: manual, costSource: "manual" };
+
+  const inventory = await findStoreInventory(ctx, beverage.propertyId, beverage._id);
+  const purchased = finiteCost(inventory?.unitCost);
+  if (purchased !== undefined) return { unitCost: purchased, costSource: "purchase" };
 
   if (beverage.inventoryItemId) {
     const item = await ctx.db.get(beverage.inventoryItemId);
-    if (item && item.unitCost !== undefined && item.unitCost !== null) {
-      return resolveUnitCost(item.unitCost);
-    }
+    const linked = finiteCost(item?.unitCost);
+    if (linked !== undefined) return { unitCost: linked, costSource: "inventory" };
   }
 
-  return resolveUnitCost(beverage.unitCost);
+  const saved = finiteCost(beverage.unitCost);
+  if (saved !== undefined) return { unitCost: saved, costSource: "manual" };
+  return { unitCost: 0, costSource: "none" };
+}
+
+export async function resolveBeverageUnitCost(
+  ctx: DbCtx,
+  beverage: Doc<"beverages"> | null | undefined,
+): Promise<number> {
+  return (await explainBeverageUnitCost(ctx, beverage)).unitCost;
 }
 
 export function derivedSales(
@@ -612,15 +634,6 @@ export function reversedAverageCost(
   return roundUnitCost(Math.max(0, value / remaining));
 }
 
-async function drinkCostFollowsStorePurchases(ctx: MutationCtx, beverage: Doc<"beverages">) {
-  if (beverage.inventoryItemId) return false;
-  const recipeLine = await ctx.db
-    .query("beverageRecipeLines")
-    .withIndex("by_beverageId", (q) => q.eq("beverageId", beverage._id))
-    .first();
-  return !recipeLine;
-}
-
 /** Records a purchase against on-hand quantity, then the caller changes that quantity. */
 export async function applyStorePurchaseCost(
   ctx: MutationCtx,
@@ -628,32 +641,61 @@ export async function applyStorePurchaseCost(
   beverage: Doc<"beverages">,
   qty: number,
   unitCost: number,
+  totalCost?: number,
 ) {
   const next = roundUnitCost(
     weightedAverageCost(inventory.qtyInStore, resolveUnitCost(inventory.unitCost ?? beverage.unitCost), qty, unitCost),
   );
   await ctx.db.patch(inventory._id, { unitCost: next });
-  if (await drinkCostFollowsStorePurchases(ctx, beverage)) {
-    await ctx.db.patch(beverage._id, { unitCost: next });
-  }
-  return { unitCost, totalCost: lineTotalCost(qty, unitCost) };
+  return { unitCost, totalCost: totalCost ?? lineTotalCost(qty, unitCost) };
 }
 
 /** Removes a purchase from the average while that quantity is still on hand. */
 export async function reverseStorePurchaseCost(
   ctx: MutationCtx,
   inventory: Doc<"storeInventories">,
-  beverage: Doc<"beverages"> | null,
   qty: number,
   unitCost: number,
 ) {
   if (inventory.unitCost === undefined) return;
   const next = reversedAverageCost(inventory.qtyInStore, inventory.unitCost, qty, unitCost);
   await ctx.db.patch(inventory._id, { unitCost: next });
-  if (beverage && (await drinkCostFollowsStorePurchases(ctx, beverage))) {
-    await ctx.db.patch(beverage._id, { unitCost: next });
-  }
 }
+
+export function unitsPerPackConflict(beverage: Doc<"beverages">, unitsPerPack: number) {
+  if (beverage.unitsPerPack !== undefined && beverage.unitsPerPack !== unitsPerPack) {
+    return `${beverage.name} is ${beverage.unitsPerPack} bottles per crate. Change that on the beverage before receiving a different pack.`;
+  }
+  return null;
+}
+
+/** Saves bottles-per-crate the first time a receipt states it. Later receipts must match. */
+export async function syncUnitsPerPack(
+  ctx: MutationCtx,
+  beverage: Doc<"beverages">,
+  unitsPerPack: number,
+) {
+  const conflict = unitsPerPackConflict(beverage, unitsPerPack);
+  if (conflict) return conflict;
+  if (beverage.unitsPerPack === undefined) {
+    await ctx.db.patch(beverage._id, { unitsPerPack });
+  }
+  return null;
+}
+
+export function crateReceiptFields(purchase: CratePurchase) {
+  return {
+    qty: purchase.qty,
+    unitCost: purchase.unitCost,
+    totalCost: purchase.totalCost,
+    packQty: purchase.packQty,
+    packPrice: purchase.packPrice,
+    unitsPerPack: purchase.unitsPerPack,
+    ...(purchase.supplyCosts.length > 0 ? { supplyCosts: purchase.supplyCosts } : {}),
+  };
+}
+
+export { landedCratePurchase };
 
 export async function applyStoreQtyChange(
   ctx: MutationCtx,

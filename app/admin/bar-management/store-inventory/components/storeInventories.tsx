@@ -120,7 +120,7 @@ const StoreInventories = ({ currentPropertyId }: { currentPropertyId: Id<"proper
       )
     },
     {
-      label: 'Unit cost',
+      label: 'Bottle cost',
       key: 'unitCost',
       render: (value, row) => (
         <span>{formatPropertyMoney(row.unitCost, currency)}</span>

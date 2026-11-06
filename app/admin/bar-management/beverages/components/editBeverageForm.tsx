@@ -21,7 +21,8 @@ type FormData = {
   unitOfMeasure: string;
   size: string;
   unitPrice: number;
-  unitCost?: number;
+  unitsPerPack?: number;
+  manualUnitCost?: number;
   reorderLevel: number;
   isActive: boolean;
   imageUrl: string;
@@ -57,7 +58,8 @@ export function EditBeverageForm({ beverageData, beverageId, onSuccess, onClose 
       unitOfMeasure: beverageData.unitOfMeasure || '',
       size: beverageData.size || '',
       unitPrice: beverageData.unitPrice || 0,
-      unitCost: beverageData.unitCost,
+      unitsPerPack: beverageData.unitsPerPack,
+      manualUnitCost: beverageData.manualUnitCost,
       reorderLevel: beverageData.reorderLevel || 0,
       isActive: beverageData.isActive ?? true,
       imageUrl: beverageData.imageUrl || '',
@@ -75,7 +77,8 @@ export function EditBeverageForm({ beverageData, beverageId, onSuccess, onClose 
         unitOfMeasure: data.unitOfMeasure,
         size: data.size.trim() ? data.size.trim() : null,
         unitPrice: data.unitPrice,
-        unitCost: Number.isFinite(data.unitCost) ? data.unitCost : undefined,
+        unitsPerPack: Number.isInteger(data.unitsPerPack) ? data.unitsPerPack : undefined,
+        manualUnitCost: Number.isFinite(data.manualUnitCost) ? data.manualUnitCost : undefined,
         inventoryItemId: inventoryItemId ? inventoryItemId as Id<'inventoryItems'> : null,
         recipeLines: recipeLinesPayload(recipeLines),
         reorderLevel: data.reorderLevel,
@@ -136,8 +139,17 @@ goToList('/admin/bar-management/beverages');
         <InputComponent id="unitPrice" label="Unit Price *" type="number" inputWidth="w-full" register={register('unitPrice', { valueAsNumber: true })} error={errors.unitPrice} />
       </div>
 
-      <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-1 mb-4">
-        <InputComponent id="unitCost" label="Manual unit cost (fallback)" type="number" inputWidth="w-full" register={register('unitCost', { valueAsNumber: true })} error={errors.unitCost} />
+      <div className="w-full mb-4">
+        <InputComponent id="unitsPerPack" label="Bottles per crate" type="number" inputWidth="w-full" register={register('unitsPerPack', { valueAsNumber: true })} error={errors.unitsPerPack} placeholder="12" />
+        <p className="text-xs text-gray-500 mt-1">A crate bought for 11,000 with 12 bottles costs 11,000 / 12 per bottle, before transport and other supply costs.</p>
+      </div>
+
+      <div className="w-full mb-4">
+        <InputComponent id="manualUnitCost" label="Manual unit cost" type="number" inputWidth="w-full" register={register('manualUnitCost', { valueAsNumber: true })} error={errors.manualUnitCost} />
+        <p className="text-xs text-gray-500 mt-1">Leave blank to use the bottle cost from crate purchases. A number here is used for bar profit instead. A recipe still uses its ingredients.</p>
+        {beverageData.manualUnitCost === undefined && beverageData.unitCost !== undefined && beverageData.costSource !== 'purchase' && beverageData.costSource !== 'recipe' && (
+          <p className="text-xs text-gray-500 mt-1">A saved cost of {beverageData.unitCost} is still used until a crate purchase or a manual cost replaces it.</p>
+        )}
       </div>
 
       <BeverageCostFields

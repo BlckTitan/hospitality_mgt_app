@@ -66,7 +66,10 @@ entity beverages {
     name            : v.string()
     category        : v.string()
     unitOfMeasure   : v.string()
+    OPT(unitsPerPack) : v.optional(v.number())
     unitPrice       : v.number()
+    OPT(unitCost)   : v.optional(v.number())
+    OPT(manualUnitCost) : v.optional(v.number())
     reorderLevel    : v.number()
     isActive        : v.boolean()
     ==Indexes==
@@ -151,6 +154,7 @@ entity storeInventory {
     REF(beverageId)     : v.id("beverages")
     qtyInStore          : v.number()
     reorderThreshold    : v.number()
+    OPT(unitCost)       : v.optional(v.number())
     lastUpdated         : v.number()
     ==Indexes==
     by_beverageId   [beverageId]
@@ -165,6 +169,12 @@ entity storeTransactions {
     OPT(userId)             : v.optional(v.id("users"))
     txnType                 : v.literal("receive"|"issue")
     qty                     : v.number()
+    OPT(unitCost)           : v.optional(v.number())
+    OPT(totalCost)          : v.optional(v.number())
+    OPT(packQty)            : v.optional(v.number())
+    OPT(packPrice)          : v.optional(v.number())
+    OPT(unitsPerPack)       : v.optional(v.number())
+    OPT(supplyCosts)        : v.optional(v.array(...))
     txnDate                 : v.number()
     NEW(txnDateKey)         : v.string()
     OPT(notes)              : v.optional(v.string())
@@ -183,7 +193,8 @@ note bottom of storeTransactions
   day-scoped lookups into userStockLogs without
   timestamp arithmetic.
   "issue" → drives userStockLogs.newStockReceived
-  "receive" → increments storeInventory.qtyInStore
+  "receive" → adds bottles (crates × bottles per crate)
+  and rolls landed bottle cost into storeInventory.unitCost
 end note
 
 entity reorderAlerts {

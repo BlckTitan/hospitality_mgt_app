@@ -3,21 +3,30 @@ import { v } from "convex/values";
 import {
   applyStorePurchaseCost,
   applyStoreQtyChange,
-  lineTotalCost,
+  crateReceiptFields,
   maybeOpenReorderAlert,
   propertyDateKey,
-  purchaseUnitCost,
   resolveBeverageUnitCost,
+  syncUnitsPerPack,
+  unitsPerPackConflict,
 } from "./lib/barStock";
+import { cratePurchaseError, landedCratePurchase } from "../lib/crateCost";
 import { requirePermission } from "./lib/rbac";
+
+const supplyCostValidator = v.object({
+  label: v.string(),
+  amount: v.number(),
+});
 
 export const createStoreInventory = mutation({
   args: {
     propertyId: v.id("properties"),
     beverageId: v.id("beverages"),
-    qtyInStore: v.number(),
+    packQty: v.number(),
+    packPrice: v.optional(v.number()),
+    unitsPerPack: v.optional(v.number()),
+    supplyCosts: v.optional(v.array(supplyCostValidator)),
     reorderThreshold: v.number(),
-    unitCost: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     await requirePermission(ctx, "inventory.create", args.propertyId);
@@ -45,10 +54,10 @@ export const createStoreInventory = mutation({
       };
     }
 
-    if (!Number.isFinite(args.qtyInStore) || args.qtyInStore < 0) {
+    if (!Number.isFinite(args.packQty) || args.packQty < 0) {
       return {
         success: false,
-        message: "Quantity in store cannot be negative",
+        message: "Crates in store cannot be negative",
       };
     }
     if (!Number.isFinite(args.reorderThreshold) || args.reorderThreshold < 0) {
@@ -57,11 +66,20 @@ export const createStoreInventory = mutation({
         message: "Reorder threshold cannot be negative",
       };
     }
-    if (args.qtyInStore > 0 && !purchaseUnitCost(args.unitCost)) {
-      return {
-        success: false,
-        message: "Enter a unit cost of 0 or more for the quantity purchased",
-      };
+    const purchase = args.packQty > 0
+      ? landedCratePurchase({
+          packQty: args.packQty,
+          packPrice: args.packPrice ?? Number.NaN,
+          unitsPerPack: args.unitsPerPack ?? Number.NaN,
+          supplyCosts: args.supplyCosts,
+        })
+      : null;
+    if (purchase && cratePurchaseError(purchase)) {
+      return { success: false, message: purchase.error };
+    }
+    if (purchase && !cratePurchaseError(purchase)) {
+      const packMessage = unitsPerPackConflict(beverage, purchase.unitsPerPack);
+      if (packMessage) return { success: false, message: packMessage };
     }
 
     const now = Date.now();
@@ -81,23 +99,33 @@ export const createStoreInventory = mutation({
       };
     }
 
-    if (args.qtyInStore > 0 && purchaseUnitCost(args.unitCost)) {
-      await applyStorePurchaseCost(ctx, created, beverage, args.qtyInStore, args.unitCost);
+    if (purchase && !cratePurchaseError(purchase)) {
+      const packMessage = await syncUnitsPerPack(ctx, beverage, purchase.unitsPerPack);
+      if (packMessage) throw new Error(packMessage);
+      const purchased = await applyStorePurchaseCost(
+        ctx,
+        created,
+        beverage,
+        purchase.qty,
+        purchase.unitCost,
+        purchase.totalCost,
+      );
       await ctx.db.insert("storeTransactions", {
         propertyId: args.propertyId,
         beverageId: args.beverageId,
         txnType: "receive",
-        qty: args.qtyInStore,
-        unitCost: args.unitCost,
-        totalCost: lineTotalCost(args.qtyInStore, args.unitCost),
+        ...crateReceiptFields(purchase),
+        unitCost: purchased.unitCost,
+        totalCost: purchased.totalCost,
         txnDate: now,
         txnDateKey: await propertyDateKey(ctx, args.propertyId, now),
         notes: "Opening quantity",
       });
     }
 
-    const qtyInStore =
-      args.qtyInStore > 0 ? await applyStoreQtyChange(ctx, created, args.qtyInStore) : 0;
+    const qtyInStore = purchase && !cratePurchaseError(purchase)
+      ? await applyStoreQtyChange(ctx, created, purchase.qty)
+      : 0;
 
     await maybeOpenReorderAlert(ctx, {
       propertyId: args.propertyId,

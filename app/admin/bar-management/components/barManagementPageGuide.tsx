@@ -16,7 +16,7 @@ type GuidePage =
 const DESCRIPTIONS: Record<GuidePage, string> = {
   bars: 'Create each service point with + (Main, Lounge, or Seat Out). Use Staff to link the waiters and bartenders who may operate it, and Stock to enter what is already there. The bar keeps that stock when people change. Keep inactive bars off the issue and stock-log lists; do not delete a bar that still has transactions or logs.',
   beverages:
-    'Add sellable drinks with +. Set category, unit, sell price, cost (or link inventory / recipe lines), and reorder level. Reorder level drives hub alerts when store stock is low. Create beverages before store inventory or issues. Add a missing drink category from Beverage categories.',
+    'Add sellable drinks with +. Set category, unit, sell price, bottles per crate, and reorder level. Bottle cost comes from crate purchases unless you enter a manual unit cost. Cocktails can use recipe lines. Reorder level drives hub alerts when store stock is low. Create beverages before store inventory or issues. Add a missing drink category from Beverage categories.',
   'beverage-categories':
     'Built-in drink categories stay available. Use + to add a category for this property, such as Craft beer. Deactivate a custom category to hide it from new drinks. Drinks already using it keep that category.',
   'my-stock':
@@ -26,9 +26,9 @@ const DESCRIPTIONS: Record<GuidePage, string> = {
   'user-stock-logs':
     'Admin view of each bar’s daily stock sheet for the selected date. The bar and the staff on duty are named above that day’s drinks. The totals are opening stock value, total sales value, and the value of stock left, all at selling price in the property currency. Use + to add a drink to a bar. Opening comes from that bar’s last finalized close. Filter by bar, the person on duty, or date. Edit, finalize, and delete stay on the left while the drink columns scroll. Finalize all closes every open log in the current list. Staff can also close the day on My stock today.',
   'store-inventory':
-    'On-hand quantity for each beverage in the central store. Add a row with + and enter Quantity in Store, a reorder threshold, and a unit cost when the quantity is a purchase. Unit cost is the average of those purchases. Stock value is on-hand quantity times that unit cost. Later quantity changes go through Store transactions or a posted Store count — not by editing the row alone.',
+    'On-hand bottles for each beverage in the central store. Add a row with + and enter the crates on hand, the price of one crate, bottles per crate, and supply costs such as transportation. Bottle cost is the crate total plus those costs, divided by the bottles. Stock value is bottles on hand times that cost. A manual unit cost on the beverage overrides it for bar profit. Later quantity changes go through Store transactions or a posted Store count.',
   'store-transactions':
-    'Record a store movement with +. Receive adds stock to the store and needs a unit cost for each item purchased. Total cost is quantity times that unit cost, and the average unit cost on Store inventory updates from it. Issue removes stock and posts to the chosen bar’s stock for today. Count adjustments appear after a posted store count. Transactions are dated today in the property timezone.',
+    'Record a store movement with +. Receive is a crate purchase: number of crates, price per crate, bottles per crate, and supply costs such as transportation. The store adds the bottles, and the bottle cost is that landed total divided by the bottles. Issue removes bottles and posts them to the chosen bar for today. Count adjustments appear after a posted store count. Transactions are dated today in the property timezone.',
   'store-count':
     'Physical count of the central bar store. Start a draft to snapshot book qty, enter counted amounts, Save, then Post. Posting sets on-hand to counted and records variance as count adjustments. Does not change the stock already at a bar.',
 };

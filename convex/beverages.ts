@@ -2,8 +2,22 @@ import { mutation, query, MutationCtx, QueryCtx } from './_generated/server';
 import { v } from 'convex/values';
 import { Doc, Id } from './_generated/dataModel';
 import { hasGranularPermission, requirePermission, scopeAuthContextToProperty, tryRequirePermission } from './lib/rbac';
-import { resolveBeverageUnitCost } from './lib/barStock';
+import { explainBeverageUnitCost } from './lib/barStock';
 import { resolveBeverageCategory } from './beverageCategories';
+
+function optionalPack(value: number | undefined) {
+  if (value === undefined) return null;
+  if (!Number.isInteger(value) || value < 1) {
+    return 'Bottles per crate must be a whole number of at least 1';
+  }
+  return null;
+}
+
+function optionalCost(value: number | undefined) {
+  if (value === undefined) return null;
+  if (!Number.isFinite(value) || value < 0) return 'Manual unit cost cannot be negative';
+  return null;
+}
 
 const recipeLineValidator = v.object({
   inventoryItemId: v.id('inventoryItems'),
@@ -93,23 +107,17 @@ function isMenuOnlyReader(
 }
 
 async function enrichBeverage(ctx: QueryCtx, beverage: Doc<'beverages'>) {
-  const [inventoryItem, recipeLines, resolvedUnitCost] = await Promise.all([
+  const [inventoryItem, recipeLines, explained] = await Promise.all([
     beverage.inventoryItemId ? ctx.db.get(beverage.inventoryItemId) : null,
     recipeLinesFor(ctx, beverage._id),
-    resolveBeverageUnitCost(ctx, beverage),
+    explainBeverageUnitCost(ctx, beverage),
   ]);
   return {
     ...beverage,
     inventoryItem,
     recipeLines,
-    resolvedUnitCost,
-    costSource: recipeLines.length > 0
-      ? 'recipe'
-      : beverage.inventoryItemId
-        ? 'inventory'
-        : beverage.unitCost !== undefined
-          ? 'manual'
-          : 'none',
+    resolvedUnitCost: explained.unitCost,
+    costSource: explained.costSource,
   };
 }
 
@@ -221,6 +229,8 @@ export const createBeverage = mutation({
     size: v.optional(v.string()),
     unitPrice: v.number(),
     unitCost: v.optional(v.number()),
+    manualUnitCost: v.optional(v.number()),
+    unitsPerPack: v.optional(v.number()),
     inventoryItemId: v.optional(v.id('inventoryItems')),
     recipeLines: v.optional(v.array(recipeLineValidator)),
     reorderLevel: v.number(),
@@ -248,7 +258,12 @@ export const createBeverage = mutation({
         if (!checked.success) return checked;
       }
 
-      const { unitCost, inventoryItemId, recipeLines, size, imageUrl, category: _category, ...rest } = args;
+      const packError = optionalPack(args.unitsPerPack);
+      if (packError) return { success: false, message: packError };
+      const manualError = optionalCost(args.manualUnitCost);
+      if (manualError) return { success: false, message: manualError };
+
+      const { unitCost, manualUnitCost, unitsPerPack, inventoryItemId, recipeLines, size, imageUrl, category: _category, ...rest } = args;
       const trimmedSize = size?.trim();
       const trimmedImage = imageUrl.trim();
       if (!trimmedImage) {
@@ -260,6 +275,8 @@ export const createBeverage = mutation({
         imageUrl: trimmedImage,
         ...(trimmedSize ? { size: trimmedSize } : {}),
         ...(unitCost !== undefined ? { unitCost } : {}),
+        ...(manualUnitCost !== undefined ? { manualUnitCost } : {}),
+        ...(unitsPerPack !== undefined ? { unitsPerPack } : {}),
         ...(inventoryItemId ? { inventoryItemId } : {}),
       });
       if (recipeLines) {
@@ -284,6 +301,8 @@ export const updateBeverage = mutation({
     size: v.optional(v.union(v.string(), v.null())),
     unitPrice: v.optional(v.number()),
     unitCost: v.optional(v.number()),
+    manualUnitCost: v.optional(v.number()),
+    unitsPerPack: v.optional(v.number()),
     inventoryItemId: v.optional(v.union(v.id('inventoryItems'), v.null())),
     recipeLines: v.optional(v.array(recipeLineValidator)),
     reorderLevel: v.optional(v.number()),
@@ -310,7 +329,26 @@ export const updateBeverage = mutation({
         if (!category.success) return category;
         categoryName = category.name;
       }
-      const { beverageId, recipeLines, inventoryItemId, size, imageUrl, category: _category, ...updates } = args;
+      const packError = optionalPack(args.unitsPerPack);
+      if (packError) return { success: false, message: packError };
+      const manualError = optionalCost(args.manualUnitCost);
+      if (manualError) return { success: false, message: manualError };
+
+      const {
+        beverageId,
+        recipeLines,
+        inventoryItemId,
+        size,
+        imageUrl,
+        category: _category,
+        propertyId: _propertyId,
+        manualUnitCost,
+        unitsPerPack,
+        ...updates
+      } = args;
+      const definedUpdates = Object.fromEntries(
+        Object.entries(updates).filter(([, value]) => value !== undefined),
+      );
       const sizePatch =
         size === null || size === ''
           ? { size: undefined }
@@ -318,11 +356,13 @@ export const updateBeverage = mutation({
             ? { size: size.trim() }
             : {};
       await ctx.db.patch(beverageId, {
-        ...updates,
+        ...definedUpdates,
         ...(categoryName !== undefined ? { category: categoryName } : {}),
         ...sizePatch,
         ...(imageUrl !== undefined ? { imageUrl: imageUrl.trim() } : {}),
         ...(inventoryItemId ? { inventoryItemId } : {}),
+        manualUnitCost,
+        unitsPerPack,
       });
       if (recipeLines) {
         const replaced = await replaceRecipeLines(ctx, beverageId, beverage.propertyId, recipeLines);

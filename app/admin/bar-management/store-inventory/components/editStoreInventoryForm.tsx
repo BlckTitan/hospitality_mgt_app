@@ -125,7 +125,7 @@ goToList('/admin/bar-management/store-inventory');
       </div>
 
       <div className="mb-1 flex w-full flex-nowrap flex-row items-start gap-3">
-        <Field id="unitCostDisplay" label="Unit cost" widthClass={alignedField} labelClassName={alignedLabel}>
+        <Field id="unitCostDisplay" label="Bottle cost" widthClass={alignedField} labelClassName={alignedLabel}>
           <input
             id="unitCostDisplay"
             readOnly
@@ -147,7 +147,7 @@ goToList('/admin/bar-management/store-inventory');
         </Field>
       </div>
       <p className="text-xs text-gray-500 mb-4">
-        Quantity changes through a purchase or issue. Unit cost is the average of purchase quantities and their costs. Stock value is the on-hand quantity times that unit cost.
+        Quantity changes through a crate purchase or an issue. Bottle cost is the average landed cost: crate price plus supply costs such as transportation, divided by the bottles. Stock value is the bottles on hand times that cost. A manual unit cost on the beverage overrides it for bar profit.
       </p>
 
       <p className="text-sm text-gray-500 mb-4">

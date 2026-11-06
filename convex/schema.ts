@@ -1043,8 +1043,13 @@ export default defineSchema({
     unitOfMeasure: v.string(),
     // e.g. "330ml", "750ml", "1L" — optional for older catalog rows
     size: v.optional(v.string()),
+    // Bottles in one crate. A receipt snapshots this, then divides the landed crate cost by it.
+    unitsPerPack: v.optional(v.number()),
     unitPrice: v.number(),
+    // Legacy fallback cost. Store purchases no longer write this.
     unitCost: v.optional(v.number()),
+    // When set, bar profit uses this instead of the bottle cost from crate purchases.
+    manualUnitCost: v.optional(v.number()),
     inventoryItemId: v.optional(v.id("inventoryItems")),
     reorderLevel: v.number(),
     isActive: v.boolean(),
@@ -1268,7 +1273,7 @@ export default defineSchema({
     beverageId: v.id("beverages"),
     qtyInStore: v.number(),
     reorderThreshold: v.number(),
-    // Weighted average of purchase unit costs. Missing on rows created before purchase cost was recorded.
+    // Weighted average landed cost per bottle. Crate price plus supply costs, divided by bottles.
     unitCost: v.optional(v.number()),
     lastUpdated: v.number(),
   })
@@ -1290,9 +1295,17 @@ export default defineSchema({
       v.literal("count_adjust"),
     ),
     qty: v.number(),
-    // Purchase price for a receive. Total cost is qty × unit cost.
+    // Landed cost per bottle for a receive. Total cost is the crate purchase plus supply costs.
     unitCost: v.optional(v.number()),
     totalCost: v.optional(v.number()),
+    // Crate receipt. qty is packQty × unitsPerPack. Older receipts only have qty and unitCost.
+    packQty: v.optional(v.number()),
+    packPrice: v.optional(v.number()),
+    unitsPerPack: v.optional(v.number()),
+    supplyCosts: v.optional(v.array(v.object({
+      label: v.string(),
+      amount: v.number(),
+    }))),
     txnDate: v.number(),       // epoch ms — for ordering
     txnDateKey: v.string(),       // ISO 8601 e.g. "2026-03-26" — for day-scoped lookups
     notes: v.optional(v.string()),

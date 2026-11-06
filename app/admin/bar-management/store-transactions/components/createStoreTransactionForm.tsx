@@ -1,6 +1,7 @@
 'use client'
 import { goToList } from '../../../../../shared/goToList';
 
+import { useEffect, useMemo, useState } from "react";
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { SubmitHandler, useForm } from "react-hook-form";
 import { formSchema } from "./validation";
@@ -11,6 +12,13 @@ import { Field } from "../../../../../shared/field";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { api } from "../../../../../convex/_generated/api";
 import { formatPropertyMoney, usePropertyCurrency } from "../../../inventory-management/components/money";
+import { cratePurchaseError, landedCratePurchase } from "../../../../../lib/crateCost";
+import {
+  CratePurchaseFields,
+  blankSupplyCosts,
+  supplyCostsFromDrafts,
+  type SupplyCostDraft,
+} from "../../components/cratePurchaseFields";
 
 const alignedLabel = "mb-1 flex w-full min-h-12 items-end leading-snug";
 const alignedField = "min-w-0 flex-1";
@@ -19,8 +27,11 @@ type FormData = {
   beverageId: string;
   barId?: string;
   txnType: 'receive' | 'issue';
-  qty: number;
+  qty?: number;
   unitCost?: number;
+  packQty?: number;
+  packPrice?: number;
+  unitsPerPack?: number;
   notes?: string;
 };
 
@@ -35,7 +46,8 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
   const bars = barsResponse?.data || [];
 
   const currency = usePropertyCurrency(propertyId);
-  const { register, handleSubmit, formState: { errors }, reset, watch } = useForm<FormData>({
+  const [supplyCosts, setSupplyCosts] = useState<SupplyCostDraft[]>(blankSupplyCosts());
+  const { register, handleSubmit, formState: { errors }, reset, watch, setValue } = useForm<FormData>({
     resolver: yupResolver(formSchema) as any,
     defaultValues: {
       beverageId: '',
@@ -43,25 +55,86 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
       txnType: 'receive',
       qty: 1,
       unitCost: undefined,
+      packQty: 1,
+      packPrice: undefined,
+      unitsPerPack: undefined,
       notes: '',
     },
   });
 
   const watchedTxnType = watch('txnType');
+  const beverageId = watch('beverageId');
   const qty = watch('qty');
   const unitCost = watch('unitCost');
-  const totalCost =
-    Number.isFinite(qty) && Number.isFinite(unitCost) ? qty * Number(unitCost) : undefined;
+  const packQty = watch('packQty');
+  const packPrice = watch('packPrice');
+  const unitsPerPack = watch('unitsPerPack');
+  const selected = beverages.find((beverage) => beverage._id === beverageId);
+  const catalogReceive = watchedTxnType === 'receive' && Boolean(selected?.inventoryItemId);
+  const crateReceive = watchedTxnType === 'receive' && !catalogReceive;
+  const unitsPerPackLocked = typeof selected?.unitsPerPack === 'number';
+  const catalogTotal =
+    Number.isFinite(qty) && Number.isFinite(unitCost) ? Number(qty) * Number(unitCost) : undefined;
+
+  useEffect(() => {
+    if (crateReceive && typeof selected?.unitsPerPack === 'number') {
+      setValue('unitsPerPack', selected.unitsPerPack);
+    }
+  }, [crateReceive, selected?._id, selected?.unitsPerPack, setValue]);
+
+  const preview = useMemo(() => {
+    if (!crateReceive) return null;
+    const result = landedCratePurchase({
+      packQty: Number(packQty),
+      packPrice: Number(packPrice),
+      unitsPerPack: Number(unitsPerPack),
+      supplyCosts: supplyCostsFromDrafts(supplyCosts),
+    });
+    return cratePurchaseError(result) ? null : result;
+  }, [crateReceive, packQty, packPrice, unitsPerPack, supplyCosts]);
 
   const onSubmit: SubmitHandler<FormData> = async (data) => {
     try {
+      const drink = beverages.find((beverage) => beverage._id === data.beverageId);
+      const linked = data.txnType === 'receive' && Boolean(drink?.inventoryItemId);
+      if (data.txnType === 'receive' && linked) {
+        if (!(typeof data.qty === 'number' && data.qty > 0)) {
+          toast.error('Quantity must be greater than 0');
+          return;
+        }
+        if (!(typeof data.unitCost === 'number' && data.unitCost >= 0)) {
+          toast.error('Enter a unit cost of 0 or more for each item purchased');
+          return;
+        }
+      }
+      const purchase = data.txnType === 'receive' && !linked
+        ? landedCratePurchase({
+            packQty: Number(data.packQty),
+            packPrice: Number(data.packPrice),
+            unitsPerPack: Number(data.unitsPerPack),
+            supplyCosts: supplyCostsFromDrafts(supplyCosts),
+          })
+        : null;
+      if (purchase && cratePurchaseError(purchase)) {
+        toast.error(purchase.error);
+        return;
+      }
+
       const response = await createTransaction({
         propertyId: propertyId as Id<'properties'>,
         beverageId: data.beverageId as Id<'beverages'>,
         barId: data.barId ? data.barId as Id<'bars'> : undefined,
         txnType: data.txnType,
-        qty: data.qty,
-        ...(data.txnType === 'receive' && Number.isFinite(data.unitCost) ? { unitCost: data.unitCost } : {}),
+        ...(data.txnType === 'issue' || linked ? { qty: data.qty } : {}),
+        ...(linked && typeof data.unitCost === 'number' ? { unitCost: data.unitCost } : {}),
+        ...(purchase && !cratePurchaseError(purchase)
+          ? {
+              packQty: purchase.packQty,
+              packPrice: purchase.packPrice,
+              unitsPerPack: purchase.unitsPerPack,
+              supplyCosts: purchase.supplyCosts,
+            }
+          : {}),
         notes: data.notes,
       });
 
@@ -70,8 +143,9 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
       } else {
         toast.success('Store transaction created successfully!');
         reset();
+        setSupplyCosts(blankSupplyCosts());
         onSuccess();
-goToList('/admin/bar-management/store-transactions');
+        goToList('/admin/bar-management/store-transactions');
       }
     } catch (error: any) {
       console.error('Add new store transaction failed:', error);
@@ -116,16 +190,18 @@ goToList('/admin/bar-management/store-transactions');
       </div>
 
       <div className="mb-4 flex w-full flex-nowrap flex-row items-start gap-3">
-        <Field id="qty" label="Quantity *" widthClass={alignedField} labelClassName={alignedLabel}>
-          <input
-            id="qty"
-            type="number"
-            min={1}
-            step="any"
-            {...register('qty', { valueAsNumber: true })}
-          />
-          {errors.qty && <span className="text-red-500 text-sm">{errors.qty.message}</span>}
-        </Field>
+        {(watchedTxnType === 'issue' || catalogReceive) && (
+          <Field id="qty" label={watchedTxnType === 'issue' ? 'Bottles *' : 'Quantity *'} widthClass={alignedField} labelClassName={alignedLabel}>
+            <input
+              id="qty"
+              type="number"
+              min={1}
+              step="any"
+              {...register('qty', { valueAsNumber: true })}
+            />
+            {errors.qty && <span className="text-red-500 text-sm">{errors.qty.message}</span>}
+          </Field>
+        )}
         <Field id="txnType" label="Transaction Type *" widthClass={alignedField} labelClassName={alignedLabel}>
           <select
             id="txnType"
@@ -139,7 +215,25 @@ goToList('/admin/bar-management/store-transactions');
         </Field>
       </div>
 
-      {watchedTxnType === 'receive' && (
+      {crateReceive && (
+        <>
+          <CratePurchaseFields
+            register={register}
+            errors={errors}
+            currency={currency}
+            unitsPerPackLocked={unitsPerPackLocked}
+            supplyCosts={supplyCosts}
+            onSupplyCostsChange={setSupplyCosts}
+            preview={preview}
+            crateLabel="Crates *"
+          />
+          <p className="text-xs text-gray-500 mb-4">
+            One crate at 11,000 with 12 bottles, plus transport, becomes (11,000 + transport) / 12 per bottle. The store adds those bottles and updates the average bottle cost.
+          </p>
+        </>
+      )}
+
+      {catalogReceive && (
         <>
           <div className="mb-1 flex w-full flex-nowrap flex-row items-start gap-3">
             <Field id="unitCost" label="Unit cost *" widthClass={alignedField} labelClassName={alignedLabel}>
@@ -156,13 +250,13 @@ goToList('/admin/bar-management/store-transactions');
               <input
                 id="purchaseTotalCost"
                 readOnly
-                value={totalCost === undefined ? '' : formatPropertyMoney(totalCost, currency)}
+                value={catalogTotal === undefined ? '' : formatPropertyMoney(catalogTotal, currency)}
                 className="bg-gray-100"
               />
             </Field>
           </div>
           <p className="text-xs text-gray-500 mb-4">
-            For each item purchased, total cost is the quantity times the unit cost. That purchase updates the average unit cost on Store inventory.
+            This drink is linked to a storeroom item. The receipt moves that quantity into the bar.
           </p>
         </>
       )}

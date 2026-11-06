@@ -1,5 +1,8 @@
 import * as yup from 'yup';
 
+const emptyNumber = (value: unknown, original: unknown) =>
+  original === '' || original === null || original === undefined || Number.isNaN(value) ? undefined : value;
+
 export const formSchema = yup.object().shape({
   beverageId: yup.string().required('Beverage is required'),
   barId: yup.string().when('txnType', {
@@ -8,18 +11,18 @@ export const formSchema = yup.object().shape({
     otherwise: (schema) => schema.optional(),
   }),
   txnType: yup.string().oneOf(['receive', 'issue'], 'Transaction type is required').required('Transaction type is required'),
-  qty: yup.number().typeError('Quantity must be a number').positive('Quantity must be greater than 0').required('Quantity is required'),
-  unitCost: yup
+  qty: yup
     .number()
-    .transform((value, original) =>
-      original === '' || original === null || original === undefined || Number.isNaN(value) ? undefined : value,
-    )
+    .transform(emptyNumber)
     .when('txnType', {
-      is: 'receive',
-      then: (schema) =>
-        schema.typeError('Unit cost is required').required('Unit cost is required').min(0, 'Unit cost cannot be negative'),
+      is: 'issue',
+      then: (schema) => schema.typeError('Quantity must be a number').positive('Quantity must be greater than 0').required('Quantity is required'),
       otherwise: (schema) => schema.optional(),
     }),
+  unitCost: yup.number().transform(emptyNumber).min(0, 'Unit cost cannot be negative').optional(),
+  packQty: yup.number().transform(emptyNumber).optional(),
+  packPrice: yup.number().transform(emptyNumber).min(0, 'Price per crate cannot be negative').optional(),
+  unitsPerPack: yup.number().transform(emptyNumber).optional(),
   notes: yup.string().optional(),
 });
 

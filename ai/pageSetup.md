@@ -508,7 +508,7 @@ Bar management, beverages catalog, and beverage POS. Spec: `ai/Bar inventory and
 ---
 
 ### 17d-iii. Store inventory (`/admin/bar-management/store-inventory`)
-**Purpose**: One on-hand row per beverage. Add with +. Quantity in Store and Reorder Threshold sit on one row; Unit cost and Total cost sit on the next. Total cost is that quantity times the unit cost, shown in the property currency. A quantity above 0 requires a unit cost and is saved as an opening receive. The row's unit cost is the average of those purchases. The list shows unit cost and stock value (on-hand quantity times that average). Edit shows quantity, unit cost, and stock value as read-only and changes the reorder threshold only. Later quantity changes are Store transactions or a posted Store count.
+**Purpose**: One on-hand row per beverage, stored in bottles. Add with +. Enter crates on hand, a reorder threshold in bottles, the price of one crate, bottles per crate, and supply costs such as transportation. Each supply cost has a Name and an Amount. Zero crates creates the row only. A crate count above 0 is saved as an opening receive. Bottle cost is (crates × crate price + supply costs) / bottles, and the row keeps the average of those purchases. The list shows bottle cost and stock value (bottles on hand times that average). Edit shows bottles, bottle cost, and stock value as read-only and changes the reorder threshold only. Later quantity changes are Store transactions or a posted Store count. Bar profit uses this bottle cost unless the beverage has a manual unit cost.
 
 **Permission:** `inventory.read` to list; `inventory.create` to add; `inventory.update` to edit; `inventory.delete` to remove
 
@@ -521,7 +521,7 @@ Bar management, beverages catalog, and beverage POS. Spec: `ai/Bar inventory and
 ---
 
 ### 17d-iii-b. Store transactions (`/admin/bar-management/store-transactions`)
-**Purpose**: Record a store movement with +. Quantity and Transaction Type sit on one row. Receive adds stock and shows Unit cost and Total cost on the next row. Total cost is quantity times that unit cost, and the purchase updates the average unit cost on Store inventory. Issue removes stock and posts it to the chosen bar for today; it does not ask for a cost. Count adjustments appear after a posted Store count. Transactions are dated today in the property timezone.
+**Purpose**: Record a store movement with +. Receive is a crate purchase: crates, price per crate, bottles per crate, and supply costs. Each supply cost has a Name and an Amount; a blank amount is skipped. The store adds the bottles, and the bottle cost is the landed total divided by those bottles. That updates the average bottle cost on Store inventory. Issue removes bottles and posts them to the chosen bar for today; it does not ask for a cost. A drink linked to a storeroom item is transferred by quantity and unit cost instead of a crate receipt. Count adjustments appear after a posted Store count. Transactions are dated today in the property timezone.
 
 **Permission:** `inventory.read` to list; `inventory.create` to add; `inventory.update` to edit; `inventory.delete` to remove
 

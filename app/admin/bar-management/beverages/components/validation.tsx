@@ -32,10 +32,17 @@ export const formSchema = yup.object().shape({
     .min(0, "Unit price cannot be negative")
     .required("Unit price is required"),
 
-  unitCost: yup
+  unitsPerPack: yup
     .number()
-    .min(0, "Unit cost cannot be negative")
-    .transform((value, original) => (original === "" || Number.isNaN(value) ? undefined : value))
+    .transform((value, original) => (original === "" || original === null || original === undefined || Number.isNaN(value) ? undefined : value))
+    .integer("Bottles per crate must be a whole number")
+    .min(1, "Bottles per crate must be at least 1")
+    .optional(),
+
+  manualUnitCost: yup
+    .number()
+    .transform((value, original) => (original === "" || original === null || original === undefined || Number.isNaN(value) ? undefined : value))
+    .min(0, "Manual unit cost cannot be negative")
     .optional(),
 
   reorderLevel: yup

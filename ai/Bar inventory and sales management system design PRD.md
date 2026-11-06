@@ -263,38 +263,47 @@ beverage. The `by_beverageId` index on this table shall be used to retrieve or
 upsert a beverage's inventory record within a single indexed query.
 
 **FR-INV-001a** — Creating a store inventory row (`createStoreInventory`) takes
-the beverage, Quantity in Store (≥ 0), a reorder threshold, and a unit cost
-when the quantity is a purchase. The add form places Quantity in Store and
-Reorder Threshold on one row, and Unit cost with a read-only Total cost
-(quantity × unit cost, in the property currency) on the next. The row is
-inserted at 0; a quantity above 0 requires a unit cost of 0 or more, is applied
-in the same mutation, and is recorded as a `storeTransactions` receive with
-notes "Opening quantity", `unitCost`, and `totalCost`. That purchase sets
-`storeInventory.unitCost` to the weighted average of on-hand stock and the new
-quantity. Stock value on the list is on-hand quantity times that average. When
-the beverage is linked to a catalog item, that opening quantity is synced onto
-the Bar store location as an adjustment. It does not transfer stock out of the
-storeroom. Quantity 0 creates the row only and does not require a unit cost. If
-the opening quantity is at or below the reorder threshold, an open reorder
-alert is created. Editing the row shows quantity, unit cost, and stock value
-as read-only and updates `reorderThreshold` only.
+the beverage, crates on hand (≥ 0), a reorder threshold in bottles, and, when
+the crate count is above 0, the price of one crate, bottles per crate, and
+optional supply costs (a name and an amount, such as transportation). The row
+is inserted at 0 bottles. A crate count above 0 is applied in the same mutation
+and recorded as a `storeTransactions` receive with notes "Opening quantity".
+Bottles added are crates × bottles per crate. Landed total is crates × price
+per crate, plus the supply costs. Bottle cost is that total divided by the
+bottles. The receipt stores `packQty`, `packPrice`, `unitsPerPack`,
+`supplyCosts`, `qty` (bottles), `unitCost`, and `totalCost`. That purchase sets
+`storeInventory.unitCost` to the weighted average landed cost per bottle.
+Stock value on the list is bottles on hand times that average. The first
+receipt that states bottles per crate saves `beverages.unitsPerPack`; a later
+receipt must use the same pack. When the beverage is linked to a catalog item,
+that opening quantity is synced onto the Bar store location as an adjustment.
+It does not transfer stock out of the storeroom. Zero crates creates the row
+only and does not require a price. If the opening bottles are at or below the
+reorder threshold, an open reorder alert is created. Editing the row shows
+bottles, bottle cost, and stock value as read-only and updates
+`reorderThreshold` only.
 
 **FR-INV-002** — When new supplier stock arrives, a Convex mutation shall:
 1. Insert a `storeTransactions` document with `txnType: "receive"`, setting both
-   `txnDate` (epoch ms) and `txnDateKey` (ISO 8601 date string), plus `unitCost`
-   and `totalCost` (quantity × unit cost).
-2. Increment `qtyInStore` on the corresponding `storeInventory` document.
-3. Set `storeInventory.unitCost` to the weighted average of the quantity already
+   `txnDate` (epoch ms) and `txnDateKey` (ISO 8601 date string). A crate receipt
+   stores `packQty`, `packPrice`, `unitsPerPack`, and `supplyCosts`, then
+   `qty` (bottles), `unitCost` (landed cost per bottle), and `totalCost`
+   (crates × price per crate + supply costs).
+2. Increment `qtyInStore` by the bottles on the corresponding `storeInventory` document.
+3. Set `storeInventory.unitCost` to the weighted average of the bottles already
    on hand and this purchase, then set `lastUpdated` to `Date.now()`.
 
 All of these writes shall occur within the same Convex mutation to guarantee atomicity.
 
-The add and edit transaction forms place Quantity and Transaction Type on one
-row. A receive shows Unit cost and read-only Total cost on the next row. An
-issue does not collect a cost. Unit cost is required and must be 0 or more for
-every receive, including each item purchased.
+The add and edit transaction forms place Transaction Type beside the quantity
+only for an issue. A receive asks for crates, price per crate, bottles per
+crate, and supply costs. Each supply cost has a Name and an Amount. A blank
+amount is skipped. The form shows bottles, crate goods, supply, landed total,
+and bottle cost before save. An issue asks for bottles and does not collect a
+cost. Price per crate must be 0 or more. Bottles per crate must be a whole
+number of at least 1.
 
-When the beverage is linked to a catalog item, a receive does not create new bottles. It transfers that item from the main storeroom (or the location outside the bar that has enough) into the Bar store location, and `qtyInStore` follows that catalog balance. The entered unit cost and total cost are still stored on the transaction. If the storeroom is short, the receive is refused until a purchase order is received there. Issuing to a bartender and posting a bar count update the same catalog balance. A beverage with no catalog item increments `qtyInStore` and updates the average unit cost from the purchase.
+When the beverage is linked to a catalog item, a receive does not create new bottles. It transfers that quantity from the main storeroom (or the location outside the bar that has enough) into the Bar store location, and `qtyInStore` follows that catalog balance. That transfer still stores the entered unit cost and total cost. If the storeroom is short, the receive is refused until a purchase order is received there. Issuing to a bartender and posting a bar count update the same catalog balance. A beverage with no catalog item increments `qtyInStore` by the bottles and updates the average bottle cost from the crate purchase. Bar profit uses that average unless the beverage has `manualUnitCost`. A recipe still costs its ingredients. Purchases do not overwrite `manualUnitCost` or the legacy `unitCost` field.
 
 **FR-INV-003** — When a user collects stock from the store, a Convex mutation
 shall:
@@ -404,12 +413,13 @@ live logs (health). Pour cost % and gross profit use snapshotted COGS on
 **FR-ANA-008** — Issue and receive are single mutations that **validate then
 write** (throw on failure). Editing or deleting an issue reverses
 `userStockLogs` and store qty. Editing or deleting a receive reverses its
-quantity and, when it carried a unit cost, its effect on the average unit cost.
-Issue requires bar, user, existing inventory, and quantity. A receive requires
-quantity and a unit cost of 0 or more. Inventory create saves the entered
-Quantity in Store; a quantity above 0 is an opening receive with that unit cost
-and its total cost. Later quantity changes are receive, issue, or a posted
-store count. Editing the inventory row does not change quantity or unit cost.
+quantity and, when it carried a unit cost, its effect on the average bottle cost.
+Issue requires bar, user, existing inventory, and a bottle quantity. A crate
+receive requires crates, a price per crate of 0 or more, and bottles per crate.
+Inventory create saves crates on hand; a crate count above 0 is an opening
+receive with that landed bottle cost and its total cost. Later quantity changes
+are receive, issue, or a posted store count. Editing the inventory row does not
+change quantity or bottle cost.
 
 ---
 
@@ -723,10 +733,12 @@ are not used. CRUD lives in `convex/bars.ts`, `convex/beverages.ts`,
 - One `userStockLogs` document exists per `(barId, beverageId, logDate)` for the
   bar's book. `userId` names the waiter or bartender that day's sales belong
   to. Several shifts by that waiter at the same bar share that row.
-- Beverage selling price is `unitPrice` at log time. Purchase cost is separate:
-  each receive and each opening quantity above 0 stores a unit cost, and total
-  cost is quantity times that unit cost. Store inventory keeps the weighted
-  average. Pour cost on the hub uses snapshotted COGS, not the selling price.
+- Beverage selling price is `unitPrice` at log time. Purchase cost is separate.
+  A crate receipt and an opening crate count above 0 store the landed bottle
+  cost: (crates × price per crate + supply costs) / bottles. Store inventory
+  keeps the weighted average of that bottle cost. Pour cost on the hub uses
+  snapshotted COGS. That COGS is the store average unless the beverage has a
+  manual unit cost, or a recipe.
 - The bar module does not process payments or customer-facing orders. Sales
   volume is inferred from stock counts.
 - `logDate` and `txnDateKey` are property-local dates from `propertyDateKey`.
@@ -770,10 +782,11 @@ The following are explicitly excluded from v1 of the **stock-control** module:
 | Opening Stock         | The bar's last **finalized** `closingStock` for that beverage, or 0. The stock stays with the bar when the waiter changes. |
 | Salesperson           | The waiter or bartender on shift at the bar. An administrator may enter the sale and is stored on `recordedByUserId`, not as the salesperson. |
 | `periodKey`           | A string encoding the summary period: `"YYYY-MM-DD"` (daily), `"YYYY-WNN"` (weekly), etc.                    |
-| Receive               | A `storeTransactions` record with `txnType: "receive"` — stock received from a supplier. Records quantity and unit cost. |
-| Stock value           | On-hand quantity times the store row's average unit cost.                                                    |
-| Total cost            | Quantity purchased times the unit cost of that purchase.                                                      |
-| Unit cost             | Price paid per unit. Store inventory keeps the weighted average of purchases.                                 |
+| Receive               | A `storeTransactions` record with `txnType: "receive"` — stock received from a supplier. A crate receipt records crates, crate price, bottles per crate, supply costs, bottles added, and the landed bottle cost. |
+| Stock value           | Bottles on hand times the store row's average bottle cost.                                          |
+| Supply cost           | A named amount on a receipt, such as transportation. Added once to that receipt's crate total before dividing by bottles. |
+| Total cost            | Crates × price per crate, plus supply costs, for that receipt.                                       |
+| Bottle cost           | Landed cost of one bottle. Store inventory keeps the weighted average of crate purchases. A manual unit cost on the beverage replaces it for profit. |
 | Reorder Alert         | A `reorderAlerts` document created when a beverage's `qtyInStore` falls to or below `reorderThreshold`.       |
 | Sales Quantity        | `totalStock − closingStock`; units that left stock that day (sold, spilled, or uncounted). Persisted in `userStockLogs`. |
 | YoY                   | Hub period: this year YTD through the current property month vs the same months last year. |

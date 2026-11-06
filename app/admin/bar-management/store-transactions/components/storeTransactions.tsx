@@ -23,6 +23,10 @@ interface StoreTransactionProps {
   qty: number;
   unitCost?: number;
   totalCost?: number;
+  packQty?: number;
+  packPrice?: number;
+  unitsPerPack?: number;
+  supplyCosts?: { label: string; amount: number }[];
   txnDate: number;
   txnDateKey: string;
   notes?: string;
@@ -114,13 +118,18 @@ const StoreTransactions = ({ currentPropertyId }: { currentPropertyId: Id<"prope
       label: 'Quantity',
       key: 'qty',
       render: (value, row) => (
-        <span className={row.txnType === 'issue' ? 'text-blue-600 font-semibold' : 'text-green-600'}>
-          {row.txnType === 'issue' ? '-' : '+'}{row.qty} {row.beverage?.unitOfMeasure || 'units'}
-        </span>
+        <div>
+          <span className={row.txnType === 'issue' ? 'text-blue-600 font-semibold' : 'text-green-600'}>
+            {row.txnType === 'issue' ? '-' : '+'}{row.qty} {row.beverage?.unitOfMeasure || 'units'}
+          </span>
+          {row.packQty !== undefined && row.unitsPerPack !== undefined && (
+            <div className="text-xs text-gray-500">{row.packQty} crates × {row.unitsPerPack}</div>
+          )}
+        </div>
       )
     },
     {
-      label: 'Unit cost',
+      label: 'Bottle cost',
       key: 'unitCost',
       render: (value, row) => (
         <span>{row.txnType === 'receive' ? formatPropertyMoney(row.unitCost, currency) : '—'}</span>
@@ -129,9 +138,20 @@ const StoreTransactions = ({ currentPropertyId }: { currentPropertyId: Id<"prope
     {
       label: 'Total cost',
       key: 'totalCost',
-      render: (value, row) => (
-        <span>{row.txnType === 'receive' ? formatPropertyMoney(row.totalCost, currency) : '—'}</span>
-      )
+      render: (value, row) => {
+        if (row.txnType !== 'receive') return <span>—</span>;
+        const supply = row.supplyCosts?.map((cost) => `${cost.label} ${formatPropertyMoney(cost.amount, currency)}`).join(', ');
+        return (
+          <div>
+            <div>{formatPropertyMoney(row.totalCost, currency)}</div>
+            {row.packPrice !== undefined && (
+              <div className="text-xs text-gray-500">
+                {formatPropertyMoney(row.packPrice, currency)} / crate{supply ? ` + ${supply}` : ''}
+              </div>
+            )}
+          </div>
+        );
+      }
     },
     {
       label: 'Bar',

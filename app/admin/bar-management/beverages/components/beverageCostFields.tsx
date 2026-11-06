@@ -64,7 +64,7 @@ export function BeverageCostFields({
           onChange={(event) => onInventoryItemIdChange(event.target.value)}
           className="w-full px-3 py-2 border border-gray-300 rounded-md"
         >
-          <option value="">None — use manual unit cost or a recipe</option>
+          <option value="">None — use crate purchase cost, a manual cost, or a recipe</option>
           {catalog.map((item) => (
             <option key={item._id} value={item._id}>
               {item.name} ({item.sku}) {item.unitCost != null ? `· ${item.unitCost}/${item.unit}` : ''}
@@ -72,7 +72,7 @@ export function BeverageCostFields({
           ))}
         </select>
         <span className="text-xs text-gray-500 mt-1 block">
-          Link a packaged SKU so purchase cost flows into bar profit. Recipe lines below override this for cocktails.
+          Link a storeroom SKU when this drink is bought on a purchase order. A crate receipt replaces that with the landed bottle cost. Recipe lines override both for cocktails.
         </span>
       </label>
 

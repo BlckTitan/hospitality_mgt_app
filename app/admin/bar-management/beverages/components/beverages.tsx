@@ -130,7 +130,9 @@ const Beverages = ({
         }
         const source = row.costSource === 'recipe'
           ? 'recipe'
-          : row.costSource === 'inventory'
+          : row.costSource === 'purchase'
+            ? 'purchase'
+            : row.costSource === 'inventory'
             ? row.inventoryItem?.name || 'inventory'
             : row.costSource === 'manual'
               ? 'manual'

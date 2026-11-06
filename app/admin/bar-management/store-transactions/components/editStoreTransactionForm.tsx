@@ -1,6 +1,7 @@
 'use client'
 import { goToList } from '../../../../../shared/goToList';
 
+import { useEffect, useMemo, useState } from "react";
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { SubmitHandler, useForm } from "react-hook-form";
 import { editFormSchema } from "./validation";
@@ -11,6 +12,13 @@ import { Field } from "../../../../../shared/field";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { api } from "../../../../../convex/_generated/api";
 import { formatPropertyMoney, usePropertyCurrency } from "../../../inventory-management/components/money";
+import { cratePurchaseError, landedCratePurchase } from "../../../../../lib/crateCost";
+import {
+  CratePurchaseFields,
+  supplyCostDrafts,
+  supplyCostsFromDrafts,
+  type SupplyCostDraft,
+} from "../../components/cratePurchaseFields";
 
 const alignedLabel = "mb-1 flex w-full min-h-12 items-end leading-snug";
 const alignedField = "min-w-0 flex-1";
@@ -19,21 +27,24 @@ type FormData = {
   beverageId: string;
   barId?: string;
   txnType: 'receive' | 'issue';
-  qty: number;
+  qty?: number;
   unitCost?: number;
+  packQty?: number;
+  packPrice?: number;
+  unitsPerPack?: number;
   notes?: string;
 };
 
-export function EditStoreTransactionForm({ 
-  transactionData, 
-  transactionId, 
-  onSuccess, 
-  onClose 
-}: { 
-  transactionData: any; 
-  transactionId: string; 
-  onSuccess: () => void; 
-  onClose: () => void; 
+export function EditStoreTransactionForm({
+  transactionData,
+  transactionId,
+  onSuccess,
+  onClose
+}: {
+  transactionData: any;
+  transactionId: string;
+  onSuccess: () => void;
+  onClose: () => void;
 }) {
   const updateTransaction = useMutation(api.storeTransactions.updateStoreTransaction);
   const { isAuthenticated } = useConvexAuth();
@@ -45,9 +56,11 @@ export function EditStoreTransactionForm({
 
   const beverages = beveragesResponse?.data || [];
   const bars = barsResponse?.data || [];
+  const legacyReceive = transactionData.txnType === 'receive' && transactionData.packQty === undefined;
 
   const currency = usePropertyCurrency(transactionData.propertyId);
-  const { register, handleSubmit, formState: { errors }, watch } = useForm<FormData>({
+  const [supplyCosts, setSupplyCosts] = useState<SupplyCostDraft[]>(supplyCostDrafts(transactionData.supplyCosts));
+  const { register, handleSubmit, formState: { errors }, watch, setValue } = useForm<FormData>({
     resolver: yupResolver(editFormSchema) as any,
     defaultValues: {
       beverageId: transactionData.beverageId || '',
@@ -55,25 +68,78 @@ export function EditStoreTransactionForm({
       txnType: transactionData.txnType || 'receive',
       qty: transactionData.qty || 1,
       unitCost: transactionData.unitCost,
+      packQty: transactionData.packQty ?? (legacyReceive ? transactionData.qty : 1),
+      packPrice: transactionData.packPrice ?? (legacyReceive ? transactionData.unitCost : undefined),
+      unitsPerPack: transactionData.unitsPerPack ?? transactionData.beverage?.unitsPerPack ?? (legacyReceive ? 1 : undefined),
       notes: transactionData.notes || '',
     },
   });
 
   const watchedTxnType = watch('txnType');
+  const beverageId = watch('beverageId');
   const qty = watch('qty');
   const unitCost = watch('unitCost');
-  const totalCost =
-    Number.isFinite(qty) && Number.isFinite(unitCost) ? qty * Number(unitCost) : undefined;
+  const packQty = watch('packQty');
+  const packPrice = watch('packPrice');
+  const unitsPerPack = watch('unitsPerPack');
+  const selected = beverages.find((beverage) => beverage._id === beverageId) ?? transactionData.beverage;
+  const catalogReceive = watchedTxnType === 'receive' && Boolean(selected?.inventoryItemId);
+  const crateReceive = watchedTxnType === 'receive' && !catalogReceive;
+  const unitsPerPackLocked = !legacyReceive && typeof selected?.unitsPerPack === 'number';
+  const catalogTotal =
+    Number.isFinite(qty) && Number.isFinite(unitCost) ? Number(qty) * Number(unitCost) : undefined;
+
+  useEffect(() => {
+    if (!crateReceive || legacyReceive || typeof selected?.unitsPerPack !== 'number') return;
+    setValue('unitsPerPack', selected.unitsPerPack);
+  }, [crateReceive, legacyReceive, selected?._id, selected?.unitsPerPack, setValue]);
+
+  const preview = useMemo(() => {
+    if (!crateReceive) return null;
+    const result = landedCratePurchase({
+      packQty: Number(packQty),
+      packPrice: Number(packPrice),
+      unitsPerPack: Number(unitsPerPack),
+      supplyCosts: supplyCostsFromDrafts(supplyCosts),
+    });
+    return cratePurchaseError(result) ? null : result;
+  }, [crateReceive, packQty, packPrice, unitsPerPack, supplyCosts]);
 
   const onSubmit: SubmitHandler<FormData> = async (data) => {
     try {
+      const drink = beverages.find((beverage) => beverage._id === data.beverageId) ?? selected;
+      const linked = data.txnType === 'receive' && Boolean(drink?.inventoryItemId);
+      if (linked) {
+        toast.error('This drink is linked to a storeroom item. Delete this transaction and record a new receipt.');
+        return;
+      }
+      const purchase = data.txnType === 'receive'
+        ? landedCratePurchase({
+            packQty: Number(data.packQty),
+            packPrice: Number(data.packPrice),
+            unitsPerPack: Number(data.unitsPerPack),
+            supplyCosts: supplyCostsFromDrafts(supplyCosts),
+          })
+        : null;
+      if (purchase && cratePurchaseError(purchase)) {
+        toast.error(purchase.error);
+        return;
+      }
+
       const response = await updateTransaction({
         transactionId: transactionId as Id<'storeTransactions'>,
         beverageId: data.beverageId as Id<'beverages'>,
         barId: data.barId ? data.barId as Id<'bars'> : undefined,
         txnType: data.txnType,
-        qty: data.qty,
-        ...(data.txnType === 'receive' && Number.isFinite(data.unitCost) ? { unitCost: data.unitCost } : {}),
+        ...(data.txnType === 'issue' ? { qty: data.qty } : {}),
+        ...(purchase && !cratePurchaseError(purchase)
+          ? {
+              packQty: purchase.packQty,
+              packPrice: purchase.packPrice,
+              unitsPerPack: purchase.unitsPerPack,
+              supplyCosts: purchase.supplyCosts,
+            }
+          : {}),
         notes: data.notes,
       });
 
@@ -82,7 +148,7 @@ export function EditStoreTransactionForm({
       } else {
         toast.success('Store transaction updated successfully!');
         onSuccess();
-goToList('/admin/bar-management/store-transactions');
+        goToList('/admin/bar-management/store-transactions');
       }
     } catch (error: any) {
       console.error('Update store transaction failed:', error);
@@ -126,16 +192,18 @@ goToList('/admin/bar-management/store-transactions');
       </div>
 
       <div className="mb-4 flex w-full flex-nowrap flex-row items-start gap-3">
-        <Field id="qty" label="Quantity *" widthClass={alignedField} labelClassName={alignedLabel}>
-          <input
-            id="qty"
-            type="number"
-            min={1}
-            step="any"
-            {...register('qty', { valueAsNumber: true })}
-          />
-          {errors.qty && <span className="text-red-500 text-sm">{errors.qty.message}</span>}
-        </Field>
+        {watchedTxnType === 'issue' && (
+          <Field id="qty" label="Bottles *" widthClass={alignedField} labelClassName={alignedLabel}>
+            <input
+              id="qty"
+              type="number"
+              min={1}
+              step="any"
+              {...register('qty', { valueAsNumber: true })}
+            />
+            {errors.qty && <span className="text-red-500 text-sm">{errors.qty.message}</span>}
+          </Field>
+        )}
         <Field id="txnType" label="Transaction Type *" widthClass={alignedField} labelClassName={alignedLabel}>
           <select id="txnType" {...register('txnType', { required: true })}>
             <option value="receive">Receive (Stock In)</option>
@@ -145,32 +213,36 @@ goToList('/admin/bar-management/store-transactions');
         </Field>
       </div>
 
-      {watchedTxnType === 'receive' && (
+      {crateReceive && (
         <>
-          <div className="mb-1 flex w-full flex-nowrap flex-row items-start gap-3">
-            <Field id="unitCost" label="Unit cost *" widthClass={alignedField} labelClassName={alignedLabel}>
-              <input
-                id="unitCost"
-                type="number"
-                min={0}
-                step="any"
-                {...register('unitCost', { valueAsNumber: true })}
-              />
-              {errors.unitCost && <span className="text-red-500 text-sm">{errors.unitCost.message}</span>}
-            </Field>
-            <Field id="purchaseTotalCost" label="Total cost" widthClass={alignedField} labelClassName={alignedLabel}>
-              <input
-                id="purchaseTotalCost"
-                readOnly
-                value={totalCost === undefined ? '' : formatPropertyMoney(totalCost, currency)}
-                className="bg-gray-100"
-              />
-            </Field>
-          </div>
+          <CratePurchaseFields
+            register={register}
+            errors={errors}
+            currency={currency}
+            unitsPerPackLocked={unitsPerPackLocked}
+            supplyCosts={supplyCosts}
+            onSupplyCostsChange={setSupplyCosts}
+            preview={preview}
+            crateLabel="Crates *"
+          />
           <p className="text-xs text-gray-500 mb-4">
-            For each item purchased, total cost is the quantity times the unit cost. That purchase updates the average unit cost on Store inventory.
+            Bottle cost is the crate price plus supply costs such as transportation, divided by the bottles. Saving updates the average on store inventory.
           </p>
         </>
+      )}
+
+      {catalogReceive && (
+        <p className="text-sm text-red-600 mb-4">
+          This drink is linked to a storeroom item. Delete this transaction and record a new receipt.
+        </p>
+      )}
+
+      {catalogReceive && (
+        <div className="mb-1 flex w-full flex-nowrap flex-row items-start gap-3">
+          <Field id="unitCost" label="Unit cost" widthClass={alignedField} labelClassName={alignedLabel}>
+            <input id="unitCost" readOnly value={catalogTotal === undefined ? '' : formatPropertyMoney(transactionData.unitCost, currency)} className="bg-gray-100" />
+          </Field>
+        </div>
       )}
 
       {(watchedTxnType === 'issue') && (
@@ -216,7 +288,7 @@ goToList('/admin/bar-management/store-transactions');
         <Button variant="secondary" onClick={onClose}>
           Cancel
         </Button>
-        <Button variant="dark" type="submit">
+        <Button variant="dark" type="submit" disabled={catalogReceive}>
           Update Transaction
         </Button>
       </div>

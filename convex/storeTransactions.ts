@@ -1,14 +1,16 @@
 import { mutation, query } from './_generated/server';
-import { v } from 'convex/values';
-import { Id } from './_generated/dataModel';
+import { Doc, Id } from './_generated/dataModel';
 import { requirePermission } from './lib/rbac';
+import { v } from 'convex/values';
 import {
   applyIssuedQtyToStockLog,
   applyStorePurchaseCost,
   applyStoreQtyChange,
+  crateReceiptFields,
   ensureStoreInventoryForReceive,
   findStoreInventory,
   issueStockToUser,
+  landedCratePurchase,
   lineTotalCost,
   maybeOpenReorderAlert,
   previewIssueToStockLog,
@@ -16,10 +18,46 @@ import {
   purchaseUnitCost,
   resolveBeverageUnitCost,
   reverseStorePurchaseCost,
+  syncUnitsPerPack,
+  unitsPerPackConflict,
 } from './lib/barStock';
+import { cratePurchaseError } from '../lib/crateCost';
 import { moveCatalogStockToBar, reverseTransactionEffect } from './lib/inventoryStock';
 
 const ISSUE_RECIPIENT_ROLES = new Set(['Bartender', 'Waiter']);
+
+const supplyCostValidator = v.object({
+  label: v.string(),
+  amount: v.number(),
+});
+
+const cratePurchaseArgs = {
+  packQty: v.optional(v.number()),
+  packPrice: v.optional(v.number()),
+  unitsPerPack: v.optional(v.number()),
+  supplyCosts: v.optional(v.array(supplyCostValidator)),
+};
+
+function parseCrateReceipt(
+  beverage: Doc<'beverages'>,
+  args: {
+    packQty?: number;
+    packPrice?: number;
+    unitsPerPack?: number;
+    supplyCosts?: { label: string; amount: number }[];
+  },
+) {
+  const purchase = landedCratePurchase({
+    packQty: args.packQty ?? Number.NaN,
+    packPrice: args.packPrice ?? Number.NaN,
+    unitsPerPack: args.unitsPerPack ?? Number.NaN,
+    supplyCosts: args.supplyCosts,
+  });
+  if (cratePurchaseError(purchase)) return { success: false as const, message: purchase.error };
+  const packMessage = unitsPerPackConflict(beverage, purchase.unitsPerPack);
+  if (packMessage) return { success: false as const, message: packMessage };
+  return { success: true as const, purchase };
+}
 
 export const listIssueRecipients = query({
   args: { propertyId: v.id('properties') },
@@ -110,20 +148,14 @@ export const createStoreTransaction = mutation({
     barId: v.optional(v.id('bars')),
     userId: v.optional(v.id('users')),
     txnType: v.union(v.literal('receive'), v.literal('issue')),
-    qty: v.number(),
+    qty: v.optional(v.number()),
     unitCost: v.optional(v.number()),
+    ...cratePurchaseArgs,
     txnDate: v.optional(v.number()),
     notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const auth = await requirePermission(ctx, 'inventory.create', args.propertyId);
-
-    if (args.qty <= 0) {
-      return { success: false, message: 'Quantity must be greater than 0' };
-    }
-    if (args.txnType === 'receive' && !purchaseUnitCost(args.unitCost)) {
-      return { success: false, message: 'Enter a unit cost of 0 or more for each item purchased' };
-    }
 
     const beverage = await ctx.db.get(args.beverageId);
     if (!beverage || beverage.propertyId !== args.propertyId) {
@@ -134,6 +166,9 @@ export const createStoreTransaction = mutation({
     const txnDateKey = await propertyDateKey(ctx, args.propertyId, now);
 
     if (args.txnType === 'issue') {
+      if (!(typeof args.qty === 'number' && args.qty > 0)) {
+        return { success: false, message: 'Quantity must be greater than 0' };
+      }
       if (!args.barId) {
         return { success: false, message: 'Issue transactions require a bar' };
       }
@@ -160,6 +195,12 @@ export const createStoreTransaction = mutation({
     }
 
     if (beverage.inventoryItemId) {
+      if (!(typeof args.qty === 'number' && args.qty > 0)) {
+        return { success: false, message: 'Quantity must be greater than 0' };
+      }
+      if (!purchaseUnitCost(args.unitCost)) {
+        return { success: false, message: 'Enter a unit cost of 0 or more for each item purchased' };
+      }
       const item = await ctx.db.get(beverage.inventoryItemId);
       if (!item || item.propertyId !== args.propertyId) {
         return { success: false, message: 'The linked catalog item is not on this property' };
@@ -178,9 +219,8 @@ export const createStoreTransaction = mutation({
         beverageId: args.beverageId,
         txnType: 'receive',
         qty: args.qty,
-        ...(purchaseUnitCost(args.unitCost)
-          ? { unitCost: args.unitCost, totalCost: lineTotalCost(args.qty, args.unitCost) }
-          : {}),
+        unitCost: args.unitCost,
+        totalCost: lineTotalCost(args.qty, args.unitCost),
         txnDate: now,
         txnDateKey,
         notes: args.notes,
@@ -193,27 +233,38 @@ export const createStoreTransaction = mutation({
       };
     }
 
+    const receipt = await parseCrateReceipt(beverage, args);
+    if (!receipt.success) return { success: false, message: receipt.message };
+
     const inventory = await ensureStoreInventoryForReceive(ctx, {
       propertyId: args.propertyId,
       beverageId: args.beverageId,
       reorderThreshold: beverage.reorderLevel || 10,
     });
-    const purchased = purchaseUnitCost(args.unitCost)
-      ? await applyStorePurchaseCost(ctx, inventory, beverage, args.qty, args.unitCost)
-      : undefined;
+    const packMessage = await syncUnitsPerPack(ctx, beverage, receipt.purchase.unitsPerPack);
+    if (packMessage) throw new Error(packMessage);
+    const purchased = await applyStorePurchaseCost(
+      ctx,
+      inventory,
+      beverage,
+      receipt.purchase.qty,
+      receipt.purchase.unitCost,
+      receipt.purchase.totalCost,
+    );
     const transactionId = await ctx.db.insert('storeTransactions', {
       propertyId: args.propertyId,
       beverageId: args.beverageId,
       barId: undefined,
       userId: undefined,
       txnType: 'receive',
-      qty: args.qty,
-      ...(purchased ? { unitCost: purchased.unitCost, totalCost: purchased.totalCost } : {}),
+      ...crateReceiptFields(receipt.purchase),
+      unitCost: purchased.unitCost,
+      totalCost: purchased.totalCost,
       txnDate: now,
       txnDateKey,
       notes: args.notes,
     });
-    await applyStoreQtyChange(ctx, inventory, args.qty);
+    await applyStoreQtyChange(ctx, inventory, receipt.purchase.qty);
     return { success: true, message: 'Store transaction created successfully', id: transactionId };
   },
 });
@@ -225,8 +276,9 @@ export const updateStoreTransaction = mutation({
     barId: v.optional(v.id('bars')),
     userId: v.optional(v.id('users')),
     txnType: v.union(v.literal('receive'), v.literal('issue')),
-    qty: v.number(),
+    qty: v.optional(v.number()),
     unitCost: v.optional(v.number()),
+    ...cratePurchaseArgs,
     txnDate: v.optional(v.number()),
     notes: v.optional(v.string()),
   },
@@ -243,20 +295,25 @@ export const updateStoreTransaction = mutation({
       return { success: false, message: 'This receipt moved catalog stock. Delete it and enter a new receipt.' };
     }
 
-    if (args.qty <= 0) {
-      return { success: false, message: 'Quantity must be greater than 0' };
-    }
-    if (args.txnType === 'receive' && !purchaseUnitCost(args.unitCost)) {
-      return { success: false, message: 'Enter a unit cost of 0 or more for each item purchased' };
-    }
-
     const beverage = await ctx.db.get(args.beverageId);
     if (!beverage || beverage.propertyId !== existing.propertyId) {
       return { success: false, message: 'Beverage does not exist or does not belong to this property' };
     }
 
+    if (args.txnType === 'receive' && beverage.inventoryItemId) {
+      return { success: false, message: 'This drink is linked to a storeroom item. Delete this transaction and record a new receipt.' };
+    }
+    if (args.txnType === 'issue' && !(typeof args.qty === 'number' && args.qty > 0)) {
+      return { success: false, message: 'Quantity must be greater than 0' };
+    }
     if (args.txnType === 'issue' && !args.barId) {
       return { success: false, message: 'Issue transactions require a bar' };
+    }
+    const receipt = args.txnType === 'receive' ? await parseCrateReceipt(beverage, args) : null;
+    if (receipt && !receipt.success) return { success: false, message: receipt.message };
+    const movementQty = receipt ? receipt.purchase.qty : args.qty;
+    if (!(typeof movementQty === 'number' && movementQty > 0)) {
+      return { success: false, message: 'Quantity must be greater than 0' };
     }
     if (args.barId) {
       const bar = await ctx.db.get(args.barId);
@@ -306,14 +363,14 @@ export const updateStoreTransaction = mutation({
         args.beverageId === existing.beverageId
           ? oldInventory.qtyInStore + oldDelta
           : (newInventory?.qtyInStore ?? 0);
-      if (qtyAfterOldReverse - args.qty < 0) {
+      if (qtyAfterOldReverse - movementQty < 0) {
         return { success: false, message: 'Insufficient stock in store for the updated issue' };
       }
       const preview = await previewIssueToStockLog(ctx, {
         barId: args.barId!,
         beverageId: args.beverageId,
         logDate: existing.txnDateKey,
-        qty: args.qty,
+        qty: movementQty,
       });
       if (preview.error) {
         return { success: false, message: preview.error };
@@ -336,8 +393,8 @@ export const updateStoreTransaction = mutation({
         unitCost: oldUnitCost,
       });
     }
-    if (existing.txnType === 'receive' && purchaseUnitCost(existing.unitCost) && oldBeverage) {
-      await reverseStorePurchaseCost(ctx, oldInventory, oldBeverage, existing.qty, existing.unitCost);
+    if (existing.txnType === 'receive' && purchaseUnitCost(existing.unitCost)) {
+      await reverseStorePurchaseCost(ctx, oldInventory, existing.qty, existing.unitCost);
     }
     await applyStoreQtyChange(ctx, oldInventory, oldDelta);
 
@@ -352,11 +409,21 @@ export const updateStoreTransaction = mutation({
             })
           : (await findStoreInventory(ctx, existing.propertyId, args.beverageId))!;
 
-    const purchased =
-      args.txnType === 'receive' && purchaseUnitCost(args.unitCost)
-        ? await applyStorePurchaseCost(ctx, inventoryForNew, beverage, args.qty, args.unitCost)
-        : undefined;
-    const newStoreDelta = args.txnType === 'receive' ? args.qty : -args.qty;
+    if (receipt) {
+      const packMessage = await syncUnitsPerPack(ctx, beverage, receipt.purchase.unitsPerPack);
+      if (packMessage) throw new Error(packMessage);
+    }
+    const purchased = receipt
+      ? await applyStorePurchaseCost(
+          ctx,
+          inventoryForNew,
+          beverage,
+          receipt.purchase.qty,
+          receipt.purchase.unitCost,
+          receipt.purchase.totalCost,
+        )
+      : undefined;
+    const newStoreDelta = args.txnType === 'receive' ? movementQty : -movementQty;
     const newQty = await applyStoreQtyChange(ctx, inventoryForNew, newStoreDelta);
 
     if (args.txnType === 'issue' && args.barId) {
@@ -366,7 +433,7 @@ export const updateStoreTransaction = mutation({
         barId: args.barId,
         beverageId: args.beverageId,
         logDate: existing.txnDateKey,
-        qty: args.qty,
+        qty: movementQty,
         unitPrice: beverage.unitPrice,
         unitCost: await resolveBeverageUnitCost(ctx, beverage),
       });
@@ -386,7 +453,7 @@ export const updateStoreTransaction = mutation({
         ? { userId: args.userId ?? existing.userId ?? auth.user._id }
         : {}),
       txnType: args.txnType,
-      qty: args.qty,
+      ...(receipt ? crateReceiptFields(receipt.purchase) : { qty: movementQty }),
       ...(purchased ? { unitCost: purchased.unitCost, totalCost: purchased.totalCost } : {}),
       txnDate: existing.txnDate,
       txnDateKey: existing.txnDateKey,
@@ -450,7 +517,7 @@ export const deleteStoreTransaction = mutation({
 
     const beverage = await ctx.db.get(existing.beverageId);
     if (existing.txnType === 'receive' && purchaseUnitCost(existing.unitCost)) {
-      await reverseStorePurchaseCost(ctx, inventory, beverage, existing.qty, existing.unitCost);
+      await reverseStorePurchaseCost(ctx, inventory, existing.qty, existing.unitCost);
     }
     if (existing.txnType === 'issue' && existing.userId && existing.barId) {
       await applyIssuedQtyToStockLog(ctx, {
