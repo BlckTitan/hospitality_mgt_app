@@ -88,8 +88,8 @@ export default function PosTerminal() {
   const onBarShift = Boolean(
     openShift &&
       !openShift.isFinalized &&
-      openShift.department === 'fnb' &&
       openShift.barId &&
+      (!openShift.department || openShift.department === 'fnb') &&
       dutyData?.propertyId === currentPropertyId,
   )
   const order = orderResponse?.success ? orderResponse.data : null

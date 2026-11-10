@@ -51,23 +51,23 @@ export const listOnShiftSellers = query({
     }
     sellers.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
 
-    if (!floor && !admin) {
+    if (!admin) {
+      const mine = sellers.filter((seller) => seller.userId === auth.user._id);
+      if (mine.length > 0 || floor) {
+        return {
+          success: true as const,
+          mode: "self" as const,
+          mustChoose: false,
+          message: mine.length === 0 ? "Start your shift at this bar before recording a sale." : null,
+          sellers: mine,
+        };
+      }
       return {
         success: true as const,
         mode: "blocked" as const,
         mustChoose: false,
         message: ADMIN_ONLY,
         sellers: [],
-      };
-    }
-    if (floor) {
-      const mine = sellers.filter((seller) => seller.userId === auth.user._id);
-      return {
-        success: true as const,
-        mode: "self" as const,
-        mustChoose: false,
-        message: mine.length === 0 ? "Start your shift at this bar before recording a sale." : null,
-        sellers: mine,
       };
     }
     return {

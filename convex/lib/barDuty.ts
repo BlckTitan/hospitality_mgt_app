@@ -1,6 +1,8 @@
 import { Doc, Id } from "../_generated/dataModel";
 import { MutationCtx, QueryCtx } from "../_generated/server";
 import { activeAssignmentsForBar } from "./barAssignment";
+import { shiftsForSale } from "./barSalesPerson";
+import { propertyDateKey } from "./barStock";
 import { propertyTimeZone } from "./billingPeriods";
 import { placementForStaff, zonedWallTimeToUtc } from "./rotation";
 import { isActiveStatus } from "./staffAccess";
@@ -44,6 +46,28 @@ export async function listOnDutyStaffForBarDate(
     people.push({
       name: user?.name || staffDisplayName(staff),
       ...(staff.userId ? { userId: staff.userId } : {}),
+    });
+  }
+
+  const today = await propertyDateKey(ctx, args.propertyId);
+  const shifts = await shiftsForSale(ctx, args.barId, args.logDate, today, true);
+  for (const shift of shifts) {
+    const staff = shift.employeeId
+      ? await ctx.db.get(shift.employeeId)
+      : shift.userId
+        ? await staffForUser(ctx, shift.userId)
+        : null;
+    const userId = shift.userId ?? staff?.userId;
+    const key = userId ?? staff?._id;
+    if (!key || seen.has(key)) continue;
+    if (staff && !isActiveStatus(staff.employmentStatus)) continue;
+    seen.add(key);
+    const user = userId ? await ctx.db.get(userId) : null;
+    const name = user?.name?.trim() || (staff ? staffDisplayName(staff) : "");
+    if (!name) continue;
+    people.push({
+      name,
+      ...(userId ? { userId } : {}),
     });
   }
 

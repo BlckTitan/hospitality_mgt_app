@@ -1,11 +1,10 @@
 import { MutationCtx, QueryCtx } from "../_generated/server";
 import { Doc, Id } from "../_generated/dataModel";
-import { isUserAssignedToBar } from "./barAssignment";
 import { priorStockHandoverBlock, propertyDateKey } from "./barStock";
 import {
   departmentFromRole,
-  findActiveShiftForStaffDate,
-  findActiveShiftForUserDate,
+  findOpenShiftForUserNear,
+  findOpenShiftNear,
   staffForUser,
 } from "./shiftHelpers";
 
@@ -31,8 +30,8 @@ export async function loadOpenShift(
   const shiftDate = await propertyDateKey(ctx, args.propertyId);
   const staff = await staffForUser(ctx, args.userId);
   const shift = staff
-    ? await findActiveShiftForStaffDate(ctx, staff._id, shiftDate)
-    : await findActiveShiftForUserDate(ctx, args.userId, shiftDate);
+    ? await findOpenShiftNear(ctx, staff._id, shiftDate)
+    : await findOpenShiftForUserNear(ctx, args.userId, shiftDate);
   const onProperty = shift && shift.propertyId === args.propertyId ? shift : null;
   return { shiftDate, staff, shift: onProperty };
 }
@@ -54,7 +53,7 @@ export async function requireFnBSaleShift(
   if (!shift) {
     return { ok: false, message: "Start your shift before ringing a sale." };
   }
-  if (shift.department !== "fnb" || !shift.barId) {
+  if (!shift.barId || (shift.department && shift.department !== "fnb")) {
     return {
       ok: false,
       message: "Your open shift is not an F&B shift at a bar. Start the shift for your bar before selling.",
@@ -63,9 +62,6 @@ export async function requireFnBSaleShift(
   const bar = await ctx.db.get(shift.barId);
   if (!bar || !bar.isActive || bar.propertyId !== args.propertyId) {
     return { ok: false, message: "The bar on your shift is not active." };
-  }
-  if (!(await isUserAssignedToBar(ctx, args.userId, shift.barId))) {
-    return { ok: false, message: "You are not linked to this bar. Ask an admin to link you before selling." };
   }
   const logDate = await propertyDateKey(ctx, args.propertyId);
   const blocked = await priorStockHandoverBlock(ctx, {

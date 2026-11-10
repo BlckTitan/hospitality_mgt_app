@@ -187,19 +187,35 @@ export async function findActiveShiftForStaffDate(
   return rows.find((row) => !row.isFinalized) ?? null;
 }
 
+const OPEN_SHIFT_DAY_OFFSETS = [0, -1, -2, -3] as const;
+
+function nearShiftDates(shiftDate: string) {
+  return OPEN_SHIFT_DAY_OFFSETS.map((offset) =>
+    offset === 0 ? shiftDate : addIsoDays(shiftDate, offset),
+  );
+}
+
 /** Open session on this date or the previous three, so a duty up to 72 hours can still be ended. */
 export async function findOpenShiftNear(
   ctx: DbCtx,
   employeeId: Id<"staffs">,
   shiftDate: string,
 ) {
-  for (const date of [
-    shiftDate,
-    addIsoDays(shiftDate, -1),
-    addIsoDays(shiftDate, -2),
-    addIsoDays(shiftDate, -3),
-  ]) {
+  for (const date of nearShiftDates(shiftDate)) {
     const open = await findActiveShiftForStaffDate(ctx, employeeId, date);
+    if (open) return open;
+  }
+  return null;
+}
+
+/** Same 72-hour window when the shift is stored against the login and not the staff row. */
+export async function findOpenShiftForUserNear(
+  ctx: DbCtx,
+  userId: Id<"users">,
+  shiftDate: string,
+) {
+  for (const date of nearShiftDates(shiftDate)) {
+    const open = await findActiveShiftForUserDate(ctx, userId, date);
     if (open) return open;
   }
   return null;

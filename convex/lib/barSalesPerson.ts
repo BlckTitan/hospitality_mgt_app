@@ -1,12 +1,11 @@
 import { Doc, Id } from "../_generated/dataModel";
 import { MutationCtx, QueryCtx } from "../_generated/server";
-import { isStaffAssignedToBar } from "./barAssignment";
 import { requireFnBSaleShift } from "./dutyContext";
 import { addIsoDays } from "./rotation";
 import { AuthContext, isAdministratorAtProperty } from "./rbac";
-import { isFloorSellerAtProperty } from "./staffAccess";
+import { isActiveStatus } from "./staffAccess";
 import { isFloorServiceOnly, rolesForProperty } from "./staffScope";
-import { staffDisplayName } from "./shiftHelpers";
+import { staffDisplayName, staffForUser } from "./shiftHelpers";
 
 type DbCtx = MutationCtx | QueryCtx;
 
@@ -36,16 +35,20 @@ export async function listBarShiftSellers(
   const sellers: BarSalesPerson[] = [];
   const seen = new Set<string>();
   for (const shift of shifts) {
-    if (!shift.userId || !shift.employeeId || seen.has(shift.userId)) continue;
-    const staff = await ctx.db.get(shift.employeeId);
-    if (!staff || staff.propertyId !== args.propertyId) continue;
-    if (!(await isStaffAssignedToBar(ctx, staff, args.barId))) continue;
-    if (!(await isFloorSellerAtProperty(ctx, shift.userId, args.propertyId))) continue;
-    const user = await ctx.db.get(shift.userId);
+    const staff = shift.employeeId
+      ? await ctx.db.get(shift.employeeId)
+      : shift.userId
+        ? await staffForUser(ctx, shift.userId)
+        : null;
+    if (!staff || !isActiveStatus(staff.employmentStatus)) continue;
+    if (staff.propertyId && staff.propertyId !== args.propertyId) continue;
+    const userId = shift.userId ?? staff.userId;
+    if (!userId || seen.has(userId)) continue;
+    const user = await ctx.db.get(userId);
     if (!user) continue;
-    seen.add(shift.userId);
+    seen.add(userId);
     sellers.push({
-      userId: shift.userId,
+      userId,
       staffId: staff._id,
       shiftId: shift._id,
       barId: args.barId,
@@ -84,23 +87,22 @@ export async function resolvePosSalesPerson(
   },
 ): Promise<{ ok: true; seller: BarSalesPerson } | { ok: false; message: string }> {
   const roles = rolesForProperty(args.auth, args.propertyId);
-  if (isFloorServiceOnly(roles)) {
+  if (!isAdministratorAtProperty(args.auth, args.propertyId)) {
     const duty = await requireFnBSaleShift(ctx, {
       userId: args.auth.user._id,
       propertyId: args.propertyId,
     });
-    if (duty.ok === false) return duty;
+    if (duty.ok === false) {
+      return isFloorServiceOnly(roles) ? duty : { ok: false, message: ADMIN_ONLY };
+    }
     return resolveBarSalesPerson(ctx, {
       auth: args.auth,
       propertyId: args.propertyId,
       barId: duty.barId,
       logDate: args.logDate,
       today: args.logDate,
-      salesUserId: args.salesUserId,
+      salesUserId: args.auth.user._id,
     });
-  }
-  if (!isAdministratorAtProperty(args.auth, args.propertyId)) {
-    return { ok: false, message: ADMIN_ONLY };
   }
   const bars = await ctx.db
     .query("bars")
@@ -133,16 +135,20 @@ function pickSeller(
   preferUserId?: Id<"users">,
 ): { ok: true; seller: BarSalesPerson } | { ok: false; message: string } {
   const roles = rolesForProperty(auth, propertyId);
-  if (isFloorServiceOnly(roles)) {
+  if (!isAdministratorAtProperty(auth, propertyId)) {
     const mine = sellers.find((seller) => seller.userId === auth.user._id);
-    if (!mine) return { ok: false, message: "Start your shift at this bar before recording a sale." };
+    if (!mine) {
+      return {
+        ok: false,
+        message: isFloorServiceOnly(roles)
+          ? "Start your shift at this bar before recording a sale."
+          : ADMIN_ONLY,
+      };
+    }
     if (salesUserId && salesUserId !== auth.user._id) {
       return { ok: false, message: "You can only record your own sales." };
     }
     return { ok: true, seller: mine };
-  }
-  if (!isAdministratorAtProperty(auth, propertyId)) {
-    return { ok: false, message: ADMIN_ONLY };
   }
   if (sellers.length === 0) return { ok: false, message: NO_WAITER };
   if (salesUserId) {
@@ -158,7 +164,8 @@ function pickSeller(
   return { ok: false, message: CHOOSE_WAITER };
 }
 
-async function shiftsForSale(
+/** Open F&B shifts at this bar, including a duty that started on an earlier day and has not ended. */
+export async function shiftsForSale(
   ctx: DbCtx,
   barId: Id<"bars">,
   logDate: string,
