@@ -3,8 +3,9 @@ import { v } from 'convex/values';
 import { isStaffAssignedToBar } from './lib/barAssignment';
 import { requireAuthenticated, requirePermission, tryRequirePermission } from './lib/rbac';
 import { draftHoursFromShift } from './hours';
-import { currentUtcHHmm } from './lib/payrollHelpers';
+import { propertyTimeZone } from './lib/billingPeriods';
 import { punctualityInsertFields } from './lib/punctuality';
+import { zonedWallTimeToUtc } from './lib/rotation';
 import {
   findActiveShiftForStaffDate,
   findActiveShiftForUserDate,
@@ -59,6 +60,46 @@ function publicUser(user: { _id: string; name: string; email: string } | null) {
   return { _id: user._id, name: user.name, email: user.email };
 }
 
+function paddedClock(value: string): string | null {
+  const match = /^(\d{1,2}):(\d{2})/.exec(value.trim());
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (hours > 23 || minutes > 59) return null;
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
+/** End instant in the property timezone. An end clock at or before the start is the next day. */
+function shiftEndInstant(
+  shift: { shiftDate: string; startTime: string; endTime: string },
+  timeZone: string,
+): number | null {
+  const endClock = paddedClock(shift.endTime);
+  if (!endClock || !/^\d{4}-\d{2}-\d{2}$/.test(shift.shiftDate)) return null;
+  const end = zonedWallTimeToUtc(`${shift.shiftDate}T${endClock}`, timeZone);
+  if (end == null) return null;
+  const startClock = paddedClock(shift.startTime);
+  if (!startClock) return end;
+  const start = zonedWallTimeToUtc(`${shift.shiftDate}T${startClock}`, timeZone);
+  if (start != null && end <= start) return end + 24 * 60 * 60 * 1000;
+  return end;
+}
+
+function finalizeGate(
+  shift: { shiftDate: string; startTime: string; endTime?: string },
+  timeZone: string,
+  now: number,
+): { message: string } | { endAt: number } {
+  if (!shift.endTime) return { message: 'Set an end time before finalizing this shift.' };
+  const endAt = shiftEndInstant(
+    { shiftDate: shift.shiftDate, startTime: shift.startTime, endTime: shift.endTime },
+    timeZone,
+  );
+  if (endAt == null) return { message: 'End time must be in HH:MM format.' };
+  if (now < endAt) return { message: 'This shift has not ended yet.' };
+  return { endAt };
+}
+
 async function requireShiftRead(
   ctx: Parameters<typeof requirePermission>[0],
   propertyId: Parameters<typeof requirePermission>[2]
@@ -77,6 +118,9 @@ export const getAllShifts = query({
     }
     const canManage = Boolean(await tryRequirePermission(ctx, 'staff.read', args.propertyId));
     try {
+      const property = await ctx.db.get(args.propertyId);
+      const timeZone = propertyTimeZone(property);
+      const now = Date.now();
       let shifts = await ctx.db
         .query('shifts')
         .withIndex('by_propertyId', (q) => q.eq('propertyId', args.propertyId))
@@ -103,6 +147,7 @@ export const getAllShifts = query({
               ? ctx.db.query('hours').withIndex('by_shiftId', (q) => q.eq('shiftId', shift._id)).first()
               : null,
           ]);
+          const gate = shift.isFinalized ? null : finalizeGate(shift, timeZone, now);
           return {
             ...shift,
             user: publicUser(user),
@@ -111,6 +156,7 @@ export const getAllShifts = query({
             staffName: staffName(staff),
             hoursStatus: hours?.status,
             hoursId: hours?._id,
+            finalizeBlock: gate && 'message' in gate ? gate.message : null,
           };
         })
       );
@@ -419,12 +465,17 @@ export const finalizeShift = mutation({
         return { success: false, message: 'Shift is already finalized' };
       }
 
-      const endTime = shift.endTime || currentUtcHHmm();
-      const clockOutAt = Date.now();
+      const property = await ctx.db.get(shift.propertyId);
+      const gate = finalizeGate(shift, propertyTimeZone(property), Date.now());
+      if ('message' in gate) {
+        return { success: false, message: gate.message };
+      }
+
+      const clockOutAt = shift.clockInAt ? gate.endAt : undefined;
       await ctx.db.patch(args.shiftId, {
         isFinalized: true,
-        endTime,
-        ...(shift.clockInAt ? { clockOutAt } : {}),
+        endTime: shift.endTime,
+        ...(clockOutAt ? { clockOutAt } : {}),
       });
 
       if (shift.barId) {
@@ -460,10 +511,10 @@ export const finalizeShift = mutation({
         employeeId: staff?._id ?? shift.employeeId,
         userId: shift.userId,
         startTime: shift.startTime,
-        endTime,
+        endTime: shift.endTime,
         shiftDate: shift.shiftDate,
         clockInAt: shift.clockInAt,
-        clockOutAt: shift.clockInAt ? clockOutAt : undefined,
+        clockOutAt,
       });
 
       if (hoursResult.status === 'no_staff') {

@@ -24,6 +24,7 @@ interface ShiftProps {
   startTime: string;
   endTime?: string;
   isFinalized: boolean;
+  finalizeBlock?: string | null;
   staffName?: string;
   hoursStatus?: string;
   hoursId?: string;
@@ -161,14 +162,16 @@ const Shifts = ({ currentPropertyId }: { currentPropertyId: Id<"properties"> }) 
         canManage ? (
         <div className='flex justify-evenly lg:justify-start items-center gap-1'>
           {!row.isFinalized && (
-            <Button
-              variant="dark"
-              size="sm"
-              onClick={() => handleFinalize(row._id)}
-              title="Finalize shift"
-            >
-              Finalize
-            </Button>
+            <span title={row.finalizeBlock || 'Finalize shift'}>
+              <Button
+                variant="dark"
+                size="sm"
+                disabled={Boolean(row.finalizeBlock)}
+                onClick={() => handleFinalize(row._id)}
+              >
+                Finalize
+              </Button>
+            </span>
           )}
           {!row.isFinalized && (
             <a

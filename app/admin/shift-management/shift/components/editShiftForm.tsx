@@ -184,7 +184,10 @@ export default function EditShiftForm({ shiftData, shiftId, onSuccess, onClose, 
       </div>
 
       <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-1 mb-4">
-        <InputComponent id="endTime" label="End Time" type="time" inputWidth="w-full" register={register('endTime')} error={errors.endTime} />
+        <div className="w-full">
+          <InputComponent id="endTime" label="End Time" type="time" inputWidth="w-full" register={register('endTime')} error={errors.endTime} />
+          <p className="text-sm text-gray-600 mt-1">The shift can be finalized only after this time.</p>
+        </div>
       </div>
 
       <div className="flex gap-2 justify-end">
