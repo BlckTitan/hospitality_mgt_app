@@ -2,7 +2,8 @@ import { mutation, query, MutationCtx, QueryCtx } from './_generated/server';
 import { v } from 'convex/values';
 import { Doc, Id } from './_generated/dataModel';
 import { AuthContext, isAdministratorAtProperty, requirePermission } from './lib/rbac';
-import { resolvePosSalesPerson } from './lib/barSalesPerson';
+import { ensureSellerShift, resolvePosSalesPerson } from './lib/barSalesPerson';
+import { assertCanOperateBar } from './lib/barAssignment';
 import { canViewTeamRecords, isFloorServiceOnly, rolesForProperty } from './lib/staffScope';
 import { findBarDayLog, lastFinalizedClosingStock, priorStockHandoverBlock, propertyDateKey, remainingSellableQty } from './lib/barStock';
 import { requireFnBSaleShift } from './lib/dutyContext';
@@ -125,6 +126,10 @@ async function assertCanWorkOrder(
       return { ok: false, message: 'This check has no waiter.' };
     }
     return { ok: true };
+  }
+  if (order.barId && order.serverUserId === auth.user._id) {
+    const denied = await assertCanOperateBar(ctx, auth, order.barId);
+    if (!denied) return { ok: true };
   }
   if (!isFloorServiceOnly(rolesForProperty(auth, order.propertyId))) {
     return {
@@ -275,6 +280,7 @@ function stockRefusalMessage(name: string, availableQty: number, closed: boolean
 export const listSellableBeverages = query({
   args: {
     propertyId: v.id('properties'),
+    barId: v.optional(v.id('bars')),
     salesUserId: v.optional(v.id('users')),
   },
   handler: async (ctx, args) => {
@@ -284,6 +290,7 @@ export const listSellableBeverages = query({
       auth,
       propertyId: args.propertyId,
       logDate,
+      barId: args.barId,
       salesUserId: args.salesUserId,
     });
     if (seller.ok === false) {
@@ -882,6 +889,7 @@ export const createOrder = mutation({
     orderType: orderTypeValidator,
     reservationId: v.optional(v.id('reservations')),
     guestLabel: v.optional(v.string()),
+    barId: v.optional(v.id('bars')),
     salesUserId: v.optional(v.id('users')),
   },
   handler: async (ctx, args) => {
@@ -902,22 +910,24 @@ export const createOrder = mutation({
       auth,
       propertyId: args.propertyId,
       logDate: openedAtDateKey,
+      barId: args.barId,
       salesUserId: args.salesUserId,
     });
     if (seller.ok === false) return { success: false, message: seller.message };
+    const readySeller = await ensureSellerShift(ctx, seller.seller, args.propertyId, openedAtDateKey);
     const blocked = await priorStockHandoverBlock(ctx, {
-      barId: seller.seller.barId,
+      barId: readySeller.barId,
       beforeDate: openedAtDateKey,
-      actorUserId: seller.seller.userId,
+      actorUserId: readySeller.userId,
       action: 'selling',
     });
     if (blocked) return { success: false, message: blocked };
     const orderId = await ctx.db.insert('orders', {
       propertyId: args.propertyId,
-      barId: seller.seller.barId,
-      shiftId: seller.seller.shiftId,
-      employeeId: seller.seller.staffId,
-      serverUserId: seller.seller.userId,
+      barId: readySeller.barId,
+      shiftId: readySeller.shiftId,
+      employeeId: readySeller.staffId,
+      serverUserId: readySeller.userId,
       reservationId: args.reservationId,
       orderType: args.orderType,
       status: 'open',
@@ -986,12 +996,14 @@ export const addLine = mutation({
     }
     let barId = order.barId;
     if (!barId) {
-      const duty = await requireFnBSaleShift(ctx, {
-        userId: auth.user._id,
+      const logDate = await propertyDateKey(ctx, order.propertyId);
+      const seller = await resolvePosSalesPerson(ctx, {
+        auth,
         propertyId: order.propertyId,
+        logDate,
       });
-      if (duty.ok === false) return { success: false, message: duty.message };
-      barId = duty.barId;
+      if (seller.ok === false) return { success: false, message: seller.message };
+      barId = seller.seller.barId;
     }
     const logDate = await propertyDateKey(ctx, order.propertyId);
     const blocked = await priorStockHandoverBlock(ctx, {

@@ -1,12 +1,10 @@
 import { query } from "./_generated/server";
 import { v } from "convex/values";
-import { listBarShiftSellers } from "./lib/barSalesPerson";
+import { explainNoBarOperator, listBarSellers } from "./lib/barSalesPerson";
 import { propertyDateKey } from "./lib/barStock";
 import { isAdministratorAtProperty, requirePermission } from "./lib/rbac";
 import { isFloorServiceOnly, rolesForProperty } from "./lib/staffScope";
 
-const NO_WAITER_BAR = "Start a waiter's shift at this bar before recording a sale.";
-const NO_WAITER_ANY = "Start a waiter's shift at a bar before recording a sale.";
 const ADMIN_ONLY = "Only an administrator can record a sale for the waiter on shift.";
 
 export const listOnShiftSellers = query({
@@ -38,7 +36,8 @@ export const listOnShiftSellers = query({
     const sellers = [];
     for (const bar of bars) {
       if (!bar) continue;
-      const people = await listBarShiftSellers(ctx, {
+      const people = await listBarSellers(ctx, {
+        auth,
         propertyId: args.propertyId,
         barId: bar._id,
         logDate,
@@ -53,13 +52,24 @@ export const listOnShiftSellers = query({
 
     if (!admin) {
       const mine = sellers.filter((seller) => seller.userId === auth.user._id);
-      if (mine.length > 0 || floor) {
+      if (mine.length > 0) {
+        return {
+          success: true as const,
+          mode: "self" as const,
+          mustChoose: mine.length > 1,
+          message: null,
+          sellers: mine,
+        };
+      }
+      if (sellers.length === 0 || floor) {
         return {
           success: true as const,
           mode: "self" as const,
           mustChoose: false,
-          message: mine.length === 0 ? "Start your shift at this bar before recording a sale." : null,
-          sellers: mine,
+          message: sellers.length === 0
+            ? await explainNoBarOperator(ctx, auth, args.propertyId, args.barId)
+            : "Start your shift at this bar before recording a sale.",
+          sellers: [],
         };
       }
       return {
@@ -74,8 +84,9 @@ export const listOnShiftSellers = query({
       success: true as const,
       mode: "admin" as const,
       mustChoose: sellers.length > 1,
-      message:
-        sellers.length === 0 ? (args.barId ? NO_WAITER_BAR : NO_WAITER_ANY) : null,
+      message: sellers.length === 0
+        ? await explainNoBarOperator(ctx, auth, args.propertyId, args.barId)
+        : null,
       sellers,
     };
   },

@@ -3,7 +3,7 @@ import { Doc, Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
 import { UserJSON } from "@clerk/backend";
 import { v, Validator } from "convex/values";
-import { hasGranularPermission, requireAuthenticated, requirePermission, scopeAuthContextToProperty } from "./lib/rbac";
+import { getAuthContext, hasGranularPermission, requireAuthenticated, requirePermission, scopeAuthContextToProperty } from "./lib/rbac";
 import { assertAdministratorAssignmentChange } from "./lib/userRoleAssignment";
 import {
   fulfillPendingInviteForUser,
@@ -59,7 +59,10 @@ export const getAllUsers = query({
 export const getUser = query({
   args: { userId: v.id("users") },
   handler: async (ctx, args) => {
-    const auth = await requireAuthenticated(ctx);
+    const auth = await getAuthContext(ctx);
+    if (!auth) {
+      return { success: false as const, data: null, message: "Not authenticated" };
+    }
     try {
       const user = await ctx.db.get(args.userId);
       if (!user) {

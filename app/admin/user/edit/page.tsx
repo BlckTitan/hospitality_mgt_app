@@ -3,7 +3,7 @@
 import { BackLink } from '../../../../shared/pageHeader';
 import React from 'react';
 import Spinner from '../../../../shared/spinner';
-import { useQuery } from 'convex/react';
+import { useConvexAuth, useQuery } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 import { Id } from '../../../../convex/_generated/dataModel';
 import { useSearchParams } from 'next/navigation';
@@ -13,14 +13,17 @@ import { UserAccessAssignments } from '../components/userAccessAssignments';
 export default function Page() {
   const searchParams = useSearchParams();
   const id = searchParams.get("user_id") ?? null;
+  const { isAuthenticated, isLoading } = useConvexAuth();
   const response = useQuery(
     api.users.getUser,
-    id ? { userId: id as Id<'users'> } : 'skip',
+    id && isAuthenticated ? { userId: id as Id<'users'> } : 'skip',
   );
 
   if (!id) return <div>No data available!</div>;
-  if (response === undefined) return <div className='w-full h-screen flex items-center justify-center'><Spinner  size='sm'  /></div>;
-  if (!response.success || !response.data) return <div>No data available!</div>;
+  if (isLoading || (isAuthenticated && response === undefined)) {
+    return <div className='w-full h-screen flex items-center justify-center'><Spinner  size='sm'  /></div>;
+  }
+  if (!isAuthenticated || !response?.success || !response.data) return <div>No data available!</div>;
 
   const user = response.data;
 

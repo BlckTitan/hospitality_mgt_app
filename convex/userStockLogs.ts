@@ -3,7 +3,7 @@ import { v } from 'convex/values';
 import { Doc, Id } from './_generated/dataModel';
 import { posPouredQtyByBarBeverage } from './posOrders';
 import { AuthContext, requirePermission, tryRequirePermission } from './lib/rbac';
-import { BarSalesPerson, resolveBarSalesPerson } from './lib/barSalesPerson';
+import { ReadyBarSalesPerson, ensureSellerShift, resolveBarSalesPerson } from './lib/barSalesPerson';
 import { assertCanOperateBar, assignedBarIdsForUser } from './lib/barAssignment';
 import { DutyPerson, listOnDutyStaffForBarDate, listOnDutyUsersForDate } from './lib/barDuty';
 import {
@@ -34,13 +34,18 @@ async function sellerForBarWrite(
   },
 ) {
   const today = await propertyDateKey(ctx, args.propertyId);
-  return await resolveBarSalesPerson(ctx, { auth, today, includeEnded: true, ...args });
+  const resolved = await resolveBarSalesPerson(ctx, { auth, today, includeEnded: true, ...args });
+  if (resolved.ok === false) return resolved;
+  return {
+    ok: true as const,
+    seller: await ensureSellerShift(ctx, resolved.seller, args.propertyId, args.logDate),
+  };
 }
 
 async function claimStockLogSeller(
   ctx: MutationCtx,
   log: Doc<'userStockLogs'>,
-  seller: BarSalesPerson,
+  seller: ReadyBarSalesPerson,
   recordedByUserId: Id<'users'>,
 ) {
   if (log.userId !== seller.userId && log.barId) {
@@ -143,6 +148,7 @@ export const listActiveUsersForBar = query({
       }
     }
     const data = await listOnDutyUsersForDate(ctx, {
+      auth,
       propertyId: args.propertyId,
       barId: args.barId,
       logDate: args.logDate,

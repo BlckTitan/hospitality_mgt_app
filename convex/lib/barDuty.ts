@@ -1,7 +1,8 @@
 import { Doc, Id } from "../_generated/dataModel";
 import { MutationCtx, QueryCtx } from "../_generated/server";
 import { activeAssignmentsForBar } from "./barAssignment";
-import { shiftsForSale } from "./barSalesPerson";
+import { listBarSellers, shiftsForSale } from "./barSalesPerson";
+import { AuthContext } from "./rbac";
 import { propertyDateKey } from "./barStock";
 import { propertyTimeZone } from "./billingPeriods";
 import { placementForStaff, zonedWallTimeToUtc } from "./rotation";
@@ -78,7 +79,12 @@ export async function listOnDutyStaffForBarDate(
 /** One row per login, for the duty filter. People without a login stay on the log only. */
 export async function listOnDutyUsersForDate(
   ctx: DbCtx,
-  args: { propertyId: Id<"properties">; logDate: string; barId?: Id<"bars"> },
+  args: {
+    auth: AuthContext;
+    propertyId: Id<"properties">;
+    logDate: string;
+    barId?: Id<"bars">;
+  },
 ) {
   const bars = args.barId
     ? [await ctx.db.get(args.barId)].filter(
@@ -103,6 +109,25 @@ export async function listOnDutyUsersForDate(
       const user = await ctx.db.get(person.userId);
       if (!user) continue;
       byUser.set(person.userId, { _id: user._id, name: person.name, email: user.email });
+    }
+  }
+
+  if (byUser.size === 0) {
+    const today = await propertyDateKey(ctx, args.propertyId);
+    for (const bar of bars) {
+      const sellers = await listBarSellers(ctx, {
+        auth: args.auth,
+        propertyId: args.propertyId,
+        barId: bar._id,
+        logDate: args.logDate,
+        today,
+      });
+      for (const person of sellers) {
+        if (byUser.has(person.userId)) continue;
+        const user = await ctx.db.get(person.userId);
+        if (!user) continue;
+        byUser.set(person.userId, { _id: user._id, name: person.name, email: user.email });
+      }
     }
   }
 

@@ -59,6 +59,46 @@ export function staffDisplayName(staff: { firstName: string; lastName: string } 
   return `${staff.firstName} ${staff.lastName}`;
 }
 
+function isBarSession(shift: Doc<"shifts">): boolean {
+  return !shift.employeeId && !shift.userId && (!shift.department || shift.department === "fnb");
+}
+
+/** The bar's own open session for this date. It is not a person's clock-in. */
+export async function findOpenBarSession(
+  ctx: DbCtx,
+  barId: Id<"bars">,
+  shiftDate: string,
+): Promise<Id<"shifts"> | undefined> {
+  const rows = await ctx.db
+    .query("shifts")
+    .withIndex("by_barId_date", (q) => q.eq("barId", barId).eq("shiftDate", shiftDate))
+    .collect();
+  return rows.find((row) => !row.isFinalized && isBarSession(row))?._id;
+}
+
+/** Open the bar's session for this date when nobody has clocked in. Does not clock a person in. */
+export async function ensureOpenBarSession(
+  ctx: MutationCtx,
+  args: {
+    propertyId: Id<"properties">;
+    barId: Id<"bars">;
+    shiftDate: string;
+    operatorUserId: Id<"users">;
+  },
+): Promise<Id<"shifts">> {
+  const existing = await findOpenBarSession(ctx, args.barId, args.shiftDate);
+  if (existing) return existing;
+  return await ctx.db.insert("shifts", {
+    propertyId: args.propertyId,
+    barId: args.barId,
+    department: "fnb",
+    shiftDate: args.shiftDate,
+    startTime: currentUtcHHmm(),
+    isFinalized: false,
+    recordedByUserId: args.operatorUserId,
+  });
+}
+
 /** A shift row the bar book can point at. Does not clock a person in. */
 export async function ensureBarDayShift(
   ctx: MutationCtx,

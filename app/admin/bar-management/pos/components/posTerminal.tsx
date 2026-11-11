@@ -40,25 +40,28 @@ export default function PosTerminal() {
   const [tenderAmount, setTenderAmount] = useState('')
   const [busy, setBusy] = useState(false)
   const [salesUserId, setSalesUserId] = useState('')
+  const [saleBarId, setSaleBarId] = useState('')
 
   const isRoom = mode === 'room_service'
 
-  const duty = useQuery(api.attendance.getMyDuty, {})
   const roster = useQuery(
     api.barSales.listOnShiftSellers,
     currentPropertyId ? { propertyId: currentPropertyId } : 'skip',
   )
   const adminSale = roster?.mode === 'admin'
-  const chosenSeller = adminSale
-    ? roster.sellers.find((seller) => seller.userId === salesUserId) ||
-      (roster.sellers.length === 1 ? roster.sellers[0] : undefined)
-    : undefined
+  const rosterSellers = roster?.sellers ?? []
+  const chosenSeller = roster?.mustChoose
+    ? rosterSellers.find((seller) => seller.userId === salesUserId && seller.barId === saleBarId)
+    : rosterSellers.length === 1
+      ? rosterSellers[0]
+      : undefined
   const beverages = useQuery(
     api.posOrders.listSellableBeverages,
-    currentPropertyId && (!adminSale || chosenSeller)
+    currentPropertyId && chosenSeller
       ? {
           propertyId: currentPropertyId,
-          ...(adminSale && chosenSeller ? { salesUserId: chosenSeller.userId } : {}),
+          barId: chosenSeller.barId,
+          salesUserId: chosenSeller.userId,
         }
       : 'skip',
   )
@@ -83,31 +86,14 @@ export default function PosTerminal() {
   const voidOrder = useMutation(api.posOrders.voidOrder)
   const markOpenTab = useMutation(api.posOrders.markOpenTab)
 
-  const dutyData = duty?.success ? duty.data : null
-  const openShift = dutyData?.activeShift
-  const onBarShift = Boolean(
-    openShift &&
-      !openShift.isFinalized &&
-      openShift.barId &&
-      (!openShift.department || openShift.department === 'fnb') &&
-      dutyData?.propertyId === currentPropertyId,
-  )
   const order = orderResponse?.success ? orderResponse.data : null
   const legacyCheck = Boolean(order && !order.barId && !order.shiftId)
-  const canSell = adminSale ? Boolean(chosenSeller) : onBarShift
-  const dutyMessage = adminSale
-    ? chosenSeller
-      ? `Sales for ${chosenSeller.name} · ${chosenSeller.barName}`
-      : roster?.message || 'Choose the waiter this sale belongs to.'
-    : !duty
-    ? 'Loading shift'
-    : duty.success === false
-      ? duty.message
-      : onBarShift
-        ? `On duty: ${dutyData?.staffName} · ${openShift?.barName || 'Bar'}`
-        : openShift && !openShift.isFinalized && dutyData?.propertyId !== currentPropertyId
-          ? 'Your open shift is for another property.'
-          : 'Start your F&B shift at a bar before selling.'
+  const canSell = Boolean(chosenSeller)
+  const dutyMessage = !roster
+    ? 'Loading'
+    : chosenSeller
+      ? `Selling at ${chosenSeller.barName} · ${chosenSeller.name}`
+      : roster.message || (roster.mustChoose ? 'Choose the bar before selling.' : 'You are not linked to a bar.')
   const activeLines = (order?.lines ?? []).filter((line) => line.status === 'active')
 
   const categories = useMemo(() => {
@@ -157,7 +143,9 @@ export default function PosTerminal() {
         reservationId: reservationId
           ? (reservationId as Id<'reservations'>)
           : undefined,
-        ...(adminSale && chosenSeller ? { salesUserId: chosenSeller.userId } : {}),
+        ...(chosenSeller
+          ? { salesUserId: chosenSeller.userId, barId: chosenSeller.barId }
+          : {}),
       })
       if (!response.success || !response.data?.orderId) {
         toast.error(response.message || 'Could not open check')
@@ -310,6 +298,8 @@ export default function PosTerminal() {
               setPropertyId(e.target.value)
               setOrderId(null)
               setReservationId('')
+              setSalesUserId('')
+              setSaleBarId('')
             }}
           >
             {properties.map((p) => (
@@ -321,21 +311,23 @@ export default function PosTerminal() {
         </label>
         )}
         <p className={`text-sm m-0 ${canSell ? 'text-gray-700' : 'text-amber-800'}`}>{dutyMessage}</p>
-        {adminSale && roster?.mustChoose && (
+        {roster?.mustChoose && (
           <label className="text-sm">
-            Waiter
+            {adminSale ? 'Waiter' : 'Bar'}
             <select
               className={selectClassName + ' mt-1 min-w-[12rem]'}
-              value={salesUserId}
+              value={chosenSeller ? `${chosenSeller.userId}:${chosenSeller.barId}` : ''}
               onChange={(event) => {
-                setSalesUserId(event.target.value)
+                const [userId, barId] = event.target.value.split(':')
+                setSalesUserId(userId || '')
+                setSaleBarId(barId || '')
                 setOrderId(null)
               }}
             >
-              <option value="">Choose the waiter</option>
+              <option value="">{adminSale ? 'Choose the waiter' : 'Choose the bar'}</option>
               {roster.sellers.map((seller) => (
-                <option key={seller.userId} value={seller.userId}>
-                  {seller.name} · {seller.barName}
+                <option key={`${seller.userId}:${seller.barId}`} value={`${seller.userId}:${seller.barId}`}>
+                  {adminSale ? `${seller.name} · ${seller.barName}` : seller.barName}
                 </option>
               ))}
             </select>
@@ -487,9 +479,9 @@ export default function PosTerminal() {
             </div>
           </div>
           <p className="m-0 break-words text-xs text-gray-500">
-            {isRoom ? 'Room service' : order?.barName || chosenSeller?.barName || openShift?.barName || 'Bar'}
-            {(order?.waiterName || (adminSale ? chosenSeller?.name : dutyData?.staffName))
-              ? ` · ${order?.waiterName || (adminSale ? chosenSeller?.name : dutyData?.staffName)}`
+            {isRoom ? 'Room service' : order?.barName || chosenSeller?.barName || 'Bar'}
+            {(order?.waiterName || chosenSeller?.name)
+              ? ` · ${order?.waiterName || chosenSeller?.name}`
               : ''}
             {order?.roomLabel ? ` · Room ${order.roomLabel}` : ''}
             {order?.guestName ? ` · ${order.guestName}` : ''}
