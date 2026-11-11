@@ -17,6 +17,8 @@ type StationFilter = 'All' | 'kitchen' | 'grill' | 'other'
 
 const selectClassName = 'w-full px-3 py-2 border border-gray-300 rounded-md text-sm'
 const tenderInputClassName = 'w-full px-2 py-1 border border-gray-300 rounded-md text-sm text-right'
+const qtyButtonClassName =
+  'inline-flex h-8 w-8 items-center justify-center rounded-md border border-neutral-300 bg-white text-lg leading-none text-neutral-900 hover:bg-neutral-100 disabled:opacity-50'
 
 const TENDERS: Array<[TenderMethod, string]> = [
   ['cash', 'Cash'],
@@ -75,6 +77,7 @@ export default function RestaurantPos() {
 
   const createOrder = useMutation(api.restaurantOrders.createOrder)
   const addLine = useMutation(api.restaurantOrders.addLine)
+  const adjustLineQuantity = useMutation(api.restaurantOrders.adjustLineQuantity)
   const voidLine = useMutation(api.restaurantOrders.voidLine)
   const settleOrder = useMutation(api.restaurantOrders.settleOrder)
   const voidOrder = useMutation(api.restaurantOrders.voidOrder)
@@ -188,6 +191,21 @@ export default function RestaurantPos() {
       if (!response.success) toast.error(response.message)
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : 'Failed to add item')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleAdjustQuantity = async (
+    orderLineId: Id<'restaurantOrderLines'>,
+    direction: 'increase' | 'decrease',
+  ) => {
+    setBusy(true)
+    try {
+      const response = await adjustLineQuantity({ orderLineId, direction })
+      if (!response.success) toast.error(response.message)
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : 'Failed to update quantity')
     } finally {
       setBusy(false)
     }
@@ -482,9 +500,34 @@ export default function RestaurantPos() {
           <ul className="flex-1 space-y-2 min-h-[8rem]">
             {activeLines.map((line) => (
               <li key={line._id} className="flex justify-between gap-2 text-sm border-b border-gray-100 pb-2">
-                <div>
-                  <div className="font-medium">
-                    {line.quantity}× {line.nameSnapshot}
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 font-medium">
+                    {order?.status === 'open' ? (
+                      <span className="inline-flex shrink-0 items-center gap-1">
+                        <button
+                          type="button"
+                          className={qtyButtonClassName}
+                          disabled={busy}
+                          aria-label={`Decrease ${line.nameSnapshot}`}
+                          onClick={() => void handleAdjustQuantity(line._id, 'decrease')}
+                        >
+                          −
+                        </button>
+                        <span className="min-w-6 text-center tabular-nums">{line.quantity}</span>
+                        <button
+                          type="button"
+                          className={qtyButtonClassName}
+                          disabled={busy}
+                          aria-label={`Increase ${line.nameSnapshot}`}
+                          onClick={() => void handleAdjustQuantity(line._id, 'increase')}
+                        >
+                          +
+                        </button>
+                      </span>
+                    ) : (
+                      <span className="shrink-0 tabular-nums">{line.quantity}×</span>
+                    )}
+                    <span className="min-w-0 break-words">{line.nameSnapshot}</span>
                   </div>
                   <div className="text-xs text-gray-500 capitalize">{line.station}</div>
                 </div>

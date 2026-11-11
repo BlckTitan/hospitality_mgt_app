@@ -16,6 +16,8 @@ type TenderMethod = 'cash' | 'card' | 'room_charge' | 'other'
 
 const selectClassName = 'w-full px-3 py-2 border border-gray-300 rounded-md text-sm'
 const tenderInputClassName = 'w-full px-2 py-1 border border-gray-300 rounded-md text-sm text-right'
+const qtyButtonClassName =
+  'inline-flex h-8 w-8 items-center justify-center rounded-md border border-neutral-300 bg-white text-lg leading-none text-neutral-900 hover:bg-neutral-100 disabled:opacity-50'
 
 const TENDERS: Array<[TenderMethod, string]> = [
   ['cash', 'Cash'],
@@ -80,6 +82,7 @@ export default function PosTerminal() {
 
   const createOrder = useMutation(api.posOrders.createOrder)
   const addLine = useMutation(api.posOrders.addLine)
+  const adjustLineQuantity = useMutation(api.posOrders.adjustLineQuantity)
   const voidLine = useMutation(api.posOrders.voidLine)
   const setRoomContext = useMutation(api.posOrders.setRoomContext)
   const settleOrder = useMutation(api.posOrders.settleOrder)
@@ -170,6 +173,21 @@ export default function PosTerminal() {
       if (!response.success) toast.error(response.message)
     } catch (error: unknown) {
       toast.error(error instanceof Error ? error.message : 'Failed to add item')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleAdjustQuantity = async (
+    orderLineId: Id<'orderLines'>,
+    direction: 'increase' | 'decrease',
+  ) => {
+    setBusy(true)
+    try {
+      const response = await adjustLineQuantity({ orderLineId, direction })
+      if (!response.success) toast.error(response.message)
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : 'Failed to update quantity')
     } finally {
       setBusy(false)
     }
@@ -491,8 +509,33 @@ export default function PosTerminal() {
           <ul className="space-y-2 min-h-[8rem]">
             {activeLines.map((line) => (
               <li key={line._id} className="flex items-start justify-between gap-2 border-b pb-1 text-sm">
-                <span className="min-w-0 break-words">
-                  {line.quantity}× {line.nameSnapshot}
+                <span className="flex min-w-0 items-center gap-2">
+                  {order?.status === 'open' ? (
+                    <span className="inline-flex shrink-0 items-center gap-1">
+                      <button
+                        type="button"
+                        className={qtyButtonClassName}
+                        disabled={busy}
+                        aria-label={`Decrease ${line.nameSnapshot}`}
+                        onClick={() => void handleAdjustQuantity(line._id, 'decrease')}
+                      >
+                        −
+                      </button>
+                      <span className="min-w-6 text-center tabular-nums">{line.quantity}</span>
+                      <button
+                        type="button"
+                        className={qtyButtonClassName}
+                        disabled={busy}
+                        aria-label={`Increase ${line.nameSnapshot}`}
+                        onClick={() => void handleAdjustQuantity(line._id, 'increase')}
+                      >
+                        +
+                      </button>
+                    </span>
+                  ) : (
+                    <span className="shrink-0 tabular-nums">{line.quantity}×</span>
+                  )}
+                  <span className="min-w-0 break-words">{line.nameSnapshot}</span>
                 </span>
                 <span className="flex shrink-0 items-center gap-2">
                   {money(line.lineTotal)}

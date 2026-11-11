@@ -1067,6 +1067,101 @@ export const addLine = mutation({
   },
 });
 
+export const adjustLineQuantity = mutation({
+  args: {
+    orderLineId: v.id('orderLines'),
+    direction: v.union(v.literal('increase'), v.literal('decrease')),
+  },
+  returns: v.object({
+    success: v.boolean(),
+    message: v.string(),
+  }),
+  handler: async (ctx, args) => {
+    const line = await ctx.db.get(args.orderLineId);
+    if (!line) return { success: false, message: 'Line not found' };
+    const order = await loadOrderOrThrow(ctx, line.orderId);
+    const auth = await requirePermission(ctx, 'fnb.update', order.propertyId);
+    const access = await assertCanWorkOrder(ctx, order, auth);
+    if (access.ok === false) return { success: false, message: access.message };
+    if (order.status !== 'open') {
+      return { success: false, message: 'Can only change quantity on an open check' };
+    }
+    if (line.status !== 'active') {
+      return { success: false, message: 'Line is not active' };
+    }
+
+    if (args.direction === 'decrease') {
+      const quantity = Math.round((line.quantity - 1) * 1000) / 1000;
+      if (quantity <= 0) {
+        await ctx.db.patch(line._id, { status: 'voided' });
+      } else {
+        await ctx.db.patch(line._id, {
+          quantity,
+          lineTotal: quantity * line.unitPriceSnapshot,
+        });
+      }
+      await recomputeOrderTotals(ctx, line.orderId);
+      return { success: true, message: 'Quantity updated' };
+    }
+
+    const beverage = await ctx.db.get(line.beverageId);
+    if (!beverage || beverage.propertyId !== order.propertyId || !beverage.isActive) {
+      return { success: false, message: 'Beverage not available' };
+    }
+    const logDate = await propertyDateKey(ctx, order.propertyId);
+    let barId = order.barId;
+    if (!barId) {
+      const seller = await resolvePosSalesPerson(ctx, {
+        auth,
+        propertyId: order.propertyId,
+        logDate,
+      });
+      if (seller.ok === false) return { success: false, message: seller.message };
+      barId = seller.seller.barId;
+    }
+    const blocked = await priorStockHandoverBlock(ctx, {
+      barId,
+      beforeDate: logDate,
+      actorUserId: order.serverUserId ?? auth.user._id,
+      action: 'selling',
+    });
+    if (blocked) return { success: false, message: blocked };
+    if (order.openedAtDateKey !== logDate) {
+      return {
+        success: false,
+        message: "This check is from another day. Open a new check to sell from today's stock.",
+      };
+    }
+    const poured = await posPouredQtyByBarBeverage(ctx, {
+      propertyId: order.propertyId,
+      barId,
+      dateKey: logDate,
+    });
+    const stock = await availableQtyForUserBarBeverage(ctx, {
+      propertyId: order.propertyId,
+      userId: order.serverUserId ?? auth.user._id,
+      barId,
+      beverageId: line.beverageId,
+      logDate,
+      pouredByBarBeverage: poured,
+    });
+    if (stock.availableQty + 1e-9 < 1) {
+      return {
+        success: false,
+        message: stockRefusalMessage(beverage.name, stock.availableQty, stock.closed),
+      };
+    }
+
+    const quantity = Math.round((line.quantity + 1) * 1000) / 1000;
+    await ctx.db.patch(line._id, {
+      quantity,
+      lineTotal: quantity * line.unitPriceSnapshot,
+    });
+    await recomputeOrderTotals(ctx, line.orderId);
+    return { success: true, message: 'Quantity updated' };
+  },
+});
+
 export const voidLine = mutation({
   args: { orderLineId: v.id('orderLines') },
   handler: async (ctx, args) => {

@@ -961,6 +961,65 @@ export const addLine = mutation({
   },
 });
 
+export const adjustLineQuantity = mutation({
+  args: {
+    orderLineId: v.id('restaurantOrderLines'),
+    direction: v.union(v.literal('increase'), v.literal('decrease')),
+  },
+  returns: v.object({
+    success: v.boolean(),
+    message: v.string(),
+  }),
+  handler: async (ctx, args) => {
+    const line = await ctx.db.get(args.orderLineId);
+    if (!line) return { success: false, message: 'Line not found' };
+    const order = await loadOrderOrThrow(ctx, line.orderId);
+    const auth = await requirePermission(ctx, 'restaurant.update', order.propertyId);
+    const access = await assertCanWorkOrder(ctx, order, auth.user._id);
+    if (access.ok === false) return { success: false, message: access.message };
+    if (order.status !== 'open') {
+      return { success: false, message: 'Can only change quantity on an open check' };
+    }
+    if (line.lineStatus !== 'active') {
+      return { success: false, message: 'Line is not active' };
+    }
+
+    if (args.direction === 'increase') {
+      const menuItem = await ctx.db.get(line.menuItemId);
+      if (
+        !menuItem ||
+        menuItem.propertyId !== order.propertyId ||
+        !menuItem.isActive ||
+        !menuItem.isAvailable
+      ) {
+        return { success: false, message: 'Menu item not available' };
+      }
+    }
+
+    const now = Date.now();
+    const quantity =
+      args.direction === 'increase'
+        ? Math.round((line.quantity + 1) * 1000) / 1000
+        : Math.round((line.quantity - 1) * 1000) / 1000;
+
+    if (quantity <= 0) {
+      await ctx.db.patch(line._id, {
+        lineStatus: 'voided',
+        prepStatus: 'cancelled',
+        updatedAt: now,
+      });
+    } else {
+      await ctx.db.patch(line._id, {
+        quantity,
+        lineTotal: quantity * line.unitPriceSnapshot,
+        updatedAt: now,
+      });
+    }
+    await recomputeOrderTotals(ctx, line.orderId);
+    return { success: true, message: 'Quantity updated' };
+  },
+});
+
 export const voidLine = mutation({
   args: { orderLineId: v.id('restaurantOrderLines') },
   handler: async (ctx, args) => {
