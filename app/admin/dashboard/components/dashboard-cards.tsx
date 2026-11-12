@@ -17,6 +17,8 @@ import {
 } from '../../../../lib/cashPeriod';
 import { EXPENSE_CATEGORY_OPTIONS } from '../../expenses/components/categoryLabels';
 import { SalesByDayChart } from './sales-by-day-chart';
+import { usePermissions } from '../../../../hooks/usePermissions';
+import { isWaiterView } from '../../../../lib/staff-scope';
 import { intervalLabel, reminderPhrase } from '../../maintenance/components/maintenanceScheduleFields';
 
 function formatWhen(value?: number) {
@@ -162,7 +164,7 @@ export function FinancialReportCard({
                 </tr>
               )}
               <tr className="border-t">
-                <td className="p-2">Beverages (POS)</td>
+                <td className="p-2">Beverages</td>
                 <td className="p-2 text-right text-green-600">{money(data.fnbRevenue)}</td>
               </tr>
               {'restaurantRevenue' in data && data.restaurantRevenue !== undefined && (
@@ -344,6 +346,8 @@ export function FnBCard({
   currency?: string;
   canReadInventory: boolean;
 }) {
+  const { roles, isLoading: rolesLoading } = usePermissions();
+  const showGrossProfit = !rolesLoading && !isWaiterView(roles);
   const snapshot = useQuery(api.dashboard.getFnBTodaySnapshot, { propertyId });
   const alerts = useQuery(
     api.reorderAlerts.getOpenReorderAlerts,
@@ -360,9 +364,11 @@ export function FnBCard({
   return (
     <CardShell href="/admin/bar-management/pos" linkLabel="Beverage POS">
       <KpiGrid className="md:grid-cols-2 lg:grid-cols-6">
-        <Kpi label="POS qty sold" value={data.totalQtySold} />
-        <Kpi label="POS revenue" value={formatPropertyMoney(data.totalRevenue, currency)} />
-        <Kpi label="Gross profit" value={formatPropertyMoney(data.grossProfit ?? (data.totalRevenue - (data.totalCogs ?? 0)), currency)} />
+        <Kpi label={data.revenueSource === 'bar' ? 'Qty sold' : 'POS qty sold'} value={data.totalQtySold} />
+        <Kpi label={data.revenueSource === 'bar' ? 'Revenue' : 'POS revenue'} value={formatPropertyMoney(data.totalRevenue, currency)} />
+        {showGrossProfit && (
+          <Kpi label="Gross profit" value={formatPropertyMoney(data.grossProfit ?? (data.totalRevenue - (data.totalCogs ?? 0)), currency)} />
+        )}
         <Kpi label="Waste & comps" value={(data.totalWasteQty ?? 0) + (data.totalCompQty ?? 0)} />
         <Kpi label="Open stock logs" value={data.openLogCount} />
         <Kpi

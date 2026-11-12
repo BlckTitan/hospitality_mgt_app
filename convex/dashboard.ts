@@ -2,6 +2,7 @@ import { query } from './_generated/server';
 import { v } from 'convex/values';
 import { requirePermission, tryRequirePermission } from './lib/rbac';
 import { localDayBounds, propertyTimeZone } from './lib/billingPeriods';
+import { shiftDateKey } from './lib/barStock';
 import { isOpenStatus, MODULE_PERMS } from './lib/taskAssignment';
 import { EXPENSE_CATEGORIES } from './lib/postCashOutflow';
 import { isSystemExpenseCategory } from './lib/expenseCategoryCatalog';
@@ -247,7 +248,6 @@ export const getFnBTodaySnapshot = query({
       return d.toISOString().slice(0, 10);
     })();
 
-    // Guest F&B revenue: settled POS (+ paid portion of open tabs). Stock logs stay control-only.
     const pos = await sumPosGuestRevenue(ctx, {
       propertyId: args.propertyId,
       startDateKey: dateKey,
@@ -279,22 +279,27 @@ export const getFnBTodaySnapshot = query({
       else openLogCount += 1;
     }
 
+    // A counted bar day is the sales figure. POS fills in only when no stock log exists.
+    const counted = logs.length > 0;
+    const totalRevenue = counted ? stockImpliedRevenue : pos.totalRevenue;
+    const totalQtySold = counted ? stockImpliedQty : pos.totalQtySold;
+
     return {
       success: true,
       data: {
         dateKey,
-        totalQtySold: pos.totalQtySold,
-        totalRevenue: pos.totalRevenue,
+        totalQtySold,
+        totalRevenue,
         totalCogs,
         totalWasteQty,
         totalCompQty,
-        grossProfit: pos.totalRevenue - totalCogs,
+        grossProfit: totalRevenue - totalCogs,
         openLogCount,
         finalizedLogCount,
         orderCount: pos.orderCount,
         stockImpliedQty,
         stockImpliedRevenue,
-        revenueSource: 'pos' as const,
+        revenueSource: counted ? ('bar' as const) : ('pos' as const),
       },
     };
   },
@@ -400,9 +405,11 @@ export const getFinancialReport = query({
   },
   handler: async (ctx, args) => {
     await requirePermission(ctx, 'reports.read', args.propertyId);
+    const property = await ctx.db.get(args.propertyId);
+    const timeZone = propertyTimeZone(property);
     const nights = periodNights(args.start, args.end);
-    const startKey = new Date(args.start).toISOString().slice(0, 10);
-    const endKey = new Date(args.end).toISOString().slice(0, 10);
+    const startKey = localDayBounds(args.start, timeZone).dateKey;
+    const endKey = localDayBounds(args.end, timeZone).dateKey;
 
     const rooms = await ctx.db
       .query('rooms')
@@ -482,19 +489,43 @@ export const getFinancialReport = query({
       .collect();
     let stockImpliedRevenue = 0;
     let stockImpliedQty = 0;
+    const countedDates = new Set<string>();
     for (const log of stockLogs) {
       if (log.logDate < startKey || log.logDate >= endKey) continue;
+      countedDates.add(log.logDate);
       stockImpliedRevenue += log.salesValue;
       stockImpliedQty += log.salesQuantity;
     }
 
-    const pos = await sumPosGuestRevenue(ctx, {
-      propertyId: args.propertyId,
-      startDateKey: startKey,
-      endDateKeyExclusive: endKey,
-    });
-    const fnbRevenue = pos.totalRevenue;
-    const fnbQtySold = pos.totalQtySold;
+    const orders = await ctx.db
+      .query('orders')
+      .withIndex('by_propertyId_openedAtDateKey', (q) =>
+        q
+          .eq('propertyId', args.propertyId)
+          .gte('openedAtDateKey', startKey)
+          .lt('openedAtDateKey', endKey),
+      )
+      .collect();
+    let posOnlyRevenue = 0;
+    let posOnlyQty = 0;
+    for (const order of orders) {
+      let amount = 0;
+      if (order.status === 'settled') amount = order.totalAmount;
+      else if (order.status === 'open_tab') amount = order.amountPaid;
+      else continue;
+      // Bar checks on a counted day are already in the stock sales. Other checks still count.
+      if (order.orderType === 'bar' && countedDates.has(order.openedAtDateKey)) continue;
+      if (amount > 0) posOnlyRevenue += amount;
+      const lines = await ctx.db
+        .query('orderLines')
+        .withIndex('by_orderId', (q) => q.eq('orderId', order._id))
+        .collect();
+      for (const line of lines) {
+        if (line.status === 'active') posOnlyQty += line.quantity;
+      }
+    }
+    const fnbRevenue = stockImpliedRevenue + posOnlyRevenue;
+    const fnbQtySold = stockImpliedQty + posOnlyQty;
 
     const restaurantPos = await sumRestaurantGuestRevenue(ctx, {
       propertyId: args.propertyId,
@@ -574,7 +605,7 @@ export const getFinancialReport = query({
         shortStayRevenue,
         fnbRevenue,
         fnbQtySold,
-        fnbRevenueSource: 'pos' as const,
+        fnbRevenueSource: countedDates.size > 0 ? ('bar' as const) : ('pos' as const),
         restaurantRevenue,
         stockImpliedRevenue,
         stockImpliedQty,
@@ -641,8 +672,10 @@ export const getSalesByDayOfWeek = query({
   handler: async (ctx, args) => {
     await requirePermission(ctx, 'reports.read', args.propertyId);
 
-    const startKey = dateKeyFromUtcMs(args.start);
-    const endKey = dateKeyFromUtcMs(args.end);
+    const property = await ctx.db.get(args.propertyId);
+    const timeZone = propertyTimeZone(property);
+    const startKey = localDayBounds(args.start, timeZone).dateKey;
+    const endKey = localDayBounds(args.end, timeZone).dateKey;
     const buckets = emptyWeekBuckets();
 
     const rooms = await ctx.db
@@ -654,23 +687,11 @@ export const getSalesByDayOfWeek = query({
         room.isActive && room.status !== 'out-of-order' && room.status !== 'maintenance',
     ).length;
 
-    // Count how many times each weekday falls in the selected period.
-    let cursor = Date.UTC(
-      new Date(args.start).getUTCFullYear(),
-      new Date(args.start).getUTCMonth(),
-      new Date(args.start).getUTCDate(),
-    );
-    const periodEnd = Date.UTC(
-      new Date(args.end).getUTCFullYear(),
-      new Date(args.end).getUTCMonth(),
-      new Date(args.end).getUTCDate(),
-    );
-    while (cursor < periodEnd) {
-      const key = dateKeyFromUtcMs(cursor);
-      if (key >= startKey && key < endKey) {
-        buckets[mondayIndexFromDateKey(key)].weekdayOccurrences += 1;
-      }
-      cursor += DAY_MS;
+    // Count how many times each weekday falls in the selected property-local period.
+    let dayKey = startKey;
+    while (dayKey < endKey) {
+      buckets[mondayIndexFromDateKey(dayKey)].weekdayOccurrences += 1;
+      dayKey = shiftDateKey(dayKey, 1);
     }
 
     const lookbackStart = args.start - 90 * DAY_MS;
@@ -748,6 +769,24 @@ export const getSalesByDayOfWeek = query({
       bucket.occupancyRate = available === 0 ? 0 : (bucket.roomsSoldNights / available) * 100;
     }
 
+    const stockLogs = await ctx.db
+      .query('userStockLogs')
+      .withIndex('by_propertyId_logDate', (q) =>
+        q
+          .eq('propertyId', args.propertyId)
+          .gte('logDate', startKey)
+          .lt('logDate', endKey),
+      )
+      .collect();
+    const countedDates = new Set<string>();
+    for (const log of stockLogs) {
+      if (log.logDate < startKey || log.logDate >= endKey) continue;
+      countedDates.add(log.logDate);
+      const bucket = buckets[mondayIndexFromDateKey(log.logDate)];
+      bucket.bar += log.salesValue;
+      bucket.barQty += log.salesQuantity;
+    }
+
     const orders = await ctx.db
       .query('orders')
       .withIndex('by_propertyId_openedAtDateKey', (q) =>
@@ -768,6 +807,7 @@ export const getSalesByDayOfWeek = query({
       const bucket = buckets[idx];
 
       if (order.orderType === 'bar') {
+        if (countedDates.has(order.openedAtDateKey)) continue;
         if (amount > 0) bucket.bar += amount;
         const lines = await ctx.db
           .query('orderLines')

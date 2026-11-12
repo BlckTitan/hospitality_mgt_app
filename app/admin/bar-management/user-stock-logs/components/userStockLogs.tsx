@@ -14,6 +14,8 @@ import { rowMatchesSearch } from "../../../../../convex/lib/rowSearch";
 import { TableColumn } from "../../../../../shared/table";
 import PaginationComponent, { TableSearch } from "../../../../../shared/pagination";
 import { formatPropertyMoney, propertyCurrencyCode, usePropertyCurrency } from "../../../inventory-management/components/money";
+import { usePermissions } from "../../../../../hooks/usePermissions";
+import { isWaiterView } from "../../../../../lib/staff-scope";
 
 interface UserStockLogProps {
   _id: string;
@@ -112,6 +114,8 @@ const UserStockLogs = ({
   filters?: any;
 }) => {
   const { isAuthenticated } = useConvexAuth();
+  const { roles, isLoading: rolesLoading } = usePermissions();
+  const showGrossProfit = !rolesLoading && !isWaiterView(roles);
   const queriedCurrency = usePropertyCurrency(currentPropertyId);
   const currency = propertyCurrencyCode(propertyCurrency || queriedCurrency);
   const [finalizingAll, setFinalizingAll] = useState(false);
@@ -359,18 +363,20 @@ const UserStockLogs = ({
         </span>
       )
     },
-    {
-      label: 'Gross Profit',
-      key: 'unitCostAtSale',
-      render: (value, row) => {
-        const profit = row.salesValue - (row.cogsValue ?? 0);
-        return (
-          <span className={profit > 0 ? 'text-green-600 font-semibold' : profit < 0 ? 'text-red-600 font-semibold' : 'text-gray-600'}>
-            {formatCurrency(profit)}
-          </span>
-        );
-      }
-    },
+    ...(showGrossProfit
+      ? [{
+          label: 'Gross Profit',
+          key: 'unitCostAtSale' as const,
+          render: (_value: number | undefined, row: UserStockLogProps) => {
+            const profit = row.salesValue - (row.cogsValue ?? 0);
+            return (
+              <span className={profit > 0 ? 'text-green-600 font-semibold' : profit < 0 ? 'text-red-600 font-semibold' : 'text-gray-600'}>
+                {formatCurrency(profit)}
+              </span>
+            );
+          },
+        }]
+      : []),
     {
       label: 'Status',
       key: 'isFinalized',

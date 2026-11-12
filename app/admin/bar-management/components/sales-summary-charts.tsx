@@ -19,6 +19,8 @@ import {
 } from 'chart.js';
 import { Line, Pie, Bar } from 'react-chartjs-2';
 import { formatPropertyMoney } from '../../inventory-management/components/money';
+import { usePermissions } from '../../../../hooks/usePermissions';
+import { isWaiterView } from '../../../../lib/staff-scope';
 
 // Register Chart.js components
 ChartJS.register(
@@ -66,6 +68,8 @@ function periodCaption(period: PeriodView, dateKey: string, periodKey: string) {
 }
 
 const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentPropertyId, currency }) => {
+  const { roles, isLoading: rolesLoading } = usePermissions();
+  const showGrossProfit = !rolesLoading && !isWaiterView(roles);
   const [periodType, setPeriodType] = useState<PeriodView>('daily');
   const [tab, setTab] = useState<(typeof CHART_TABS)[number]>('Bar Performance');
   const [pickedDate, setPickedDate] = useState('');
@@ -104,24 +108,13 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
     periodType === 'yoy' ? { propertyId: currentPropertyId, ...dateArg } : 'skip',
   );
 
-  const categorySource = useQuery(
-    api.salesSummaries.getSalesSummaries,
-    tab === 'Sales by Category'
-      ? {
-          propertyId: currentPropertyId,
-          periodType: summaryPeriod,
-          ...dateArg,
-        }
-      : 'skip',
-  );
-
   const salesByBeverageData = useQuery(
     api.salesSummaries.getSalesByBeveragePeriod,
-    tab === 'Beverage Sales'
+    tab === 'Beverage Sales' || tab === 'Sales by Category'
       ? {
           propertyId: currentPropertyId,
           periodType: summaryPeriod,
-          limit: 12,
+          ...(tab === 'Beverage Sales' ? { limit: 12 } : {}),
           ...dateArg,
         }
       : 'skip',
@@ -227,12 +220,12 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
       : null;
 
   // Prepare data for beverage category pie chart
-  const beverageCategoryData = categorySource?.success && categorySource.data ? {
-    labels: [...new Set(categorySource.data.map(item => item.beverage?.category).filter(Boolean))],
+  const beverageCategoryData = salesByBeverageData?.success && salesByBeverageData.data ? {
+    labels: [...new Set(salesByBeverageData.data.map(item => item.beverage?.category).filter(Boolean))],
     datasets: [
       {
-        data: [...new Set(categorySource.data.map(item => item.beverage?.category).filter(Boolean))].map(category => {
-          return categorySource.data
+        data: [...new Set(salesByBeverageData.data.map(item => item.beverage?.category).filter(Boolean))].map(category => {
+          return salesByBeverageData.data
             .filter(item => item.beverage?.category === category)
             .reduce((sum, item) => sum + item.totalRevenue, 0);
         }),
@@ -452,8 +445,7 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
       <div className="mb-6 grid grid-cols-1 md:grid-cols-3 xl:grid-cols-7 gap-4">
         <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
           <div className="text-sm text-blue-600 font-medium">Total Revenue</div>
-          <p className="text-xs text-gray-500 mt-1">Stock-implied (control), not POS guest sales</p>
-          <p className="text-xs text-gray-500 mt-1">Stock-implied (control), not POS guest sales</p>
+          <p className="text-xs text-gray-500 mt-1">From bar stock sales</p>
           <div className="text-xl font-bold text-blue-800">
             {formatCurrency(
               periodType === 'yoy'
@@ -469,6 +461,7 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
             </div>
           )}
         </div>
+        {showGrossProfit && (
         <div className="bg-emerald-50 p-4 rounded-lg border border-emerald-200">
           <div className="text-sm text-emerald-600 font-medium">Gross Profit</div>
           <div className="text-xl font-bold text-emerald-800">
@@ -487,6 +480,7 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
             </div>
           )}
         </div>
+        )}
         <div className="bg-teal-50 p-4 rounded-lg border border-teal-200">
           <div className="text-sm text-teal-600 font-medium">Pour cost %</div>
           <div className="text-xl font-bold text-teal-800">
@@ -807,7 +801,7 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
           <div className="h-80">
             {beverageCategoryData ? (
               <Pie data={beverageCategoryData} options={{ ...chartOptions, scales: undefined }} />
-            ) : categorySource === undefined ? (
+            ) : salesByBeverageData === undefined ? (
               <p className="h-full flex items-center justify-center text-gray-500">Loading category data...</p>
             ) : (
               <p className="h-full flex items-center justify-center text-gray-500">No category data</p>

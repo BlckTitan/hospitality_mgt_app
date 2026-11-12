@@ -13,6 +13,8 @@ import { Id } from '../../../../../convex/_generated/dataModel'
 import Pagination from '../../../../../shared/ui-pagination'
 import { formatPropertyMoney } from '../../../inventory-management/components/money'
 import { useCanSelectProperty } from '../../../../../hooks/useCanSelectProperty'
+import { usePermissions } from '../../../../../hooks/usePermissions'
+import { isWaiterView } from '../../../../../lib/staff-scope'
 import { DailySalesSummary } from './dailySalesSummary'
 
 const selectClassName = 'w-full px-3 py-2 border border-gray-300 rounded-md';
@@ -47,6 +49,8 @@ export default function MyStock() {
   const [savingAll, setSavingAll] = useState(false)
   const [autofilling, setAutofilling] = useState(false)
   const canSelectProperty = useCanSelectProperty()
+  const { roles, isLoading: rolesLoading } = usePermissions()
+  const showGrossProfit = !rolesLoading && !isWaiterView(roles)
   const [beverageQuery, setBeverageQuery] = useState('')
   const [debouncedBeverageQuery] = useDebounce(beverageQuery, 300)
   const [logDate, setLogDate] = useState('')
@@ -767,6 +771,7 @@ export default function MyStock() {
           wasteEdits={wasteEdits}
           compEdits={compEdits}
           currency={selectedProperty?.currency}
+          showGrossProfit={showGrossProfit}
         />
         <TableSearch
           value={beverageQuery}

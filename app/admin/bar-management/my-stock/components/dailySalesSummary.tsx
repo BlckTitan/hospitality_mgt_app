@@ -23,12 +23,14 @@ export function DailySalesSummary({
   wasteEdits,
   compEdits,
   currency,
+  showGrossProfit = true,
 }: {
   logs: LogRow[]
   closingEdits: Record<string, string>
   wasteEdits: Record<string, string>
   compEdits: Record<string, string>
   currency?: string
+  showGrossProfit?: boolean
 }) {
   const summary = useMemo(() => {
     let salesQty = 0
@@ -103,7 +105,9 @@ export function DailySalesSummary({
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
         <SummaryCard label="Qty sold" value={summary.salesQty.toLocaleString()} />
         <SummaryCard label="Revenue" value={money(summary.revenue)} tone="blue" />
-        <SummaryCard label="Gross profit" value={money(summary.grossProfit)} tone="green" />
+        {showGrossProfit && (
+          <SummaryCard label="Gross profit" value={money(summary.grossProfit)} tone="green" />
+        )}
         <SummaryCard
           label="Waste & comps"
           value={(summary.wasteQty + summary.compsQty).toLocaleString()}

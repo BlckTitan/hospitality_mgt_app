@@ -12,6 +12,8 @@ import { api } from "../../../../../convex/_generated/api";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import InputComponent from "../../../../../shared/input";
 import { formatPropertyMoney, usePropertyCurrency } from "../../../inventory-management/components/money";
+import { usePermissions } from "../../../../../hooks/usePermissions";
+import { isWaiterView } from "../../../../../lib/staff-scope";
 
 type FormData = {
   openingStock: number;
@@ -56,6 +58,8 @@ export function EditUserStockLogForm({ stockLogData, stockLogId, onSuccess, onCl
   )
   const currency = usePropertyCurrency(stockLogData.propertyId);
   const money = (amount: number) => formatPropertyMoney(amount, currency);
+  const { roles, isLoading: rolesLoading } = usePermissions();
+  const showGrossProfit = !rolesLoading && !isWaiterView(roles);
 
   const { register, handleSubmit, formState: { errors }, watch } = useForm<FormData>({
     resolver: yupResolver(editFormSchema) as any,
@@ -231,7 +235,9 @@ goToList('/admin/bar-management/user-stock-logs');
             <p className="text-sm">Sales Quantity: <span className="font-bold">{salesQuantity}</span></p>
             <p className="text-sm">Sales Value: <span className="font-bold">{money(salesValue)}</span></p>
             <p className="text-sm">COGS: <span className="font-bold">{money(cogsValue)}</span></p>
-            <p className="text-sm">Gross Profit: <span className="font-bold">{money(salesValue - cogsValue)}</span></p>
+            {showGrossProfit && (
+              <p className="text-sm">Gross Profit: <span className="font-bold">{money(salesValue - cogsValue)}</span></p>
+            )}
             {disappeared < 0 && <p className="text-red-500 text-sm">Warning: Closing stock exceeds total stock!</p>}
             {disappeared >= 0 && salesQuantity < 0 && <p className="text-red-500 text-sm">Warning: Waste and comps exceed stock that disappeared!</p>}
           </div>
