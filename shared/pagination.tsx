@@ -65,6 +65,7 @@ export default function PaginationComponent({
   searchLeading,
   showSearch = true,
   showIndex = true,
+  emptyLabel,
 }: {
   collectionName: string;
   columns: TableColumn<any>[];
@@ -78,6 +79,8 @@ export default function PaginationComponent({
   searchLeading?: ReactNode;
   showSearch?: boolean;
   showIndex?: boolean;
+  /** Shown when the list is empty and no search is active. */
+  emptyLabel?: string;
 }) {
   const limit = 10;
   const listMemory = useRememberedList(
@@ -190,7 +193,7 @@ export default function PaginationComponent({
     : cursorHistory.map((_, index) => index);
   const emptyMessage = (pagesClientRows ? clientQuery : searchTerm)
     ? 'No matching results were found.'
-    : 'No data available!';
+    : (emptyLabel ?? 'No data available!');
 
   const loading = !ready || (!usesClientData && response === undefined);
   const isEmpty = pagesClientRows

@@ -1,11 +1,92 @@
 import { mutation, query, MutationCtx, QueryCtx } from './_generated/server';
 import { v } from 'convex/values';
 import { Id } from './_generated/dataModel';
-import { requirePermission } from './lib/rbac';
+import { AuthContext, isAdministratorAtProperty, requirePermission } from './lib/rbac';
 import { propertyDateKey } from './lib/barStock';
-import { currentUsersStaff } from './lib/staffAccess';
+import { currentUsersStaff, isActiveStatus } from './lib/staffAccess';
 
 type DbCtx = MutationCtx | QueryCtx;
+
+type CashUpServer = {
+  employeeId: Id<'staffs'>;
+  userId: Id<'users'>;
+  name: string;
+  barNames: string[];
+};
+
+/** Active staff whose login is linked to a bar at this property. */
+async function linkedBarServers(
+  ctx: DbCtx,
+  propertyId: Id<'properties'>,
+): Promise<CashUpServer[]> {
+  const assignments = await ctx.db
+    .query('barAssignments')
+    .withIndex('by_propertyId', (q) => q.eq('propertyId', propertyId))
+    .collect();
+
+  const byUser = new Map<
+    string,
+    { userId: Id<'users'>; staffId?: Id<'staffs'>; barIds: Id<'bars'>[] }
+  >();
+  for (const row of assignments) {
+    if (!row.isActive) continue;
+    const current = byUser.get(row.userId);
+    if (current) {
+      if (!current.barIds.includes(row.barId)) current.barIds.push(row.barId);
+      if (!current.staffId && row.staffId) current.staffId = row.staffId;
+      continue;
+    }
+    byUser.set(row.userId, {
+      userId: row.userId,
+      staffId: row.staffId,
+      barIds: [row.barId],
+    });
+  }
+
+  const data: CashUpServer[] = [];
+  for (const entry of byUser.values()) {
+    const user = await ctx.db.get(entry.userId);
+    if (!user?.isActive) continue;
+    let staff = entry.staffId ? await ctx.db.get(entry.staffId) : null;
+    if (!staff || !isActiveStatus(staff.employmentStatus)) {
+      staff = await currentUsersStaff(ctx, entry.userId);
+    }
+    if (!staff || !isActiveStatus(staff.employmentStatus)) continue;
+    if (staff.propertyId && staff.propertyId !== propertyId) continue;
+
+    const barNames: string[] = [];
+    for (const barId of entry.barIds) {
+      const bar = await ctx.db.get(barId);
+      if (bar?.isActive && bar.propertyId === propertyId && bar.name) barNames.push(bar.name);
+    }
+    if (barNames.length === 0) continue;
+    barNames.sort((a, b) => a.localeCompare(b));
+    data.push({
+      employeeId: staff._id,
+      userId: entry.userId,
+      name: `${staff.firstName} ${staff.lastName}`.trim() || user.name || user.email,
+      barNames,
+    });
+  }
+  data.sort((a, b) => a.name.localeCompare(b.name));
+  return data;
+}
+
+async function cashUpServerAllowed(
+  ctx: DbCtx,
+  auth: AuthContext,
+  propertyId: Id<'properties'>,
+  serverUserId: Id<'users'>,
+): Promise<string | null> {
+  const linked = await linkedBarServers(ctx, propertyId);
+  if (!linked.some((row) => row.userId === serverUserId)) {
+    return 'That server is not linked to a bar at this property.';
+  }
+  if (!isAdministratorAtProperty(auth, propertyId) && serverUserId !== auth.user._id) {
+    return 'You can only cash up your own sales.';
+  }
+  return null;
+}
 
 async function fnbBarForServerDate(
   ctx: DbCtx,
@@ -84,22 +165,37 @@ async function expectedTendersForServerDay(
 }
 
 export const listServersForCashUp = query({
-  args: { propertyId: v.id('properties') },
+  args: {
+    propertyId: v.id('properties'),
+    /** Staff-liability form lists every active employee. Cash-up lists bar-linked servers. */
+    allStaff: v.optional(v.boolean()),
+  },
   handler: async (ctx, args) => {
-    await requirePermission(ctx, 'fnb.read', args.propertyId);
-    const staffs = await ctx.db
-      .query('staffs')
-      .withIndex('by_propertyId', (q) => q.eq('propertyId', args.propertyId))
-      .collect();
-    const data = staffs
-      .filter((s) => s.userId && (s.employmentStatus === 'active' || s.employmentStatus === 'employed'))
-      .map((s) => ({
-        employeeId: s._id,
-        userId: s.userId!,
-        name: `${s.firstName} ${s.lastName}`,
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-    return { success: true, data };
+    const auth = await requirePermission(ctx, 'fnb.read', args.propertyId);
+    if (args.allStaff) {
+      const staffs = await ctx.db
+        .query('staffs')
+        .withIndex('by_propertyId', (q) => q.eq('propertyId', args.propertyId))
+        .collect();
+      const data = staffs
+        .filter((s) => s.userId && (s.employmentStatus === 'active' || s.employmentStatus === 'employed'))
+        .map((s) => ({
+          employeeId: s._id,
+          userId: s.userId!,
+          name: `${s.firstName} ${s.lastName}`,
+          barNames: [] as string[],
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+      return { success: true as const, canSelectServer: true, data };
+    }
+
+    const admin = isAdministratorAtProperty(auth, args.propertyId);
+    const linked = await linkedBarServers(ctx, args.propertyId);
+    return {
+      success: true as const,
+      canSelectServer: admin,
+      data: admin ? linked : linked.filter((row) => row.userId === auth.user._id),
+    };
   },
 });
 
@@ -111,7 +207,9 @@ export const previewCashSettlement = query({
     barId: v.optional(v.id('bars')),
   },
   handler: async (ctx, args) => {
-    await requirePermission(ctx, 'fnb.read', args.propertyId);
+    const auth = await requirePermission(ctx, 'fnb.read', args.propertyId);
+    const denied = await cashUpServerAllowed(ctx, auth, args.propertyId, args.serverUserId);
+    if (denied) return { success: false as const, message: denied, data: null };
     const dateKey =
       args.settlementDateKey ?? (await propertyDateKey(ctx, args.propertyId));
     const shift = await fnbBarForServerDate(ctx, {
@@ -156,7 +254,7 @@ export const listCashSettlements = query({
     settlementDateKey: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    await requirePermission(ctx, 'fnb.read', args.propertyId);
+    const auth = await requirePermission(ctx, 'fnb.read', args.propertyId);
     let rows = args.settlementDateKey
       ? await ctx.db
           .query('cashSettlements')
@@ -171,6 +269,9 @@ export const listCashSettlements = query({
           .withIndex('by_propertyId', (q) => q.eq('propertyId', args.propertyId))
           .collect();
     rows = rows.filter((r) => r.status !== 'voided');
+    if (!isAdministratorAtProperty(auth, args.propertyId)) {
+      rows = rows.filter((r) => r.serverUserId === auth.user._id);
+    }
     rows.sort((a, b) => b.createdAt - a.createdAt);
     const data = await Promise.all(
       rows.slice(0, 100).map(async (row) => {
@@ -206,6 +307,8 @@ export const postCashSettlement = mutation({
     if (!Number.isFinite(args.countedCash) || args.countedCash < 0) {
       return { success: false, message: 'Counted cash must be zero or greater' };
     }
+    const denied = await cashUpServerAllowed(ctx, auth, args.propertyId, args.serverUserId);
+    if (denied) return { success: false, message: denied };
     const dateKey =
       args.settlementDateKey ?? (await propertyDateKey(ctx, args.propertyId));
     const shift = await fnbBarForServerDate(ctx, {

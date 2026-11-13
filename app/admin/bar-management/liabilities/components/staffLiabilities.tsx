@@ -31,7 +31,7 @@ export default function StaffLiabilities() {
 
   const servers = useQuery(
     api.cashSettlements.listServersForCashUp,
-    currentPropertyId ? { propertyId: currentPropertyId } : 'skip',
+    currentPropertyId ? { propertyId: currentPropertyId, allStaff: true } : 'skip',
   )
   const list = useQuery(
     api.staffLiabilities.listStaffLiabilities,

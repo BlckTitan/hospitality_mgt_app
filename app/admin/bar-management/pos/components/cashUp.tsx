@@ -31,8 +31,11 @@ export default function CashUp() {
     currentPropertyId ? { propertyId: currentPropertyId } : 'skip',
   )
   const servers = serversResponse?.data ?? []
+  const canSelectServer = serversResponse?.canSelectServer === true
 
-  const selectedServer = serverUserId || servers[0]?.userId || ''
+  const selectedServer = canSelectServer
+    ? serverUserId || servers[0]?.userId || ''
+    : servers[0]?.userId || ''
 
   const preview = useQuery(
     api.cashSettlements.previewCashSettlement,
@@ -122,19 +125,29 @@ export default function CashUp() {
         </label>
         )}
         <label className="text-sm">
-          Server (linked staff)
-          <select
-            className={selectClassName + ' mt-1 min-w-[14rem]'}
-            value={selectedServer}
-            onChange={(e) => setServerUserId(e.target.value)}
-          >
-            {servers.length === 0 && <option value="">No linked staff users</option>}
-            {servers.map((s) => (
-              <option key={s.employeeId} value={s.userId}>
-                {s.name}
-              </option>
-            ))}
-          </select>
+          Server
+          {canSelectServer ? (
+            <select
+              className={selectClassName + ' mt-1 min-w-[14rem]'}
+              value={selectedServer}
+              onChange={(e) => setServerUserId(e.target.value)}
+            >
+              {servers.length === 0 && <option value="">No waiters linked to a bar</option>}
+              {servers.map((s) => (
+                <option key={s.userId} value={s.userId}>
+                  {s.barNames.length > 0 ? `${s.name} · ${s.barNames.join(', ')}` : s.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <div className={selectClassName + ' mt-1 min-w-[14rem] bg-gray-50'}>
+              {servers[0]
+                ? servers[0].barNames.length > 0
+                  ? `${servers[0].name} · ${servers[0].barNames.join(', ')}`
+                  : servers[0].name
+                : 'You are not linked to a bar'}
+            </div>
+          )}
         </label>
         <label className="text-sm">
           Date (optional)
@@ -172,6 +185,10 @@ export default function CashUp() {
             <div className="font-semibold">{expected.orderCount}</div>
           </div>
         </div>
+      )}
+
+      {preview && preview.success === false && (
+        <p className="text-sm text-red-600">{preview.message}</p>
       )}
 
       {expected?.existingPosted && (
