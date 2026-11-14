@@ -195,10 +195,15 @@ export async function priorStockHandoverBlock(
 ): Promise<string | null> {
   const open = await openPriorBarBooks(ctx, args);
   if (open.length === 0) return null;
+  if (open.every((log) => isStockCorrectionOpen(log))) {
+    return STOCK_CORRECTION_MESSAGE;
+  }
+  const staffOpen = open.filter((log) => !isStockCorrectionOpen(log));
   if (
+    staffOpen.length > 0 &&
     args.allowOwner &&
     args.actorUserId &&
-    open.every((log) => log.userId === args.actorUserId)
+    staffOpen.every((log) => log.userId === args.actorUserId)
   ) {
     return null;
   }
@@ -382,6 +387,17 @@ export async function resolveBeverageUnitCost(
   return (await explainBeverageUnitCost(ctx, beverage)).unitCost;
 }
 
+/** A finalized day an administrator reopened from User Stock Logs. Staff cannot edit it. */
+export function isStockCorrectionOpen(log: {
+  isFinalized: boolean;
+  correctionOpen?: boolean;
+}): boolean {
+  return log.correctionOpen === true && log.isFinalized === false;
+}
+
+export const STOCK_CORRECTION_MESSAGE =
+  "This day was reopened for an administrator correction. Update and finalize it in User Stock Logs.";
+
 export function derivedSales(
   totalStock: number,
   closingStock: number,
@@ -473,6 +489,9 @@ export async function applyIssuedQtyToStockLog(
   const existing = await findBarDayLog(ctx, args.barId, args.beverageId, args.logDate);
 
   if (existing) {
+    if (isStockCorrectionOpen(existing)) {
+      throw new Error(STOCK_CORRECTION_MESSAGE);
+    }
     if (existing.isFinalized) {
       throw new Error("Cannot change stock on a finalized day");
     }
@@ -593,6 +612,9 @@ export async function previewIssueToStockLog(
       return { error: "No stock log exists to reverse this issue against" };
     }
     return {};
+  }
+  if (isStockCorrectionOpen(existing)) {
+    return { error: STOCK_CORRECTION_MESSAGE };
   }
   if (existing.isFinalized) {
     return { error: "Cannot issue stock to a finalized day" };

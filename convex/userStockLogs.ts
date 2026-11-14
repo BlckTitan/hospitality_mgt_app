@@ -2,7 +2,7 @@ import { mutation, query, MutationCtx, QueryCtx } from './_generated/server';
 import { v } from 'convex/values';
 import { Doc, Id } from './_generated/dataModel';
 import { posPouredQtyByBarBeverage } from './posOrders';
-import { AuthContext, requirePermission, tryRequirePermission } from './lib/rbac';
+import { AuthContext, isAdministratorAtProperty, requirePermission, tryRequirePermission } from './lib/rbac';
 import { ReadyBarSalesPerson, ensureSellerShift, resolveBarSalesPerson } from './lib/barSalesPerson';
 import { assertCanOperateBar, assignedBarIdsForUser } from './lib/barAssignment';
 import { DutyPerson, listOnDutyStaffForBarDate, listOnDutyUsersForDate } from './lib/barDuty';
@@ -11,6 +11,7 @@ import {
   derivedSales,
   findBarDayLog,
   carryOverOpeningStock,
+  isStockCorrectionOpen,
   lastFinalizedClosingStock,
   openBarBookLine,
   openPriorBarBooks,
@@ -20,6 +21,8 @@ import {
   refreshSalesSummariesForLog,
   refreshSalesSummariesForLogs,
   resolveBeverageUnitCost,
+  STOCK_CORRECTION_MESSAGE,
+  selectBarBooks,
 } from './lib/barStock';
 
 async function sellerForBarWrite(
@@ -461,6 +464,8 @@ export const createUserStockLog = mutation({
       action: "opening today's stock",
     });
     if (blocked) return { success: false, message: blocked };
+    const correction = await correctionDayMessage(ctx, args.barId, logDate);
+    if (correction) return { success: false, message: correction };
     const seller = await sellerForBarWrite(ctx, auth, {
       propertyId: args.propertyId,
       barId: args.barId,
@@ -502,6 +507,139 @@ export const createUserStockLog = mutation({
   },
 });
 
+const ADMIN_CORRECTION_ONLY = 'Only an administrator can change stock that was reopened for correction';
+
+function correctionDenied(auth: AuthContext, log: Doc<'userStockLogs'>): string | null {
+  if (!isStockCorrectionOpen(log)) return null;
+  if (isAdministratorAtProperty(auth, log.propertyId)) return null;
+  return ADMIN_CORRECTION_ONLY;
+}
+
+async function correctionDayMessage(ctx: MutationCtx, barId: Id<'bars'>, logDate: string) {
+  const rows = await ctx.db
+    .query('userStockLogs')
+    .withIndex('by_barId_date', (q) => q.eq('barId', barId).eq('logDate', logDate))
+    .collect();
+  if (selectBarBooks(rows).some((log) => isStockCorrectionOpen(log))) {
+    return STOCK_CORRECTION_MESSAGE;
+  }
+  return null;
+}
+
+export const reopenBarDayForCorrection = mutation({
+  args: {
+    barId: v.id('bars'),
+    logDate: v.string(),
+  },
+  returns: v.object({
+    success: v.boolean(),
+    message: v.string(),
+    reopened: v.optional(v.number()),
+  }),
+  handler: async (ctx, args) => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(args.logDate)) {
+      return { success: false, message: 'Choose a valid date' };
+    }
+    const bar = await ctx.db.get(args.barId);
+    if (!bar) return { success: false, message: 'Bar not found' };
+    const auth = await requirePermission(ctx, 'fnb.update', bar.propertyId);
+    if (!isAdministratorAtProperty(auth, bar.propertyId)) {
+      return { success: false, message: 'Only an administrator can reopen finalized stock' };
+    }
+    const rows = await ctx.db
+      .query('userStockLogs')
+      .withIndex('by_barId_date', (q) => q.eq('barId', args.barId).eq('logDate', args.logDate))
+      .collect();
+    const books = selectBarBooks(rows);
+    if (books.length === 0) {
+      return { success: false, message: 'No stock was recorded for this bar on this date' };
+    }
+    const finalized = books.filter((log) => log.isFinalized);
+    if (finalized.length === 0) {
+      return {
+        success: false,
+        message: books.some((log) => isStockCorrectionOpen(log))
+          ? 'This day is already open for correction'
+          : 'This day is not finalized',
+      };
+    }
+    const now = Date.now();
+    for (const log of finalized) {
+      await ctx.db.patch(log._id, {
+        isFinalized: false,
+        correctionOpen: true,
+        lastUpdatedAt: now,
+      });
+    }
+    const count = finalized.length;
+    return {
+      success: true,
+      message:
+        count === 1
+          ? '1 stock log reopened for correction'
+          : `${count} stock logs reopened for correction`,
+      reopened: count,
+    };
+  },
+});
+
+/** The next bar sheet whose opening was copied from this close. An uncounted close moves with the new opening. */
+async function adjustedNextOpening(
+  ctx: MutationCtx,
+  log: Doc<'userStockLogs'>,
+  previousClosing: number,
+  nextClosing: number,
+) {
+  if (!log.barId || previousClosing === nextClosing) return { ok: true as const, next: null };
+  const later = await ctx.db
+    .query('userStockLogs')
+    .withIndex('by_barId_beverage_date', (q) =>
+      q.eq('barId', log.barId!).eq('beverageId', log.beverageId).gt('logDate', log.logDate),
+    )
+    .take(12);
+  if (later.length === 0) return { ok: true as const, next: null };
+  const earliest = later.reduce((min, row) => (row.logDate < min ? row.logDate : min), later[0].logDate);
+  const sameDay = later.filter((row) => row.logDate === earliest);
+  const next = sameDay.find((row) => row.holder === 'bar') ?? (sameDay.length === 1 ? sameDay[0] : null);
+  if (!next || next.openingStock !== previousClosing) return { ok: true as const, next: null };
+  const beverage = await ctx.db.get(next.beverageId);
+  if (!beverage) return { ok: false as const, message: 'The next day is missing its drink' };
+  const totalStock = nextClosing + next.newStockReceived;
+  const counted = next.closingStock !== next.totalStock;
+  const closingStock = counted ? next.closingStock : totalStock;
+  try {
+    const sales = derivedSales(
+      totalStock,
+      closingStock,
+      beverage.unitPrice,
+      await resolveBeverageUnitCost(ctx, beverage),
+      next.wasteQuantity,
+      next.compQuantity,
+    );
+    return {
+      ok: true as const,
+      next: {
+        id: next._id,
+        patch: {
+          openingStock: nextClosing,
+          totalStock,
+          closingStock,
+          ...sales,
+          lastUpdatedAt: Date.now(),
+        },
+        summary: { ...next, openingStock: nextClosing, totalStock, closingStock, ...sales },
+      },
+    };
+  } catch (error: any) {
+    const drink = beverage.name || 'this drink';
+    const reason = error?.message ? ` ${error.message}` : '';
+    return {
+      ok: false as const,
+      message: `${next.logDate} already has a count for ${drink} that this close cannot support. Reopen that day and correct it first.${reason}`,
+    };
+  }
+}
+
 export const updateUserStockLog = mutation({
   args: {
     stockLogId: v.id('userStockLogs'),
@@ -522,6 +660,8 @@ export const updateUserStockLog = mutation({
     if (existingLog.isFinalized) {
       return { success: false, message: 'Cannot update finalized stock log' };
     }
+    const deniedCorrection = correctionDenied(auth, existingLog);
+    if (deniedCorrection) return { success: false, message: deniedCorrection };
     if (!existingLog.barId) {
       return { success: false, message: 'This stock row is not on a bar' };
     }
@@ -532,8 +672,13 @@ export const updateUserStockLog = mutation({
       salesUserId: args.salesUserId,
       preferUserId: existingLog.userId,
     });
-    if (seller.ok === false) return { success: false, message: seller.message };
-    const claimed = await claimStockLogSeller(ctx, existingLog, seller.seller, auth.user._id);
+    if (seller.ok === false && !isStockCorrectionOpen(existingLog)) {
+      return { success: false, message: seller.message };
+    }
+    const claimed =
+      seller.ok === true
+        ? await claimStockLogSeller(ctx, existingLog, seller.seller, auth.user._id)
+        : existingLog;
 
     try {
 
@@ -558,6 +703,8 @@ export const updateUserStockLog = mutation({
       } catch (error: any) {
         return { success: false, message: error?.message || 'Closing stock cannot be greater than total stock' };
       }
+      const carried = await adjustedNextOpening(ctx, existingLog, existingLog.closingStock, args.closingStock);
+      if (!carried.ok) return { success: false, message: carried.message };
 
       await ctx.db.patch(args.stockLogId, {
         openingStock: args.openingStock,
@@ -568,14 +715,18 @@ export const updateUserStockLog = mutation({
         ...(args.compReason !== undefined ? { compReason: args.compReason } : {}),
         lastUpdatedAt: Date.now(),
       });
-      await refreshSalesSummariesForLog(ctx, {
-        ...claimed,
-        salesQuantity: sales.salesQuantity,
-        salesValue: sales.salesValue,
-        cogsValue: sales.cogsValue,
-        wasteQuantity: sales.wasteQuantity,
-        compQuantity: sales.compQuantity,
-      });
+      if (carried.next) await ctx.db.patch(carried.next.id, carried.next.patch);
+      await refreshSalesSummariesForLogs(ctx, [
+        {
+          ...claimed,
+          salesQuantity: sales.salesQuantity,
+          salesValue: sales.salesValue,
+          cogsValue: sales.cogsValue,
+          wasteQuantity: sales.wasteQuantity,
+          compQuantity: sales.compQuantity,
+        },
+        ...(carried.next ? [carried.next.summary] : []),
+      ]);
 
       return { success: true, message: 'User stock log updated successfully' };
     } catch (error) {
@@ -592,12 +743,14 @@ export const deleteUserStockLog = mutation({
     if (!existingLog) {
       return { success: false, message: 'User stock log does not exist' };
     }
-    await requirePermission(ctx, 'fnb.delete', existingLog.propertyId);
+    const auth = await requirePermission(ctx, 'fnb.delete', existingLog.propertyId);
 
     try {
       if (existingLog.isFinalized) {
         return { success: false, message: 'Cannot delete finalized stock log' };
       }
+      const deniedCorrection = correctionDenied(auth, existingLog);
+      if (deniedCorrection) return { success: false, message: deniedCorrection };
 
       await ctx.db.delete(args.stockLogId);
       await refreshSalesSummariesForLog(ctx, {
@@ -625,6 +778,7 @@ async function finalizeOpenStockLog(
   const cogs = await computeCogsSnapshot(ctx, log);
   await ctx.db.patch(log._id, {
     isFinalized: true,
+    correctionOpen: false,
     ...cogs,
     lastUpdatedAt: now,
   });
@@ -643,6 +797,8 @@ export const finalizeUserStockLog = mutation({
       return { success: false, message: 'User stock log does not exist' };
     }
     const auth = await requirePermission(ctx, 'fnb.update', existingLog.propertyId);
+    const deniedCorrection = correctionDenied(auth, existingLog);
+    if (deniedCorrection) return { success: false, message: deniedCorrection };
 
     try {
       if (existingLog.isFinalized) {
@@ -658,8 +814,13 @@ export const finalizeUserStockLog = mutation({
         salesUserId: args.salesUserId,
         preferUserId: existingLog.userId,
       });
-      if (seller.ok === false) return { success: false, message: seller.message };
-      const claimed = await claimStockLogSeller(ctx, existingLog, seller.seller, auth.user._id);
+      if (seller.ok === false && !isStockCorrectionOpen(existingLog)) {
+        return { success: false, message: seller.message };
+      }
+      const claimed =
+        seller.ok === true
+          ? await claimStockLogSeller(ctx, existingLog, seller.seller, auth.user._id)
+          : existingLog;
 
       const finalized = await finalizeOpenStockLog(ctx, claimed, Date.now());
       if (!finalized) {
@@ -710,6 +871,8 @@ export const finalizeUserStockLogs = mutation({
         if (!log.barId) {
           return { success: false, message: 'This stock row is not on a bar', finalized: 0 };
         }
+        const deniedCorrection = correctionDenied(auth, log);
+        if (deniedCorrection) return { success: false, message: deniedCorrection, finalized: 0 };
         const seller = await sellerForBarWrite(ctx, auth, {
           propertyId: log.propertyId,
           barId: log.barId,
@@ -717,13 +880,17 @@ export const finalizeUserStockLogs = mutation({
           salesUserId: args.salesUserId,
           preferUserId: log.userId,
         });
-        if (seller.ok === false) return { success: false, message: seller.message, finalized: 0 };
-        planned.push({ log, seller: seller.seller });
+        if (seller.ok === false && !isStockCorrectionOpen(log)) {
+          return { success: false, message: seller.message, finalized: 0 };
+        }
+        planned.push({ log, seller: seller.ok === true ? seller.seller : null });
       }
       const now = Date.now();
       const finalized = [];
       for (const { log, seller } of planned) {
-        const claimed = await claimStockLogSeller(ctx, log, seller, auth.user._id);
+        const claimed = seller
+          ? await claimStockLogSeller(ctx, log, seller, auth.user._id)
+          : log;
         const updated = await finalizeOpenStockLog(ctx, claimed, now);
         if (updated) finalized.push(updated);
       }
@@ -876,6 +1043,8 @@ export const addMyTodayBeverage = mutation({
       action: "opening today's stock",
     });
     if (blocked) return { success: false, message: blocked };
+    const correction = await correctionDayMessage(ctx, args.barId, logDate);
+    if (correction) return { success: false, message: correction };
 
     const seller = await sellerForBarWrite(ctx, auth, {
       propertyId: args.propertyId,
@@ -949,6 +1118,8 @@ export const autofillMyToday = mutation({
       action: "opening today's stock",
     });
     if (blocked) return { success: false as const, message: blocked, added: 0, remaining: 0 };
+    const correction = await correctionDayMessage(ctx, args.barId, logDate);
+    if (correction) return { success: false as const, message: correction, added: 0, remaining: 0 };
     const seller = await sellerForBarWrite(ctx, auth, {
       propertyId: args.propertyId,
       barId: args.barId,
@@ -1093,6 +1264,9 @@ async function prepareClosingCount(
   }
   const yesterday = previousDateKey(today);
   const closingPriorDay = log.logDate === yesterday && !log.isFinalized;
+  if (isStockCorrectionOpen(log)) {
+    return { ok: false as const, message: STOCK_CORRECTION_MESSAGE };
+  }
   if (log.logDate !== today && !closingPriorDay) {
     return { ok: false as const, message: 'You can only update today\'s stock log, or yesterday while it is still open' };
   }
@@ -1285,6 +1459,15 @@ export const finalizeMyToday = mutation({
     if (logs.length === 0) {
       return { success: false, message: 'No stock logs to finalize for today' };
     }
+    const corrections = logs.filter((log) => isStockCorrectionOpen(log));
+    const staffLogs = logs.filter((log) => !isStockCorrectionOpen(log));
+    const staffOpen = staffLogs.filter((log) => !log.isFinalized);
+    if (staffOpen.length === 0 && corrections.length > 0) {
+      return { success: false, message: STOCK_CORRECTION_MESSAGE };
+    }
+    if (staffLogs.length === 0) {
+      return { success: false, message: 'No stock logs to finalize for today' };
+    }
     const seller = await sellerForBarWrite(ctx, auth, {
       propertyId: args.propertyId,
       barId: args.barId,
@@ -1296,7 +1479,7 @@ export const finalizeMyToday = mutation({
 
     const now = Date.now();
     const finalized: Array<(typeof logs)[number] & { cogsValue: number }> = [];
-    for (const log of logs) {
+    for (const log of staffLogs) {
       const claimed = await claimStockLogSeller(ctx, log, seller.seller, auth.user._id);
       const cogs = await computeCogsSnapshot(ctx, claimed);
       if (!log.isFinalized) {
@@ -1327,21 +1510,27 @@ export const finalizeMyPriorDay = mutation({
     }
     const today = await propertyDateKey(ctx, args.propertyId);
     const open = await openPriorBarBooks(ctx, { barId: args.barId, beforeDate: today });
-    if (open.length === 0) {
-      return { success: false, message: "Yesterday's stock is already closed" };
+    const staffOpen = open.filter((log) => !isStockCorrectionOpen(log));
+    if (staffOpen.length === 0) {
+      return {
+        success: false,
+        message: open.length > 0 ? STOCK_CORRECTION_MESSAGE : "Yesterday's stock is already closed",
+      };
     }
     const seller = await sellerForBarWrite(ctx, auth, {
       propertyId: args.propertyId,
       barId: args.barId,
-      logDate: open[0].logDate,
+      logDate: staffOpen[0].logDate,
       salesUserId: args.salesUserId,
-      preferUserId: open.every((log) => log.userId === open[0].userId) ? open[0].userId : undefined,
+      preferUserId: staffOpen.every((log) => log.userId === staffOpen[0].userId)
+        ? staffOpen[0].userId
+        : undefined,
     });
     if (seller.ok === false) return { success: false, message: seller.message };
 
     const now = Date.now();
     const finalized = [];
-    for (const log of open) {
+    for (const log of staffOpen) {
       const claimed = await claimStockLogSeller(ctx, log, seller.seller, auth.user._id);
       const cogs = await computeCogsSnapshot(ctx, claimed);
       await ctx.db.patch(log._id, { isFinalized: true, ...cogs, lastUpdatedAt: now });

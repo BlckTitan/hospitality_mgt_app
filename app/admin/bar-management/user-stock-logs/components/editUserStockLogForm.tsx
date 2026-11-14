@@ -252,7 +252,10 @@ goToList('/admin/bar-management/user-stock-logs');
               {stockLogData.lastUpdatedAt ? new Date(stockLogData.lastUpdatedAt).toLocaleString() : 'Unknown'}
             </span></p>
             {stockLogData.isFinalized && (
-              <p className="text-red-600 text-sm mt-2">This record is finalized and cannot be edited.</p>
+              <p className="text-red-600 text-sm mt-2">This record is finalized and cannot be edited. An administrator can reopen the day from User Stock Logs.</p>
+            )}
+            {stockLogData.correctionOpen && !stockLogData.isFinalized && (
+              <p className="text-amber-700 text-sm mt-2">This day is open for an administrator correction. Save the update, then finalize it from User Stock Logs.</p>
             )}
           </div>
         </div>
@@ -260,7 +263,7 @@ goToList('/admin/bar-management/user-stock-logs');
 
       <div className="bg-blue-50 p-3 rounded mb-4">
         <p className="text-sm text-blue-800">
-          <strong>Note:</strong> This stock log can only be edited if it's not finalized. 
+          <strong>Note:</strong> A finalized day can be edited only after an administrator reopens it from User Stock Logs.
           New stock received is automatically managed when stock is issued from the store.
         </p>
       </div>

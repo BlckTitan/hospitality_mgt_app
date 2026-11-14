@@ -21,6 +21,10 @@ const selectClassName = 'w-full px-3 py-2 border border-gray-300 rounded-md';
 const qtyInputClassName = 'w-20! max-w-[1.75rem] border rounded p-1 text-right';
 const PAGE_SIZE = 10;
 
+function isAdminCorrection(log: { isFinalized: boolean; correctionOpen?: boolean }) {
+  return log.correctionOpen === true && !log.isFinalized
+}
+
 function previousDateKey(dateKey: string) {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey);
   if (!match) return dateKey;
@@ -199,7 +203,7 @@ export default function MyStock() {
     if (data.logDate !== data.today) return
     if ((priorLogs ?? []).some((log) => log.barId === selectedBarId)) return
     const barLogs = (todayLogs ?? []).filter((log) => log.barId === selectedBarId)
-    if (barLogs.some((log) => log.isFinalized)) return
+    if (barLogs.some((log) => log.isFinalized || isAdminCorrection(log))) return
     const key = `${currentPropertyId}:${selectedBarId}:${data.logDate}`
     if (carryKey.current === key) return
     carryKey.current = key
@@ -285,6 +289,9 @@ export default function MyStock() {
   }
 
   const barFinalized = logs.some((log) => log.isFinalized)
+  const dayCorrection = logs.some((log) => isAdminCorrection(log))
+  const priorStaff = priorForBar.filter((log) => !isAdminCorrection(log))
+  const priorCorrection = priorForBar.filter((log) => isAdminCorrection(log))
 
   const handleAutofill = async () => {
     if (!viewingToday) return
@@ -380,7 +387,7 @@ export default function MyStock() {
   }
 
   const handleSaveAll = async () => {
-    const openLogs = logs.filter((log) => !log.isFinalized)
+    const openLogs = logs.filter((log) => !log.isFinalized && !isAdminCorrection(log))
     if (openLogs.length === 0) {
       toast.error('No open stock to save')
       return
@@ -608,15 +615,21 @@ export default function MyStock() {
               <Button
                 variant="dark"
                 type="submit"
-                disabled={!selectedBarId || autofilling || priorForBar.length > 0}
-                title={priorForBar.length > 0 ? priorCloseMessage : undefined}
+                disabled={!selectedBarId || autofilling || priorForBar.length > 0 || dayCorrection}
+                title={
+                  dayCorrection
+                    ? 'This day was reopened for an administrator correction in User Stock Logs'
+                    : priorForBar.length > 0
+                      ? priorCloseMessage
+                      : undefined
+                }
               >
                 Add to today
               </Button>
               <Button
                 variant="outline-dark"
                 type="button"
-                disabled={!selectedBarId || barFinalized || autofilling || priorForBar.length > 0}
+                disabled={!selectedBarId || barFinalized || dayCorrection || autofilling || priorForBar.length > 0}
                 title={
                   priorForBar.length > 0
                     ? priorCloseMessage
@@ -638,7 +651,9 @@ export default function MyStock() {
         </div>
         {selectedDate && !sheetStale && (
           <p className="text-sm text-gray-500 mt-2">
-            {viewingToday
+            {dayCorrection
+              ? `Showing ${selectedDate}. An administrator reopened this day for correction. Update and finalize it in User Stock Logs.`
+              : viewingToday
               ? `Date: ${selectedDate}. Opening stock is yesterday's closing count for this bar.`
               : viewingYesterday && logs.some((log) => !log.isFinalized)
                 ? `Showing ${selectedDate}. Save the count and finalize it before today's stock can open.`
@@ -647,7 +662,17 @@ export default function MyStock() {
         )}
       </div>
 
-      {!sheetStale && priorForBar.length > 0 && (
+      {!sheetStale && priorCorrection.length > 0 && (
+        <section className="mb-6 rounded-md border border-amber-300 bg-amber-50 p-4">
+          <h3 className="text-base font-semibold">Yesterday is open for correction</h3>
+          <p className="mt-1 text-sm text-gray-700">
+            An administrator reopened yesterday&apos;s {priorBarName} stock. It can only be updated and finalized in User Stock Logs.
+            The next shift cannot sell until that is done.
+          </p>
+        </section>
+      )}
+
+      {!sheetStale && priorStaff.length > 0 && (
         <section className="mb-6 rounded-md border border-amber-300 bg-amber-50 p-4">
           <h3 className="text-base font-semibold">Close yesterday first</h3>
           <p className="mt-1 text-sm text-gray-700">
@@ -669,7 +694,7 @@ export default function MyStock() {
                 </tr>
               </thead>
               <tbody>
-                {priorForBar.map((log) => {
+                {priorStaff.map((log) => {
                   const closingValue = closingEdits[log._id] ?? String(log.closingStock)
                   const wasteValue = wasteEdits[log._id] ?? String(log.wasteQuantity ?? 0)
                   const compValue = compEdits[log._id] ?? String(log.compQuantity ?? 0)
@@ -757,7 +782,9 @@ export default function MyStock() {
         <p className="text-gray-600">{today.message}</p>
       ) : logs.length === 0 ? (
         <p className="text-gray-600">
-          {priorForBar.length > 0
+          {priorCorrection.length > 0
+            ? 'Today stays closed until an administrator finalizes yesterday in User Stock Logs.'
+            : priorStaff.length > 0
             ? 'Today stays closed until yesterday is finalized.'
             : knownPast
               ? `No stock was recorded for this bar on ${selectedDate}.`
@@ -778,14 +805,14 @@ export default function MyStock() {
           placeholder="Search by beverage"
           setSearchQuery={setBeverageQuery}
           leading={
-            canEditOpenRow && logs.some((log) => !log.isFinalized) ? (
+            canEditOpenRow && logs.some((log) => !log.isFinalized && !isAdminCorrection(log)) ? (
               <Button
                 type="button"
                 variant="success"
                 onClick={handleSaveAll}
                 disabled={savingAll || autofilling}
               >
-                {savingAll ? 'Saving…' : `Save all (${logs.filter((log) => !log.isFinalized).length})`}
+                {savingAll ? 'Saving…' : `Save all (${logs.filter((log) => !log.isFinalized && !isAdminCorrection(log)).length})`}
               </Button>
             ) : null
           }
@@ -859,7 +886,7 @@ export default function MyStock() {
                         min={0}
                         className={qtyInputClassName}
                         value={closingValue}
-                        disabled={!canEditOpenRow || log.isFinalized || savingAll || savingId === log._id}
+                        disabled={!canEditOpenRow || log.isFinalized || isAdminCorrection(log) || savingAll || savingId === log._id}
                         onChange={(event) =>
                           setClosingEdits((current) => ({
                             ...current,
@@ -874,7 +901,7 @@ export default function MyStock() {
                         min={0}
                         className={qtyInputClassName}
                         value={wasteValue}
-                        disabled={!canEditOpenRow || log.isFinalized || savingAll || savingId === log._id}
+                        disabled={!canEditOpenRow || log.isFinalized || isAdminCorrection(log) || savingAll || savingId === log._id}
                         onChange={(event) =>
                           setWasteEdits((current) => ({
                             ...current,
@@ -889,7 +916,7 @@ export default function MyStock() {
                         min={0}
                         className={qtyInputClassName}
                         value={compValue}
-                        disabled={!canEditOpenRow || log.isFinalized || savingAll || savingId === log._id}
+                        disabled={!canEditOpenRow || log.isFinalized || isAdminCorrection(log) || savingAll || savingId === log._id}
                         onChange={(event) =>
                           setCompEdits((current) => ({
                             ...current,
@@ -908,9 +935,11 @@ export default function MyStock() {
                     >
                       {variance}
                     </td>
-                    <td className="p-2">{log.isFinalized ? 'Finalized' : 'Open'}</td>
                     <td className="p-2">
-                      {canEditOpenRow && !log.isFinalized && (
+                      {isAdminCorrection(log) ? 'Correction' : log.isFinalized ? 'Finalized' : 'Open'}
+                    </td>
+                    <td className="p-2">
+                      {canEditOpenRow && !log.isFinalized && !isAdminCorrection(log) && (
                         <Button
                           type="button"
                           size="sm"
@@ -961,12 +990,12 @@ export default function MyStock() {
               Request stock
             </Button>
           </Link>
-          {viewingToday && logs.some((log) => !log.isFinalized) && (
+          {viewingToday && logs.some((log) => !log.isFinalized && !isAdminCorrection(log)) && (
             <Button type="button" variant="success" onClick={handleFinalize}>
               Finalize today
             </Button>
           )}
-          {viewingYesterday && logs.some((log) => !log.isFinalized) && (
+          {viewingYesterday && logs.some((log) => !log.isFinalized && !isAdminCorrection(log)) && (
             <Button type="button" variant="success" onClick={handleFinalizePrior}>
               Finalize yesterday
             </Button>

@@ -36,6 +36,7 @@ interface UserStockLogProps {
   unitCostAtSale?: number;
   cogsValue?: number;
   isFinalized: boolean;
+  correctionOpen?: boolean;
   lastUpdatedAt: number;
   shift?: {
     _id: string;
@@ -116,9 +117,11 @@ const UserStockLogs = ({
   const { isAuthenticated } = useConvexAuth();
   const { roles, isLoading: rolesLoading } = usePermissions();
   const showGrossProfit = !rolesLoading && !isWaiterView(roles);
+  const isAdmin = !rolesLoading && roles.includes('Administrator');
   const queriedCurrency = usePropertyCurrency(currentPropertyId);
   const currency = propertyCurrencyCode(propertyCurrency || queriedCurrency);
   const [finalizingAll, setFinalizingAll] = useState(false);
+  const [reopening, setReopening] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery] = useDebounce(searchQuery, 300);
   const canQuery = isAuthenticated && Boolean(currentPropertyId);
@@ -141,6 +144,7 @@ const UserStockLogs = ({
   const removeUserStockLog = useMutation(api.userStockLogs.deleteUserStockLog);
   const finalizeUserStockLog = useMutation(api.userStockLogs.finalizeUserStockLog);
   const finalizeUserStockLogs = useMutation(api.userStockLogs.finalizeUserStockLogs);
+  const reopenBarDay = useMutation(api.userStockLogs.reopenBarDayForCorrection);
 
   const handleDelete = async (id: string, beverageName: string) => {
     if (!confirm('Are you sure you want to delete stock log for: ' + beverageName + '?')) return;
@@ -161,7 +165,7 @@ const UserStockLogs = ({
   };
 
   const handleFinalize = async (id: string, beverageName: string) => {
-    if (!confirm('Are you sure you want to finalize this stock log for: ' + beverageName + '? This action cannot be undone.')) return;
+    if (!confirm('Finalize this stock log for: ' + beverageName + '? An administrator can reopen it later from this page.')) return;
     try {
       const response = await finalizeUserStockLog({ stockLogId: id as Id<'userStockLogs'> });
 
@@ -187,6 +191,47 @@ const UserStockLogs = ({
     );
   };
 
+  const selectedBarLogs = () => {
+    if (!filters?.barId || !stockLogData || stockLogData.success !== true) return [];
+    return stockLogData.data ?? [];
+  };
+
+  const handleReopen = async () => {
+    if (!filters?.barId || !logDate) {
+      toast.error('Select a bar and a date first');
+      return;
+    }
+    const dayLogs = selectedBarLogs();
+    const barName = dayLogs[0]?.bar?.name || 'this bar';
+    const count = dayLogs.filter((row) => row.isFinalized).length;
+    if (count === 0) {
+      toast.error('This day is not finalized');
+      return;
+    }
+    const noun = count === 1 ? 'finalized drink' : 'finalized drinks';
+    if (!confirm(
+      `Reopen ${barName} on ${logDate}? ${count} ${noun} will be editable on this page. Staff cannot change them from My stock. Finalize the day again when the correction is done.`,
+    )) return;
+
+    setReopening(true);
+    try {
+      const response = await reopenBarDay({
+        barId: filters.barId as Id<'bars'>,
+        logDate,
+      });
+      if (response.success === true) {
+        toast.success(response.message);
+      } else {
+        toast.error(response.message);
+      }
+    } catch (error) {
+      console.log(`Failed to reopen stock for correction! ${error}`);
+      toast.error('Failed to reopen this stock. Please try again.');
+    } finally {
+      setReopening(false);
+    }
+  };
+
   const handleFinalizeAll = async () => {
     const openLogs = visibleLogs().filter((row) => !row.isFinalized);
     if (openLogs.length === 0) {
@@ -195,7 +240,7 @@ const UserStockLogs = ({
     }
     const noun = openLogs.length === 1 ? 'stock log' : 'stock logs';
     const dateLabel = filters?.logDate ? ` for ${filters.logDate}` : '';
-    if (!confirm(`Finalize ${openLogs.length} open ${noun}${dateLabel}? This cannot be undone.`)) return;
+    if (!confirm(`Finalize ${openLogs.length} open ${noun}${dateLabel}?`)) return;
 
     setFinalizingAll(true);
     let finalized = 0;
@@ -234,10 +279,13 @@ const UserStockLogs = ({
 
   const formatCurrency = (amount: number) => formatPropertyMoney(amount, currency);
 
-  const getStockLogStatusBadge = (isFinalized: boolean) => {
+  const getStockLogStatusBadge = (row: UserStockLogProps) => {
+    const correcting = row.correctionOpen === true && !row.isFinalized;
+    const label = correcting ? 'Correction' : row.isFinalized ? 'Finalized' : 'Active';
+    const tone = correcting ? 'bg-amber-600' : row.isFinalized ? 'bg-green-600' : 'bg-yellow-600';
     return (
-      <p className={`w-fit h-fit px-2 py-1 text-white rounded-sm ${isFinalized ? 'bg-green-600' : 'bg-yellow-600'}`}>
-        {isFinalized ? 'Finalized' : 'Active'}
+      <p className={`w-fit h-fit px-2 py-1 text-white rounded-sm ${tone}`}>
+        {label}
       </p>
     );
   };
@@ -252,7 +300,13 @@ const UserStockLogs = ({
           <a
             href={`/admin/bar-management/user-stock-logs/edit?stock_log_id=${row._id}`}
             className='!mr-2 !no-underline !text-amber-400'
-            title={row.isFinalized ? 'Cannot edit - record is finalized' : 'Edit stock log'}
+            title={
+              row.isFinalized
+                ? 'Cannot edit - record is finalized'
+                : row.correctionOpen
+                  ? 'Correct this stock log'
+                  : 'Edit stock log'
+            }
           >
             <i className={`icon ${row.isFinalized ? 'opacity-50 cursor-not-allowed' : ''}`}>
               <MdEditDocument />
@@ -381,7 +435,7 @@ const UserStockLogs = ({
       label: 'Status',
       key: 'isFinalized',
       render: (value, row) => (
-        <span>{getStockLogStatusBadge(row.isFinalized)}</span>
+        <span>{getStockLogStatusBadge(row)}</span>
       )
     },
     {
@@ -399,6 +453,9 @@ const UserStockLogs = ({
 
   const rows = visibleLogs();
   const openCount = rows.filter((row) => !row.isFinalized).length;
+  const barDayLogs = selectedBarLogs();
+  const finalizedCount = barDayLogs.filter((row) => row.isFinalized).length;
+  const correctionCount = barDayLogs.filter((row) => row.correctionOpen === true && !row.isFinalized).length;
   const searchTerm = typeof debouncedQuery === 'string' ? debouncedQuery.trim() : '';
   const searchedRows = searchTerm.length >= 2
     ? rows.filter((row) => rowMatchesSearch(row, searchTerm))
@@ -413,19 +470,38 @@ const UserStockLogs = ({
         currency={currency}
         logDate={logDate}
       />
+      {isAdmin && filters?.barId && correctionCount > 0 && (
+        <p className="mb-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          This day is open for an administrator correction. Update the drinks, then finalize the stock.
+          Staff cannot change it from My stock.
+        </p>
+      )}
       <TableSearch
         value={searchQuery}
         placeholder="Search by beverage"
         setSearchQuery={setSearchQuery}
         leading={
-          openCount > 0 ? (
-            <Button
-              variant="success"
-              onClick={handleFinalizeAll}
-              disabled={finalizingAll}
-            >
-              {finalizingAll ? 'Finalizing…' : `Finalize all (${openCount})`}
-            </Button>
+          (isAdmin && filters?.barId && finalizedCount > 0) || openCount > 0 ? (
+            <div className="flex flex-wrap items-center gap-2">
+              {isAdmin && filters?.barId && finalizedCount > 0 && (
+                <Button
+                  variant="outline-dark"
+                  onClick={handleReopen}
+                  disabled={reopening || finalizingAll}
+                >
+                  {reopening ? 'Reopening…' : `Reopen for correction (${finalizedCount})`}
+                </Button>
+              )}
+              {openCount > 0 ? (
+                <Button
+                  variant="success"
+                  onClick={handleFinalizeAll}
+                  disabled={finalizingAll || reopening}
+                >
+                  {finalizingAll ? 'Finalizing…' : `Finalize all (${openCount})`}
+                </Button>
+              ) : null}
+            </div>
           ) : null
         }
       />

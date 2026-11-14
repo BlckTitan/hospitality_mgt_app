@@ -6,6 +6,7 @@ import { listActiveWaitersAndBartenders } from './lib/serviceStaff';
 import {
   derivedSales,
   findBarDayLog,
+  isStockCorrectionOpen,
   openBarBookLine,
   priorStockHandoverBlock,
   propertyDateKey,
@@ -270,7 +271,7 @@ export const setBarOpeningStock = mutation({
       const beverage = await ctx.db.get(line.beverageId);
       if (!beverage || beverage.propertyId !== bar.propertyId || !beverage.isActive) continue;
       const existing = await findBarDayLog(ctx, args.barId, line.beverageId, logDate);
-      if (existing?.isFinalized) {
+      if (existing?.isFinalized || (existing && isStockCorrectionOpen(existing))) {
         skipped.push(beverage.name);
         continue;
       }

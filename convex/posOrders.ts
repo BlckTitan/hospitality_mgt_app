@@ -5,7 +5,7 @@ import { AuthContext, isAdministratorAtProperty, requirePermission } from './lib
 import { ensureSellerShift, resolvePosSalesPerson } from './lib/barSalesPerson';
 import { assertCanOperateBar } from './lib/barAssignment';
 import { canViewTeamRecords, isFloorServiceOnly, rolesForProperty } from './lib/staffScope';
-import { findBarDayLog, lastFinalizedClosingStock, priorStockHandoverBlock, propertyDateKey, remainingSellableQty } from './lib/barStock';
+import { findBarDayLog, isStockCorrectionOpen, lastFinalizedClosingStock, priorStockHandoverBlock, propertyDateKey, remainingSellableQty } from './lib/barStock';
 import { requireFnBSaleShift } from './lib/dutyContext';
 import { rowMatchesSearch } from './lib/rowSearch';
 import { activeSearchTerm, docsById, offsetPage } from './lib/listSearch';
@@ -244,14 +244,15 @@ async function availableQtyForUserBarBeverage(
       : await findBarDayLog(ctx, args.barId, args.beverageId, args.logDate);
 
   if (log) {
+    const closed = log.isFinalized || isStockCorrectionOpen(log);
     return {
-      closed: log.isFinalized,
+      closed,
       availableQty: remainingSellableQty({
         totalStock: log.totalStock,
         wasteQuantity: log.wasteQuantity,
         compQuantity: log.compQuantity,
         pouredQuantity,
-        isFinalized: log.isFinalized,
+        isFinalized: closed,
       }),
     };
   }

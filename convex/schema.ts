@@ -1253,6 +1253,8 @@ export default defineSchema({
     unitCostAtSale: v.optional(v.number()), // resolved cost snapshotted at write/finalize
     cogsValue: v.optional(v.number()),      // disappeared qty × unitCostAtSale (persisted)
     isFinalized: v.boolean(),        // true after end-of-day reconciliation
+    // Set when an administrator reopens a finalized day. Cleared on the next finalize.
+    correctionOpen: v.optional(v.boolean()),
     lastUpdatedAt: v.number(),         // epoch ms of last mutation
   })
     .index("by_propertyId", ["propertyId"])
