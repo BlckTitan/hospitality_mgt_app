@@ -1,11 +1,11 @@
 import { query } from "./_generated/server";
 import { v } from "convex/values";
-import { explainNoBarOperator, listBarSellers } from "./lib/barSalesPerson";
+import { explainNoBarOperator, listBarSellers, NOT_ON_ROTATION, NOBODY_ON_ROTATION } from "./lib/barSalesPerson";
 import { propertyDateKey } from "./lib/barStock";
 import { isAdministratorAtProperty, requirePermission } from "./lib/rbac";
 import { isFloorServiceOnly, rolesForProperty } from "./lib/staffScope";
 
-const ADMIN_ONLY = "Only an administrator can record a sale for the waiter on shift.";
+const ADMIN_ONLY = "Only an administrator can record a sale for the waiter on rotation.";
 
 export const listOnShiftSellers = query({
   args: {
@@ -68,7 +68,7 @@ export const listOnShiftSellers = query({
           mustChoose: false,
           message: sellers.length === 0
             ? await explainNoBarOperator(ctx, auth, args.propertyId, args.barId)
-            : "Start your shift at this bar before recording a sale.",
+            : NOT_ON_ROTATION,
           sellers: [],
         };
       }
@@ -84,9 +84,7 @@ export const listOnShiftSellers = query({
       success: true as const,
       mode: "admin" as const,
       mustChoose: sellers.length > 1,
-      message: sellers.length === 0
-        ? await explainNoBarOperator(ctx, auth, args.propertyId, args.barId)
-        : null,
+      message: sellers.length === 0 ? NOBODY_ON_ROTATION : null,
       sellers,
     };
   },

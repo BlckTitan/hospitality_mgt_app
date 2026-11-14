@@ -158,18 +158,76 @@ export function selectBarBooks(rows: Doc<"userStockLogs">[]): Doc<"userStockLogs
   return books;
 }
 
-/** Yesterday's bar sheet rows that are still open. */
-export async function openPriorBarBooks(
+/** The bar's sheet on the latest date before this one. */
+export async function latestPriorBarBooks(
   ctx: DbCtx,
   args: { barId: Id<"bars">; beforeDate: string },
 ): Promise<Doc<"userStockLogs">[]> {
   const rows = await ctx.db
     .query("userStockLogs")
-    .withIndex("by_barId_date", (q) =>
-      q.eq("barId", args.barId).eq("logDate", previousDateKey(args.beforeDate)),
-    )
+    .withIndex("by_barId_date", (q) => q.eq("barId", args.barId).lt("logDate", args.beforeDate))
+    .order("desc")
+    .take(400);
+  if (rows.length === 0) return [];
+  const latest = rows[0].logDate;
+  return selectBarBooks(rows.filter((row) => row.logDate === latest));
+}
+
+/** Open bar-sheet rows on the latest date before this one. */
+export async function openPriorBarBooks(
+  ctx: DbCtx,
+  args: { barId: Id<"bars">; beforeDate: string },
+): Promise<Doc<"userStockLogs">[]> {
+  const books = await latestPriorBarBooks(ctx, args);
+  return books.filter((log) => !log.isFinalized);
+}
+
+/** Unfinalized F&B shifts at this bar before this date. */
+export async function openPriorShifts(
+  ctx: DbCtx,
+  args: { barId: Id<"bars">; beforeDate: string },
+): Promise<Doc<"shifts">[]> {
+  const rows = await ctx.db
+    .query("shifts")
+    .withIndex("by_barId_date", (q) => q.eq("barId", args.barId).lt("shiftDate", args.beforeDate))
+    .order("desc")
+    .take(80);
+  return rows.filter((row) => (!row.department || row.department === "fnb") && !row.isFinalized);
+}
+
+export async function finalizeOpenBarShifts(
+  ctx: MutationCtx,
+  args: { barId: Id<"bars">; shiftDate: string; now: number },
+): Promise<number> {
+  const rows = await ctx.db
+    .query("shifts")
+    .withIndex("by_barId_date", (q) => q.eq("barId", args.barId).eq("shiftDate", args.shiftDate))
     .collect();
-  return selectBarBooks(rows).filter((log) => !log.isFinalized);
+  let closed = 0;
+  for (const shift of rows) {
+    if (shift.department && shift.department !== "fnb") continue;
+    if (shift.isFinalized) continue;
+    await ctx.db.patch(shift._id, {
+      isFinalized: true,
+      ...(shift.clockInAt !== undefined && shift.clockOutAt === undefined ? { clockOutAt: args.now } : {}),
+    });
+    closed += 1;
+  }
+  return closed;
+}
+
+export async function finalizeOpenPriorShifts(
+  ctx: MutationCtx,
+  args: { barId: Id<"bars">; beforeDate: string; now: number },
+): Promise<number> {
+  const open = await openPriorShifts(ctx, args);
+  for (const shift of open) {
+    await ctx.db.patch(shift._id, {
+      isFinalized: true,
+      ...(shift.clockInAt !== undefined && shift.clockOutAt === undefined ? { clockOutAt: args.now } : {}),
+    });
+  }
+  return open.length;
 }
 
 function joinNames(names: string[]): string {
@@ -179,9 +237,9 @@ function joinNames(names: string[]): string {
 }
 
 /**
- * Yesterday's open bar sheet must be closed before another person starts, sells,
- * or opens today from that count. The person who still owns every open row may
- * start a shift so they can close it. They still cannot sell or open today.
+ * The latest prior bar sheet and any earlier unfinalized shift must be closed
+ * before another person sells or opens today. The person who still owns every
+ * open row may start a shift so they can close it. They still cannot sell or open today.
  */
 export async function priorStockHandoverBlock(
   ctx: DbCtx,
@@ -194,34 +252,63 @@ export async function priorStockHandoverBlock(
   },
 ): Promise<string | null> {
   const open = await openPriorBarBooks(ctx, args);
-  if (open.length === 0) return null;
-  if (open.every((log) => isStockCorrectionOpen(log))) {
+  const openShifts = await openPriorShifts(ctx, args);
+  if (open.length > 0 && open.every((log) => isStockCorrectionOpen(log))) {
     return STOCK_CORRECTION_MESSAGE;
   }
   const staffOpen = open.filter((log) => !isStockCorrectionOpen(log));
+  if (staffOpen.length === 0 && openShifts.length === 0) return null;
   if (
-    staffOpen.length > 0 &&
     args.allowOwner &&
     args.actorUserId &&
-    staffOpen.every((log) => log.userId === args.actorUserId)
+    staffOpen.every((log) => log.userId === args.actorUserId) &&
+    openShifts.every((shift) => shift.userId === args.actorUserId)
   ) {
     return null;
   }
   const bar = await ctx.db.get(args.barId);
   const seen = new Set<string>();
   const names: string[] = [];
-  for (const log of open) {
+  for (const log of staffOpen) {
     if (seen.has(log.userId)) continue;
     seen.add(log.userId);
     const user = await ctx.db.get(log.userId);
     const name = user?.name?.trim();
     if (name) names.push(name);
   }
+  for (const shift of openShifts) {
+    if (!shift.userId || seen.has(shift.userId)) continue;
+    seen.add(shift.userId);
+    const user = await ctx.db.get(shift.userId);
+    const name = user?.name?.trim();
+    if (name) names.push(name);
+  }
   const barName = bar?.name ?? "this bar";
-  return `Finalize yesterday's ${barName} stock for ${joinNames(names)} before ${args.action}.`;
+  const when = staffOpen[0]?.logDate ?? openShifts[0]?.shiftDate ?? "the previous shift";
+  return `Finalize the open shift on ${when} at ${barName} for ${joinNames(names)} before ${args.action}.`;
 }
 
-/** Opening for today: yesterday's finalized close, or the last finalized close if yesterday has no row. An open yesterday is not carried forward. */
+function closingFromPriorBooks(prior: Doc<"userStockLogs">[]): number {
+  const dates: string[] = [];
+  const grouped = new Map<string, Doc<"userStockLogs">[]>();
+  for (const log of prior) {
+    const list = grouped.get(log.logDate);
+    if (list) list.push(log);
+    else {
+      dates.push(log.logDate);
+      grouped.set(log.logDate, [log]);
+    }
+  }
+  for (const date of dates) {
+    const rows = grouped.get(date) ?? [];
+    const book = rows.find((row) => row.holder === "bar") ?? (rows.length === 1 ? rows[0] : undefined);
+    if (!book || !book.isFinalized) return 0;
+    return book.closingStock;
+  }
+  return 0;
+}
+
+/** Opening is the latest prior finalized close at this bar. An open later sheet is not replaced by an older close. */
 export async function carryOverOpeningStock(
   ctx: DbCtx,
   args: {
@@ -230,13 +317,6 @@ export async function carryOverOpeningStock(
     beforeDate: string;
   },
 ): Promise<number> {
-  const yesterday = await findBarDayLog(
-    ctx,
-    args.barId,
-    args.beverageId,
-    previousDateKey(args.beforeDate),
-  );
-  if (yesterday?.isFinalized) return yesterday.closingStock;
   return lastFinalizedClosingStock(ctx, args);
 }
 
@@ -257,9 +337,7 @@ export async function lastFinalizedClosingStock(
     .order("desc")
     .take(90);
 
-  const finalized = prior.filter((log) => log.isFinalized);
-  const book = finalized.find((log) => log.holder === "bar");
-  return (book ?? finalized[0])?.closingStock ?? 0;
+  return closingFromPriorBooks(prior);
 }
 
 /** Open the bar's row for one drink. Does not change a row that already exists. */

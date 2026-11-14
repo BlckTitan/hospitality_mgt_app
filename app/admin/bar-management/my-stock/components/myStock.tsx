@@ -85,6 +85,9 @@ export default function MyStock() {
   const propertyToday = data?.today ?? ''
   const selectedDate = logDate || propertyToday
   const priorDate = propertyToday ? previousDateKey(propertyToday) : ''
+  const priorSheetDate =
+    (data?.priorLogs ?? []).find((log) => !selectedBarId || log.barId === selectedBarId)?.logDate ||
+    priorDate
   const salesRoster = useQuery(
     api.barSales.listOnShiftSellers,
     isAuthenticated && currentPropertyId && selectedBarId
@@ -98,12 +101,12 @@ export default function MyStock() {
   )
   const priorRoster = useQuery(
     api.barSales.listOnShiftSellers,
-    isAuthenticated && currentPropertyId && selectedBarId && priorDate
+    isAuthenticated && currentPropertyId && selectedBarId && priorSheetDate
       ? {
           propertyId: currentPropertyId as Id<'properties'>,
           barId: selectedBarId as Id<'bars'>,
           includeEnded: true,
-          logDate: priorDate,
+          logDate: priorSheetDate,
         }
       : 'skip',
   )
@@ -164,7 +167,17 @@ export default function MyStock() {
         : priorOperatorNames.length === 2
           ? `${priorOperatorNames[0]} and ${priorOperatorNames[1]}`
           : `${priorOperatorNames.slice(0, -1).join(', ')}, and ${priorOperatorNames[priorOperatorNames.length - 1]}`
-  const priorCloseMessage = `Finalize yesterday's ${priorBarName} stock for ${priorWho} before the next shift sells it.`
+  const openShiftsForBar = (data?.openPriorShifts ?? []).filter(
+    (shift) => !selectedBarId || shift.barId === selectedBarId,
+  )
+  const priorShiftNames = [...new Set(openShiftsForBar.map((shift) => shift.name))]
+  const priorHold = priorForBar.length > 0 || openShiftsForBar.length > 0
+  const priorCloseMessage =
+    priorForBar.length > 0
+      ? `Finalize ${priorForBar[0]?.logDate ?? 'the previous date'} ${priorBarName} stock for ${priorWho} before the next shift sells or autofills.`
+      : openShiftsForBar.length > 0
+        ? `Finalize the open shift on ${openShiftsForBar[0].shiftDate} at ${openShiftsForBar[0].barName} for ${priorShiftNames.join(', ')} before today's stock can open.`
+        : ''
   const selectedProperty = properties.find((property: any) => property._id === currentPropertyId)
   const beverageTerm = debouncedBeverageQuery.trim().toLowerCase()
   const visibleLogs = useMemo(() => {
@@ -202,6 +215,7 @@ export default function MyStock() {
     if (logDate && logDate !== data.today) return
     if (data.logDate !== data.today) return
     if ((priorLogs ?? []).some((log) => log.barId === selectedBarId)) return
+    if ((data?.openPriorShifts ?? []).some((shift) => shift.barId === selectedBarId)) return
     const barLogs = (todayLogs ?? []).filter((log) => log.barId === selectedBarId)
     if (barLogs.some((log) => log.isFinalized || isAdminCorrection(log))) return
     const key = `${currentPropertyId}:${selectedBarId}:${data.logDate}`
@@ -233,8 +247,8 @@ export default function MyStock() {
         if (carryRun.current === run && added > 0) {
           toast.success(
             added === 1
-              ? "Today's opening stock is yesterday's close"
-              : `Today's opening stock is yesterday's close for ${added} drinks`,
+              ? "Today's opening stock is the previous shift's close"
+              : `Today's opening stock is the previous shift's close for ${added} drinks`,
           )
         }
       } catch (error: any) {
@@ -246,7 +260,7 @@ export default function MyStock() {
         if (carryRun.current === run) setAutofilling(false)
       }
     })()
-  }, [autofillToday, currentPropertyId, data?.logDate, data?.today, logDate, priorLogs, salesRoster, salesUserId, selectedBarId, todayLogs])
+  }, [autofillToday, currentPropertyId, data?.logDate, data?.openPriorShifts, data?.today, logDate, priorLogs, salesRoster, salesUserId, selectedBarId, todayLogs])
 
   const availableBeverages = useMemo(() => {
     const used = new Set(logs.map((log) => log.beverageId))
@@ -480,7 +494,7 @@ export default function MyStock() {
     }
     const closeMessage = viewingYesterday
       ? `Close ${bars.find((bar) => bar._id === selectedBarId)?.name || 'this bar'} for ${selectedDate}?`
-      : `${priorCloseMessage} Close yesterday now?`
+      : `${priorCloseMessage} Close it now?`
     if (!confirm(closeMessage)) return
     try {
       const response = await finalizePriorDay({
@@ -560,7 +574,7 @@ export default function MyStock() {
           )}
           {priorRoster?.mode === 'admin' && priorRoster.mustChoose && priorForBar.length > 0 && (
             <div className="w-full lg:w-3/12">
-              <label className="block text-sm mb-1">Yesterday&apos;s waiter</label>
+              <label className="block text-sm mb-1">Previous shift&apos;s waiter</label>
               <select
                 className={selectClassName}
                 value={priorSalesUserId}
@@ -615,11 +629,11 @@ export default function MyStock() {
               <Button
                 variant="dark"
                 type="submit"
-                disabled={!selectedBarId || autofilling || priorForBar.length > 0 || dayCorrection}
+                disabled={!selectedBarId || autofilling || priorHold || dayCorrection}
                 title={
                   dayCorrection
                     ? 'This day was reopened for an administrator correction in User Stock Logs'
-                    : priorForBar.length > 0
+                    : priorHold
                       ? priorCloseMessage
                       : undefined
                 }
@@ -629,13 +643,13 @@ export default function MyStock() {
               <Button
                 variant="outline-dark"
                 type="button"
-                disabled={!selectedBarId || barFinalized || dayCorrection || autofilling || priorForBar.length > 0}
+                disabled={!selectedBarId || barFinalized || dayCorrection || autofilling || priorHold}
                 title={
-                  priorForBar.length > 0
+                  priorHold
                     ? priorCloseMessage
                     : barFinalized
                     ? 'Today is already finalized for this bar'
-                    : 'Add any drinks still missing from yesterday\'s close'
+                    : "Add any drinks still missing from the previous shift's close"
                 }
                 onClick={handleAutofill}
               >
@@ -654,7 +668,7 @@ export default function MyStock() {
             {dayCorrection
               ? `Showing ${selectedDate}. An administrator reopened this day for correction. Update and finalize it in User Stock Logs.`
               : viewingToday
-              ? `Date: ${selectedDate}. Opening stock is yesterday's closing count for this bar.`
+              ? `Date: ${selectedDate}. Opening stock is the previous shift's closing count for this bar. Sales belong to the person on rotation.`
               : viewingYesterday && logs.some((log) => !log.isFinalized)
                 ? `Showing ${selectedDate}. Save the count and finalize it before today's stock can open.`
                 : `Showing ${selectedDate}. This day's sheet is read-only.`}
@@ -674,10 +688,10 @@ export default function MyStock() {
 
       {!sheetStale && priorStaff.length > 0 && (
         <section className="mb-6 rounded-md border border-amber-300 bg-amber-50 p-4">
-          <h3 className="text-base font-semibold">Close yesterday first</h3>
+          <h3 className="text-base font-semibold">Close the previous shift first</h3>
           <p className="mt-1 text-sm text-gray-700">
             {priorCloseMessage} Anyone linked to {priorBarName} can save the count and close it.
-            The next shift cannot start or sell until this is done.
+            The next shift cannot autofill, start, or sell until this is done.
           </p>
           <div className="mt-3 overflow-x-auto">
             <table className="min-w-full border bg-white">
@@ -767,7 +781,17 @@ export default function MyStock() {
             </table>
           </div>
           <Button type="button" variant="success" className="mt-3" onClick={handleFinalizePrior}>
-            Finalize yesterday
+            Finalize previous shift
+          </Button>
+        </section>
+      )}
+
+      {!sheetStale && priorStaff.length === 0 && openShiftsForBar.length > 0 && (
+        <section className="mb-6 rounded-md border border-amber-300 bg-amber-50 p-4">
+          <h3 className="text-base font-semibold">Close the previous shift first</h3>
+          <p className="mt-1 text-sm text-gray-700">{priorCloseMessage}</p>
+          <Button type="button" variant="success" className="mt-3" onClick={handleFinalizePrior}>
+            Finalize previous shift
           </Button>
         </section>
       )}
@@ -775,7 +799,7 @@ export default function MyStock() {
       {today === undefined || sheetStale || (viewingToday && autofilling && logs.length === 0) ? (
         <p className="text-gray-500">
           {viewingToday && autofilling && !sheetStale
-            ? 'Opening today from yesterday\'s close…'
+            ? "Opening today from the previous shift's close…"
             : 'Loading stock…'}
         </p>
       ) : today.success === false ? (
@@ -785,10 +809,12 @@ export default function MyStock() {
           {priorCorrection.length > 0
             ? 'Today stays closed until an administrator finalizes yesterday in User Stock Logs.'
             : priorStaff.length > 0
-            ? 'Today stays closed until yesterday is finalized.'
+            ? 'Today stays closed until the previous shift is finalized.'
+            : openShiftsForBar.length > 0
+              ? 'Today stays closed until the previous shift is finalized.'
             : knownPast
               ? `No stock was recorded for this bar on ${selectedDate}.`
-              : 'No drinks carried over from yesterday. Add a beverage, wait for a store issue, or request stock.'}
+              : "No drinks carried over from the previous shift. Add a beverage, wait for a store issue, or request stock."}
         </p>
       ) : (
         <>

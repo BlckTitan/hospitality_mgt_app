@@ -1,11 +1,10 @@
 import { Doc, Id } from "../_generated/dataModel";
 import { MutationCtx, QueryCtx } from "../_generated/server";
 import { assertCanOperateBar } from "./barAssignment";
-import { addIsoDays } from "./rotation";
+import { listOnDutyStaffForBarDate } from "./barDuty";
 import { AuthContext, isAdministratorAtProperty } from "./rbac";
 import { isActiveStatus } from "./staffAccess";
-import { isFloorServiceOnly, rolesForProperty } from "./staffScope";
-import { ensureOpenBarSession, findOpenBarSession, staffDisplayName, staffForUser } from "./shiftHelpers";
+import { ensureOpenBarSession, staffDisplayName, staffForUser } from "./shiftHelpers";
 
 type DbCtx = MutationCtx | QueryCtx;
 
@@ -19,9 +18,9 @@ export type BarSalesPerson = {
 
 export type ReadyBarSalesPerson = BarSalesPerson & { shiftId: Id<"shifts"> };
 
-const NO_WAITER = "Start a waiter's shift at this bar before recording a sale.";
+export const NOT_ON_ROTATION = "You are not on rotation at this bar.";
+export const NOBODY_ON_ROTATION = "Nobody is on rotation at this bar.";
 const CHOOSE_WAITER = "Choose the waiter this sale belongs to.";
-const ADMIN_ONLY = "Only an administrator can record a sale for the waiter on shift.";
 
 export async function listBarShiftSellers(
   ctx: DbCtx,
@@ -61,7 +60,7 @@ export async function listBarShiftSellers(
   return sellers;
 }
 
-/** Clocked sellers at this bar, or the signed-in operator when the bar itself is open and nobody has clocked in. */
+/** People the rotation puts on this bar for the date. An open shift does not add anyone else. */
 export async function listBarSellers(
   ctx: DbCtx,
   args: {
@@ -73,10 +72,34 @@ export async function listBarSellers(
     includeEnded?: boolean;
   },
 ): Promise<BarSalesPerson[]> {
-  const clocked = await listBarShiftSellers(ctx, args);
-  if (clocked.length > 0) return clocked;
-  const operator = await barOperator(ctx, args.auth, args.propertyId, args.barId, args.logDate);
-  return operator ? [operator] : [];
+  const duty = await listOnDutyStaffForBarDate(ctx, {
+    propertyId: args.propertyId,
+    barId: args.barId,
+    logDate: args.logDate,
+  });
+  const shifts = await ctx.db
+    .query("shifts")
+    .withIndex("by_barId_date", (q) => q.eq("barId", args.barId).eq("shiftDate", args.logDate))
+    .collect();
+  const sellers: BarSalesPerson[] = [];
+  for (const person of duty) {
+    if (!person.userId) continue;
+    const staff = await staffForUser(ctx, person.userId);
+    if (!staff || !isActiveStatus(staff.employmentStatus)) continue;
+    const shift = shifts.find(
+      (row) =>
+        (!row.department || row.department === "fnb") &&
+        (row.userId === person.userId || row.employeeId === staff._id),
+    );
+    sellers.push({
+      userId: person.userId,
+      staffId: staff._id,
+      ...(shift ? { shiftId: shift._id } : {}),
+      barId: args.barId,
+      name: person.name,
+    });
+  }
+  return sellers;
 }
 
 export async function resolveBarSalesPerson(
@@ -96,7 +119,10 @@ export async function resolveBarSalesPerson(
   const picked = pickSeller(args.auth, args.propertyId, sellers, args.salesUserId, args.preferUserId, args.barId);
   if (picked.ok === false) {
     if (sellers.length > 0) return picked;
-    return { ok: false, message: await explainNoBarOperator(ctx, args.auth, args.propertyId, args.barId) };
+    if (!isAdministratorAtProperty(args.auth, args.propertyId)) {
+      return { ok: false, message: await explainNoBarOperator(ctx, args.auth, args.propertyId, args.barId) };
+    }
+    return { ok: false, message: NOBODY_ON_ROTATION };
   }
   return picked;
 }
@@ -147,7 +173,9 @@ export async function resolvePosSalesPerson(
     if (sellers.length > 0) return picked;
     return {
       ok: false,
-      message: await explainNoBarOperator(ctx, args.auth, args.propertyId),
+      message: isAdministratorAtProperty(args.auth, args.propertyId)
+        ? NOBODY_ON_ROTATION
+        : await explainNoBarOperator(ctx, args.auth, args.propertyId),
     };
   }
   return picked;
@@ -172,27 +200,6 @@ export async function ensureSellerShift(
 
 const NO_STAFF = "No staff record is linked to your login. Ask an admin to connect your user to Staff.";
 const NOT_LINKED = "You are not linked to a bar.";
-
-async function barOperator(
-  ctx: DbCtx,
-  auth: AuthContext,
-  propertyId: Id<"properties">,
-  barId: Id<"bars">,
-  logDate: string,
-): Promise<BarSalesPerson | null> {
-  if (await assertCanOperateBar(ctx, auth, barId)) return null;
-  const staff = await staffForUser(ctx, auth.user._id);
-  if (!staff || !isActiveStatus(staff.employmentStatus)) return null;
-  if (staff.propertyId && staff.propertyId !== propertyId) return null;
-  const shiftId = await findOpenBarSession(ctx, barId, logDate);
-  return {
-    userId: auth.user._id,
-    staffId: staff._id,
-    ...(shiftId ? { shiftId } : {}),
-    barId,
-    name: auth.user.name?.trim() || staffDisplayName(staff),
-  };
-}
 
 export async function explainNoBarOperator(
   ctx: DbCtx,
@@ -223,7 +230,7 @@ export async function explainNoBarOperator(
     }
     if (!operable) return NOT_LINKED;
   }
-  return barId ? NO_WAITER : "Start a waiter's shift at a bar before recording a sale.";
+  return NOT_ON_ROTATION;
 }
 
 function pickSeller(
@@ -234,16 +241,13 @@ function pickSeller(
   preferUserId?: Id<"users">,
   barId?: Id<"bars">,
 ): { ok: true; seller: BarSalesPerson } | { ok: false; message: string } {
-  const roles = rolesForProperty(auth, propertyId);
   const atBar = barId ? sellers.filter((seller) => seller.barId === barId) : sellers;
   if (!isAdministratorAtProperty(auth, propertyId)) {
     const mine = atBar.filter((seller) => seller.userId === auth.user._id);
     if (mine.length === 0) {
       return {
         ok: false,
-        message: isFloorServiceOnly(roles)
-          ? "Start your shift at this bar before recording a sale."
-          : ADMIN_ONLY,
+        message: NOT_ON_ROTATION,
       };
     }
     if (salesUserId && salesUserId !== auth.user._id) {
@@ -252,10 +256,10 @@ function pickSeller(
     if (mine.length === 1) return { ok: true, seller: mine[0] };
     return { ok: false, message: "Choose the bar before selling." };
   }
-  if (atBar.length === 0) return { ok: false, message: NO_WAITER };
+  if (atBar.length === 0) return { ok: false, message: NOBODY_ON_ROTATION };
   if (salesUserId) {
     const chosen = atBar.filter((seller) => seller.userId === salesUserId);
-    if (chosen.length === 0) return { ok: false, message: "That person is not on shift at this bar." };
+    if (chosen.length === 0) return { ok: false, message: "That person is not on rotation at this bar." };
     if (chosen.length === 1) return { ok: true, seller: chosen[0] };
     return { ok: false, message: "Choose the bar before selling." };
   }
@@ -268,7 +272,7 @@ function pickSeller(
   return { ok: false, message: samePerson ? "Choose the bar before selling." : CHOOSE_WAITER };
 }
 
-/** Open F&B shifts at this bar, including a duty that started on an earlier day and has not ended. */
+/** F&B shifts for this bar on this date. Earlier unfinalized shifts are not today's duty. */
 export async function shiftsForSale(
   ctx: DbCtx,
   barId: Id<"bars">,
@@ -276,25 +280,13 @@ export async function shiftsForSale(
   today: string,
   includeEnded?: boolean,
 ): Promise<Doc<"shifts">[]> {
-  if (logDate !== today) {
-    const rows = await ctx.db
-      .query("shifts")
-      .withIndex("by_barId_date", (q) => q.eq("barId", barId).eq("shiftDate", logDate))
-      .collect();
-    return rows.filter((row) => !row.department || row.department === "fnb");
-  }
-  const shifts: Doc<"shifts">[] = [];
-  for (const offset of [0, -1, -2, -3]) {
-    const shiftDate = offset === 0 ? logDate : addIsoDays(logDate, offset);
-    const rows = await ctx.db
-      .query("shifts")
-      .withIndex("by_barId_date", (q) => q.eq("barId", barId).eq("shiftDate", shiftDate))
-      .collect();
-    for (const row of rows) {
-      if (row.department && row.department !== "fnb") continue;
-      if (row.isFinalized && !(includeEnded && row.shiftDate === logDate)) continue;
-      shifts.push(row);
-    }
-  }
-  return shifts;
+  const rows = await ctx.db
+    .query("shifts")
+    .withIndex("by_barId_date", (q) => q.eq("barId", barId).eq("shiftDate", logDate))
+    .collect();
+  return rows.filter((row) => {
+    if (row.department && row.department !== "fnb") return false;
+    if (logDate === today && row.isFinalized && !includeEnded) return false;
+    return true;
+  });
 }

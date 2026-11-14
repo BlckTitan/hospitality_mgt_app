@@ -11,11 +11,14 @@ import {
   derivedSales,
   findBarDayLog,
   carryOverOpeningStock,
+  finalizeOpenBarShifts,
+  finalizeOpenPriorShifts,
   isStockCorrectionOpen,
   lastFinalizedClosingStock,
+  latestPriorBarBooks,
   openBarBookLine,
   openPriorBarBooks,
-  previousDateKey,
+  openPriorShifts,
   priorStockHandoverBlock,
   propertyDateKey,
   refreshSalesSummariesForLog,
@@ -957,9 +960,28 @@ export const getMyTodayStock = query({
     }
 
     const priorLogs: Doc<'userStockLogs'>[] = [];
+    const openShifts: Array<{
+      _id: Id<'shifts'>;
+      barId: Id<'bars'>;
+      shiftDate: string;
+      name: string;
+      barName: string;
+    }> = [];
     if (viewingToday) {
       for (const barId of targetIds) {
         priorLogs.push(...(await openPriorBarBooks(ctx, { barId, beforeDate: today })));
+        const shifts = await openPriorShifts(ctx, { barId, beforeDate: today });
+        const bar = await ctx.db.get(barId);
+        for (const shift of shifts) {
+          const operator = shift.userId ? await ctx.db.get(shift.userId) : null;
+          openShifts.push({
+            _id: shift._id,
+            barId,
+            shiftDate: shift.shiftDate,
+            name: operator?.name?.trim() || 'the previous shift',
+            barName: bar?.name ?? 'this bar',
+          });
+        }
       }
     }
 
@@ -1004,6 +1026,7 @@ export const getMyTodayStock = query({
         userId: auth.user._id,
         logs: stockLogsWithData,
         priorLogs: priorLogsWithData,
+        openPriorShifts: openShifts,
         beverages: beverages.filter((row) => row.isActive),
         bars,
       },
@@ -1137,23 +1160,12 @@ export const autofillMyToday = mutation({
     const already = new Set(
       todayRows.filter((log) => log.holder === 'bar').map((log) => log.beverageId),
     );
-    const yesterdayRows = await ctx.db
-      .query('userStockLogs')
-      .withIndex('by_barId_date', (q) => q.eq('barId', args.barId).eq('logDate', previousDateKey(logDate)))
-      .collect();
-    const yesterdayByDrink = new Map<Id<'beverages'>, typeof yesterdayRows>();
-    for (const row of yesterdayRows) {
-      const list = yesterdayByDrink.get(row.beverageId) ?? [];
-      list.push(row);
-      yesterdayByDrink.set(row.beverageId, list);
-    }
+    const priorBooks = await latestPriorBarBooks(ctx, { barId: args.barId, beforeDate: logDate });
     const candidates: Array<{ beverageId: Id<'beverages'>; closingStock: number }> = [];
-    if (yesterdayByDrink.size > 0) {
-      for (const [beverageId, group] of yesterdayByDrink) {
-        if (already.has(beverageId)) continue;
-        const book = group.find((row) => row.holder === 'bar') ?? (group.length === 1 ? group[0] : undefined);
-        if (!book || book.closingStock <= 0) continue;
-        candidates.push({ beverageId, closingStock: book.closingStock });
+    if (priorBooks.length > 0) {
+      for (const book of priorBooks) {
+        if (already.has(book.beverageId) || !book.isFinalized || book.closingStock <= 0) continue;
+        candidates.push({ beverageId: book.beverageId, closingStock: book.closingStock });
       }
     } else {
       const beverages = await ctx.db
@@ -1239,8 +1251,8 @@ export const autofillMyToday = mutation({
     const drinkLabel = added === 1 ? '1 drink' : `${added} drinks`;
     const message =
       remaining > 0
-        ? `Opened today with yesterday's close for ${drinkLabel}. ${remaining} more still to add.`
-        : `Opened today with yesterday's close for ${drinkLabel}`;
+        ? `Opened today from the previous shift's close for ${drinkLabel}. ${remaining} more still to add.`
+        : `Opened today from the previous shift's close for ${drinkLabel}`;
     return { success: true as const, message, added, remaining };
   },
 });
@@ -1262,13 +1274,13 @@ async function prepareClosingCount(
   if (!log.barId) {
     return { ok: false as const, message: 'This stock row is not on a bar' };
   }
-  const yesterday = previousDateKey(today);
-  const closingPriorDay = log.logDate === yesterday && !log.isFinalized;
+  const openPrior = await openPriorBarBooks(ctx, { barId: log.barId, beforeDate: today });
+  const closingPriorDay = openPrior.some((row) => row._id === log._id);
   if (isStockCorrectionOpen(log)) {
     return { ok: false as const, message: STOCK_CORRECTION_MESSAGE };
   }
   if (log.logDate !== today && !closingPriorDay) {
-    return { ok: false as const, message: 'You can only update today\'s stock log, or yesterday while it is still open' };
+    return { ok: false as const, message: 'You can only update today\'s stock log, or the previous open shift while it is still open' };
   }
   if (log.isFinalized) {
     return { ok: false as const, message: 'Cannot update finalized stock log' };
@@ -1490,6 +1502,7 @@ export const finalizeMyToday = mutation({
       finalized.push({ ...claimed, ...cogs });
     }
     await refreshSalesSummariesForLogs(ctx, finalized);
+    await finalizeOpenBarShifts(ctx, { barId: args.barId, shiftDate: logDate, now });
     return { success: true, message: 'Today\'s stock logs finalized' };
   },
 });
@@ -1509,13 +1522,15 @@ export const finalizeMyPriorDay = mutation({
       return { success: false, message: 'Bar does not exist or does not belong to this property' };
     }
     const today = await propertyDateKey(ctx, args.propertyId);
+    const now = Date.now();
     const open = await openPriorBarBooks(ctx, { barId: args.barId, beforeDate: today });
     const staffOpen = open.filter((log) => !isStockCorrectionOpen(log));
     if (staffOpen.length === 0) {
-      return {
-        success: false,
-        message: open.length > 0 ? STOCK_CORRECTION_MESSAGE : "Yesterday's stock is already closed",
-      };
+      if (open.length > 0) return { success: false, message: STOCK_CORRECTION_MESSAGE };
+      const closed = await finalizeOpenPriorShifts(ctx, { barId: args.barId, beforeDate: today, now });
+      return closed > 0
+        ? { success: true, message: 'The previous shift is closed' }
+        : { success: false, message: 'The previous shift is already closed' };
     }
     const seller = await sellerForBarWrite(ctx, auth, {
       propertyId: args.propertyId,
@@ -1528,7 +1543,6 @@ export const finalizeMyPriorDay = mutation({
     });
     if (seller.ok === false) return { success: false, message: seller.message };
 
-    const now = Date.now();
     const finalized = [];
     for (const log of staffOpen) {
       const claimed = await claimStockLogSeller(ctx, log, seller.seller, auth.user._id);
@@ -1537,7 +1551,8 @@ export const finalizeMyPriorDay = mutation({
       finalized.push({ ...claimed, ...cogs });
     }
     await refreshSalesSummariesForLogs(ctx, finalized);
-    return { success: true, message: "Yesterday's stock is closed" };
+    await finalizeOpenPriorShifts(ctx, { barId: args.barId, beforeDate: today, now });
+    return { success: true, message: 'The previous shift is closed' };
   },
 });
 
