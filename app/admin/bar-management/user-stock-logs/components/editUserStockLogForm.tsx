@@ -18,6 +18,7 @@ import { isWaiterView } from "../../../../../lib/staff-scope";
 type FormData = {
   openingStock: number;
   closingStock: number;
+  newStockReceived?: number;
   wasteQuantity?: number;
   wasteReason?: string;
   compQuantity?: number;
@@ -58,14 +59,16 @@ export function EditUserStockLogForm({ stockLogData, stockLogId, onSuccess, onCl
   )
   const currency = usePropertyCurrency(stockLogData.propertyId);
   const money = (amount: number) => formatPropertyMoney(amount, currency);
-  const { roles, isLoading: rolesLoading } = usePermissions();
+  const { roles, isLoading: rolesLoading, hasGranularPermission } = usePermissions();
   const showGrossProfit = !rolesLoading && !isWaiterView(roles);
+  const canCorrectReceived = !rolesLoading && hasGranularPermission('fnb.stock.received');
 
   const { register, handleSubmit, formState: { errors }, watch } = useForm<FormData>({
     resolver: yupResolver(editFormSchema) as any,
     defaultValues: {
       openingStock: stockLogData.openingStock || 0,
       closingStock: stockLogData.closingStock || 0,
+      newStockReceived: stockLogData.newStockReceived || 0,
       wasteQuantity: stockLogData.wasteQuantity || 0,
       wasteReason: stockLogData.wasteReason || '',
       compQuantity: stockLogData.compQuantity || 0,
@@ -76,7 +79,10 @@ export function EditUserStockLogForm({ stockLogData, stockLogId, onSuccess, onCl
   const watchedValues = watch();
   
   // Calculate current totals for display
-  const totalStock = (watchedValues.openingStock || 0) + (stockLogData.newStockReceived || 0);
+  const received = canCorrectReceived
+    ? (Number(watchedValues.newStockReceived) || 0)
+    : (stockLogData.newStockReceived || 0);
+  const totalStock = (watchedValues.openingStock || 0) + received;
   const disappeared = totalStock - (watchedValues.closingStock || 0);
   const wasteQuantity = Number(watchedValues.wasteQuantity) || 0;
   const compQuantity = Number(watchedValues.compQuantity) || 0;
@@ -96,6 +102,7 @@ export function EditUserStockLogForm({ stockLogData, stockLogId, onSuccess, onCl
         stockLogId: stockLogId as Id<'userStockLogs'>,
         openingStock: data.openingStock,
         closingStock: data.closingStock,
+        ...(canCorrectReceived ? { newStockReceived: Number(data.newStockReceived) || 0 } : {}),
         wasteQuantity: Number(data.wasteQuantity) || 0,
         wasteReason: data.wasteReason || undefined,
         compQuantity: Number(data.compQuantity) || 0,
@@ -183,6 +190,22 @@ goToList('/admin/bar-management/user-stock-logs');
         </div>
       </div>
 
+      {canCorrectReceived && (
+        <div className="w-full mb-2 lg:mb-4">
+          <InputComponent
+            id="newStockReceived"
+            label="New stock received *"
+            type="number"
+            inputWidth="w-full"
+            register={register('newStockReceived', { valueAsNumber: true, min: 0 })}
+            error={errors.newStockReceived}
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            Sets the bottles received on this day. It does not change the quantity in the central store.
+          </p>
+        </div>
+      )}
+
       <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-start gap-2 mb-2 lg:mb-4">
         <div className="flex-1">
           <InputComponent
@@ -229,7 +252,7 @@ goToList('/admin/bar-management/user-stock-logs');
           <div className="bg-gray-100 p-3 rounded">
             <p className="text-sm font-semibold mb-2">Current Values:</p>
             <p className="text-sm">Opening Stock: <span className="font-bold">{watchedValues.openingStock || 0}</span></p>
-            <p className="text-sm">New Stock Received: <span className="font-bold">{stockLogData.newStockReceived || 0}</span></p>
+            <p className="text-sm">New Stock Received: <span className="font-bold">{received}</span></p>
             <p className="text-sm">Total Stock: <span className="font-bold">{totalStock}</span></p>
             <p className="text-sm">Disappeared: <span className="font-bold">{disappeared}</span></p>
             <p className="text-sm">Sales Quantity: <span className="font-bold">{salesQuantity}</span></p>
@@ -263,8 +286,8 @@ goToList('/admin/bar-management/user-stock-logs');
 
       <div className="bg-blue-50 p-3 rounded mb-4">
         <p className="text-sm text-blue-800">
-          <strong>Note:</strong> A finalized day can be edited only after an administrator reopens it from User Stock Logs.
-          New stock received is automatically managed when stock is issued from the store.
+          <strong>Note:</strong> A finalized day can be edited only after it is reopened from User Stock Logs.
+          New stock received can be corrected here with the stock-received permission. That does not change the central store.
         </p>
       </div>
 

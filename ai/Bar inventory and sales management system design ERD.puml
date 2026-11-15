@@ -128,6 +128,7 @@ entity userStockLogs {
     salesQuantity            : v.number()   ' persisted
     salesValue               : v.number()   ' persisted
     NEW(isFinalized)         : v.boolean()
+    OPT(correctionOpen)      : v.optional(v.boolean())
     NEW(lastUpdatedAt)       : v.number()
     ==Indexes==
     by_shiftId                 [shiftId]
@@ -144,7 +145,8 @@ note bottom of userStockLogs
   userId is the salesperson, not the login that typed the count.
   "issue" storeTransactions update newStockReceived on
   the record whose logDate = txnDateKey only.
-  Prior day records are never mutated.
+  fnb.stock.reopen can reopen a finalized day.
+  fnb.stock.received can set newStockReceived without a store issue.
 end note
 
 entity storeInventory {

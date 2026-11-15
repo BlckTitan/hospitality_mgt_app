@@ -210,9 +210,17 @@ efficient day-scoped queries:
 
 **FR-SHF-005** — When a waiter finalises their day, a mutation shall set
 `isFinalized: true` on the `userStockLogs` document for each beverage.
-Subsequent mutation attempts to modify a finalized `userStockLogs` entry shall
-be rejected unless the caller has a manager or administrator role. The parent
-`shifts` document shall also be set to `isFinalized: true`.
+A finalized log cannot be edited until `reopenBarDayForCorrection` sets
+`isFinalized: false` and `correctionOpen: true` for that bar and date. That
+mutation requires `fnb.stock.reopen`, which is granted only to Administrator.
+Staff cannot edit or finalize a correction-open day from My Stock. Finalizing
+the log again clears `correctionOpen`.
+
+**FR-SHF-005a** — `updateUserStockLog` may set `newStockReceived` when the caller
+has `fnb.stock.received` (Administrator only) and the log is not finalized.
+`totalStock` is recomputed as `openingStock + newStockReceived`, then sales,
+waste, and comps are derived as usual. This correction does not create a store
+issue and does not change `storeInventories.qtyInStore`.
 
 **FR-SHF-006** — The opening stock for a new day's `userStockLogs` entry shall
 be the bar's last finalized `closingStock` for that beverage. If no prior
@@ -280,8 +288,12 @@ that opening quantity is synced onto the Bar store location as an adjustment.
 It does not transfer stock out of the storeroom. Zero crates creates the row
 only and does not require a price. If the opening bottles are at or below the
 reorder threshold, an open reorder alert is created. Editing the row shows
-bottles, bottle cost, and stock value as read-only and updates
-`reorderThreshold` only.
+bottle cost and stock value as read-only and updates `reorderThreshold`.
+A caller with `inventory.quantity.correct` (Administrator only) may also set
+the bottles on hand. The difference from the current quantity is written as a
+`storeTransactions` row with `txnType: "count_adjust"` and notes
+"Administrator quantity correction". That write does not change bar
+`userStockLogs`.
 
 **FR-INV-002** — When new supplier stock arrives, a Convex mutation shall:
 1. Insert a `storeTransactions` document with `txnType: "receive"`, setting both
@@ -609,10 +621,11 @@ can be created. The shift creation mutation shall verify this.
 any given time. The mutation shall query `by_userId_date` before inserting a
 new shift.
 
-**BR-003** — Every `newStockReceived` increment in `userStockLogs` must be
-backed by a corresponding `storeTransactions` issue record created in the same
-mutation. The `issueStock` mutation shall atomically create the transaction,
-decrement store inventory, and patch or create the matching day's stock log.
+**BR-003** — A store issue increments `newStockReceived` and decrements store
+inventory in the same mutation. An administrator correction with
+`fnb.stock.received` may set `newStockReceived` on an open log without a store
+issue. That path does not change store inventory. A store issue still cannot
+change a finalized day or a day reopened for correction.
 
 **BR-003a** — When a beverage has `inventoryItemId`, receiving it into the bar
 moves that catalog item from the main storeroom to the Bar store location.

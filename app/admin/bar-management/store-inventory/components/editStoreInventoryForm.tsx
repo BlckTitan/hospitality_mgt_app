@@ -12,6 +12,7 @@ import { Field } from "../../../../../shared/field";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { api } from "../../../../../convex/_generated/api";
 import { formatPropertyMoney, usePropertyCurrency } from "../../../inventory-management/components/money";
+import { usePermissions } from "../../../../../hooks/usePermissions";
 
 const alignedLabel = "mb-1 flex w-full min-h-12 items-end leading-snug";
 const alignedField = "min-w-0 flex-1";
@@ -32,6 +33,8 @@ export function EditFormComponent({ onSuccess, onClose, inventoryId }: { onSucce
   const storeInventory = storeInventoryResponse;
 
   const currency = usePropertyCurrency(storeInventory?.success ? storeInventory.data?.propertyId : undefined);
+  const { hasGranularPermission, isLoading: permissionsLoading } = usePermissions();
+  const canCorrectQuantity = !permissionsLoading && hasGranularPermission('inventory.quantity.correct');
   const { register, handleSubmit, formState: { errors }, reset, setValue } = useForm<FormData>({
     resolver: yupResolver(editFormSchema) as any,
     defaultValues: {
@@ -47,14 +50,14 @@ export function EditFormComponent({ onSuccess, onClose, inventoryId }: { onSucce
       setValue('qtyInStore', storeInventory.data.qtyInStore);
       setValue('reorderThreshold', storeInventory.data.reorderThreshold);
     }
-  }, [storeInventory, setValue]);
+  }, [storeInventory, setValue, canCorrectQuantity]);
 
   const onSubmit: SubmitHandler<FormData> = async (data) => {
     try {
       const response = await updateStoreInventory({
         id: inventoryId as Id<'storeInventories'>,
-        qtyInStore: data.qtyInStore,
         reorderThreshold: data.reorderThreshold,
+        ...(canCorrectQuantity ? { qtyInStore: Number(data.qtyInStore) } : {}),
       });
 
       if (response.success === false) {
@@ -102,15 +105,31 @@ goToList('/admin/bar-management/store-inventory');
       </div>
 
       <div className="mb-4 flex w-full flex-nowrap flex-row items-start gap-3">
-        <Field id="qtyInStoreDisplay" label="Quantity in Store" widthClass={alignedField} labelClassName={alignedLabel}>
-          <input
-            id="qtyInStoreDisplay"
-            type="number"
-            value={inventory.qtyInStore}
-            disabled
-            readOnly
-            className="bg-gray-100"
-          />
+        <Field
+          id={canCorrectQuantity ? 'qtyInStore' : 'qtyInStoreDisplay'}
+          label={canCorrectQuantity ? 'Quantity in Store *' : 'Quantity in Store'}
+          widthClass={alignedField}
+          labelClassName={alignedLabel}
+        >
+          {canCorrectQuantity ? (
+            <input
+              id="qtyInStore"
+              type="number"
+              min={0}
+              step="any"
+              {...register('qtyInStore', { valueAsNumber: true })}
+            />
+          ) : (
+            <input
+              id="qtyInStoreDisplay"
+              type="number"
+              value={inventory.qtyInStore}
+              disabled
+              readOnly
+              className="bg-gray-100"
+            />
+          )}
+          {errors.qtyInStore && <span className="text-red-500 text-sm">{errors.qtyInStore.message}</span>}
         </Field>
         <Field id="reorderThreshold" label="Reorder Threshold *" widthClass={alignedField} labelClassName={alignedLabel}>
           <input
@@ -147,7 +166,9 @@ goToList('/admin/bar-management/store-inventory');
         </Field>
       </div>
       <p className="text-xs text-gray-500 mb-4">
-        Quantity changes through a crate purchase or an issue. Bottle cost is the average landed cost: crate price plus supply costs such as transportation, divided by the bottles. Stock value is the bottles on hand times that cost. A manual unit cost on the beverage overrides it for bar profit.
+        {canCorrectQuantity
+          ? 'Saving a different quantity records a count adjustment for the difference. It does not change stock already at a bar. Bottle cost stays the average landed cost. Stock value is the bottles on hand times that cost.'
+          : 'Quantity changes through a crate purchase, an issue, or a posted store count. Bottle cost is the average landed cost: crate price plus supply costs such as transportation, divided by the bottles. Stock value is the bottles on hand times that cost. A manual unit cost on the beverage overrides it for bar profit.'}
       </p>
 
       <p className="text-sm text-gray-500 mb-4">

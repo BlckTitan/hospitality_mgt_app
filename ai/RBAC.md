@@ -215,11 +215,11 @@ Operational tabs still check their own module keys (`rooms.read`, `inventory.rea
 | My Stock Today | `/admin/bar-management/my-stock` | `beverages.read` |
 | Stock requests | `/admin/bar-management/stock-requests` | `beverages.read` (create); `inventory.update` (approve/reject = issue) |
 | Store count | `/admin/bar-management/store-count` | `inventory.read` / `inventory.update` |
-| Bars / Beverages / User stock logs | `/admin/bar-management/bar` etc. | `beverages.read` (`beverages.create` / `beverages.update` on create/edit) |
+| Bars / Beverages / User stock logs | `/admin/bar-management/bar` etc. | `beverages.read` (`beverages.create` / `beverages.update` on create/edit). Reopen a finalized bar day: `fnb.stock.reopen`. Set new stock received on a log: `fnb.stock.received`. Both are Administrator only. |
 | Beverage POS terminal / orders | `/admin/pos`, `/admin/pos/orders` | `beverages.read` (`beverages.create` / `beverages.update` to open/settle) |
 | POS cash-up | `/admin/pos/cash-up` | `beverages.read` (preview); `beverages.update` (post) |
 | Staff liabilities | `/admin/bar-management/liabilities` | `beverages.read` (list); `beverages.update` (create/approve/collect/waive) |
-| Store inventory / transactions | `/admin/bar-management/store-inventory` etc. | `inventory.read` (`inventory.update` on edit) |
+| Store inventory / transactions | `/admin/bar-management/store-inventory` etc. | `inventory.read` (`inventory.update` on edit). Set on-hand bottles directly: `inventory.quantity.correct` (Administrator only; writes a `count_adjust`). |
 | Restaurant hub | `/admin/restaurant` | `restaurant.read` |
 | Restaurant menu items | `/admin/restaurant/menu-items` | `restaurant.read` (`restaurant.create` / `restaurant.update` on create/edit) |
 | Restaurant recipes | `/admin/restaurant/recipes` | `restaurant.read` (`restaurant.update` to edit lines) |
@@ -247,6 +247,12 @@ Target keys (live code may still use `fnb.*` until migration):
 - beverages.create
 - beverages.update
 - beverages.delete
+
+Administrator-only correction keys. They are stored on the Administrator role and are not implied by `fnb` FULL or `inventory` FULL. Run `syncSystemRoles` after deploy so the existing Administrator document receives them.
+
+- `fnb.stock.reopen` — reopen a finalized bar day from User Stock Logs (`correctionOpen`, `isFinalized: false`)
+- `fnb.stock.received` — set `newStockReceived` on an open user stock log. Does not change store inventory.
+- `inventory.quantity.correct` — set `storeInventories.qtyInStore` and record the difference as a `count_adjust` store transaction. Does not change bar stock.
 
 ### Restaurant (live)
 

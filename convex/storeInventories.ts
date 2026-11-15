@@ -11,7 +11,7 @@ import {
   unitsPerPackConflict,
 } from "./lib/barStock";
 import { cratePurchaseError, landedCratePurchase } from "../lib/crateCost";
-import { requirePermission } from "./lib/rbac";
+import { hasGranularPermission, requirePermission, scopeAuthContextToProperty } from "./lib/rbac";
 
 const supplyCostValidator = v.object({
   label: v.string(),
@@ -220,7 +220,41 @@ export const updateStoreInventory = mutation({
       };
     }
 
-    await requirePermission(ctx, "inventory.update", storeInventory.propertyId);
+    const auth = await requirePermission(ctx, "inventory.update", storeInventory.propertyId);
+    const quantityChanged =
+      args.qtyInStore !== undefined && args.qtyInStore !== storeInventory.qtyInStore;
+    if (quantityChanged) {
+      if (!Number.isFinite(args.qtyInStore) || args.qtyInStore! < 0) {
+        return { success: false, message: "Quantity in store cannot be negative" };
+      }
+      const allowed = hasGranularPermission(
+        scopeAuthContextToProperty(auth, storeInventory.propertyId),
+        "inventory.quantity.correct",
+      );
+      if (!allowed) {
+        return { success: false, message: "You do not have permission to correct store quantity" };
+      }
+      const delta = args.qtyInStore! - storeInventory.qtyInStore;
+      const now = Date.now();
+      const txnDateKey = await propertyDateKey(ctx, storeInventory.propertyId, now);
+      const newQty = await applyStoreQtyChange(ctx, storeInventory, delta);
+      await ctx.db.insert("storeTransactions", {
+        propertyId: storeInventory.propertyId,
+        beverageId: storeInventory.beverageId,
+        userId: auth.user._id,
+        txnType: "count_adjust",
+        qty: delta,
+        txnDate: now,
+        txnDateKey,
+        notes: "Administrator quantity correction",
+      });
+      await maybeOpenReorderAlert(ctx, {
+        propertyId: storeInventory.propertyId,
+        beverageId: storeInventory.beverageId,
+        qtyInStore: newQty,
+        reorderThreshold: args.reorderThreshold ?? storeInventory.reorderThreshold,
+      });
+    }
 
     await ctx.db.patch(args.id, {
       lastUpdated: Date.now(),

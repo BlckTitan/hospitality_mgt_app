@@ -512,6 +512,13 @@ export const COMPENSATION_KEYS = [
   "staff.compensation.update",
 ] as const;
 
+/** Explicit Administrator keys. Not mapped from fnb.* or inventory.*, so FULL on those modules does not grant them. */
+export const ADMIN_CORRECTION_KEYS = [
+  "fnb.stock.reopen",
+  "fnb.stock.received",
+  "inventory.quantity.correct",
+] as const;
+
 export const TASK_FULL_KEYS = [
   "housekeeping.task.read",
   "housekeeping.task.assign",

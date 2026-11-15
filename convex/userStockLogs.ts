@@ -2,7 +2,7 @@ import { mutation, query, MutationCtx, QueryCtx } from './_generated/server';
 import { v } from 'convex/values';
 import { Doc, Id } from './_generated/dataModel';
 import { posPouredQtyByBarBeverage } from './posOrders';
-import { AuthContext, isAdministratorAtProperty, requirePermission, tryRequirePermission } from './lib/rbac';
+import { AuthContext, hasGranularPermission, requirePermission, scopeAuthContextToProperty, tryRequirePermission } from './lib/rbac';
 import { ReadyBarSalesPerson, ensureSellerShift, resolveBarSalesPerson } from './lib/barSalesPerson';
 import { assertCanOperateBar, assignedBarIdsForUser } from './lib/barAssignment';
 import { DutyPerson, listOnDutyStaffForBarDate, listOnDutyUsersForDate } from './lib/barDuty';
@@ -510,12 +510,18 @@ export const createUserStockLog = mutation({
   },
 });
 
-const ADMIN_CORRECTION_ONLY = 'Only an administrator can change stock that was reopened for correction';
+const REOPEN_PERMISSION = 'fnb.stock.reopen';
+const RECEIVED_PERMISSION = 'fnb.stock.received';
+const CORRECTION_DENIED = 'You do not have permission to change stock that was reopened for correction';
+
+function hasPropertyPermission(auth: AuthContext, propertyId: Id<'properties'>, key: string) {
+  return hasGranularPermission(scopeAuthContextToProperty(auth, propertyId), key);
+}
 
 function correctionDenied(auth: AuthContext, log: Doc<'userStockLogs'>): string | null {
   if (!isStockCorrectionOpen(log)) return null;
-  if (isAdministratorAtProperty(auth, log.propertyId)) return null;
-  return ADMIN_CORRECTION_ONLY;
+  if (hasPropertyPermission(auth, log.propertyId, REOPEN_PERMISSION)) return null;
+  return CORRECTION_DENIED;
 }
 
 async function correctionDayMessage(ctx: MutationCtx, barId: Id<'bars'>, logDate: string) {
@@ -546,8 +552,8 @@ export const reopenBarDayForCorrection = mutation({
     const bar = await ctx.db.get(args.barId);
     if (!bar) return { success: false, message: 'Bar not found' };
     const auth = await requirePermission(ctx, 'fnb.update', bar.propertyId);
-    if (!isAdministratorAtProperty(auth, bar.propertyId)) {
-      return { success: false, message: 'Only an administrator can reopen finalized stock' };
+    if (!hasPropertyPermission(auth, bar.propertyId, REOPEN_PERMISSION)) {
+      return { success: false, message: 'You do not have permission to reopen finalized stock' };
     }
     const rows = await ctx.db
       .query('userStockLogs')
@@ -652,6 +658,7 @@ export const updateUserStockLog = mutation({
     wasteReason: v.optional(v.string()),
     compQuantity: v.optional(v.number()),
     compReason: v.optional(v.string()),
+    newStockReceived: v.optional(v.number()),
     salesUserId: v.optional(v.id('users')),
   },
   handler: async (ctx, args) => {
@@ -691,8 +698,18 @@ export const updateUserStockLog = mutation({
         return { success: false, message: 'Associated beverage does not exist' };
       }
 
-      // Calculate derived fields (newStockReceived remains unchanged)
-      const totalStock = args.openingStock + existingLog.newStockReceived;
+      const receivedChanged =
+        args.newStockReceived !== undefined && args.newStockReceived !== existingLog.newStockReceived;
+      if (receivedChanged) {
+        if (!Number.isFinite(args.newStockReceived) || args.newStockReceived! < 0) {
+          return { success: false, message: 'New stock received cannot be negative' };
+        }
+        if (!hasPropertyPermission(auth, existingLog.propertyId, RECEIVED_PERMISSION)) {
+          return { success: false, message: 'You do not have permission to change stock received' };
+        }
+      }
+      const newStockReceived = args.newStockReceived ?? existingLog.newStockReceived;
+      const totalStock = args.openingStock + newStockReceived;
       let sales;
       try {
         sales = derivedSales(
@@ -711,6 +728,7 @@ export const updateUserStockLog = mutation({
 
       await ctx.db.patch(args.stockLogId, {
         openingStock: args.openingStock,
+        newStockReceived,
         totalStock,
         closingStock: args.closingStock,
         ...sales,

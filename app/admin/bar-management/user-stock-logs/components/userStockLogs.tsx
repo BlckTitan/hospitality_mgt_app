@@ -115,9 +115,9 @@ const UserStockLogs = ({
   filters?: any;
 }) => {
   const { isAuthenticated } = useConvexAuth();
-  const { roles, isLoading: rolesLoading } = usePermissions();
+  const { roles, isLoading: rolesLoading, hasGranularPermission } = usePermissions();
   const showGrossProfit = !rolesLoading && !isWaiterView(roles);
-  const isAdmin = !rolesLoading && roles.includes('Administrator');
+  const canReopenStock = !rolesLoading && hasGranularPermission('fnb.stock.reopen');
   const queriedCurrency = usePropertyCurrency(currentPropertyId);
   const currency = propertyCurrencyCode(propertyCurrency || queriedCurrency);
   const [finalizingAll, setFinalizingAll] = useState(false);
@@ -470,7 +470,7 @@ const UserStockLogs = ({
         currency={currency}
         logDate={logDate}
       />
-      {isAdmin && filters?.barId && correctionCount > 0 && (
+      {canReopenStock && filters?.barId && correctionCount > 0 && (
         <p className="mb-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
           This day is open for an administrator correction. Update the drinks, then finalize the stock.
           Staff cannot change it from My stock.
@@ -481,9 +481,9 @@ const UserStockLogs = ({
         placeholder="Search by beverage"
         setSearchQuery={setSearchQuery}
         leading={
-          (isAdmin && filters?.barId && finalizedCount > 0) || openCount > 0 ? (
+          (canReopenStock && filters?.barId && finalizedCount > 0) || openCount > 0 ? (
             <div className="flex flex-wrap items-center gap-2">
-              {isAdmin && filters?.barId && finalizedCount > 0 && (
+              {canReopenStock && filters?.barId && finalizedCount > 0 && (
                 <Button
                   variant="outline-dark"
                   onClick={handleReopen}

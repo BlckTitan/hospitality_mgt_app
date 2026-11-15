@@ -14,6 +14,11 @@ export const editFormSchema = yup.object().shape({
     .number()
     .min(0, "Opening stock cannot be negative")
     .required("Opening stock is required"),
+  newStockReceived: yup
+    .number()
+    .min(0, "New stock received cannot be negative")
+    .transform((value, original) => (original === "" || Number.isNaN(value) ? 0 : value))
+    .optional(),
   closingStock: yup
     .number()
     .min(0, "Closing stock cannot be negative")

@@ -37,5 +37,10 @@ export const formSchema = yup.object().shape({
 });
 
 export const editFormSchema = yup.object().shape({
+  qtyInStore: yup
+    .number()
+    .transform(emptyNumber)
+    .min(0, "Quantity in store cannot be negative")
+    .optional(),
   reorderThreshold: yup.number().required("Reorder threshold is required").min(0, "Reorder threshold cannot be negative"),
 });
