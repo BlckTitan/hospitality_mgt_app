@@ -1753,6 +1753,8 @@ export default defineSchema({
     amount: v.number(),
     remainingAmount: v.number(),
     reason: v.string(),
+    /** Calendar day this liability is tracked against (YYYY-MM-DD, property-local). */
+    liabilityDateKey: v.optional(v.string()),
     sourceType: v.optional(
       v.union(v.literal("cash_settlement"), v.literal("manual"), v.literal("store_count")),
     ),
@@ -1778,6 +1780,7 @@ export default defineSchema({
   })
     .index("by_propertyId", ["propertyId"])
     .index("by_propertyId_status", ["propertyId", "status"])
+    .index("by_propertyId_liabilityDateKey", ["propertyId", "liabilityDateKey"])
     .index("by_employeeId", ["employeeId"])
     .index("by_employeeId_status", ["employeeId", "status"])
     .index("by_includedInPayrollId", ["includedInPayrollId"]),

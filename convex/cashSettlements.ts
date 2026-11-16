@@ -3,6 +3,7 @@ import { v } from 'convex/values';
 import { Id } from './_generated/dataModel';
 import { AuthContext, isAdministratorAtProperty, requirePermission } from './lib/rbac';
 import { propertyDateKey } from './lib/barStock';
+import { liabilityDateKey } from './staffLiabilities';
 import { currentUsersStaff, isActiveStatus } from './lib/staffAccess';
 
 type DbCtx = MutationCtx | QueryCtx;
@@ -376,12 +377,14 @@ export const postCashSettlement = mutation({
         };
       }
       const shortage = Math.round((-varianceCash + Number.EPSILON) * 100) / 100;
+      const trackedDate = liabilityDateKey(dateKey);
       liabilityId = await ctx.db.insert('staffLiabilities', {
         propertyId: args.propertyId,
         employeeId,
         kind: 'cash_shortage',
         amount: shortage,
         remainingAmount: shortage,
+        ...(trackedDate ? { liabilityDateKey: trackedDate } : {}),
         reason: `Cash shortage on ${dateKey} (expected ${expected.expectedCash}, counted ${args.countedCash})`,
         sourceType: 'cash_settlement',
         sourceId: settlementId,

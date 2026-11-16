@@ -10,6 +10,7 @@ import { Button } from '../../../../../shared/button';
 import InputComponent from "../../../../../shared/input";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { api } from "../../../../../convex/_generated/api";
+import { formatPropertyMoney, usePropertyCurrency } from "../../../inventory-management/components/money";
 
 type FormData = {
   roomNumber: string;
@@ -22,6 +23,7 @@ type FormData = {
 
 export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: () => void; onClose: () => void; propertyId: string }) {
   const createRoom = useMutation(api.rooms.createRoom);
+  const currency = usePropertyCurrency(propertyId);
   const roomTypesResponse = useQuery(api.roomTypes.getAllRoomTypes, { propertyId: propertyId as Id<'properties'> });
   const roomTypes = roomTypesResponse?.data || [];
 
@@ -74,7 +76,7 @@ goToList('/admin/room-management/room');
     .filter((rt: any) => rt.isActive)
     .map((rt: any) => ({
       value: rt._id,
-      label: `${rt.name} - $${rt.baseRate}/night`,
+      label: `${rt.name} - ${formatPropertyMoney(rt.baseRate, currency)}/night`,
     }));
 
   return (

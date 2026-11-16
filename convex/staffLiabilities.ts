@@ -11,29 +11,67 @@ const statusValidator = v.union(
   v.literal('deducted'),
 );
 
+/** A real calendar day stored as YYYY-MM-DD. */
+export function liabilityDateKey(value: string): string | null {
+  const trimmed = value.trim();
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const utc = new Date(Date.UTC(year, month - 1, day));
+  if (
+    utc.getUTCFullYear() !== year ||
+    utc.getUTCMonth() !== month - 1 ||
+    utc.getUTCDate() !== day
+  ) {
+    return null;
+  }
+  return trimmed;
+}
+
 export const listStaffLiabilities = query({
   args: {
     propertyId: v.id('properties'),
     status: v.optional(statusValidator),
     employeeId: v.optional(v.id('staffs')),
+    liabilityDateKey: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     await requirePermission(ctx, 'fnb.read', args.propertyId);
-    let rows = args.status
+    const dateKey = args.liabilityDateKey ? liabilityDateKey(args.liabilityDateKey) : undefined;
+    if (args.liabilityDateKey && !dateKey) {
+      return { success: false, message: 'Choose a valid date', data: [] };
+    }
+    let rows = dateKey
       ? await ctx.db
           .query('staffLiabilities')
-          .withIndex('by_propertyId_status', (q) =>
-            q.eq('propertyId', args.propertyId).eq('status', args.status!),
+          .withIndex('by_propertyId_liabilityDateKey', (q) =>
+            q.eq('propertyId', args.propertyId).eq('liabilityDateKey', dateKey),
           )
           .collect()
-      : await ctx.db
-          .query('staffLiabilities')
-          .withIndex('by_propertyId', (q) => q.eq('propertyId', args.propertyId))
-          .collect();
+      : args.status
+        ? await ctx.db
+            .query('staffLiabilities')
+            .withIndex('by_propertyId_status', (q) =>
+              q.eq('propertyId', args.propertyId).eq('status', args.status!),
+            )
+            .collect()
+        : await ctx.db
+            .query('staffLiabilities')
+            .withIndex('by_propertyId', (q) => q.eq('propertyId', args.propertyId))
+            .collect();
+    if (args.status && dateKey) {
+      rows = rows.filter((r) => r.status === args.status);
+    }
     if (args.employeeId) {
       rows = rows.filter((r) => r.employeeId === args.employeeId);
     }
-    rows.sort((a, b) => b.createdAt - a.createdAt);
+    rows.sort((a, b) => {
+      const byDate = (b.liabilityDateKey ?? '').localeCompare(a.liabilityDateKey ?? '');
+      if (byDate !== 0) return byDate;
+      return b.createdAt - a.createdAt;
+    });
     const data = await Promise.all(
       rows.slice(0, 200).map(async (row) => {
         const staff = await ctx.db.get(row.employeeId);
@@ -54,7 +92,13 @@ export const createStaffLiability = mutation({
     kind: kindValidator,
     amount: v.number(),
     reason: v.string(),
+    liabilityDateKey: v.string(),
   },
+  returns: v.object({
+    success: v.boolean(),
+    message: v.string(),
+    data: v.optional(v.object({ id: v.id('staffLiabilities') })),
+  }),
   handler: async (ctx, args) => {
     const auth = await requirePermission(ctx, 'fnb.update', args.propertyId);
     if (!Number.isFinite(args.amount) || args.amount <= 0) {
@@ -63,6 +107,10 @@ export const createStaffLiability = mutation({
     const reason = args.reason.trim();
     if (reason.length < 3) {
       return { success: false, message: 'Enter a short reason' };
+    }
+    const dateKey = liabilityDateKey(args.liabilityDateKey);
+    if (!dateKey) {
+      return { success: false, message: 'Choose a valid date' };
     }
     const staff = await ctx.db.get(args.employeeId);
     if (!staff || (staff.propertyId && staff.propertyId !== args.propertyId)) {
@@ -77,6 +125,7 @@ export const createStaffLiability = mutation({
       amount,
       remainingAmount: amount,
       reason,
+      liabilityDateKey: dateKey,
       sourceType: 'manual',
       status: 'pending',
       createdBy: auth.user._id,
@@ -84,6 +133,34 @@ export const createStaffLiability = mutation({
       updatedAt: now,
     });
     return { success: true, message: 'Liability created (pending approval)', data: { id } };
+  },
+});
+
+export const setStaffLiabilityDate = mutation({
+  args: {
+    liabilityId: v.id('staffLiabilities'),
+    liabilityDateKey: v.string(),
+  },
+  returns: v.object({
+    success: v.boolean(),
+    message: v.string(),
+  }),
+  handler: async (ctx, args) => {
+    const row = await ctx.db.get(args.liabilityId);
+    if (!row) return { success: false, message: 'Liability not found' };
+    await requirePermission(ctx, 'fnb.update', row.propertyId);
+    const dateKey = liabilityDateKey(args.liabilityDateKey);
+    if (!dateKey) {
+      return { success: false, message: 'Choose a valid date' };
+    }
+    if (row.liabilityDateKey === dateKey) {
+      return { success: true, message: 'Date unchanged' };
+    }
+    await ctx.db.patch(args.liabilityId, {
+      liabilityDateKey: dateKey,
+      updatedAt: Date.now(),
+    });
+    return { success: true, message: 'Liability date saved' };
   },
 });
 

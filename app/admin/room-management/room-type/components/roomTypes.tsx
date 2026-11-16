@@ -10,6 +10,7 @@ import { Id } from "../../../../../convex/_generated/dataModel";
 import { TableColumn } from "../../../../../shared/table";
 import PaginationComponent from "../../../../../shared/pagination";
 import ImageThumbnail from "../../../../../shared/imageThumbnail";
+import { formatPropertyMoney, usePropertyCurrency } from "../../../inventory-management/components/money";
 
 interface RoomTypeProps {
   _id: string;
@@ -27,6 +28,7 @@ interface RoomTypeProps {
 
 const RoomTypes = ({ propertyId }: { propertyId: string }) => {
   const removeRoomType = useMutation(api.roomTypes.deleteRoomType);
+  const currency = usePropertyCurrency(propertyId);
 
   const handleDelete = async (id: string, name: string) => {
     if (!confirm('Are you sure you want to delete room type: ' + name + '?')) return;
@@ -72,7 +74,7 @@ const RoomTypes = ({ propertyId }: { propertyId: string }) => {
     {
       label: 'Base Rate',
       key: 'baseRate',
-      render: (value, row) => <span>${row.baseRate.toFixed(2)}</span>
+      render: (value, row) => <span>{formatPropertyMoney(row.baseRate, currency)}</span>
     },
     {
       label: 'Amenities',

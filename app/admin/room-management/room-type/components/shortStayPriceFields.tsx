@@ -20,13 +20,17 @@ export function pricesToPayload(prices: number[]) {
 export function ShortStayPriceFields({
   prices,
   onChange,
+  currency,
 }: {
   prices: number[];
   onChange: (index: number, amount: number) => void;
+  currency?: string;
 }) {
   return (
     <div className="mb-4 w-full">
-      <label className="mb-1 block text-sm font-semibold">Short stay prices</label>
+      <label className="mb-1 block text-sm font-semibold">
+        Short stay prices{currency ? ` (${currency})` : ''}
+      </label>
       <p className="mb-2 text-sm text-gray-500">
         Package price for a visit that does not include the night. Leave a length at 0 to not sell it.
       </p>

@@ -10,6 +10,7 @@ import { formSchema } from "./validation";
 import InputComponent from "../../../../../shared/input";
 import ImageUpload from "../../../../../shared/imageUpload";
 import { ShortStayPriceFields, pricesFromRates, pricesToPayload } from "./shortStayPriceFields";
+import { usePropertyCurrency } from "../../../inventory-management/components/money";
 
 type FormData = {
   name: string;
@@ -30,6 +31,7 @@ interface EditRoomTypeFormProps {
 
 export function EditFormComponent({ roomTypeData, onSuccess, onClose, roomTypeId }: EditRoomTypeFormProps) {
   const updateRoomType = useMutation(api.roomTypes.updateRoomType);
+  const currency = usePropertyCurrency(roomTypeData?.propertyId);
   const [amenities, setAmenities] = useState<string[]>(roomTypeData?.amenities || []);
   const [amenityInput, setAmenityInput] = useState('');
   const [shortStayPrices, setShortStayPrices] = useState<number[]>(pricesFromRates(roomTypeData?.shortStayRates));
@@ -145,7 +147,7 @@ goToList('/admin/room-management/room-type');
         <div className="flex-1">
           <InputComponent
             id="baseRate"
-            label="Base Rate *"
+            label={`Base Rate (${currency}) *`}
             type="number"
             inputWidth="w-full"
             register={register('baseRate', { valueAsNumber: true })}
@@ -156,6 +158,7 @@ goToList('/admin/room-management/room-type');
 
       <ShortStayPriceFields
         prices={shortStayPrices}
+        currency={currency}
         onChange={(index, amount) => setShortStayPrices((prev) => prev.map((value, i) => i === index ? amount : value))}
       />
 

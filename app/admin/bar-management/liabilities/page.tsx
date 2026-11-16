@@ -11,8 +11,8 @@ export default function Page() {
         <div className="min-w-0">
           <h1 className="text-2xl font-bold text-gray-800">Staff liabilities</h1>
           <p className="text-gray-600">
-            Shortages attributed to staff. Approve for payroll deduction on the next Prepare pay, collect
-            cash, or waive. Deducted after payroll approval.
+            Shortages attributed to staff. Set the date the shortage belongs to, then approve for payroll
+            deduction on the next Prepare pay, collect cash, or waive. Deducted after payroll approval.
           </p>
         </div>
         <BackLink />

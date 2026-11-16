@@ -14,6 +14,13 @@ type StatusFilter = 'all' | 'pending' | 'approved' | 'waived' | 'collected' | 'd
 
 const selectClassName = 'w-full px-3 py-2 border border-gray-300 rounded-md text-sm'
 
+function todayDateKey() {
+  const now = new Date()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${now.getFullYear()}-${month}-${day}`
+}
+
 export default function StaffLiabilities() {
   const propertiesResponse = useQuery(api.property.listAccessibleProperties, {})
   const properties = propertiesResponse?.data ?? []
@@ -23,10 +30,12 @@ export default function StaffLiabilities() {
   const currency = usePropertyCurrency(currentPropertyId || undefined)
 
   const [status, setStatus] = useState<StatusFilter>('pending')
+  const [filterDate, setFilterDate] = useState('')
   const [employeeId, setEmployeeId] = useState('')
   const [kind, setKind] = useState<'cash_shortage' | 'stock_shortage'>('stock_shortage')
   const [amount, setAmount] = useState('')
   const [reason, setReason] = useState('')
+  const [liabilityDateKey, setLiabilityDateKey] = useState(todayDateKey)
   const [busy, setBusy] = useState(false)
 
   const servers = useQuery(
@@ -39,11 +48,13 @@ export default function StaffLiabilities() {
       ? {
           propertyId: currentPropertyId,
           ...(status === 'all' ? {} : { status }),
+          ...(filterDate ? { liabilityDateKey: filterDate } : {}),
         }
       : 'skip',
   )
 
   const createLiability = useMutation(api.staffLiabilities.createStaffLiability)
+  const setLiabilityDate = useMutation(api.staffLiabilities.setStaffLiabilityDate)
   const approveLiability = useMutation(api.staffLiabilities.approveStaffLiability)
   const waiveLiability = useMutation(api.staffLiabilities.waiveStaffLiability)
   const collectLiability = useMutation(api.staffLiabilities.collectStaffLiability)
@@ -65,6 +76,10 @@ export default function StaffLiabilities() {
       toast.error('Enter a valid amount')
       return
     }
+    if (!liabilityDateKey) {
+      toast.error('Choose a date')
+      return
+    }
     setBusy(true)
     try {
       const response = await createLiability({
@@ -73,6 +88,7 @@ export default function StaffLiabilities() {
         kind,
         amount: value,
         reason,
+        liabilityDateKey,
       })
       if (response.success) {
         toast.success(response.message)
@@ -135,6 +151,24 @@ export default function StaffLiabilities() {
             <option value="waived">Waived</option>
           </select>
         </label>
+        <label className="text-sm">
+          On date
+          <input
+            className={selectClassName + ' mt-1'}
+            type="date"
+            value={filterDate}
+            onChange={(e) => setFilterDate(e.target.value)}
+          />
+        </label>
+        {filterDate && (
+          <button
+            type="button"
+            className="text-sm underline"
+            onClick={() => setFilterDate('')}
+          >
+            Clear date
+          </button>
+        )}
         <Link href="/admin/bar-management/pos/cash-up" className="text-sm underline ms-auto">
           POS cash-up
         </Link>
@@ -195,6 +229,16 @@ export default function StaffLiabilities() {
               required
             />
           </label>
+          <label className="text-sm">
+            Date
+            <input
+              className={selectClassName + ' mt-1'}
+              type="date"
+              value={liabilityDateKey}
+              onChange={(e) => setLiabilityDateKey(e.target.value)}
+              required
+            />
+          </label>
         </div>
         <Button type="submit" variant="dark" size="sm" disabled={busy}>
           Create pending liability
@@ -205,6 +249,7 @@ export default function StaffLiabilities() {
         <table className="w-full text-sm border-collapse">
           <thead>
             <tr className="border-b text-left">
+              <th className="py-2 pr-2">Date</th>
               <th className="py-2 pr-2">Staff</th>
               <th className="py-2 pr-2">Kind</th>
               <th className="py-2 pr-2">Reason</th>
@@ -217,6 +262,22 @@ export default function StaffLiabilities() {
           <tbody>
             {(list?.data ?? []).map((row) => (
               <tr key={row._id} className="border-b align-top">
+                <td className="py-2 pr-2">
+                  <input
+                    className="px-2 py-1 border border-gray-300 rounded-md text-sm"
+                    type="date"
+                    aria-label={`Date for ${row.staffName}`}
+                    value={row.liabilityDateKey ?? ''}
+                    disabled={busy}
+                    onChange={(e) => {
+                      const next = e.target.value
+                      if (!next || next === row.liabilityDateKey) return
+                      void run(() =>
+                        setLiabilityDate({ liabilityId: row._id, liabilityDateKey: next }),
+                      )
+                    }}
+                  />
+                </td>
                 <td className="py-2 pr-2">{row.staffName}</td>
                 <td className="py-2 pr-2">{row.kind}</td>
                 <td className="py-2 pr-2 max-w-[16rem]">{row.reason}</td>
@@ -267,7 +328,7 @@ export default function StaffLiabilities() {
             ))}
             {(list?.data?.length ?? 0) === 0 && (
               <tr>
-                <td colSpan={7} className="py-4 text-gray-500">
+                <td colSpan={8} className="py-4 text-gray-500">
                   No liabilities for this filter.
                 </td>
               </tr>
