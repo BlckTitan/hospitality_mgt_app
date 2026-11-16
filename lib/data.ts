@@ -641,6 +641,8 @@ export const PERMISSION_GROUPS = [
       { key: "fnb.create", label: "Create Orders" },
       { key: "fnb.update", label: "Update Orders" },
       { key: "fnb.delete", label: "Delete Orders" },
+      { key: "fnb.stock.reopen", label: "Reopen finalized bar stock" },
+      { key: "fnb.stock.received", label: "Set new stock received" },
     ],
   },
   {
@@ -650,6 +652,7 @@ export const PERMISSION_GROUPS = [
       { key: "inventory.create", label: "Create Items" },
       { key: "inventory.update", label: "Update Inventory" },
       { key: "inventory.delete", label: "Delete Items" },
+      { key: "inventory.quantity.correct", label: "Correct store quantity" },
       { key: "inventory.po.pay", label: "Mark purchase orders paid" },
     ],
   },

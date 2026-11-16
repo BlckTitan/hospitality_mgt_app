@@ -168,7 +168,7 @@ are never mutated.
 | `beverageId`       | `v.id("beverages")`    | Beverage being tracked                                       |
 | `logDate`          | `v.string()`           | **[NEW]** ISO 8601 date this record covers, e.g. `"2026-03-26"` |
 | `openingStock`     | `v.number()`           | Units carried over from previous day's `closingStock`        |
-| `newStockReceived` | `v.number()`           | Cumulative qty issued via `storeTransactions` on this day. An administrator with `fnb.stock.received` may set it on an open log without a store issue. |
+| `newStockReceived` | `v.number()`           | Cumulative qty issued via `storeTransactions` on this day. F&B FULL (`fnb.stock.received`) may set it on an open log without a store issue. |
 | `totalStock`       | `v.number()`           | `openingStock + newStockReceived` (persisted)                |
 | `closingStock`     | `v.number()`           | Physical count at end of day                                 |
 | `salesQuantity`    | `v.number()`           | `totalStock − closingStock − waste − comps` (persisted)  |
@@ -178,7 +178,7 @@ are never mutated.
 | `unitCostAtSale`   | `v.optional(v.number())` | Snapshotted unit cost                                     |
 | `cogsValue`        | `v.optional(v.number())` | Disappeared × unitCostAtSale                              |
 | `isFinalized`      | `v.boolean()`          | `true` after end-of-day reconciliation. `fnb.stock.reopen` sets it back to `false`. |
-| `correctionOpen`   | `v.optional(v.boolean())` | Set when an administrator reopens a finalized day. Cleared on the next finalize. Staff cannot edit the row while this is true. |
+| `correctionOpen`   | `v.optional(v.boolean())` | Set when F&B FULL reopens a finalized day. Cleared on the next finalize. Staff cannot edit the row from My stock while this is true. |
 | `lastUpdatedAt`    | `v.number()`           | **[NEW]** Epoch ms of last mutation (replaces `recordedAt`)  |
 
 > Derived fields (`totalStock`, `salesQuantity`, `salesValue`) are stored rather

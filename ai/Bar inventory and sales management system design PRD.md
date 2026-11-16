@@ -212,12 +212,12 @@ efficient day-scoped queries:
 `isFinalized: true` on the `userStockLogs` document for each beverage.
 A finalized log cannot be edited until `reopenBarDayForCorrection` sets
 `isFinalized: false` and `correctionOpen: true` for that bar and date. That
-mutation requires `fnb.stock.reopen`, which is granted only to Administrator.
+mutation requires `fnb.stock.reopen`, which is included in F&B FULL.
 Staff cannot edit or finalize a correction-open day from My Stock. Finalizing
 the log again clears `correctionOpen`.
 
 **FR-SHF-005a** — `updateUserStockLog` may set `newStockReceived` when the caller
-has `fnb.stock.received` (Administrator only) and the log is not finalized.
+has `fnb.stock.received` (included in F&B FULL) and the log is not finalized.
 `totalStock` is recomputed as `openingStock + newStockReceived`, then sales,
 waste, and comps are derived as usual. This correction does not create a store
 issue and does not change `storeInventories.qtyInStore`.
@@ -289,7 +289,7 @@ It does not transfer stock out of the storeroom. Zero crates creates the row
 only and does not require a price. If the opening bottles are at or below the
 reorder threshold, an open reorder alert is created. Editing the row shows
 bottle cost and stock value as read-only and updates `reorderThreshold`.
-A caller with `inventory.quantity.correct` (Administrator only) may also set
+A caller with `inventory.quantity.correct` (included in Inventory FULL) may also set
 the bottles on hand. The difference from the current quantity is written as a
 `storeTransactions` row with `txnType: "count_adjust"` and notes
 "Administrator quantity correction". That write does not change bar
@@ -622,7 +622,7 @@ any given time. The mutation shall query `by_userId_date` before inserting a
 new shift.
 
 **BR-003** — A store issue increments `newStockReceived` and decrements store
-inventory in the same mutation. An administrator correction with
+inventory in the same mutation. A correction by a caller with
 `fnb.stock.received` may set `newStockReceived` on an open log without a store
 issue. That path does not change store inventory. A store issue still cannot
 change a finalized day or a day reopened for correction.

@@ -297,21 +297,30 @@ const UserStockLogs = ({
       pin: 'left',
       render: (value, row) => (
         <div className='flex justify-evenly lg:justify-start items-center gap-1'>
-          <a
-            href={`/admin/bar-management/user-stock-logs/edit?stock_log_id=${row._id}`}
-            className='!mr-2 !no-underline !text-amber-400'
-            title={
-              row.isFinalized
-                ? 'Cannot edit - record is finalized'
-                : row.correctionOpen
-                  ? 'Correct this stock log'
-                  : 'Edit stock log'
-            }
-          >
-            <i className={`icon ${row.isFinalized ? 'opacity-50 cursor-not-allowed' : ''}`}>
-              <MdEditDocument />
-            </i>
-          </a>
+          {row.isFinalized ? (
+            <span className="inline-flex cursor-not-allowed" title="Cannot edit - record is finalized">
+              <button
+                type="button"
+                disabled
+                aria-label="Cannot edit - record is finalized"
+                className="pointer-events-none mr-2 border-0 bg-transparent p-0 text-amber-400 opacity-50"
+              >
+                <i className="icon">
+                  <MdEditDocument />
+                </i>
+              </button>
+            </span>
+          ) : (
+            <a
+              href={`/admin/bar-management/user-stock-logs/edit?stock_log_id=${row._id}`}
+              className="!mr-2 !no-underline !text-amber-400"
+              title={row.correctionOpen ? 'Correct this stock log' : 'Edit stock log'}
+            >
+              <i className="icon">
+                <MdEditDocument />
+              </i>
+            </a>
+          )}
 
           {!row.isFinalized && (
             <Button
@@ -470,6 +479,16 @@ const UserStockLogs = ({
         currency={currency}
         logDate={logDate}
       />
+      {canReopenStock && !filters?.barId && (
+        <p className="mb-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+          Choose one bar and a date, then Apply Filters. Reopen for correction appears when that day is finalized.
+        </p>
+      )}
+      {canReopenStock && filters?.barId && finalizedCount === 0 && correctionCount === 0 && (
+        <p className="mb-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+          This bar has no finalized stock on this date.
+        </p>
+      )}
       {canReopenStock && filters?.barId && correctionCount > 0 && (
         <p className="mb-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
           This day is open for an administrator correction. Update the drinks, then finalize the stock.

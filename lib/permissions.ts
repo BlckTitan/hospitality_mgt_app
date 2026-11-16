@@ -443,6 +443,9 @@ export const GRANULAR_PERMISSIONS = {
     'fnb.order.manage': 'fnb.update',
     'fnb.menu.update': 'fnb.update',
     'fnb.menu.read': 'fnb.read',
+    // FULL includes delete. LIMITED stops at update.
+    'fnb.stock.reopen': 'fnb.delete',
+    'fnb.stock.received': 'fnb.delete',
   },
   restaurant: {
     'restaurant.order.create': 'restaurant.create',
@@ -492,6 +495,8 @@ export const GRANULAR_PERMISSIONS = {
     'inventory.task.assign': 'inventory.update',
     'inventory.task.update': 'inventory.update',
     'inventory.task.complete': 'inventory.update',
+    // FULL includes delete. LIMITED stops at update.
+    'inventory.quantity.correct': 'inventory.delete',
   },
   // Billing keys are explicit-only — see convex/lib/rolePermissionCatalog.ts
 } as const;

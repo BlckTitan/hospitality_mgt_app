@@ -439,6 +439,9 @@ export const GRANULAR_PERMISSIONS: Record<string, Record<string, string>> = {
     "fnb.menu.update": "fnb.update",
     // Menu list only. Does not grant bars, stock, POS, or cost.
     "fnb.menu.read": "fnb.read",
+    // FULL includes delete. LIMITED stops at update, so these stay off LIMITED.
+    "fnb.stock.reopen": "fnb.delete",
+    "fnb.stock.received": "fnb.delete",
   },
   restaurant: {
     "restaurant.order.create": "restaurant.create",
@@ -491,6 +494,8 @@ export const GRANULAR_PERMISSIONS: Record<string, Record<string, string>> = {
     "inventory.task.update": "inventory.update",
     "inventory.task.complete": "inventory.update",
     "inventory.po.pay": "inventory.update",
+    // FULL includes delete. LIMITED stops at update, so this stays off LIMITED.
+    "inventory.quantity.correct": "inventory.delete",
   },
   // Billing keys are explicit-only (not mapped to finance.*) so Ops/Manager
   // can hold finance LIMITED without gaining bill-account setup / pay.
@@ -510,13 +515,6 @@ export const BILLING_VIEW_KEYS = ["billing.period.read"] as const;
 export const COMPENSATION_KEYS = [
   "staff.compensation.read",
   "staff.compensation.update",
-] as const;
-
-/** Explicit Administrator keys. Not mapped from fnb.* or inventory.*, so FULL on those modules does not grant them. */
-export const ADMIN_CORRECTION_KEYS = [
-  "fnb.stock.reopen",
-  "fnb.stock.received",
-  "inventory.quantity.correct",
 ] as const;
 
 export const TASK_FULL_KEYS = [

@@ -2,7 +2,6 @@ import {
   Action,
   BILLING_FULL_KEYS,
   BILLING_VIEW_KEYS,
-  ADMIN_CORRECTION_KEYS,
   COMPENSATION_KEYS,
   GRANULAR_PERMISSIONS,
   HOUSEKEEPING_TASK_KEYS,
@@ -255,6 +254,13 @@ export function buildRolePermissions(roleName: string): Record<string, boolean> 
         permissions["inventory.po.pay"] = level === "FULL";
       }
     }
+
+    if (module === "fnb" && level === "FULL") {
+      grant(["fnb.stock.reopen", "fnb.stock.received"], permissions);
+    }
+    if (module === "inventory" && level === "FULL") {
+      grant(["inventory.quantity.correct"], permissions);
+    }
   }
 
   // Explicit billing (not derived from finance LIMITED)
@@ -266,10 +272,6 @@ export function buildRolePermissions(roleName: string): Record<string, boolean> 
 
   if (COMPENSATION_ROLES.has(roleName)) {
     grant(COMPENSATION_KEYS, permissions);
-  }
-
-  if (roleName === "Administrator") {
-    grant(ADMIN_CORRECTION_KEYS, permissions);
   }
 
   expandTaskKeysFromModules(roleName, matrix as Record<string, PermissionLevel | undefined>, permissions);

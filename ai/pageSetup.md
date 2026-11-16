@@ -408,7 +408,7 @@ Bar management, beverages catalog, and beverage POS. Spec: `ai/Bar inventory and
 - `getOpenReorderAlerts`
 - Sales qty/value = `totalStock − closingStock − waste − comps` × `unitPrice` (stock disappearance after waste/comps)
 
-**Child routes:** `/admin/bar-management/bar`, `/beverages`, `/my-stock`, `/stock-requests`, `/user-stock-logs`, `/store-inventory`, `/store-transactions`, `/store-count` (and edit pages). Also nav links to `/admin/pos` and `/admin/pos/orders`. Store inventory/transactions/count use `inventory.read` / `inventory.update`. Stock request approve uses `inventory.update`. Direct store quantity correction uses `inventory.quantity.correct`. Reopening a finalized stock day uses `fnb.stock.reopen`. Setting new stock received on a log uses `fnb.stock.received`.
+**Child routes:** `/admin/bar-management/bar`, `/beverages`, `/my-stock`, `/stock-requests`, `/user-stock-logs`, `/store-inventory`, `/store-transactions`, `/store-count` (and edit pages). Also nav links to `/admin/pos` and `/admin/pos/orders`. Store inventory/transactions/count use `inventory.read` / `inventory.update`. Stock request approve uses `inventory.update`. Direct store quantity correction uses `inventory.quantity.correct` (Inventory FULL). Reopening a finalized stock day uses `fnb.stock.reopen` (F&B FULL). Setting new stock received on a log uses `fnb.stock.received` (F&B FULL).
 
 **Rendering Strategy: SSR** — live Convex subscriptions for the selected property.
 
@@ -510,7 +510,7 @@ Bar management, beverages catalog, and beverage POS. Spec: `ai/Bar inventory and
 ### 17d-iii. Store inventory (`/admin/bar-management/store-inventory`)
 **Purpose**: One on-hand row per beverage, stored in bottles. Add with +. Enter crates on hand, a reorder threshold in bottles, the price of one crate, bottles per crate, and supply costs such as transportation. Each supply cost has a Name and an Amount. Zero crates creates the row only. A crate count above 0 is saved as an opening receive. Bottle cost is (crates × crate price + supply costs) / bottles, and the row keeps the average of those purchases. The list shows bottle cost and stock value (bottles on hand times that average). Edit shows bottle cost and stock value as read-only and changes the reorder threshold. With `inventory.quantity.correct`, the same edit can set bottles on hand. The difference is saved as a `count_adjust` store transaction dated today. That correction does not change stock already at a bar. Other quantity changes are Store transactions or a posted Store count. Bar profit uses this bottle cost unless the beverage has a manual unit cost.
 
-**Permission:** `inventory.read` to list; `inventory.create` to add; `inventory.update` to edit the reorder threshold; `inventory.quantity.correct` (Administrator only) to set on-hand quantity; `inventory.delete` to remove
+**Permission:** `inventory.read` to list; `inventory.create` to add; `inventory.update` to edit the reorder threshold; `inventory.quantity.correct` (Inventory FULL) to set on-hand quantity; `inventory.delete` to remove
 
 **Data Fetching:**
 - `getAllStoreInventories`, `getStoreInventoryById`
