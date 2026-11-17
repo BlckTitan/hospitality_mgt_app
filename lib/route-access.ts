@@ -149,7 +149,7 @@ type NavBranch<TLeaf extends NavLeaf> = {
 export function filterNavByAccess<TItem extends NavBranch<TLeaf>, TLeaf extends NavLeaf>(
   items: TItem[],
   canAccess: (href: string) => boolean,
-): TItem[] {
+): Array<TItem & { sectionHref: string }> {
   return items.flatMap((item) => {
     if (!item.href || item.href === '/#') {
       return [];
