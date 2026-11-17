@@ -150,16 +150,17 @@ export default function Sidebar() {
       </header>
       <div className='w-full flex-1 min-h-0 overflow-y-auto overscroll-contain pt-4 text-white !px-0 glass sidebar-scroll'>
 
-        {filteredNavLinks.map(({ id, href, label, icon, subLink }) => (
+        {filteredNavLinks.map(({ id, href, sectionHref, label, icon, subLink }) => (
           <SidebarNavItem
             key={id}
             href={href}
+            sectionHref={sectionHref ?? href}
             label={label}
             icon={icon}
             subLink={subLink}
             path={path}
-            open={openHref === href}
-            onToggle={() => setOpenHref((current) => (current === href ? null : href))}
+            open={openHref === (sectionHref ?? href)}
+            onToggle={() => setOpenHref((current) => (current === (sectionHref ?? href) ? null : (sectionHref ?? href)))}
           />
         ))}
 
@@ -179,6 +180,7 @@ export default function Sidebar() {
 
 function SidebarNavItem({
   href,
+  sectionHref,
   label,
   icon,
   subLink,
@@ -187,6 +189,7 @@ function SidebarNavItem({
   onToggle,
 }: {
   href: string;
+  sectionHref: string;
   label: string;
   icon: ReactNode;
   subLink?: { id: number; href: string; label: string }[];
@@ -195,7 +198,7 @@ function SidebarNavItem({
   onToggle: () => void;
 }) {
   const hasChildren = Boolean(subLink?.length);
-  const sectionActive = isPathInSection(path, href);
+  const sectionActive = isPathInSection(path, sectionHref);
 
   return (
     <div className="w-full my-2">

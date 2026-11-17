@@ -10,6 +10,7 @@ import { useQuery } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 import BootstrapModal from '../../../../shared/modal';
 import { RoomPageGuide } from '../components/roomPageGuide';
+import { DeskReminders } from '../components/deskReminders';
 import { useSearchParams } from 'next/navigation';
 import { useFrontOfficeDuty } from '../components/useFrontOfficeDuty';
 
@@ -34,7 +35,8 @@ function ReservationPageInner() {
   const desk = useFrontOfficeDuty();
   const propertiesResponse = useQuery(api.property.getAllProperties);
   const properties = propertiesResponse?.data || [];
-  const currentPropertyId = properties?.[0]?._id || '';
+  const currentProperty = properties[0];
+  const currentPropertyId = currentProperty?._id ?? '';
 
   useEffect(() => {
     if (!guestIdFromUrl) return;
@@ -92,6 +94,7 @@ function ReservationPageInner() {
           </Button>
         </div>
       </header>
+      {currentProperty ? <DeskReminders propertyId={currentProperty._id} /> : null}
       <Reservations propertyId={currentPropertyId} />
 
       <BootstrapModal

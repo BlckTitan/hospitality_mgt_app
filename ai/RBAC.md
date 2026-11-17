@@ -202,7 +202,7 @@ Route access (`lib/proxy-permissions.ts`; `granular` may be a string or string[]
 
 Permission keys stay technical. The metrics catalog is `ai/report_analytcs.md`. The dashboard (`/admin/dashboard`) is the property P&L / RevPAR + operations view. Bar period charts and health KPIs are `/admin/bar-management`, not the dashboard.
 
-- reports.read — page access for `/admin/dashboard` and `getFinancialReport`
+- reports.read — page access for `/admin/dashboard`, the lodging overview at `/admin/room-management` (and `/admin/room-management/summary`), and `getFinancialReport`. Reservation or room access does not open that overview.
 - reports.create
 - reports.export
 
@@ -211,6 +211,7 @@ Operational tabs still check their own module keys (`rooms.read`, `inventory.rea
 | Screen | Path | Permission |
 |---|---|---|
 | Property dashboard | `/admin/dashboard` | `reports.read` |
+| Lodging overview | `/admin/room-management` | `reports.read` (summary redirects here). Occupancy, reservations, guests, and rooms stay on their own pages. |
 | Bar Management hub | `/admin/bar-management` | `beverages.read` (charts: `reports.read`; reorders/requests/counts: `inventory.read`) |
 | My Stock Today | `/admin/bar-management/my-stock` | `beverages.read` |
 | Stock requests | `/admin/bar-management/stock-requests` | `beverages.read` (create); `inventory.update` (approve/reject = issue) |

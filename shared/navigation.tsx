@@ -155,7 +155,7 @@ export default function Navigation() {
   if (!isLoaded || isLoading) return <NavSkeleton />;
 
   const filteredNavItems = filterNavByAccess(navItems, canAccessRoute);
-  const activeSection = filteredNavItems.find((item) => isPathInSection(path, item.href))?.label ?? null;
+  const activeSection = filteredNavItems.find((item) => isPathInSection(path, item.sectionHref ?? item.href))?.label ?? null;
   const expanded = openSection ?? activeSection;
 
   return (
@@ -246,8 +246,8 @@ export default function Navigation() {
               </div>
 
               <div className="w-full h-auto block lg:hidden">
-                {filteredNavItems.map(({ id, href, label, icon, subLink }) => {
-                  const sectionActive = isPathInSection(path, href);
+                {filteredNavItems.map(({ id, href, sectionHref, label, icon, subLink }) => {
+                  const sectionActive = isPathInSection(path, sectionHref ?? href);
                   const isOpen = expanded === label;
                   return (
                     <div key={id} className="border-0">

@@ -52,6 +52,11 @@ export function canAccessPath(
     return true;
   }
 
+  // The lodging overview has its own permission. A reservation or room page must not open it.
+  if (pathname === '/admin/room-management') {
+    return false;
+  }
+
   if (isSectionHub(pathname)) {
     const prefix = `${pathname}/`;
     return Object.entries(ROUTE_PERMISSIONS).some(
@@ -137,6 +142,7 @@ type NavLeaf = {
 
 type NavBranch<TLeaf extends NavLeaf> = {
   href: string;
+  sectionHref?: string;
   subLink?: TLeaf[];
 };
 
@@ -165,6 +171,7 @@ export function filterNavByAccess<TItem extends NavBranch<TLeaf>, TLeaf extends 
       {
         ...item,
         href: canVisitHub ? item.href : children[0].href,
+        sectionHref: item.href,
         subLink: children.length > 0 ? children : undefined,
       },
     ];

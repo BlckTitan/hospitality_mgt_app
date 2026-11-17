@@ -60,9 +60,10 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermission> = {
   '/admin/inventory-management/purchase-order-line': { granular: 'inventory.read' },
 
   // Room Management & Reservations
-  '/admin/room-management': { granular: 'reservations.read' },
+  // Lodging overview (charts, shift close, month tape). Child pages do not open this.
+  '/admin/room-management': { granular: 'reports.read' },
   '/admin/room-management/occupancy': { granular: ['reservations.read', 'rooms.read'] },
-  '/admin/room-management/summary': { granular: 'reservations.read' },
+  '/admin/room-management/summary': { granular: 'reports.read' },
   '/admin/room-management/room-type': { granular: 'rooms.read' },
   '/admin/room-management/room': { granular: 'rooms.read' },
   '/admin/room-management/reservation': { granular: 'reservations.read' },

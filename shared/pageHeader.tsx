@@ -21,11 +21,31 @@ export function parentAdminPath(pathname: string, homePath = DASHBOARD_PATH): st
   return `/${parts.join('/')}`;
 }
 
+function firstAccessibleParent(
+  pathname: string,
+  homePath: string,
+  canAccess: (path: string) => boolean,
+): string | null {
+  let current = pathname;
+  const seen = new Set<string>();
+  while (!seen.has(current)) {
+    seen.add(current);
+    const next = parentAdminPath(current, homePath);
+    if (!next) return null;
+    const pathOnly = next.split('?')[0]?.split('#')[0] ?? next;
+    if (pathOnly === homePath || !pathOnly.startsWith('/admin') || canAccess(pathOnly)) {
+      return next;
+    }
+    current = pathOnly;
+  }
+  return homePath;
+}
+
 export function BackLink({ href }: { href?: string }) {
   const pathname = usePathname();
-  const { hasGranularPermission, roles } = usePermissions();
+  const { hasGranularPermission, roles, canAccessRoute } = usePermissions();
   const homePath = getPostLoginPath(hasGranularPermission, roles);
-  const to = href ?? parentAdminPath(pathname, homePath);
+  const to = href ?? firstAccessibleParent(pathname, homePath, canAccessRoute);
   if (!to) {
     return null;
   }
