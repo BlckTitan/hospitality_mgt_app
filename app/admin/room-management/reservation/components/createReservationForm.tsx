@@ -108,11 +108,11 @@ export function FormComponent({
   const maxOccupancyRef = useRef<number | undefined>(undefined);
   const resolver = useMemo(() => {
     const resolve = yupResolver(formSchema);
-    return (values: FormData, context: unknown, options: unknown) =>
-      (resolve as (values: FormData, context: unknown, options: unknown) => ReturnType<typeof resolve>)(
-        values,
+    return (values: unknown, context: unknown, options: unknown) =>
+      resolve(
+        values as never,
         { ...(context as object), maxOccupancy: maxOccupancyRef.current },
-        options,
+        options as never,
       );
   }, []);
 
