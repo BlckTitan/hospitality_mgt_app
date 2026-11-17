@@ -26,7 +26,9 @@ const isSetupRoute = createRouteMatcher(['/setup(.*)']);
 const isNoAccessRoute = createRouteMatcher(['/no-access(.*)']);
 const isAcceptInviteRoute = createRouteMatcher(['/accept-invite(.*)']);
 const isHomeRoute = createRouteMatcher(['/']);
-const isPublicRoute = createRouteMatcher(PUBLIC_ROUTES.map((route) => `${route}(.*)`));
+const isPublicRoute = createRouteMatcher(
+  PUBLIC_ROUTES.map((route) => (route === '/' ? '/' : `${route}(.*)`)),
+);
 
 function requestedPath(req: { nextUrl: { searchParams: { get: (name: string) => string | null } } }): string | null {
   return req.nextUrl.searchParams.get('next') ?? req.nextUrl.searchParams.get('redirect_url');
