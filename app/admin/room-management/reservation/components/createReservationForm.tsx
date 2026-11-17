@@ -9,7 +9,7 @@ import { Modal } from '../../../../../shared/modal';
 import InputComponent from "../../../../../shared/input";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { api } from "../../../../../convex/_generated/api";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { formatPropertyMoney, usePropertyCurrency } from "../../../inventory-management/components/money";
 import { useFrontOfficeDuty } from "../../components/useFrontOfficeDuty";
 
@@ -105,6 +105,17 @@ export function FormComponent({
     initialGuestId ? { guestId: initialGuestId as Id<"guests"> } : "skip",
   );
 
+  const maxOccupancyRef = useRef<number | undefined>(undefined);
+  const resolver = useMemo(() => {
+    const resolve = yupResolver(formSchema);
+    return (values: FormData, context: unknown, options: unknown) =>
+      (resolve as (values: FormData, context: unknown, options: unknown) => ReturnType<typeof resolve>)(
+        values,
+        { ...(context as object), maxOccupancy: maxOccupancyRef.current },
+        options,
+      );
+  }, []);
+
   const {
     register,
     handleSubmit,
@@ -113,8 +124,9 @@ export function FormComponent({
     setValue,
     reset,
     clearErrors,
+    trigger,
   } = useForm<FormData>({
-    resolver: yupResolver(formSchema) as any,
+    resolver: resolver as never,
     defaultValues: {
       guestMode: "existing",
       guestId: "",
@@ -145,7 +157,9 @@ export function FormComponent({
   const watchCheckOut = watch("checkOutDate");
   const watchRate = watch("rate");
   const watchRoomId = watch("roomId");
-  const selectedRoom = rooms.find((room: { _id: string; roomTypeId?: string }) => room._id === watchRoomId);
+  const selectedRoom = rooms.find((room: { _id: string; roomTypeId?: string; roomType?: { maxOccupancy?: number } }) => room._id === watchRoomId);
+  const maxOccupancy = selectedRoom?.roomType?.maxOccupancy;
+  maxOccupancyRef.current = typeof maxOccupancy === "number" ? maxOccupancy : undefined;
   const packagePrice = shortStayRates.find(
     (rate) => rate.roomTypeId === selectedRoom?.roomTypeId && rate.hours === Number(watchDuration),
   );
@@ -189,6 +203,11 @@ export function FormComponent({
       setValue("rate", room.roomType.baseRate);
     }
   }, [watchRoomId, watchStayKind, rooms, setValue]);
+
+  useEffect(() => {
+    if (!watchRoomId || maxOccupancy == null) return;
+    void trigger("numberOfGuests");
+  }, [watchRoomId, maxOccupancy, trigger]);
 
   useEffect(() => {
     const onPointerDown = (event: MouseEvent) => {
@@ -433,9 +452,10 @@ goToList("/admin/room-management/reservation");
             <div className="flex w-full flex-col gap-1 lg:flex-row lg:justify-between lg:gap-2 [&_div]:mb-0 [&_div]:flex [&_div]:flex-col [&_div]:items-start [&_div]:justify-start">
               <InputComponent
                 id="newGuestEmail"
-                label="Email"
+                label="Email (optional)"
                 type="email"
                 inputWidth="w-1/2"
+                placeholder="Leave blank if the guest has no email"
                 register={register("newGuestEmail")}
                 error={errors.newGuestEmail}
               />
@@ -600,6 +620,10 @@ goToList("/admin/room-management/reservation");
           />
         )}
       </div>
+      <p className="-mt-1 mb-4 text-xs text-gray-500">
+        Count everyone in the room, including a spouse. They share this booking. Do not open a second reservation for the same room.
+        {typeof maxOccupancy === "number" ? ` This room allows up to ${maxOccupancy} guest${maxOccupancy === 1 ? "" : "s"}.` : ""}
+      </p>
 
       <div
         className="mb-2 flex h-fit w-full flex-col gap-1 lg:mb-4 lg:flex-row lg:items-center lg:justify-between

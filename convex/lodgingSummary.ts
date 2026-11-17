@@ -265,7 +265,7 @@ export const getLodgingSummary = query({
     grain: grainValidator,
   },
   handler: async (ctx, args) => {
-    const canRead = await tryRequirePermission(ctx, 'reservations.read', args.propertyId);
+    const canRead = await tryRequirePermission(ctx, 'reports.read', args.propertyId);
     if (!canRead) {
       return { success: false as const, message: 'You do not have access to lodging summaries.', data: null };
     }

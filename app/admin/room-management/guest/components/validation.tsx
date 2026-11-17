@@ -18,6 +18,8 @@ export const formSchema = yup.object().shape({
   email: yup
     .string()
     .trim()
+    .transform((value, original) => (original == null || String(original).trim() === '' ? undefined : value))
+    .optional()
     .email("Please enter a valid email address")
     .max(254, "Email is too long")
     .matches(/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/, 'Enter a valid email address')
@@ -39,6 +41,8 @@ export const formSchema = yup.object().shape({
 
   phone: yup
     .string()
+    .transform((value, original) => (original == null || String(original).trim() === '' ? undefined : value))
+    .optional()
     .matches(/^\+?\d{10,15}$/, "Enter a valid phone number (10-15 digits)"),
 
   address: yup
@@ -47,8 +51,11 @@ export const formSchema = yup.object().shape({
 
   dateOfBirth: yup
     .date()
+    .transform((value, original) => (original == null || original === '' ? null : value))
+    .nullable()
+    .optional()
     .max(new Date(), "Date of birth cannot be in the future")
-    .nullable(),
+    .typeError("Enter a valid date of birth"),
 
   loyaltyNumber: yup
     .string()

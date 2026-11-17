@@ -36,6 +36,8 @@ type ImageUploadProps = {
   disabled?: boolean;
   /** When true, Remove is hidden and the label shows *. */
   required?: boolean;
+  /** Shown when no image has been uploaded. Clearing a photo returns to this image. */
+  fallbackSrc?: string;
   /** Accept attribute override. Defaults to JPEG/PNG/WebP. */
   accept?: string;
   helperText?: string;
@@ -105,6 +107,7 @@ export default function ImageUpload({
   error,
   disabled = false,
   required = false,
+  fallbackSrc,
   accept = CLOUDINARY_ALLOWED_MIME_TYPES.join(','),
   helperText = CLOUDINARY_HELPER_TEXT,
 }: ImageUploadProps) {
@@ -114,6 +117,8 @@ export default function ImageUpload({
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const displayLabel = required ? `${label} *` : label;
+  const previewSrc = value || fallbackSrc || null;
+  const usingFallback = !value && Boolean(fallbackSrc);
 
   const uploadFile = async (file: File) => {
     const validationError = await validateImageFile(file);
@@ -189,14 +194,14 @@ export default function ImageUpload({
   return (
     <Field id={inputId} label={displayLabel} widthClass={fieldWidthClass(inputWidth)}>
       <div className="w-full max-w-full min-w-0">
-        {value ? (
+        {previewSrc ? (
           <div className="relative w-full max-w-sm overflow-hidden rounded-md border border-gray-300 bg-gray-50">
             <div className="relative h-40 w-full">
               <Image
-                src={cloudinaryDeliveryUrl(value, { width: 384, height: 160, crop: 'fill' }) || value}
-                alt="Uploaded preview"
+                src={cloudinaryDeliveryUrl(previewSrc, { width: 384, height: 160, crop: 'fill' }) || previewSrc}
+                alt={usingFallback ? 'Default profile photo' : 'Uploaded preview'}
                 fill
-                unoptimized={!value.includes('res.cloudinary.com')}
+                unoptimized={!previewSrc.includes('res.cloudinary.com')}
                 className="object-cover"
                 sizes="(max-width: 640px) 100vw, 24rem"
               />
@@ -209,9 +214,9 @@ export default function ImageUpload({
                 className="inline-flex items-center gap-1 rounded px-2 py-1 text-sm text-blue-700 hover:bg-blue-50 disabled:opacity-50"
               >
                 <Upload className="h-4 w-4" />
-                Replace
+                {usingFallback ? 'Upload photo' : 'Replace'}
               </button>
-              {!required && (
+              {!required && !usingFallback && (
                 <button
                   type="button"
                   disabled={disabled || uploading}
@@ -223,6 +228,9 @@ export default function ImageUpload({
                 </button>
               )}
             </div>
+            {usingFallback && helperText ? (
+              <p className="border-t border-gray-200 bg-white px-2 py-2 text-xs text-gray-500">{helperText}</p>
+            ) : null}
             {uploading && (
               <div className="absolute inset-0 flex items-center justify-center bg-white/70">
                 <Spinner />

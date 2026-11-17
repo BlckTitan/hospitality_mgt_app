@@ -10,6 +10,7 @@ import { Id } from "../../../../../convex/_generated/dataModel";
 import { TableColumn } from "../../../../../shared/table";
 import PaginationComponent from "../../../../../shared/pagination";
 import ImageThumbnail from "../../../../../shared/imageThumbnail";
+import { staffAvatarSrc } from "../../../../../lib/staffAvatar";
 
 interface GuestProps {
   _id: string;
@@ -63,7 +64,7 @@ const Guests = ({ propertyId }: { propertyId: string }) => {
       key: 'imageUrl',
       render: (_value, row) => (
         <ImageThumbnail
-          src={row.imageUrl}
+          src={staffAvatarSrc(row.imageUrl)}
           alt={`${row.firstName} ${row.lastName}`}
           size={40}
           rounded="full"

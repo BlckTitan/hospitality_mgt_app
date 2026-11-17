@@ -11,9 +11,9 @@ export default function Page() {
         <div className="min-w-0">
           <h1 className="text-2xl font-bold text-gray-800">POS cash-up</h1>
           <p className="text-gray-600">
-            Compare expected cash tenders from the server&apos;s POS checks to counted drawer cash. A
-            shortage creates a pending staff liability for approval and payroll deduction (or cash
-            collection).
+            Compare expected cash with the counted drawer, and expected card with the card terminal
+            batch. A cash shortage creates a pending staff liability. A card difference is saved on
+            the cash-up and does not create that liability.
           </p>
         </div>
         <BackLink />

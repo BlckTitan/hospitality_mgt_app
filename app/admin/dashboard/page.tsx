@@ -38,6 +38,7 @@ export default function Dashboard() {
   const properties = propertiesResponse?.data ?? [];
   const currentPropertyId = (propertyId || properties[0]?._id || '') as Id<'properties'> | '';
 
+  const canReports = hasGranularPermission('reports.read');
   const canRooms = hasGranularPermission('rooms.read') || hasGranularPermission('reservations.read');
   const canHousekeeping = hasGranularPermission('housekeeping.task.read');
   const canInventory = hasGranularPermission('inventory.read');
@@ -47,7 +48,8 @@ export default function Dashboard() {
   const canMaintenance = hasGranularPermission('maintenance.order.read');
 
   const tabs = useMemo(() => {
-    const items: TabId[] = ['pnl'];
+    const items: TabId[] = [];
+    if (canReports) items.push('pnl');
     if (currentPropertyId && canRooms) items.push('rooms');
     if (currentPropertyId && canHousekeeping) items.push('housekeeping');
     if (currentPropertyId && canInventory) items.push('inventory');
@@ -58,6 +60,7 @@ export default function Dashboard() {
   }, [
     canBilling,
     canFnB,
+    canReports,
     canHousekeeping,
     canInventory,
     canRestaurant,
@@ -66,8 +69,8 @@ export default function Dashboard() {
   ]);
 
   useEffect(() => {
-    if (!tabs.includes(tab)) {
-      setTab(tabs[0] ?? 'pnl');
+    if (tabs.length > 0 && !tabs.includes(tab)) {
+      setTab(tabs[0]);
     }
   }, [tab, tabs]);
 
@@ -139,7 +142,7 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {tab === 'pnl' && currentPropertyId && (
+      {tab === 'pnl' && canReports && currentPropertyId && (
         <FinancialReportCard
           propertyId={currentPropertyId}
           currency={selected.currency}

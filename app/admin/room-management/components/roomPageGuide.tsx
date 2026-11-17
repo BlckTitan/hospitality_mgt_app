@@ -5,7 +5,7 @@ import { PageGuide } from '../../../../shared/pageGuide';
 type GuidePage = 'hub' | 'occupancy' | 'summary' | 'room-types' | 'rooms' | 'reservations' | 'guests';
 
 const DESCRIPTIONS: Record<GuidePage, string> = {
-  hub: 'Front desk home for this property. Reminders list short stays ending within the hour and overnight guests whose checkout is near. Lodging shows revenue, collections, occupancy, and ADR for the selected day, week, month, or year, compared with the same dates last year. The month chart shows who is in each room each night. Create room types and rooms first, then book stays from Reservations. Housekeeping readiness is inferred from open tasks — room status is not dirty or cleaning.',
+  hub: 'Front desk home for this property. Reminders list short stays ending within the hour and overnight guests whose checkout is near. The month chart shows who is in each room each night. Lodging revenue, collections, occupancy, and ADR show only for roles with reports access. Create room types and rooms first, then book stays from Reservations. Housekeeping readiness is inferred from open tasks — room status is not dirty or cleaning.',
   occupancy:
     'Month tape chart of nights by room. Color is checked-in, confirmed, pending, short stay, or blocked (out-of-order / maintenance). A short stay is a 1–7 hour visit and does not count as a sold night. An amber dot means open housekeeping; Not ready means an open checkout-clean. Click a stay to open the reservation. Filter by room type. Occupancy % counts confirmed and in-house nights, not pending holds or short stays.',
   summary:

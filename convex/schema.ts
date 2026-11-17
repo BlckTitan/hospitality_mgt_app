@@ -1712,7 +1712,7 @@ export default defineSchema({
       "prepStatus",
     ]),
 
-  // End-of-day cash drawer vs expected cash tenders (POS)
+  // End-of-day drawer count and card-terminal confirmation (POS)
   cashSettlements: defineTable({
     propertyId: v.id("properties"),
     barId: v.optional(v.id("bars")),
@@ -1723,6 +1723,10 @@ export default defineSchema({
     countedCash: v.number(),
     varianceCash: v.number(), // counted − expected; negative = shortage
     expectedCard: v.optional(v.number()),
+    // Terminal batch total. Optional so cash-ups posted before card confirmation still load.
+    countedCard: v.optional(v.number()),
+    // countedCard − expectedCard; negative = terminal short of the POS card total
+    varianceCard: v.optional(v.number()),
     expectedRoomCharge: v.optional(v.number()),
     notes: v.optional(v.string()),
     status: v.union(

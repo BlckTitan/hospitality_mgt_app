@@ -8,6 +8,12 @@ import { currentUsersStaff, isActiveStatus } from './lib/staffAccess';
 
 type DbCtx = MutationCtx | QueryCtx;
 
+function cardConfirmationMessage(varianceCard: number): string {
+  if (varianceCard < -0.0001) return 'Card terminal is short of the POS card total';
+  if (varianceCard > 0.0001) return 'Card terminal is above the POS card total';
+  return 'Card terminal matches the POS';
+}
+
 type CashUpServer = {
   employeeId: Id<'staffs'>;
   userId: Id<'users'>;
@@ -298,15 +304,31 @@ export const postCashSettlement = mutation({
     propertyId: v.id('properties'),
     serverUserId: v.id('users'),
     countedCash: v.number(),
+    countedCard: v.number(),
     settlementDateKey: v.optional(v.string()),
     barId: v.optional(v.id('bars')),
     notes: v.optional(v.string()),
     createLiabilityIfShortage: v.optional(v.boolean()),
   },
+  returns: v.object({
+    success: v.boolean(),
+    message: v.string(),
+    data: v.optional(
+      v.object({
+        settlementId: v.id('cashSettlements'),
+        varianceCash: v.number(),
+        varianceCard: v.number(),
+        liabilityId: v.union(v.id('staffLiabilities'), v.null()),
+      }),
+    ),
+  }),
   handler: async (ctx, args) => {
     const auth = await requirePermission(ctx, 'fnb.update', args.propertyId);
     if (!Number.isFinite(args.countedCash) || args.countedCash < 0) {
       return { success: false, message: 'Counted cash must be zero or greater' };
+    }
+    if (!Number.isFinite(args.countedCard) || args.countedCard < 0) {
+      return { success: false, message: 'Card terminal batch must be zero or greater' };
     }
     const denied = await cashUpServerAllowed(ctx, auth, args.propertyId, args.serverUserId);
     if (denied) return { success: false, message: denied };
@@ -339,6 +361,7 @@ export const postCashSettlement = mutation({
       barId,
     });
     const varianceCash = args.countedCash - expected.expectedCash;
+    const varianceCard = args.countedCard - expected.expectedCard;
     const staff = await currentUsersStaff(ctx, args.serverUserId);
     const employeeId =
       staff && (!staff.propertyId || staff.propertyId === args.propertyId)
@@ -356,6 +379,8 @@ export const postCashSettlement = mutation({
       countedCash: args.countedCash,
       varianceCash,
       expectedCard: expected.expectedCard,
+      countedCard: args.countedCard,
+      varianceCard,
       expectedRoomCharge: expected.expectedRoomCharge,
       notes: args.notes?.trim() || undefined,
       status: 'posted',
@@ -371,9 +396,8 @@ export const postCashSettlement = mutation({
       if (!employeeId) {
         return {
           success: true,
-          message:
-            'Cash-up posted with shortage, but no Staff record is linked to this user — create a liability manually',
-          data: { settlementId, varianceCash, liabilityId: null },
+          message: `Cash-up posted with shortage, but no Staff record is linked to this user — create a liability manually. ${cardConfirmationMessage(varianceCard)}`,
+          data: { settlementId, varianceCash, varianceCard, liabilityId: null },
         };
       }
       const shortage = Math.round((-varianceCash + Number.EPSILON) * 100) / 100;
@@ -397,17 +421,18 @@ export const postCashSettlement = mutation({
       await ctx.db.patch(settlementId, { liabilityId, updatedAt: now });
     }
 
+    const cashMessage =
+      varianceCash < 0
+        ? liabilityId
+          ? 'Cash-up posted; shortage liability created (pending approval)'
+          : 'Cash-up posted with shortage'
+        : varianceCash > 0
+          ? 'Cash-up posted with overage (no staff liability)'
+          : 'Cash-up posted — cash balanced';
     return {
       success: true,
-      message:
-        varianceCash < 0
-          ? liabilityId
-            ? 'Cash-up posted; shortage liability created (pending approval)'
-            : 'Cash-up posted with shortage'
-          : varianceCash > 0
-            ? 'Cash-up posted with overage (no staff liability)'
-            : 'Cash-up posted — cash balanced',
-      data: { settlementId, varianceCash, liabilityId: liabilityId ?? null },
+      message: `${cashMessage}. ${cardConfirmationMessage(varianceCard)}`,
+      data: { settlementId, varianceCash, varianceCard, liabilityId: liabilityId ?? null },
     };
   },
 });

@@ -6,6 +6,24 @@ const startOfToday = () => {
   return start;
 };
 
+function localDateKey(date = new Date()) {
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
+/** Date inputs are calendar days. Compare the picked day, not the clock time. */
+function pickedDateKey(original: unknown, value: unknown): string | null {
+  if (typeof original === "string") {
+    const match = original.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (match) return match[1];
+  }
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return localDateKey(value);
+  }
+  return null;
+}
+
 const sharedReservationFields = {
   stayKind: yup
     .string()
@@ -56,7 +74,17 @@ const sharedReservationFields = {
     .typeError("Number of guests must be a number")
     .positive("Number of guests must be greater than 0")
     .integer("Number of guests must be an integer")
-    .required("Number of guests is required"),
+    .required("Number of guests is required")
+    .test("within-occupancy", function (value) {
+      const max = this.options.context?.maxOccupancy;
+      if (typeof max !== "number" || !Number.isFinite(max) || value == null) return true;
+      if (value > max) {
+        return this.createError({
+          message: `This room allows at most ${max} guest${max === 1 ? "" : "s"}`,
+        });
+      }
+      return true;
+    }),
 
   rate: yup
     .number()
@@ -146,7 +174,16 @@ export const formSchema = yup.object().shape({
       otherwise: (schema) => schema.notRequired(),
     }),
 
-  newGuestEmail: nameRules.email.notRequired(),
+  newGuestEmail: yup
+    .string()
+    .transform((value, original) => {
+      const raw = typeof original === "string" ? original : value;
+      const trimmed = typeof raw === "string" ? raw.trim() : "";
+      return trimmed === "" ? undefined : trimmed;
+    })
+    .optional()
+    .email("Please enter a valid email address")
+    .max(254, "Email is too long"),
   newGuestPhone: nameRules.phone.notRequired(),
 
   checkInDate: yup
@@ -156,7 +193,15 @@ export const formSchema = yup.object().shape({
     .when("stayKind", {
       is: "short",
       then: (schema) => schema.min(startOfToday(), "Start time cannot be before today"),
-      otherwise: (schema) => schema.min(new Date(), "Check-in date cannot be in the past"),
+      otherwise: (schema) => schema.test(
+        "not-before-today",
+        "Check-in date cannot be in the past",
+        function (value) {
+          const key = pickedDateKey(this.originalValue, value);
+          if (!key) return false;
+          return key >= localDateKey();
+        },
+      ),
     }),
 
   ...sharedReservationFields,

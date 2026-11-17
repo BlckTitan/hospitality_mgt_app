@@ -16,6 +16,7 @@ import { Bar, Line } from 'react-chartjs-2';
 import { api } from '../../../../convex/_generated/api';
 import { Id } from '../../../../convex/_generated/dataModel';
 import { formatPropertyMoney } from '../../inventory-management/components/money';
+import { usePermissions } from '../../../../hooks/usePermissions';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, LineElement, PointElement, Tooltip, Legend);
 
@@ -42,20 +43,29 @@ type Grain = (typeof GRAINS)[number]['id'];
 type TabId = (typeof TABS)[number]['id'];
 
 export function LodgingSummary({ propertyId }: { propertyId: Id<'properties'> }) {
+  const { hasGranularPermission, isLoading } = usePermissions();
+  const canReports = !isLoading && hasGranularPermission('reports.read');
   const [date, setDate] = useState('');
   const [grain, setGrain] = useState<Grain>('day');
   const [tab, setTab] = useState<TabId>('shifts');
-  const summary = useQuery(api.lodgingSummary.getLodgingSummary, {
-    propertyId,
-    date: date || undefined,
-    grain,
-  });
+  const summary = useQuery(
+    api.lodgingSummary.getLodgingSummary,
+    canReports
+      ? {
+          propertyId,
+          date: date || undefined,
+          grain,
+        }
+      : 'skip',
+  );
 
   useEffect(() => {
     if (!date && summary?.success && summary.data) {
       setDate(summary.data.today);
     }
   }, [date, summary]);
+
+  if (!canReports) return null;
 
   if (summary === undefined) {
     return (

@@ -23,6 +23,7 @@ export default function CashUp() {
   const [serverUserId, setServerUserId] = useState('')
   const [dateKey, setDateKey] = useState('')
   const [countedCash, setCountedCash] = useState('')
+  const [countedCard, setCountedCard] = useState('')
   const [notes, setNotes] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -67,8 +68,11 @@ export default function CashUp() {
   const money = (n: number) => formatPropertyMoney(n, currency)
   const expected = preview?.data
   const counted = countedCash === '' ? NaN : Number(countedCash)
+  const cardCounted = countedCard === '' ? NaN : Number(countedCard)
   const variance =
     expected && !Number.isNaN(counted) ? counted - expected.expectedCash : null
+  const cardVariance =
+    expected && !Number.isNaN(cardCounted) ? cardCounted - expected.expectedCard : null
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
@@ -80,12 +84,17 @@ export default function CashUp() {
       toast.error('Enter counted cash')
       return
     }
+    if (Number.isNaN(cardCounted) || cardCounted < 0) {
+      toast.error('Enter the card terminal batch')
+      return
+    }
     setBusy(true)
     try {
       const response = await postCashSettlement({
         propertyId: currentPropertyId,
         serverUserId: selectedServer as Id<'users'>,
         countedCash: counted,
+        countedCard: cardCounted,
         ...(dateKey ? { settlementDateKey: dateKey } : {}),
         ...(notes.trim() ? { notes: notes.trim() } : {}),
         createLiabilityIfShortage: true,
@@ -93,6 +102,7 @@ export default function CashUp() {
       if (response.success) {
         toast.success(response.message)
         setCountedCash('')
+        setCountedCard('')
         setNotes('')
       } else toast.error(response.message)
     } catch (error: unknown) {
@@ -175,9 +185,10 @@ export default function CashUp() {
             <div className="font-semibold">{money(expected.expectedCash)}</div>
           </div>
           <div className="border rounded-md p-3">
-            <div className="text-xs text-gray-500">Card / room (info)</div>
-            <div className="text-sm">
-              {money(expected.expectedCard)} card · {money(expected.expectedRoomCharge)} room
+            <div className="text-xs text-gray-500">Expected card</div>
+            <div className="font-semibold">{money(expected.expectedCard)}</div>
+            <div className="text-xs text-gray-600">
+              Room {money(expected.expectedRoomCharge)}
             </div>
           </div>
           <div className="border rounded-md p-3">
@@ -193,8 +204,12 @@ export default function CashUp() {
 
       {expected?.existingPosted && (
         <p className="text-sm text-amber-700">
-          A posted cash-up already exists for this server and day (variance{' '}
-          {money(expected.existingPosted.varianceCash)}).
+          A posted cash-up already exists for this server and day (cash variance{' '}
+          {money(expected.existingPosted.varianceCash)}
+          {expected.existingPosted.varianceCard != null
+            ? `, card variance ${money(expected.existingPosted.varianceCard)}`
+            : ''}
+          ).
         </p>
       )}
 
@@ -214,11 +229,36 @@ export default function CashUp() {
         </label>
         {variance !== null && (
           <p className="text-sm m-0">
-            Variance:{' '}
+            Cash variance:{' '}
             <span className={variance < 0 ? 'text-red-600 font-semibold' : variance > 0 ? 'text-green-700 font-semibold' : ''}>
               {money(variance)}
             </span>
             {variance < 0 ? ' (shortage → pending liability)' : variance > 0 ? ' (overage)' : ' (balanced)'}
+          </p>
+        )}
+        <label className="text-sm block">
+          Card terminal batch
+          <input
+            className={selectClassName + ' mt-1'}
+            type="number"
+            min={0}
+            step="0.01"
+            value={countedCard}
+            onChange={(e) => setCountedCard(e.target.value)}
+            required
+          />
+        </label>
+        {cardVariance !== null && (
+          <p className="text-sm m-0">
+            Card variance:{' '}
+            <span className={cardVariance < 0 ? 'text-red-600 font-semibold' : cardVariance > 0 ? 'text-amber-700 font-semibold' : ''}>
+              {money(cardVariance)}
+            </span>
+            {cardVariance < 0
+              ? ' (terminal short of POS)'
+              : cardVariance > 0
+                ? ' (terminal above POS)'
+                : ' (matches POS)'}
           </p>
         )}
         <label className="text-sm block">
@@ -241,9 +281,12 @@ export default function CashUp() {
             <tr className="border-b text-left">
               <th className="py-2 pr-2">Date</th>
               <th className="py-2 pr-2">Server</th>
-              <th className="py-2 pr-2 text-right">Expected</th>
-              <th className="py-2 pr-2 text-right">Counted</th>
-              <th className="py-2 pr-2 text-right">Variance</th>
+              <th className="py-2 pr-2 text-right">Cash expected</th>
+              <th className="py-2 pr-2 text-right">Cash counted</th>
+              <th className="py-2 pr-2 text-right">Cash variance</th>
+              <th className="py-2 pr-2 text-right">Card expected</th>
+              <th className="py-2 pr-2 text-right">Card batch</th>
+              <th className="py-2 pr-2 text-right">Card variance</th>
               <th className="py-2 pr-2">Status</th>
             </tr>
           </thead>
@@ -257,12 +300,29 @@ export default function CashUp() {
                 <td className={`py-2 pr-2 text-right ${row.varianceCash < 0 ? 'text-red-600' : ''}`}>
                   {money(row.varianceCash)}
                 </td>
+                <td className="py-2 pr-2 text-right">{money(row.expectedCard ?? 0)}</td>
+                <td className="py-2 pr-2 text-right">
+                  {row.countedCard == null ? '—' : money(row.countedCard)}
+                </td>
+                <td
+                  className={`py-2 pr-2 text-right ${
+                    row.varianceCard == null
+                      ? ''
+                      : row.varianceCard < 0
+                        ? 'text-red-600'
+                        : row.varianceCard > 0
+                          ? 'text-amber-700'
+                          : ''
+                  }`}
+                >
+                  {row.varianceCard == null ? '—' : money(row.varianceCard)}
+                </td>
                 <td className="py-2 pr-2">{row.status}</td>
               </tr>
             ))}
             {(history?.data?.length ?? 0) === 0 && (
               <tr>
-                <td colSpan={6} className="py-4 text-gray-500">
+                <td colSpan={9} className="py-4 text-gray-500">
                   No cash-ups yet.
                 </td>
               </tr>

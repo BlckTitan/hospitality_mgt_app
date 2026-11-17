@@ -32,7 +32,7 @@ export const SYSTEM_ROLE_DEFINITIONS: SystemRoleDefinition[] = [
   { name: "Manager", summary: "Department manager with broad operational access" },
   { name: "Assistant Manager", summary: "Supports managers on reservations, F&B, and team oversight" },
   { name: "Supervisor", summary: "Floor supervisor for F&B, tasks, hours, and direct reports" },
-  { name: "Receptionist", summary: "Front desk reservations, guests, rooms, and read-only food and drink menus" },
+  { name: "Receptionist", summary: "Front desk reservations, guests, and rooms" },
   { name: "Concierge", summary: "Guest services with limited reservation access" },
   { name: "Housekeeping", summary: "Housekeeping tasks and limited room / reservation visibility" },
   { name: "Waiter", summary: "F&B service orders" },
@@ -288,9 +288,8 @@ export function buildRolePermissions(roleName: string): Record<string, boolean> 
     delete permissions["system.audit"];
   }
 
-  if (roleName === "Receptionist") {
-    grant(["fnb.menu.read", "restaurant.menu.read"], permissions);
-  }
+  // Receptionist stays on the matrix: fnb, restaurant, and reports are NONE.
+  // Menu-read keys would open Bar Management and Restaurant in the nav.
 
   return permissions;
 }

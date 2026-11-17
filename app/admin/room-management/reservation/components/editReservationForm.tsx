@@ -9,7 +9,7 @@ import { FieldValues, SubmitHandler, useForm } from "react-hook-form";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { toast } from "sonner";
 import InputComponent from "../../../../../shared/input";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { ReservationLifecycleActions, ReservationPaymentHistory } from "./reservationLifecycle";
 import { formatPropertyMoney, usePropertyCurrency } from "../../../inventory-management/components/money";
 import { useFrontOfficeDuty } from "../../components/useFrontOfficeDuty";
@@ -112,8 +112,19 @@ export function FormComponent({
     return date.toISOString().split('T')[0];
   };
 
-  const { register, handleSubmit, formState: { errors }, watch, setValue } = useForm<FormData>({
-    resolver: yupResolver(editFormSchema) as any,
+  const maxOccupancyRef = useRef<number | undefined>(undefined);
+  const resolver = useMemo(() => {
+    const resolve = yupResolver(editFormSchema);
+    return (values: FormData, context: unknown, options: unknown) =>
+      (resolve as (values: FormData, context: unknown, options: unknown) => ReturnType<typeof resolve>)(
+        values,
+        { ...(context as object), maxOccupancy: maxOccupancyRef.current },
+        options,
+      );
+  }, []);
+
+  const { register, handleSubmit, formState: { errors }, watch, setValue, trigger } = useForm<FormData>({
+    resolver: resolver as never,
     defaultValues: {
       roomId: roomId,
       stayKind,
@@ -133,6 +144,10 @@ export function FormComponent({
   const watchCheckIn = watch('checkInDate');
   const watchCheckOut = watch('checkOutDate');
   const watchRate = watch('rate');
+  const watchRoomId = watch('roomId');
+  const selectedRoom = rooms.find((room: { _id: string; roomType?: { maxOccupancy?: number } }) => room._id === watchRoomId);
+  const maxOccupancy = selectedRoom?.roomType?.maxOccupancy;
+  maxOccupancyRef.current = typeof maxOccupancy === "number" ? maxOccupancy : undefined;
 
   // Calculate nights and total when dates or rate change
   useEffect(() => {
@@ -151,6 +166,11 @@ export function FormComponent({
       }
     }
   }, [stayKind, watchCheckIn, watchCheckOut, watchRate, setValue]);
+
+  useEffect(() => {
+    if (!watchRoomId || maxOccupancy == null) return;
+    void trigger("numberOfGuests");
+  }, [watchRoomId, maxOccupancy, trigger]);
 
   const onSubmit: SubmitHandler<FormData | FieldValues> = async (data) => {
     try {
@@ -367,6 +387,11 @@ export function FormComponent({
           error={errors.rate}
         />
       </div>
+      {typeof maxOccupancy === "number" ? (
+        <p className="-mt-2 mb-4 text-xs text-gray-500">
+          This room allows up to {maxOccupancy} guest{maxOccupancy === 1 ? "" : "s"}.
+        </p>
+      ) : null}
 
       <div
         className='w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-center gap-1 

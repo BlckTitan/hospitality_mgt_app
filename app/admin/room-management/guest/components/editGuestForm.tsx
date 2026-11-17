@@ -9,6 +9,7 @@ import { Id } from "../../../../../convex/_generated/dataModel";
 import { api } from "../../../../../convex/_generated/api";
 import InputComponent from "../../../../../shared/input";
 import ImageUpload from "../../../../../shared/imageUpload";
+import { DEFAULT_STAFF_AVATAR_URL } from "../../../../../lib/staffAvatar";
 
 type FormData = {
   id: Id<'guests'>;
@@ -110,6 +111,8 @@ export function FormComponent({
             label="Guest photo"
             folder="guests"
             inputWidth="w-full"
+            fallbackSrc={DEFAULT_STAFF_AVATAR_URL}
+            helperText="JPEG, PNG, or WebP. The default profile photo is used until you upload one."
             value={imageUrl || null}
             onChange={(url) => setValue('imageUrl', url, { shouldValidate: true, shouldDirty: true })}
             error={errors.imageUrl}
