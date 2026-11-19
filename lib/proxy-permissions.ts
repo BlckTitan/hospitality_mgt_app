@@ -102,6 +102,7 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermission> = {
   '/admin/user/[id]': { granular: 'users.read' },
   '/admin/user/role/create': { granular: 'roles.create' },
   '/admin/user/role/[id]/edit': { granular: 'roles.update' },
+  '/admin/user/role/[id]/view': { granular: 'roles.read' },
   '/admin/user/userRole/create': { granular: 'users.create' },
   '/admin/user/userRole/[id]/edit': { granular: 'users.update' },
 
@@ -150,6 +151,7 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermission> = {
   // Edit pages (query-param based routes used in the app)
   '/admin/user/edit': { granular: 'users.update' },
   '/admin/user/role/edit': { granular: 'roles.update' },
+  '/admin/user/role/view': { granular: 'roles.read' },
   '/admin/userRole/edit': { granular: 'users.update' },
   '/admin/property/edit': { granular: 'properties.update' },
   '/admin/staff/edit': { granular: 'staff.update' },

@@ -734,6 +734,74 @@ export function reversedAverageCost(
   return roundUnitCost(Math.max(0, value / remaining));
 }
 
+export type StoreDayMovement = {
+  txnType: StoreTxnType;
+  qty: number;
+  unitCost?: number;
+  totalCost?: number;
+  txnDate: number;
+  createdAt: number;
+  /** Catalog transfers are stored as receipts but never change central-store quantity. */
+  changesStoreQty: boolean;
+};
+
+function movementPurchaseCost(movement: StoreDayMovement, fallback: number): number {
+  if (purchaseUnitCost(movement.unitCost)) return movement.unitCost;
+  if (
+    movement.qty > 0 &&
+    typeof movement.totalCost === "number" &&
+    Number.isFinite(movement.totalCost) &&
+    movement.totalCost >= 0
+  ) {
+    return movement.totalCost / movement.qty;
+  }
+  return fallback;
+}
+
+/**
+ * Values one beverage for the property day.
+ * Walks today's movements newest-first so a receipt's weighted average is undone
+ * before earlier issues are priced at the bottle cost then in effect.
+ */
+export function replayStoreDayValues(args: {
+  qtyInStore: number;
+  unitCost: number;
+  movements: StoreDayMovement[];
+}): { openingValue: number; issuedValue: number; onHandValue: number } {
+  const costNow = resolveUnitCost(args.unitCost);
+  const qtyNow = Number.isFinite(args.qtyInStore) ? args.qtyInStore : 0;
+  const movements = [...args.movements].sort(
+    (a, b) => b.txnDate - a.txnDate || b.createdAt - a.createdAt,
+  );
+
+  let qty = qtyNow;
+  let cost = costNow;
+  let issuedValue = 0;
+
+  for (const movement of movements) {
+    if (!movement.changesStoreQty) continue;
+    if (movement.txnType === "issue") {
+      const issuedQty = Math.max(movement.qty, 0);
+      issuedValue += issuedQty * cost;
+      qty += issuedQty;
+      continue;
+    }
+    if (movement.txnType === "count_adjust") {
+      qty -= movement.qty;
+      continue;
+    }
+    const purchaseQty = Math.max(movement.qty, 0);
+    cost = reversedAverageCost(qty, cost, purchaseQty, movementPurchaseCost(movement, cost));
+    qty -= purchaseQty;
+  }
+
+  return {
+    openingValue: qty > 0 ? qty * cost : 0,
+    issuedValue,
+    onHandValue: Math.max(qtyNow, 0) * costNow,
+  };
+}
+
 /** Records a purchase against on-hand quantity, then the caller changes that quantity. */
 export async function applyStorePurchaseCost(
   ctx: MutationCtx,

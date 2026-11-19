@@ -81,8 +81,16 @@ const Roles = () => {
       render: (value, row) => (
         <div className='flex justify-evenly lg:justify-start items-center gap-1'>
           <a
+            href={`/admin/user/role/view?role_id=${row._id}`}
+            className='!mr-2 !no-underline'
+            title="View role"
+          >
+            <i className='icon'><FcDocument /></i>
+          </a>
+          <a
             href={`/admin/user/role/edit?role_id=${row._id}`}
             className='!mr-2 !no-underline !text-amber-400'
+            title="Edit role"
           >
             <i className='icon'><MdEditDocument /></i>
           </a>

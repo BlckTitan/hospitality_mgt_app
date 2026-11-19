@@ -17,6 +17,7 @@ import {
   RestaurantCard,
   RoomsCard,
 } from './components/dashboard-cards';
+import { DashboardPageGuide } from './components/dashboardPageGuide';
 
 const TAB_LABELS = {
   pnl: 'P&L / RevPAR',
@@ -102,9 +103,12 @@ export default function Dashboard() {
 
   return (
     <div className="w-full p-4 bg-white">
-      <header className="w-full border-b mb-4 pb-3">
-        <h1 className="text-2xl font-bold text-gray-800">Dashboard</h1>
-        <p className="text-gray-600">Property financial and operational health</p>
+      <header className="w-full border-b mb-4 pb-3 flex justify-between items-start gap-3">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold text-gray-800">Dashboard</h1>
+          <p className="text-gray-600">Property financial and operational health</p>
+          <DashboardPageGuide />
+        </div>
       </header>
 
       <div className="mb-6">

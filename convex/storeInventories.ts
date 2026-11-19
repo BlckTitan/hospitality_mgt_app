@@ -6,6 +6,7 @@ import {
   crateReceiptFields,
   maybeOpenReorderAlert,
   propertyDateKey,
+  replayStoreDayValues,
   resolveBeverageUnitCost,
   syncUnitsPerPack,
   unitsPerPackConflict,
@@ -17,6 +18,10 @@ const supplyCostValidator = v.object({
   label: v.string(),
   amount: v.number(),
 });
+
+function roundMoney(value: number) {
+  return Math.round((Number.isFinite(value) ? value : 0) * 100) / 100;
+}
 
 export const createStoreInventory = mutation({
   args: {
@@ -171,6 +176,83 @@ export const getAllStoreInventories = query({
     return {
       success: true,
       data: storeInventoriesWithBeverages,
+    };
+  },
+});
+
+const stockValueSummaryValidator = v.object({
+  success: v.literal(true),
+  data: v.object({
+    dateKey: v.string(),
+    openingValue: v.number(),
+    issuedValue: v.number(),
+    onHandValue: v.number(),
+  }),
+});
+
+export const getStoreStockValueSummary = query({
+  args: {
+    propertyId: v.id("properties"),
+  },
+  returns: stockValueSummaryValidator,
+  handler: async (ctx, args) => {
+    await requirePermission(ctx, "inventory.read", args.propertyId);
+    const dateKey = await propertyDateKey(ctx, args.propertyId);
+    const [storeInventories, transactions] = await Promise.all([
+      ctx.db
+        .query("storeInventories")
+        .withIndex("by_propertyId", (q) => q.eq("propertyId", args.propertyId))
+        .collect(),
+      ctx.db
+        .query("storeTransactions")
+        .withIndex("by_propertyId_txnDateKey", (q) =>
+          q.eq("propertyId", args.propertyId).eq("txnDateKey", dateKey),
+        )
+        .collect(),
+    ]);
+
+    const movementsByBeverage = new Map<string, typeof transactions>();
+    for (const transaction of transactions) {
+      const rows = movementsByBeverage.get(transaction.beverageId) ?? [];
+      rows.push(transaction);
+      movementsByBeverage.set(transaction.beverageId, rows);
+    }
+
+    let openingValue = 0;
+    let issuedValue = 0;
+    let onHandValue = 0;
+    for (const inventory of storeInventories) {
+      const beverage = await ctx.db.get(inventory.beverageId);
+      const unitCost =
+        inventory.unitCost ?? (await resolveBeverageUnitCost(ctx, beverage));
+      const values = replayStoreDayValues({
+        qtyInStore: inventory.qtyInStore,
+        unitCost,
+        movements: (movementsByBeverage.get(inventory.beverageId) ?? []).map((transaction) => ({
+          txnType: transaction.txnType,
+          qty: transaction.qty,
+          unitCost: transaction.unitCost,
+          totalCost: transaction.totalCost,
+          txnDate: transaction.txnDate,
+          createdAt: transaction._creationTime,
+          changesStoreQty: !(
+            transaction.txnType === "receive" && transaction.inventoryTransactionId !== undefined
+          ),
+        })),
+      });
+      openingValue += values.openingValue;
+      issuedValue += values.issuedValue;
+      onHandValue += values.onHandValue;
+    }
+
+    return {
+      success: true as const,
+      data: {
+        dateKey,
+        openingValue: roundMoney(openingValue),
+        issuedValue: roundMoney(issuedValue),
+        onHandValue: roundMoney(onHandValue),
+      },
     };
   },
 });

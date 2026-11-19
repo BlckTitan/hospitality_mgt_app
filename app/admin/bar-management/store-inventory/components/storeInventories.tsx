@@ -82,6 +82,7 @@ const StoreInventories = ({ currentPropertyId }: { currentPropertyId: Id<"proper
   }, [filterStorageKey]);
 
   const storeInventoryData = useQuery(api.storeInventories.getAllStoreInventories, { propertyId: currentPropertyId });
+  const stockValueSummary = useQuery(api.storeInventories.getStoreStockValueSummary, { propertyId: currentPropertyId });
   const currency = usePropertyCurrency(currentPropertyId);
   const removeStoreInventory = useMutation(api.storeInventories.deleteStoreInventory);
 
@@ -238,7 +239,7 @@ const StoreInventories = ({ currentPropertyId }: { currentPropertyId: Id<"proper
     window.sessionStorage.setItem(filterStorageKey, JSON.stringify(next));
   };
 
-  if (storeInventoryData === undefined || !filtersReady) {
+  if (storeInventoryData === undefined || stockValueSummary === undefined || !filtersReady) {
     return (
       <div className="w-full h-full flex justify-center items-center py-16">
         <Spinner size="sm" />
@@ -246,8 +247,24 @@ const StoreInventories = ({ currentPropertyId }: { currentPropertyId: Id<"proper
     );
   }
 
+  const summary = stockValueSummary.data;
+  const money = (value: number) => formatPropertyMoney(value, currency);
+
   return (
     <div className='w-full h-full overflow-x-scroll lg:!overflow-x-hidden'>
+      <section className="mb-4">
+        <h2 className="text-base font-semibold text-gray-800 mb-2">
+          Store stock value · {formatStoreDate(summary.dateKey)}
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <ValueCard label="Opening stock value" value={money(summary.openingValue)} />
+          <ValueCard label="Issued today" value={money(summary.issuedValue)} tone="amber" />
+          <ValueCard label="Stock on hand" value={money(summary.onHandValue)} tone="blue" />
+        </div>
+        <p className="text-xs text-gray-500 mt-2">
+          Whole store, at bottle cost. Opening stock value is on hand before today&apos;s receipts, issues, and count adjustments. Issued today is what was sent to bars.
+        </p>
+      </section>
       <div className="bg-gray-50 p-4 rounded-lg mb-2">
         <div className="flex flex-col lg:flex-row lg:flex-wrap lg:items-end gap-3">
           <label className="w-full lg:w-52 text-sm font-medium text-gray-700">
@@ -328,5 +345,48 @@ const StoreInventories = ({ currentPropertyId }: { currentPropertyId: Id<"proper
     </div>
   );
 };
+
+const STORE_DATE_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function formatStoreDate(dateKey: string) {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  const monthName = STORE_DATE_MONTHS[month - 1];
+  if (!year || !monthName || !day) return dateKey;
+  return `${day} ${monthName} ${year}`;
+}
+
+function ValueCard({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone?: 'amber' | 'blue';
+}) {
+  const tones = {
+    amber: 'bg-amber-50 border-amber-200',
+    blue: 'bg-blue-50 border-blue-200',
+    default: 'bg-gray-50 border-gray-200',
+  };
+  const labelTones = {
+    amber: 'text-amber-800',
+    blue: 'text-blue-700',
+    default: 'text-gray-600',
+  };
+  const valueTones = {
+    amber: 'text-amber-950',
+    blue: 'text-blue-900',
+    default: 'text-gray-900',
+  };
+  const key = tone ?? 'default';
+
+  return (
+    <div className={`border rounded-lg p-3 ${tones[key]}`}>
+      <div className={`text-xs font-medium ${labelTones[key]}`}>{label}</div>
+      <div className={`text-lg font-bold ${valueTones[key]}`}>{value}</div>
+    </div>
+  );
+}
 
 export default StoreInventories;

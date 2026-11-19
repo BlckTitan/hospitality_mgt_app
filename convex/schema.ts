@@ -1324,6 +1324,7 @@ export default defineSchema({
     .index("by_userId_beverage_date", ["userId", "beverageId", "txnDateKey"])
     .index("by_barId_beverage_date", ["barId", "beverageId", "txnDateKey"])
     .index("by_propertyId_txnDate", ["propertyId", "txnDate"])
+    .index("by_propertyId_txnDateKey", ["propertyId", "txnDateKey"])
     .index("by_stockRequestLineId", ["stockRequestLineId"])
     .index("by_storeCountLineId", ["storeCountLineId"]),
 
