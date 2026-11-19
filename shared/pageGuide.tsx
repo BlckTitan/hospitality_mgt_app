@@ -100,7 +100,9 @@ export function PageGuide({
   const closeRef = useRef<HTMLButtonElement>(null)
   const titleId = useId()
   const dialogId = useId()
-  const label = open ? 'Hide guide' : 'Show guide'
+  const showingFullGuide = open && activeSectionId === null
+  const label = showingFullGuide ? 'Hide guide' : 'Show guide'
+  const focusedSection = sections?.find((section) => section.id === activeSectionId) ?? null
 
   useEffect(() => {
     if (!guideId) return
@@ -177,7 +179,7 @@ export function PageGuide({
       >
         <div className="flex items-center justify-between gap-3">
           <h2 id={titleId} className="text-base font-semibold text-gray-900">
-            Page guide
+            {focusedSection ? focusedSection.title : 'Page guide'}
           </h2>
           <button
             ref={closeRef}
@@ -189,11 +191,7 @@ export function PageGuide({
           </button>
         </div>
         {sections && sections.length > 0 ? (
-          <GuideSections
-            sections={sections}
-            activeSectionId={activeSectionId}
-            onToggle={setActiveSectionId}
-          />
+          <GuideSections sections={focusedSection ? [focusedSection] : sections} />
         ) : (
           <p className="mt-3 text-sm leading-relaxed text-gray-600">{text}</p>
         )}
@@ -208,12 +206,16 @@ export function PageGuide({
         type="button"
         data-page-guide=""
         className={`absolute inline-flex appearance-none items-center justify-center border-0 bg-transparent p-0 text-sm font-medium leading-5 whitespace-nowrap text-blue-600 hover:underline ${placed ? '' : 'invisible'}`}
-        aria-expanded={open}
+        aria-expanded={showingFullGuide}
         aria-controls={dialogId}
         aria-label={label}
         onClick={() => {
+          if (showingFullGuide) {
+            setOpen(false)
+            return
+          }
           setActiveSectionId(null)
-          setOpen((value) => !value)
+          setOpen(true)
         }}
       >
         <GuideIcon />
@@ -224,44 +226,18 @@ export function PageGuide({
   )
 }
 
-function GuideSections({
-  sections,
-  activeSectionId,
-  onToggle,
-}: {
-  sections: GuideSection[]
-  activeSectionId: string | null
-  onToggle: (sectionId: string | null) => void
-}) {
-  const activeRef = useRef<HTMLLIElement>(null)
-
-  useEffect(() => {
-    activeRef.current?.scrollIntoView({ block: 'nearest' })
-  }, [activeSectionId])
-
+function GuideSections({ sections }: { sections: GuideSection[] }) {
+  const single = sections.length === 1
   return (
-    <ul className="mt-2 divide-y divide-gray-200">
-      {sections.map((section) => {
-        const expanded = activeSectionId === section.id
-        return (
-          <li key={section.id} ref={expanded ? activeRef : undefined}>
-            <button
-              type="button"
-              className="flex w-full items-center justify-between gap-3 py-3 text-left text-sm font-medium text-gray-900"
-              aria-expanded={expanded}
-              onClick={() => onToggle(expanded ? null : section.id)}
-            >
-              {section.title}
-              <span aria-hidden="true" className="text-base leading-none text-gray-400">
-                {expanded ? '−' : '+'}
-              </span>
-            </button>
-            {expanded ? (
-              <p className="pb-3 text-sm leading-relaxed text-gray-600">{section.body}</p>
-            ) : null}
-          </li>
-        )
-      })}
-    </ul>
+    <div className="mt-3 space-y-4">
+      {sections.map((section) => (
+        <section key={section.id}>
+          {single ? null : (
+            <h3 className="text-sm font-semibold text-gray-900">{section.title}</h3>
+          )}
+          <p className={`text-sm leading-relaxed text-gray-600 ${single ? '' : 'mt-1'}`}>{section.body}</p>
+        </section>
+      ))}
+    </div>
   )
 }
