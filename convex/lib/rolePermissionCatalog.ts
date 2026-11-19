@@ -290,6 +290,11 @@ export function buildRolePermissions(roleName: string): Record<string, boolean> 
 
   // Receptionist stays on the matrix: fnb, restaurant, and reports are NONE.
   // Menu-read keys would open Bar Management and Restaurant in the nav.
+  // Clock-in uses the employee hours key. It opens Attendance and own Shift
+  // rows only. staff.read would also open the staff directory and department shifts.
+  if (roleName === "Receptionist") {
+    permissions["payroll.timesheet.create"] = true;
+  }
 
   return permissions;
 }

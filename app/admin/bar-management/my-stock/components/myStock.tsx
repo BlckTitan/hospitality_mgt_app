@@ -16,10 +16,21 @@ import { useCanSelectProperty } from '../../../../../hooks/useCanSelectProperty'
 import { usePermissions } from '../../../../../hooks/usePermissions'
 import { isWaiterView } from '../../../../../lib/staff-scope'
 import { DailySalesSummary } from './dailySalesSummary'
+import { GuideTopic } from '../../../../../shared/pageGuide'
 
 const selectClassName = 'w-full px-3 py-2 border border-gray-300 rounded-md';
 const qtyInputClassName = 'w-20! max-w-[1.75rem] border rounded p-1 text-right';
 const PAGE_SIZE = 10;
+
+function StockColumn({ sectionId, children }: { sectionId: string; children: string }) {
+  return (
+    <th className="p-2 text-left text-sm">
+      <GuideTopic guideId="bar-my-stock" sectionId={sectionId} className="text-sm font-medium text-gray-700">
+        {children}
+      </GuideTopic>
+    </th>
+  )
+}
 
 function isAdminCorrection(log: { isFinalized: boolean; correctionOpen?: boolean }) {
   return log.correctionOpen === true && !log.isFinalized
@@ -698,12 +709,12 @@ export default function MyStock() {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="p-2 text-left text-sm">Beverage</th>
-                  <th className="p-2 text-left text-sm">Opening</th>
-                  <th className="p-2 text-left text-sm">Received</th>
-                  <th className="p-2 text-left text-sm">Total</th>
-                  <th className="p-2 text-left text-sm">Closing</th>
-                  <th className="p-2 text-left text-sm">Waste</th>
-                  <th className="p-2 text-left text-sm">Comps</th>
+                  <StockColumn sectionId="opening">Opening</StockColumn>
+                  <StockColumn sectionId="received">Received</StockColumn>
+                  <StockColumn sectionId="total">Total</StockColumn>
+                  <StockColumn sectionId="closing">Closing</StockColumn>
+                  <StockColumn sectionId="waste">Waste</StockColumn>
+                  <StockColumn sectionId="comps">Comps</StockColumn>
                   <th className="p-2 text-left text-sm">Action</th>
                 </tr>
               </thead>
@@ -852,30 +863,16 @@ export default function MyStock() {
             <thead className="bg-gray-50">
               <tr>
                 <th className="p-2 text-left text-sm">Beverage</th>
-                <th className="p-2 text-left text-sm">Opening</th>
-                <th className="p-2 text-left text-sm">Received</th>
-                <th className="p-2 text-left text-sm">Total</th>
-                <th className="p-2 text-left text-sm">Closing</th>
-                <th className="p-2 text-left text-sm">Waste</th>
-                <th className="p-2 text-left text-sm">Comps</th>
-                <th className="p-2 text-left text-sm">Sales</th>
-                <th className="p-2 text-left text-sm">Amount</th>
-                <th
-                  className="p-2 text-left text-sm"
-                  title={
-                    viewingToday
-                      ? 'Quantity rung on checks opened today'
-                      : `Quantity rung on checks opened ${selectedDate}`
-                  }
-                >
-                  POS
-                </th>
-                <th
-                  className="p-2 text-left text-sm"
-                  title="Sales minus POS. Positive means bottles left that were not rung."
-                >
-                  Variance
-                </th>
+                <StockColumn sectionId="opening">Opening</StockColumn>
+                <StockColumn sectionId="received">Received</StockColumn>
+                <StockColumn sectionId="total">Total</StockColumn>
+                <StockColumn sectionId="closing">Closing</StockColumn>
+                <StockColumn sectionId="waste">Waste</StockColumn>
+                <StockColumn sectionId="comps">Comps</StockColumn>
+                <StockColumn sectionId="sales">Sales</StockColumn>
+                <StockColumn sectionId="amount">Amount</StockColumn>
+                <StockColumn sectionId="pos">POS</StockColumn>
+                <StockColumn sectionId="variance">Variance</StockColumn>
                 <th className="p-2 text-left text-sm">Status</th>
                 <th className="p-2 text-left text-sm">Action</th>
               </tr>

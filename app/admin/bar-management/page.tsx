@@ -6,6 +6,7 @@ import { Id } from '../../../convex/_generated/dataModel';
 import ReorderAlertsTable from './components/reorder-alerts';
 import SalesSummaryCharts from './components/sales-summary-charts';
 import { BackLink } from '../../../shared/pageHeader';
+import { BarManagementPageGuide } from './components/barManagementPageGuide';
 import { usePermissions } from '../../../hooks/usePermissions';
 import { useCanSelectProperty } from '../../../hooks/useCanSelectProperty';
 import Spinner from '../../../shared/spinner';
@@ -51,6 +52,7 @@ export default function BarManagement() {
         <div className="min-w-0">
           <h1 className="text-2xl font-bold text-gray-800">Bar Management</h1>
           <p className="text-gray-600">Manage your bar operations, inventory, and reorder alerts</p>
+          <BarManagementPageGuide page="hub" />
         </div>
         <BackLink />
       </header>

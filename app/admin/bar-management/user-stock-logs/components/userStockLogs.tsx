@@ -16,6 +16,7 @@ import PaginationComponent, { TableSearch } from "../../../../../shared/paginati
 import { formatPropertyMoney, propertyCurrencyCode, usePropertyCurrency } from "../../../inventory-management/components/money";
 import { usePermissions } from "../../../../../hooks/usePermissions";
 import { isWaiterView } from "../../../../../lib/staff-scope";
+import { GuideTopic } from "../../../../../shared/pageGuide";
 
 interface UserStockLogProps {
   _id: string;
@@ -591,9 +592,9 @@ function DailyStockValueSummary({
         Daily stock value{logDate ? ` · ${logDate}` : ''}
       </h2>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <ValueCard label="Opening stock value" value={money(summary.openingValue)} />
-        <ValueCard label="Total sales value" value={money(summary.salesValue)} tone="green" />
-        <ValueCard label="Stock left value" value={money(summary.stockLeftValue)} tone="blue" />
+        <ValueCard sectionId="opening-value" label="Opening stock value" value={money(summary.openingValue)} />
+        <ValueCard sectionId="sales-value" label="Total sales value" value={money(summary.salesValue)} tone="green" />
+        <ValueCard sectionId="stock-left" label="Stock left value" value={money(summary.stockLeftValue)} tone="blue" />
       </div>
       <p className="text-xs text-gray-500 mt-2">
         Opening and stock left use each drink&apos;s selling price. Sales is the amount recorded on this day&apos;s logs.
@@ -603,10 +604,12 @@ function DailyStockValueSummary({
 }
 
 function ValueCard({
+  sectionId,
   label,
   value,
   tone,
 }: {
+  sectionId: string;
   label: string;
   value: string;
   tone?: 'green' | 'blue';
@@ -630,7 +633,9 @@ function ValueCard({
 
   return (
     <div className={`border rounded-lg p-3 ${tones[key]}`}>
-      <div className={`text-xs font-medium ${labelTones[key]}`}>{label}</div>
+      <GuideTopic guideId="bar-user-stock-logs" sectionId={sectionId} className={`text-xs font-medium ${labelTones[key]}`}>
+        {label}
+      </GuideTopic>
       <div className={`text-lg font-bold ${valueTones[key]}`}>{value}</div>
     </div>
   );

@@ -14,6 +14,7 @@ import PaginationComponent from "../../../../../shared/pagination";
 import Spinner from "../../../../../shared/spinner";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { formatPropertyMoney, usePropertyCurrency } from "../../../inventory-management/components/money";
+import { GuideTopic } from "../../../../../shared/pageGuide";
 
 type StockLevel = 'low' | 'medium' | 'good';
 type StockFilter = 'all' | StockLevel;
@@ -257,9 +258,9 @@ const StoreInventories = ({ currentPropertyId }: { currentPropertyId: Id<"proper
           Store stock value · {formatStoreDate(summary.dateKey)}
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <ValueCard label="Opening stock value" value={money(summary.openingValue)} />
-          <ValueCard label="Issued today" value={money(summary.issuedValue)} tone="amber" />
-          <ValueCard label="Stock on hand" value={money(summary.onHandValue)} tone="blue" />
+          <ValueCard sectionId="opening-value" label="Opening stock value" value={money(summary.openingValue)} />
+          <ValueCard sectionId="issued-today" label="Issued today" value={money(summary.issuedValue)} tone="amber" />
+          <ValueCard sectionId="on-hand" label="Stock on hand" value={money(summary.onHandValue)} tone="blue" />
         </div>
         <p className="text-xs text-gray-500 mt-2">
           Whole store, at bottle cost. Opening stock value is on hand before today&apos;s receipts, issues, and count adjustments. Issued today is what was sent to bars.
@@ -356,10 +357,12 @@ function formatStoreDate(dateKey: string) {
 }
 
 function ValueCard({
+  sectionId,
   label,
   value,
   tone,
 }: {
+  sectionId: string;
   label: string;
   value: string;
   tone?: 'amber' | 'blue';
@@ -383,7 +386,9 @@ function ValueCard({
 
   return (
     <div className={`border rounded-lg p-3 ${tones[key]}`}>
-      <div className={`text-xs font-medium ${labelTones[key]}`}>{label}</div>
+      <GuideTopic guideId="bar-store-inventory" sectionId={sectionId} className={`text-xs font-medium ${labelTones[key]}`}>
+        {label}
+      </GuideTopic>
       <div className={`text-lg font-bold ${valueTones[key]}`}>{value}</div>
     </div>
   );

@@ -15,6 +15,8 @@ import { Bar } from 'react-chartjs-2';
 import { api } from '../../../../convex/_generated/api';
 import { Id } from '../../../../convex/_generated/dataModel';
 import { formatPropertyMoney } from '../../inventory-management/components/money';
+import { GuideTopic } from '../../../../shared/pageGuide';
+import { DASHBOARD_GUIDE_ID } from './dashboardPageGuide';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
@@ -149,7 +151,11 @@ export function SalesByDayChart({
   return (
     <div className="mt-6">
       <div className="mb-4">
-        <h4 className="font-semibold">Performance by day of week</h4>
+        <h4 className="font-semibold">
+          <GuideTopic guideId={DASHBOARD_GUIDE_ID} sectionId="weekdays" className="font-semibold text-gray-900">
+            Performance by day of week
+          </GuideTopic>
+        </h4>
         <p className="text-sm text-slate-600">
           Which weekdays perform best for rooms, bar, and food in the selected period.
         </p>

@@ -48,14 +48,71 @@ function placeGuideButton(button: HTMLButtonElement) {
   }
 }
 
-export function PageGuide({ text }: { text: string }) {
+export type GuideSection = {
+  id: string
+  title: string
+  body: string
+}
+
+const OPEN_GUIDE_EVENT = 'hospitality:open-page-guide'
+
+export function openPageGuide(guideId: string, sectionId?: string) {
+  window.dispatchEvent(
+    new CustomEvent(OPEN_GUIDE_EVENT, { detail: { guideId, sectionId } }),
+  )
+}
+
+export function GuideTopic({
+  guideId,
+  sectionId,
+  className,
+  children,
+}: {
+  guideId: string
+  sectionId: string
+  className?: string
+  children: string
+}) {
+  return (
+    <button
+      type="button"
+      className={`text-left underline decoration-dotted underline-offset-2 ${className ?? ''}`}
+      onClick={() => openPageGuide(guideId, sectionId)}
+    >
+      {children.trim()}
+    </button>
+  )
+}
+
+export function PageGuide({
+  text,
+  sections,
+  guideId,
+}: {
+  text?: string
+  sections?: GuideSection[]
+  guideId?: string
+}) {
   const [open, setOpen] = useState(false)
   const [placed, setPlaced] = useState(false)
+  const [activeSectionId, setActiveSectionId] = useState<string | null>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
   const titleId = useId()
   const dialogId = useId()
   const label = open ? 'Hide guide' : 'Show guide'
+
+  useEffect(() => {
+    if (!guideId) return
+    const onOpen = (event: Event) => {
+      const detail = (event as CustomEvent<{ guideId?: string; sectionId?: string }>).detail
+      if (detail?.guideId !== guideId) return
+      setActiveSectionId(detail.sectionId ?? null)
+      setOpen(true)
+    }
+    window.addEventListener(OPEN_GUIDE_EVENT, onOpen)
+    return () => window.removeEventListener(OPEN_GUIDE_EVENT, onOpen)
+  }, [guideId])
 
   useLayoutEffect(() => {
     const button = buttonRef.current
@@ -131,7 +188,15 @@ export function PageGuide({ text }: { text: string }) {
             Close
           </button>
         </div>
-        <p className="mt-3 text-sm leading-relaxed text-gray-600">{text}</p>
+        {sections && sections.length > 0 ? (
+          <GuideSections
+            sections={sections}
+            activeSectionId={activeSectionId}
+            onToggle={setActiveSectionId}
+          />
+        ) : (
+          <p className="mt-3 text-sm leading-relaxed text-gray-600">{text}</p>
+        )}
       </div>
     </div>
   )
@@ -146,12 +211,57 @@ export function PageGuide({ text }: { text: string }) {
         aria-expanded={open}
         aria-controls={dialogId}
         aria-label={label}
-        onClick={() => setOpen((value) => !value)}
+        onClick={() => {
+          setActiveSectionId(null)
+          setOpen((value) => !value)
+        }}
       >
         <GuideIcon />
         <span className="hidden sm:inline">{label}</span>
       </button>
       {open ? createPortal(sheet, document.body) : null}
     </>
+  )
+}
+
+function GuideSections({
+  sections,
+  activeSectionId,
+  onToggle,
+}: {
+  sections: GuideSection[]
+  activeSectionId: string | null
+  onToggle: (sectionId: string | null) => void
+}) {
+  const activeRef = useRef<HTMLLIElement>(null)
+
+  useEffect(() => {
+    activeRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [activeSectionId])
+
+  return (
+    <ul className="mt-2 divide-y divide-gray-200">
+      {sections.map((section) => {
+        const expanded = activeSectionId === section.id
+        return (
+          <li key={section.id} ref={expanded ? activeRef : undefined}>
+            <button
+              type="button"
+              className="flex w-full items-center justify-between gap-3 py-3 text-left text-sm font-medium text-gray-900"
+              aria-expanded={expanded}
+              onClick={() => onToggle(expanded ? null : section.id)}
+            >
+              {section.title}
+              <span aria-hidden="true" className="text-base leading-none text-gray-400">
+                {expanded ? '−' : '+'}
+              </span>
+            </button>
+            {expanded ? (
+              <p className="pb-3 text-sm leading-relaxed text-gray-600">{section.body}</p>
+            ) : null}
+          </li>
+        )
+      })}
+    </ul>
   )
 }

@@ -1,7 +1,8 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { requirePermission } from "./lib/rbac";
+import { hasGranularPermission, requirePermission, scopeAuthContextToProperty } from "./lib/rbac";
 import { assertCanApproveStaff, restrictToDirectReports } from "./lib/staffAccess";
+import { staffForUser } from "./lib/shiftHelpers";
 import {
   clockOnWorkDate,
   hoursFromClock,
@@ -71,7 +72,17 @@ export const createHours = mutation({
     notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    await requirePermission(ctx, "payroll.timesheet.create", args.propertyId);
+    const auth = await requirePermission(ctx, "payroll.timesheet.create", args.propertyId);
+    const canRecordOthers = hasGranularPermission(
+      scopeAuthContextToProperty(auth, args.propertyId),
+      "payroll.timesheet.read",
+    );
+    if (!canRecordOthers) {
+      const linked = await staffForUser(ctx, auth.user._id);
+      if (!linked || linked._id !== args.employeeId || linked.propertyId !== args.propertyId) {
+        return { success: false, message: "You can only record your own hours." };
+      }
+    }
     const workDate = startOfUtcDay(args.workDate);
     const existing = await ctx.db
       .query("hours")

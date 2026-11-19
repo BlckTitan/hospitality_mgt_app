@@ -20,6 +20,8 @@ import { SalesByDayChart } from './sales-by-day-chart';
 import { usePermissions } from '../../../../hooks/usePermissions';
 import { isWaiterView } from '../../../../lib/staff-scope';
 import { intervalLabel, reminderPhrase } from '../../maintenance/components/maintenanceScheduleFields';
+import { GuideTopic } from '../../../../shared/pageGuide';
+import { DASHBOARD_GUIDE_ID } from './dashboardPageGuide';
 
 function formatWhen(value?: number) {
   if (!value) return '—';
@@ -30,10 +32,26 @@ function formatPct(value: number) {
   return `${value.toFixed(1)}%`;
 }
 
-function Kpi({ label, value, warn }: { label: string; value: string | number; warn?: boolean }) {
+function Kpi({
+  label,
+  value,
+  warn,
+  sectionId,
+}: {
+  label: string;
+  value: string | number;
+  warn?: boolean;
+  sectionId?: string;
+}) {
   return (
     <div className="w-full border p-3">
-      <p className="text-sm text-slate-600">{label}</p>
+      {sectionId ? (
+        <GuideTopic guideId={DASHBOARD_GUIDE_ID} sectionId={sectionId} className="text-sm text-slate-600">
+          {label}
+        </GuideTopic>
+      ) : (
+        <p className="text-sm text-slate-600">{label}</p>
+      )}
       <p className={`text-2xl font-semibold ${warn ? 'text-red-600' : ''}`}>{value}</p>
     </div>
   );
@@ -131,17 +149,25 @@ export function FinancialReportCard({
       </div>
 
       <KpiGrid className="mb-6 md:grid-cols-2 lg:grid-cols-3">
-        <Kpi label="Occupancy" value={formatPct(data.occupancyRate)} />
-        <Kpi label="ADR (Average Daily Rate)" value={money(data.adr)} />
-        <Kpi label="RevPAR (Revenue Per Available Room)" value={money(data.revpar)} />
-        <Kpi label="TRevPAR (Total Revenue Per Available Room)" value={money(data.trevpar)} />
-        <Kpi label="GOP (Gross Operating Profit)" value={money(data.gop)} warn={data.gop < 0} />
-        <Kpi label="GOPPAR (Gross Operating Profit Per Available Room)" value={money(data.goppar)} warn={data.goppar < 0} />
+        <Kpi sectionId="occupancy" label="Occupancy" value={formatPct(data.occupancyRate)} />
+        <Kpi sectionId="adr" label="ADR (Average Daily Rate)" value={money(data.adr)} />
+        <Kpi sectionId="revpar" label="RevPAR (Revenue Per Available Room)" value={money(data.revpar)} />
+        <Kpi sectionId="trevpar" label="TRevPAR (Total Revenue Per Available Room)" value={money(data.trevpar)} />
+        <Kpi sectionId="gop" label="GOP (Gross Operating Profit)" value={money(data.gop)} warn={data.gop < 0} />
+        <Kpi sectionId="goppar" label="GOPPAR (Gross Operating Profit Per Available Room)" value={money(data.goppar)} warn={data.goppar < 0} />
       </KpiGrid>
       <p className="text-sm text-slate-600 mb-4">
         {data.roomsSoldNights} room nights sold · {data.availableRoomNights} available
-        ({data.sellableRooms} sellable rooms × {data.nights} nights) · GOP margin {formatPct(data.gopMargin)}
-        · Labor cost {formatPct(data.laborCostPct)}
+        ({data.sellableRooms} sellable rooms × {data.nights} nights) ·{' '}
+        <GuideTopic guideId={DASHBOARD_GUIDE_ID} sectionId="gop-margin" className="text-sm text-slate-600">
+          GOP margin
+        </GuideTopic>{' '}
+        {formatPct(data.gopMargin)}
+        ·{' '}
+        <GuideTopic guideId={DASHBOARD_GUIDE_ID} sectionId="labor" className="text-sm text-slate-600">
+          Labor cost
+        </GuideTopic>{' '}
+        {formatPct(data.laborCostPct)}
         {' · '}
         <Link href="/admin/expenses" className="text-blue-600">
           Expenses ledger

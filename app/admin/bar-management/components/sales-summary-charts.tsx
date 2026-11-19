@@ -21,6 +21,8 @@ import { Line, Pie, Bar } from 'react-chartjs-2';
 import { formatPropertyMoney } from '../../inventory-management/components/money';
 import { usePermissions } from '../../../../hooks/usePermissions';
 import { isWaiterView } from '../../../../lib/staff-scope';
+import { GuideTopic, openPageGuide } from '../../../../shared/pageGuide';
+import { BAR_HUB_GUIDE_ID } from './barManagementPageGuide';
 
 // Register Chart.js components
 ChartJS.register(
@@ -57,6 +59,35 @@ type PeriodView = (typeof PERIODS)[number]['id'];
 interface SalesSummaryChartsProps {
   currentPropertyId: Id<'properties'>;
   currency?: string;
+}
+
+const CHART_GUIDE_SECTION = {
+  'Bar Performance': 'bar-performance',
+  'Top Performers': 'top-performers',
+  'Revenue Trend': 'revenue-trend',
+  'Sales by Category': 'sales-by-category',
+  'Beverage Sales': 'beverage-sales',
+} as const;
+
+function chartGuideSection(tab: (typeof CHART_TABS)[number]) {
+  if (tab === 'SKU Performance') return null;
+  return CHART_GUIDE_SECTION[tab];
+}
+
+function MetricLabel({
+  sectionId,
+  className,
+  children,
+}: {
+  sectionId: string;
+  className?: string;
+  children: string;
+}) {
+  return (
+    <GuideTopic guideId={BAR_HUB_GUIDE_ID} sectionId={sectionId} className={className}>
+      {children}
+    </GuideTopic>
+  );
 }
 
 function periodCaption(period: PeriodView, dateKey: string, periodKey: string) {
@@ -444,7 +475,9 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
       {dateControl}
       <div className="mb-6 grid grid-cols-1 md:grid-cols-3 xl:grid-cols-7 gap-4">
         <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-          <div className="text-sm text-blue-600 font-medium">Total Revenue</div>
+          <MetricLabel sectionId="total-revenue" className="text-sm text-blue-600 font-medium">
+            Total Revenue
+          </MetricLabel>
           <p className="text-xs text-gray-500 mt-1">From bar stock sales</p>
           <div className="text-xl font-bold text-blue-800">
             {formatCurrency(
@@ -463,7 +496,9 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
         </div>
         {showGrossProfit && (
         <div className="bg-emerald-50 p-4 rounded-lg border border-emerald-200">
-          <div className="text-sm text-emerald-600 font-medium">Gross Profit</div>
+          <MetricLabel sectionId="gross-profit" className="text-sm text-emerald-600 font-medium">
+            Gross Profit
+          </MetricLabel>
           <div className="text-xl font-bold text-emerald-800">
             {formatCurrency(
               periodType === 'yoy'
@@ -482,7 +517,9 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
         </div>
         )}
         <div className="bg-teal-50 p-4 rounded-lg border border-teal-200">
-          <div className="text-sm text-teal-600 font-medium">Pour cost %</div>
+          <MetricLabel sectionId="pour-cost" className="text-sm text-teal-600 font-medium">
+            Pour cost %
+          </MetricLabel>
           <div className="text-xl font-bold text-teal-800">
             {(() => {
               const revenue = periodType === 'yoy'
@@ -514,7 +551,9 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
           </div>
         </div>
         <div className="bg-rose-50 p-4 rounded-lg border border-rose-200">
-          <div className="text-sm text-rose-600 font-medium">Waste & comps</div>
+          <MetricLabel sectionId="waste-comps" className="text-sm text-rose-600 font-medium">
+            Waste & comps
+          </MetricLabel>
           <div className="text-xl font-bold text-rose-800">
             {(
               periodType === 'yoy'
@@ -527,7 +566,9 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
           </div>
         </div>
         <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-          <div className="text-sm text-green-600 font-medium">Total Quantity Sold</div>
+          <MetricLabel sectionId="qty-sold" className="text-sm text-green-600 font-medium">
+            Total Quantity Sold
+          </MetricLabel>
           <div className="text-xl font-bold text-green-800">
             {periodType === 'yoy'
               ? (yoyTrend?.current.totalQtySold || 0).toLocaleString()
@@ -542,13 +583,17 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
           )}
         </div>
         <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
-          <div className="text-sm text-purple-600 font-medium">Active Bars</div>
+          <MetricLabel sectionId="active-bars" className="text-sm text-purple-600 font-medium">
+            Active Bars
+          </MetricLabel>
           <div className="text-xl font-bold text-purple-800">
             {salesByBarData.data?.length || 0}
           </div>
         </div>
         <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
-          <div className="text-sm text-orange-600 font-medium">Active Staff</div>
+          <MetricLabel sectionId="active-staff" className="text-sm text-orange-600 font-medium">
+            Active Staff
+          </MetricLabel>
           <div className="text-xl font-bold text-orange-800">
             {salesByUserData.data?.length || 0}
           </div>
@@ -564,9 +609,12 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
               ? 'bg-yellow-50 border-yellow-200'
               : 'bg-teal-50 border-teal-200'
           }`}>
-            <div className={`text-sm font-medium ${health.openLogCount > 0 ? 'text-yellow-700' : 'text-teal-700'}`}>
+            <MetricLabel
+              sectionId="stock-days"
+              className={`text-sm font-medium ${health.openLogCount > 0 ? 'text-yellow-700' : 'text-teal-700'}`}
+            >
               Stock days finalized
-            </div>
+            </MetricLabel>
             <div className={`text-xl font-bold ${health.openLogCount > 0 ? 'text-yellow-900' : 'text-teal-900'}`}>
               {health.sessionCount === 0
                 ? '—'
@@ -587,9 +635,12 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
               ? 'bg-red-50 border-red-200'
               : 'bg-slate-50 border-slate-200'
           }`}>
-            <div className={`text-sm font-medium ${(health.openReorderCount ?? 0) > 0 ? 'text-red-700' : 'text-slate-600'}`}>
+            <MetricLabel
+              sectionId="open-reorders"
+              className={`text-sm font-medium ${(health.openReorderCount ?? 0) > 0 ? 'text-red-700' : 'text-slate-600'}`}
+            >
               Open reorders
-            </div>
+            </MetricLabel>
             <div className={`text-xl font-bold ${(health.openReorderCount ?? 0) > 0 ? 'text-red-900' : 'text-slate-800'}`}>
               {health.openReorderCount ?? '—'}
             </div>
@@ -606,9 +657,12 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
               ? 'bg-amber-50 border-amber-200'
               : 'bg-slate-50 border-slate-200'
           }`}>
-            <div className={`text-sm font-medium ${(health.staleReorderCount ?? 0) > 0 ? 'text-amber-700' : 'text-slate-600'}`}>
+            <MetricLabel
+              sectionId="stale-reorders"
+              className={`text-sm font-medium ${(health.staleReorderCount ?? 0) > 0 ? 'text-amber-700' : 'text-slate-600'}`}
+            >
               Stale reorders (24h+)
-            </div>
+            </MetricLabel>
             <div className={`text-xl font-bold ${(health.staleReorderCount ?? 0) > 0 ? 'text-amber-900' : 'text-slate-800'}`}>
               {health.staleReorderCount ?? '—'}
             </div>
@@ -621,9 +675,12 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
               ? 'bg-orange-50 border-orange-200'
               : 'bg-slate-50 border-slate-200'
           }`}>
-            <div className={`text-sm font-medium ${(health.openStockRequestCount ?? 0) > 0 ? 'text-orange-700' : 'text-slate-600'}`}>
+            <MetricLabel
+              sectionId="stock-requests"
+              className={`text-sm font-medium ${(health.openStockRequestCount ?? 0) > 0 ? 'text-orange-700' : 'text-slate-600'}`}
+            >
               Open stock requests
-            </div>
+            </MetricLabel>
             <div className={`text-xl font-bold ${(health.openStockRequestCount ?? 0) > 0 ? 'text-orange-900' : 'text-slate-800'}`}>
               {health.openStockRequestCount ?? '—'}
             </div>
@@ -642,9 +699,12 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
               ? 'bg-rose-50 border-rose-200'
               : 'bg-slate-50 border-slate-200'
           }`}>
-            <div className={`text-sm font-medium ${(health.latestStoreVarianceQty ?? 0) < 0 ? 'text-rose-700' : 'text-slate-600'}`}>
+            <MetricLabel
+              sectionId="store-variance"
+              className={`text-sm font-medium ${(health.latestStoreVarianceQty ?? 0) < 0 ? 'text-rose-700' : 'text-slate-600'}`}
+            >
               Store variance
-            </div>
+            </MetricLabel>
             <div className={`text-xl font-bold ${(health.latestStoreVarianceQty ?? 0) < 0 ? 'text-rose-900' : 'text-slate-800'}`}>
               {health.latestStoreVarianceQty === null || health.latestStoreVarianceQty === undefined
                 ? '—'
@@ -661,7 +721,9 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
             </div>
           </div>
           <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-200">
-            <div className="text-sm text-indigo-600 font-medium">Revenue / waiter-shift</div>
+            <MetricLabel sectionId="revenue-per-shift" className="text-sm text-indigo-600 font-medium">
+              Revenue / waiter-shift
+            </MetricLabel>
             <div className="text-xl font-bold text-indigo-800">
               {formatCurrency(health.revenuePerWaiterShift)}
             </div>
@@ -718,6 +780,18 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
               {item}
             </Button>
           ))}
+          {chartGuideSection(tab) && (
+            <button
+              type="button"
+              className="self-center text-sm text-blue-600 underline decoration-dotted underline-offset-2"
+              onClick={() => {
+                const sectionId = chartGuideSection(tab);
+                if (sectionId) openPageGuide(BAR_HUB_GUIDE_ID, sectionId);
+              }}
+            >
+              About this chart
+            </button>
+          )}
         </div>
         <div className="flex flex-wrap gap-2">
           {PERIODS.map((period) => (
@@ -832,7 +906,11 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <h4 className="text-sm font-semibold text-gray-800 mb-3">Top SKUs</h4>
+                <h4 className="text-sm font-semibold text-gray-800 mb-3">
+                  <MetricLabel sectionId="top-skus" className="text-sm font-semibold text-gray-800">
+                    Top SKUs
+                  </MetricLabel>
+                </h4>
                 <ul className="space-y-2">
                   {health.topSkus.map((sku) => (
                     <li key={sku.beverageId} className="flex justify-between gap-4 border-b border-gray-100 pb-2">
@@ -846,7 +924,11 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
                 </ul>
               </div>
               <div>
-                <h4 className="text-sm font-semibold text-gray-800 mb-3">Slowest SKUs</h4>
+                <h4 className="text-sm font-semibold text-gray-800 mb-3">
+                  <MetricLabel sectionId="slowest-skus" className="text-sm font-semibold text-gray-800">
+                    Slowest SKUs
+                  </MetricLabel>
+                </h4>
                 {health.bottomSkus.length === 0 ? (
                   <p className="text-sm text-gray-500">Not enough SKUs to rank a bottom list.</p>
                 ) : (

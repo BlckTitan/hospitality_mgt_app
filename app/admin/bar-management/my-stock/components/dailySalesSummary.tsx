@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react'
 import { formatPropertyMoney } from '../../../inventory-management/components/money'
+import { GuideTopic } from '../../../../../shared/pageGuide'
 
 type LogRow = {
   _id: string
@@ -103,19 +104,21 @@ export function DailySalesSummary({
     <section className="mb-4">
       <h4 className="text-base font-semibold mb-2">Daily sales summary</h4>
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
-        <SummaryCard label="Qty sold" value={summary.salesQty.toLocaleString()} />
-        <SummaryCard label="Revenue" value={money(summary.revenue)} tone="blue" />
+        <SummaryCard sectionId="sales" label="Qty sold" value={summary.salesQty.toLocaleString()} />
+        <SummaryCard sectionId="amount" label="Revenue" value={money(summary.revenue)} tone="blue" />
         {showGrossProfit && (
-          <SummaryCard label="Gross profit" value={money(summary.grossProfit)} tone="green" />
+          <SummaryCard sectionId="gross-profit" label="Gross profit" value={money(summary.grossProfit)} tone="green" />
         )}
         <SummaryCard
+          sectionId="waste"
           label="Waste & comps"
           value={(summary.wasteQty + summary.compsQty).toLocaleString()}
           hint={`${summary.wasteQty} waste · ${summary.compsQty} comps`}
           tone="rose"
         />
-        <SummaryCard label="SKUs on log" value={String(summary.skuCount)} />
+        <SummaryCard sectionId="sheet" label="SKUs on log" value={String(summary.skuCount)} />
         <SummaryCard
+          sectionId="finalize"
           label="Lines status"
           value={`${summary.finalizedLines}/${summary.skuCount}`}
           hint={summary.openLines > 0 ? `${summary.openLines} still open` : 'All finalized'}
@@ -126,11 +129,13 @@ export function DailySalesSummary({
 }
 
 function SummaryCard({
+  sectionId,
   label,
   value,
   hint,
   tone,
 }: {
+  sectionId: string
   label: string
   value: string
   hint?: string
@@ -158,7 +163,9 @@ function SummaryCard({
 
   return (
     <div className={`border rounded-lg p-3 ${tones[key]}`}>
-      <div className={`text-xs font-medium ${labelTones[key]}`}>{label}</div>
+      <GuideTopic guideId="bar-my-stock" sectionId={sectionId} className={`text-xs font-medium ${labelTones[key]}`}>
+        {label}
+      </GuideTopic>
       <div className={`text-lg font-bold ${valueTones[key]}`}>{value}</div>
       {hint && <div className="text-xs text-gray-500 mt-0.5">{hint}</div>}
     </div>
