@@ -1,8 +1,6 @@
 'use client';
 import { goToList } from '../../../../../shared/goToList';
 
-import { FcEmptyTrash } from "react-icons/fc";
-import { MdEditDocument } from "react-icons/md";
 import { Button } from '../../../../../shared/button';
 import { Suspense } from "react";
 import { useMutation } from "convex/react";
@@ -14,6 +12,7 @@ import { Id } from "../../../../../convex/_generated/dataModel";
 import { ReservationLifecycleActions, ReservationStatusBadge } from "./reservationLifecycle";
 import { useDeskOperator } from "../../components/deskOperator";
 import { formatPropertyMoney, usePropertyCurrency } from "../../../inventory-management/components/money";
+import { formatPropertyWhen } from "../../stayDates";
 
 interface ReservationProps {
   _id: string;
@@ -56,7 +55,7 @@ interface ReservationProps {
   };
 }
 
-const Reservations = ({ propertyId }: { propertyId: string }) => {
+const Reservations = ({ propertyId, timeZone }: { propertyId: string; timeZone?: string }) => {
   const currency = usePropertyCurrency(propertyId);
   const desk = useDeskOperator();
   const removeReservation = useMutation(api.reservations.deleteReservation);
@@ -119,8 +118,10 @@ const Reservations = ({ propertyId }: { propertyId: string }) => {
     {
       label: 'Check-out',
       key: 'checkOutDate',
-      render: (value, row) => (
-        <span>{formatDate(row.checkOutDate)}</span>
+      render: (_value, row) => (
+        <span>
+          {formatPropertyWhen(row.checkOutDate, timeZone, row.stayKind !== "short")}
+        </span>
       )
     },
     {
@@ -157,36 +158,35 @@ const Reservations = ({ propertyId }: { propertyId: string }) => {
       label: 'Action',
       key: '_id',
       render: (value, row) => (
-        <div className='flex flex-col items-start gap-2'>
-          <ReservationLifecycleActions
-            reservationId={row._id as Id<'reservations'>}
-            status={row.status}
-            totalAmount={row.totalAmount}
-            depositAmount={row.depositAmount ?? 0}
-            currency={currency}
-            layout="compact"
-          />
-          <div className='flex justify-evenly lg:justify-start items-center gap-1'>
-            <a
-              href={`/admin/room-management/reservation/edit?reservation_id=${row._id}`}
-              className='!mr-2 !no-underline !text-amber-400'
-              title="Edit booking details"
-            >
-              <i className='icon'><MdEditDocument /></i>
-            </a>
-
-            <Button
-              variant='white'
-              onClick={() => handleDelete(row._id, row.confirmationNumber)}
-              title='Delete reservation'
-              disabled={desk.blocked || row.status === 'checked-in' || row.status === 'checked-out'}
-            >
-              <i className='icon'>
-                <FcEmptyTrash />
-              </i>
-            </Button>
-          </div>
-        </div>
+        <ReservationLifecycleActions
+          reservationId={row._id as Id<'reservations'>}
+          status={row.status}
+          totalAmount={row.totalAmount}
+          depositAmount={row.depositAmount ?? 0}
+          currency={currency}
+          layout="compact"
+          rowActions={
+            <>
+              <a
+                href={`/admin/room-management/reservation/edit?reservation_id=${row._id}`}
+                className="inline-flex h-8 min-w-0 flex-1 items-center justify-center rounded-md border border-amber-500 px-1 text-sm font-medium text-amber-600 no-underline hover:bg-amber-50"
+                title="Edit booking details"
+              >
+                Edit
+              </a>
+              <Button
+                variant="outline-danger"
+                size="sm"
+                className="min-w-0 flex-1 px-1"
+                onClick={() => handleDelete(row._id, row.confirmationNumber)}
+                title="Delete reservation"
+                disabled={desk.blocked || row.status === 'checked-in' || row.status === 'checked-out'}
+              >
+                Delete
+              </Button>
+            </>
+          }
+        />
       ),
     },
   ];

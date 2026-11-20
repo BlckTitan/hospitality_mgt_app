@@ -13,6 +13,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { ReservationLifecycleActions, ReservationPaymentHistory } from "./reservationLifecycle";
 import { formatPropertyMoney, usePropertyCurrency } from "../../../inventory-management/components/money";
 import { DeskOperatorBar, useDeskOperator } from "../../components/deskOperator";
+import { nightsBetweenDateInputs } from "../../stayDates";
 import { RetainerActions } from "../../components/deskReminders";
 
 type FormData = {
@@ -153,11 +154,7 @@ export function FormComponent({
   useEffect(() => {
     if (stayKind === 'short') return;
     if (watchCheckIn && watchCheckOut && watchRate) {
-      const checkIn = new Date(watchCheckIn);
-      const checkOut = new Date(watchCheckOut);
-      const diffTime = Math.abs(checkOut.getTime() - checkIn.getTime());
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      
+      const diffDays = nightsBetweenDateInputs(watchCheckIn, watchCheckOut);
       if (diffDays > 0) {
         setNights(diffDays);
         const total = diffDays * watchRate;
@@ -334,6 +331,12 @@ export function FormComponent({
           </>
         )}
       </div>
+
+      {stayKind === 'overnight' && (
+        <p className="-mt-2 mb-4 text-xs text-gray-500">
+          Checkout is 12:00 PM on the departure date. The charge is the nightly rate for each night before that morning.
+        </p>
+      )}
 
       {stayKind === 'overnight' && (
         <label className="mb-4 flex items-center gap-2 text-sm">

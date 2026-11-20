@@ -8,24 +8,12 @@ import { EXPENSE_CATEGORIES } from './lib/postCashOutflow';
 import { isSystemExpenseCategory } from './lib/expenseCategoryCatalog';
 import { sumPosGuestRevenue } from './posOrders';
 import { sumRestaurantGuestRevenue } from './restaurantOrders';
-import { isShortStay } from './lib/stays';
+import { eachOvernightNightKey, isShortStay, overnightNightCount } from './lib/stays';
 
 const DAY_MS = 86_400_000;
 const COUNTED_RESERVATION_STATUSES = new Set(['confirmed', 'checked-in', 'checked-out']);
 
 function periodNights(start: number, end: number): number {
-  return Math.max(0, Math.round((end - start) / DAY_MS));
-}
-
-function overlapNights(
-  stayStart: number,
-  stayEnd: number,
-  periodStart: number,
-  periodEnd: number,
-): number {
-  const start = Math.max(stayStart, periodStart);
-  const end = Math.min(stayEnd, periodEnd);
-  if (end <= start) return 0;
   return Math.max(0, Math.round((end - start) / DAY_MS));
 }
 
@@ -461,17 +449,16 @@ export const getFinancialReport = query({
         }
         continue;
       }
-      const sold = overlapNights(
+      const sold = eachOvernightNightKey(
         reservation.checkInDate,
         reservation.checkOutDate,
-        args.start,
-        args.end,
-      );
+        timeZone,
+      ).filter((key) => key >= startKey && key < endKey).length;
       if (sold === 0) continue;
       roomsSoldNights += sold;
       const stayNights = Math.max(
         1,
-        periodNights(reservation.checkInDate, reservation.checkOutDate),
+        overnightNightCount(reservation.checkInDate, reservation.checkOutDate, timeZone),
       );
       roomRevenue += reservation.rate > 0
         ? reservation.rate * sold
@@ -739,28 +726,16 @@ export const getSalesByDayOfWeek = query({
       }
       const stayNights = Math.max(
         1,
-        periodNights(reservation.checkInDate, reservation.checkOutDate),
+        overnightNightCount(reservation.checkInDate, reservation.checkOutDate, timeZone),
       );
       const nightly =
         reservation.rate > 0 ? reservation.rate : reservation.totalAmount / stayNights;
 
-      // Attribute each sold night to the weekday of that night (check-in morning through night before checkout).
-      let nightStart = Math.max(reservation.checkInDate, args.start);
-      // Align to UTC midnight of the night's calendar date for stable day keys.
-      nightStart = Date.UTC(
-        new Date(nightStart).getUTCFullYear(),
-        new Date(nightStart).getUTCMonth(),
-        new Date(nightStart).getUTCDate(),
-      );
-      const stayEnd = Math.min(reservation.checkOutDate, args.end);
-      while (nightStart < stayEnd) {
-        const key = dateKeyFromUtcMs(nightStart);
-        if (key >= startKey && key < endKey) {
-          const bucket = buckets[mondayIndexFromDateKey(key)];
-          bucket.rooms += nightly;
-          bucket.roomsSoldNights += 1;
-        }
-        nightStart += DAY_MS;
+      for (const key of eachOvernightNightKey(reservation.checkInDate, reservation.checkOutDate, timeZone)) {
+        if (key < startKey || key >= endKey) continue;
+        const bucket = buckets[mondayIndexFromDateKey(key)];
+        bucket.rooms += nightly;
+        bucket.roomsSoldNights += 1;
       }
     }
 

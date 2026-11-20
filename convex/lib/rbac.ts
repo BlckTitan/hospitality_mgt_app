@@ -129,6 +129,14 @@ export function hasGranularPermission(authContext: AuthContext, granularPerm: st
     return true;
   }
 
+  // Same shift pages a waiter opens with fnb.read: Attendance and own Shift rows.
+  if (
+    granularPerm === "payroll.timesheet.create" &&
+    authContext.roles.includes("Receptionist")
+  ) {
+    return true;
+  }
+
   return false;
 }
 

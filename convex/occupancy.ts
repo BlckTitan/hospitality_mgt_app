@@ -2,7 +2,7 @@ import { query } from './_generated/server';
 import { v } from 'convex/values';
 import { requirePermission, tryRequirePermission } from './lib/rbac';
 import { localDayBounds, propertyTimeZone } from './lib/billingPeriods';
-import { isShortStay, rangesOverlap } from './lib/stays';
+import { isShortStay, rangesOverlap, stayCalendarKey } from './lib/stays';
 
 const BLOCKING_STATUSES = new Set(['pending', 'confirmed', 'checked-in']);
 const SOLD_STATUSES = new Set(['confirmed', 'checked-in', 'checked-out']);
@@ -23,8 +23,10 @@ function nightBounds(year: number, month: number, day: number) {
   return { start, end };
 }
 
-function coversNight(checkInDate: number, checkOutDate: number, nightStart: number, nightEnd: number) {
-  return checkInDate < nightEnd && checkOutDate > nightStart;
+function coversOvernightNight(checkInDate: number, checkOutDate: number, dateKey: string, timeZone: string) {
+  const arrival = stayCalendarKey(checkInDate, timeZone);
+  const departure = stayCalendarKey(checkOutDate, timeZone);
+  return dateKey >= arrival && dateKey < departure;
 }
 
 function dateKeyFromTimestamp(timestamp: number, timeZone: string): string {
@@ -179,7 +181,7 @@ export const getOccupancyCalendar = query({
 
         const cells = days.map((day) => {
           const stay = stays.find((row) =>
-            !isShortStay(row) && coversNight(row.checkInDate, row.checkOutDate, day.start, day.end),
+            !isShortStay(row) && coversOvernightNight(row.checkInDate, row.checkOutDate, day.dateKey, timeZone),
           );
           const dayUse = stays.filter((row) =>
             isShortStay(row) && rangesOverlap(row.checkInDate, row.checkOutDate, day.start, day.end),

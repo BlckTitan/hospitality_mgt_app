@@ -71,7 +71,9 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermission> = {
   '/admin/room-management/housekeeping-task': { granular: 'housekeeping.task.read' },
 
   // Shift Management
-  '/admin/shift-management': { granular: 'staff.read' },
+  '/admin/shift-management': {
+    granular: ['staff.read', 'payroll.timesheet.create', 'fnb.read'],
+  },
   '/admin/shift-management/shift': { granular: ['staff.read', 'payroll.timesheet.create', 'fnb.read'] },
   '/admin/shift-management/templates': { granular: 'staff.read' },
   '/admin/shift-management/rotations': { granular: 'staff.read' },

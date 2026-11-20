@@ -93,7 +93,7 @@ function ReservationPageInner() {
         </div>
       </header>
       {currentProperty ? <DeskReminders propertyId={currentProperty._id} /> : null}
-      <Reservations propertyId={currentPropertyId} />
+      <Reservations propertyId={currentPropertyId} timeZone={currentProperty.timezone} />
 
       <BootstrapModal
         show={modalShow}

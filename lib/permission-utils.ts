@@ -166,6 +166,14 @@ export class PermissionChecker {
       return true;
     }
 
+    // Same shift pages a waiter opens with fnb.read: Attendance and own Shift rows.
+    if (
+      granularPerm === 'payroll.timesheet.create' &&
+      this.userContext.roles.includes('Receptionist')
+    ) {
+      return true;
+    }
+
     for (const permissions of Object.values(GRANULAR_PERMISSIONS)) {
       const mapped = permissions[granularPerm as keyof typeof permissions];
       if (mapped) {

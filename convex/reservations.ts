@@ -7,17 +7,21 @@ import { peopleSearchName } from './lib/searchNames';
 import { maybeCreateCheckoutOnCheckOut, maybeCreateStayoverOnCheckIn } from './lib/taskAssignment';
 import { propertyTimeZone, localDayBounds } from './lib/billingPeriods';
 import {
-  DAY_MS,
   HOUR_MS,
   MAY_EXTEND_LEAD_DAYS,
   addDateKey,
+  dateKeySpan,
   isShortStay,
   overnightBlocksShortStay,
+  overnightCheckoutAfterNights,
+  overnightCheckoutInstant,
+  overnightNightCount,
+  overnightNightsOverlap,
   rangesOverlap,
   reminderDaysOf,
   shortStayRateFor,
+  stayCalendarKey,
   stayKindOf,
-  utcDateKey,
   roomHasOpenCheckoutClean,
 } from './lib/stays';
 
@@ -75,6 +79,7 @@ async function bookingConflict(
     stayKind: 'overnight' | 'short';
     checkInDate: number;
     checkOutDate: number;
+    timeZone: string;
     excludeId?: Id<'reservations'>;
     checkingIn?: boolean;
   },
@@ -96,7 +101,7 @@ async function bookingConflict(
       if (isShortStay(row) && rangesOverlap(row.checkInDate, row.checkOutDate, args.checkInDate, args.checkOutDate)) {
         return 'Room already has a short stay at this time';
       }
-      if (overnightBlocksShortStay(row, args.checkInDate, args.checkOutDate)) {
+      if (overnightBlocksShortStay(row, args.checkInDate, args.checkOutDate, args.timeZone)) {
         return 'This room is reserved for an overnight stay and cannot be used for a short stay';
       }
     }
@@ -104,7 +109,15 @@ async function bookingConflict(
   }
 
   const overlap = others.find((row) =>
-    rangesOverlap(row.checkInDate, row.checkOutDate, args.checkInDate, args.checkOutDate),
+    isShortStay(row)
+      ? rangesOverlap(row.checkInDate, row.checkOutDate, args.checkInDate, args.checkOutDate)
+      : overnightNightsOverlap(
+          row.checkInDate,
+          row.checkOutDate,
+          args.checkInDate,
+          args.checkOutDate,
+          args.timeZone,
+        ),
   );
   if (overlap) return 'Room is already reserved for these dates';
   return null;
@@ -330,6 +343,8 @@ export const createReservation = mutation({
         return { success: false, message: `Guest count exceeds max occupancy (${roomType.maxOccupancy})` };
       }
 
+      const property = await ctx.db.get(args.propertyId);
+      const timeZone = propertyTimeZone(property);
       let checkOutDate = args.checkOutDate ?? 0;
       let rate = args.rate;
       let totalAmount = args.totalAmount;
@@ -341,8 +356,11 @@ export const createReservation = mutation({
         rate = priced.amount;
         totalAmount = priced.amount;
         durationHours = priced.hours;
-      } else if (checkOutDate <= args.checkInDate) {
-        return { success: false, message: 'Check-out date must be after check-in date' };
+      } else {
+        checkOutDate = overnightCheckoutInstant(checkOutDate, timeZone);
+        if (overnightNightCount(args.checkInDate, checkOutDate, timeZone) < 1) {
+          return { success: false, message: 'Check-out date must be after check-in date' };
+        }
       }
 
       const now = Date.now();
@@ -383,6 +401,7 @@ export const createReservation = mutation({
           stayKind,
           checkInDate: args.checkInDate,
           checkOutDate,
+          timeZone,
         });
         if (conflict) return { success: false, message: conflict };
       }
@@ -595,6 +614,8 @@ export const updateReservation = mutation({
       }
 
       const stayKind = stayKindOf(existingReservation);
+      const property = await ctx.db.get(existingReservation.propertyId);
+      const timeZone = propertyTimeZone(property);
       let checkOutDate = args.checkOutDate;
       let rate = args.rate;
       let totalAmount = args.totalAmount;
@@ -607,8 +628,11 @@ export const updateReservation = mutation({
         rate = priced.amount;
         totalAmount = priced.amount;
         durationHours = priced.hours;
-      } else if (checkOutDate <= args.checkInDate) {
-        return { success: false, message: 'Check-out date must be after check-in date' };
+      } else {
+        checkOutDate = overnightCheckoutInstant(checkOutDate, timeZone);
+        if (overnightNightCount(args.checkInDate, checkOutDate, timeZone) < 1) {
+          return { success: false, message: 'Check-out date must be after check-in date' };
+        }
       }
 
       if (isBlockingStatus(existingReservation.status)) {
@@ -617,6 +641,7 @@ export const updateReservation = mutation({
           stayKind,
           checkInDate: args.checkInDate,
           checkOutDate,
+          timeZone,
           excludeId: args.reservationId,
         });
         if (conflict) return { success: false, message: conflict };
@@ -665,11 +690,13 @@ export const confirmReservation = mutation({
     if (reservation.status !== 'pending') {
       return { success: false, message: 'Only pending reservations can be confirmed' };
     }
+    const property = await ctx.db.get(reservation.propertyId);
     const conflict = await bookingConflict(ctx, {
       roomId: reservation.roomId,
       stayKind: stayKindOf(reservation),
       checkInDate: reservation.checkInDate,
       checkOutDate: reservation.checkOutDate,
+      timeZone: propertyTimeZone(property),
       excludeId: reservation._id,
     });
     if (conflict) return { success: false, message: conflict };
@@ -709,11 +736,13 @@ export const checkInReservation = mutation({
       return { success: false, message: 'Room is not available for check-in' };
     }
 
+    const property = await ctx.db.get(reservation.propertyId);
     const conflict = await bookingConflict(ctx, {
       roomId: reservation.roomId,
       stayKind: stayKindOf(reservation),
       checkInDate: reservation.checkInDate,
       checkOutDate: reservation.checkOutDate,
+      timeZone: propertyTimeZone(property),
       excludeId: reservation._id,
       checkingIn: true,
     });
@@ -886,14 +915,17 @@ export const extendOvernightStay = mutation({
       return { success: false, message: 'Only a checked-in overnight guest can extend' };
     }
 
-    const nights = Math.max(1, Math.round((reservation.checkOutDate - reservation.checkInDate) / DAY_MS));
+    const property = await ctx.db.get(reservation.propertyId);
+    const timeZone = propertyTimeZone(property);
+    const nights = Math.max(1, overnightNightCount(reservation.checkInDate, reservation.checkOutDate, timeZone));
     const nightly = reservation.rate > 0 ? reservation.rate : reservation.totalAmount / nights;
-    const checkOutDate = reservation.checkOutDate + args.extraNights * DAY_MS;
+    const checkOutDate = overnightCheckoutAfterNights(reservation.checkOutDate, args.extraNights, timeZone);
     const conflict = await bookingConflict(ctx, {
       roomId: reservation.roomId,
       stayKind: 'overnight',
       checkInDate: reservation.checkInDate,
       checkOutDate,
+      timeZone,
       excludeId: reservation._id,
     });
     if (conflict) return { success: false, message: conflict };
@@ -998,7 +1030,7 @@ export const getDeskReminders = query({
         continue;
       }
 
-      const checkoutKey = utcDateKey(reservation.checkOutDate);
+      const checkoutKey = stayCalendarKey(reservation.checkOutDate, timeZone);
       const inWindow = checkoutKey <= windowEnd;
       const early = Boolean(reservation.mayExtend) && checkoutKey <= extendEnd;
       if (!inWindow && !early) continue;
@@ -1010,8 +1042,11 @@ export const getDeskReminders = query({
         )
         .collect();
       const paidTotal = payments.reduce((sum, row) => sum + row.amount, 0);
-      const bookedNights = Math.max(1, Math.round((reservation.checkOutDate - reservation.checkInDate) / DAY_MS));
-      const elapsed = Math.max(0, Math.round((today.start - reservation.checkInDate) / DAY_MS));
+      const bookedNights = Math.max(
+        1,
+        overnightNightCount(reservation.checkInDate, reservation.checkOutDate, timeZone),
+      );
+      const elapsed = Math.max(0, dateKeySpan(stayCalendarKey(reservation.checkInDate, timeZone), today.dateKey));
 
       retainers.push({
         _id: reservation._id,

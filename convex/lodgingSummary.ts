@@ -3,7 +3,7 @@ import { v } from 'convex/values';
 import { Doc, Id } from './_generated/dataModel';
 import { tryRequirePermission } from './lib/rbac';
 import { localDayBounds, propertyTimeZone } from './lib/billingPeriods';
-import { addDateKey, DAY_MS, isShortStay, utcDateKey } from './lib/stays';
+import { addDateKey, DAY_MS, eachOvernightNightKey, isShortStay, overnightNightCount, utcDateKey } from './lib/stays';
 import { staffDisplayName } from './lib/shiftHelpers';
 
 const ROW_CAP = 4000;
@@ -217,6 +217,7 @@ function addNightRevenue(
   startKey: string,
   endKey: string,
   days: Map<string, DayStat>,
+  timeZone: string,
   onNight?: (dateKey: string, nightly: number) => void,
 ) {
   const start = utcStart(startKey);
@@ -231,24 +232,15 @@ function addNightRevenue(
     onNight?.(key, reservation.totalAmount);
     return;
   }
-  const stayNights = Math.max(1, Math.round((reservation.checkOutDate - reservation.checkInDate) / DAY_MS));
+  const stayNights = Math.max(1, overnightNightCount(reservation.checkInDate, reservation.checkOutDate, timeZone));
   const nightly = reservation.rate > 0 ? reservation.rate : reservation.totalAmount / stayNights;
-  let nightStart = Math.max(reservation.checkInDate, start);
-  nightStart = Date.UTC(
-    new Date(nightStart).getUTCFullYear(),
-    new Date(nightStart).getUTCMonth(),
-    new Date(nightStart).getUTCDate(),
-  );
-  const stayEnd = Math.min(reservation.checkOutDate, end);
-  while (nightStart < stayEnd) {
-    const key = utcDateKey(nightStart);
+  for (const key of eachOvernightNightKey(reservation.checkInDate, reservation.checkOutDate, timeZone)) {
+    if (key < startKey || key >= endKey) continue;
     const day = days.get(key);
-    if (day) {
-      day.roomRevenue += nightly;
-      day.soldNights += 1;
-      onNight?.(key, nightly);
-    }
-    nightStart += DAY_MS;
+    if (!day) continue;
+    day.roomRevenue += nightly;
+    day.soldNights += 1;
+    onNight?.(key, nightly);
   }
 }
 
@@ -357,25 +349,25 @@ export const getLodgingSummary = query({
         shortStays += 1;
         bumpRoom(reservation, 0, reservation.totalAmount, true);
       } else if (reservation.checkInDate < utcStart(window.endKey) && reservation.checkOutDate > utcStart(window.startKey)) {
-        const sold = Math.max(
-          0,
-          Math.round(
-            (Math.min(reservation.checkOutDate, utcStart(window.endKey)) -
-              Math.max(reservation.checkInDate, utcStart(window.startKey))) /
-              DAY_MS,
-          ),
-        );
+        const sold = eachOvernightNightKey(
+          reservation.checkInDate,
+          reservation.checkOutDate,
+          timeZone,
+        ).filter((key) => key >= window.startKey && key < window.endKey).length;
         if (sold === 0) continue;
-        const stayNights = Math.max(1, Math.round((reservation.checkOutDate - reservation.checkInDate) / DAY_MS));
+        const stayNights = Math.max(
+          1,
+          overnightNightCount(reservation.checkInDate, reservation.checkOutDate, timeZone),
+        );
         const nightly = reservation.rate > 0 ? reservation.rate : reservation.totalAmount / stayNights;
         stays += 1;
         bumpRoom(reservation, sold, nightly * sold, false);
       }
-      addNightRevenue(reservation, window.startKey, window.endKey, days);
+      addNightRevenue(reservation, window.startKey, window.endKey, days, timeZone);
     }
     for (const reservation of priorStays.rows) {
       if (!COUNTED.has(reservation.status)) continue;
-      addNightRevenue(reservation, window.priorStartKey, window.priorEndKey, priorDays);
+      addNightRevenue(reservation, window.priorStartKey, window.priorEndKey, priorDays, timeZone);
     }
 
     const staffCollected = new Map<string, number>();

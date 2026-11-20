@@ -106,6 +106,8 @@ async function requireShiftRead(
 ) {
   const staffAuth = await tryRequirePermission(ctx, 'staff.read', propertyId);
   if (staffAuth) return staffAuth;
+  const clockAuth = await tryRequirePermission(ctx, 'payroll.timesheet.create', propertyId);
+  if (clockAuth) return clockAuth;
   return await requirePermission(ctx, 'fnb.read', propertyId);
 }
 

@@ -9,6 +9,7 @@ import { Id } from '../../../../convex/_generated/dataModel';
 import { Button } from '../../../../shared/button';
 import { formatPropertyMoney, usePropertyCurrency } from '../../inventory-management/components/money';
 import { useDeskOperator } from './deskOperator';
+import { formatPropertyWhen } from '../stayDates';
 
 const FOLLOW_UP = [
   { value: 'not-contacted', label: 'Not contacted' },
@@ -34,7 +35,7 @@ export function DeskReminders({ propertyId }: { propertyId: Id<'properties'> }) 
     return null;
   }
 
-  const { shortStays, retainers, reminderDays } = response.data;
+  const { shortStays, retainers, reminderDays, timeZone } = response.data;
   const windowLabel = reminderDays === 0
     ? 'checkout today'
     : `checkout today or within ${reminderDays} day${reminderDays === 1 ? '' : 's'}`;
@@ -81,7 +82,7 @@ export function DeskReminders({ propertyId }: { propertyId: Id<'properties'> }) 
                   </Link>
                   <span className="text-slate-600">
                     {guest.overdue ? 'Checkout was ' : 'Checkout '}
-                    {new Date(guest.checkOutDate).toLocaleDateString()}
+                    {formatPropertyWhen(guest.checkOutDate, timeZone, true)}
                   </span>
                 </div>
                 <p className="mb-2 text-slate-600">

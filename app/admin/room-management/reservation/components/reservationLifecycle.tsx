@@ -1,9 +1,8 @@
 'use client';
 
 import { useMutation } from 'convex/react';
-import { useState } from 'react';
+import { ReactNode, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { MdCancel, MdLogout } from 'react-icons/md';
 import { Button } from '../../../../../shared/button';
 import BootstrapModal, { Modal } from '../../../../../shared/modal';
 import { toast } from 'sonner';
@@ -117,6 +116,7 @@ export function ReservationLifecycleActions({
   depositAmount = 0,
   currency,
   layout = 'full',
+  rowActions,
 }: {
   reservationId: Id<'reservations'>;
   status: string;
@@ -125,6 +125,8 @@ export function ReservationLifecycleActions({
   depositAmount?: number;
   currency?: string;
   layout?: 'full' | 'compact';
+  /** Table row: edit/delete (and similar) sharing the line under the primary action. */
+  rowActions?: ReactNode;
 }) {
   const desk = useDeskOperator();
   const confirmReservation = useMutation(api.reservations.confirmReservation);
@@ -333,12 +335,14 @@ export function ReservationLifecycleActions({
       : null;
 
   if (layout === 'compact') {
+    const showRow = canCancel || Boolean(rowActions);
     return (
-      <div className="flex flex-wrap items-center gap-1">
+      <div className="flex w-56 flex-col gap-1">
         {canConfirm && (
           <Button
             variant="outline-primary"
             size="sm"
+            className="w-full"
             disabled={busy || desk.blocked}
             onClick={() => {
               if (!confirm('Confirm this reservation?')) return;
@@ -349,7 +353,13 @@ export function ReservationLifecycleActions({
           </Button>
         )}
         {canCheckIn && (
-          <Button variant="outline-success" size="sm" disabled={busy || desk.blocked} onClick={() => startCollecting('check-in')}>
+          <Button
+            variant="outline-success"
+            size="sm"
+            className="w-full"
+            disabled={busy || desk.blocked}
+            onClick={() => startCollecting('check-in')}
+          >
             Check in
           </Button>
         )}
@@ -357,30 +367,32 @@ export function ReservationLifecycleActions({
           <Button
             variant="outline-dark"
             size="sm"
-            className="size-8 p-0"
-            title="Check out"
-            aria-label="Check out"
+            className="w-full"
             disabled={busy || desk.blocked}
             onClick={() => startCollecting('check-out')}
           >
-            <MdLogout className="h-4 w-4" aria-hidden />
+            Checkout
           </Button>
         )}
-        {canCancel && (
-          <Button
-            variant="outline-danger"
-            size="sm"
-            className="size-8 p-0"
-            title="Cancel reservation"
-            aria-label="Cancel reservation"
-            disabled={busy || desk.blocked}
-            onClick={() => {
-              if (!confirm('Cancel this reservation?')) return;
-              void run(() => cancelReservation({ reservationId, ...desk.userArgs }));
-            }}
-          >
-            <MdCancel className="h-4 w-4" aria-hidden />
-          </Button>
+        {showRow && (
+          <div className="flex w-full gap-1">
+            {canCancel && (
+              <Button
+                variant="outline-danger"
+                size="sm"
+                className="min-w-0 flex-1 px-1"
+                title="Cancel reservation"
+                disabled={busy || desk.blocked}
+                onClick={() => {
+                  if (!confirm('Cancel this reservation?')) return;
+                  void run(() => cancelReservation({ reservationId, ...desk.userArgs }));
+                }}
+              >
+                Cancel
+              </Button>
+            )}
+            {rowActions}
+          </div>
         )}
         {paymentModal}
       </div>
