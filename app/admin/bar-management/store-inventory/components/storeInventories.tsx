@@ -267,7 +267,7 @@ const StoreInventories = ({ currentPropertyId }: { currentPropertyId: Id<"proper
         </p>
       </section>
       <div className="bg-gray-50 p-4 rounded-lg mb-2">
-        <div className="flex flex-col lg:flex-row lg:flex-wrap lg:items-end gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:flex lg:flex-row lg:flex-wrap lg:items-end gap-3">
           <label className="w-full lg:w-52 text-sm font-medium text-gray-700">
             Category
             <select
@@ -316,7 +316,7 @@ const StoreInventories = ({ currentPropertyId }: { currentPropertyId: Id<"proper
               ))}
             </select>
           </label>
-          <div className="flex items-center gap-3 pb-0.5">
+          <div className="flex items-center gap-3 pb-0.5 md:col-span-3 lg:col-auto">
             {filtersActive && (
               <Button
                 variant="outline-secondary"

@@ -3,7 +3,7 @@
 import { BackLink } from '../../../../../shared/pageHeader';
 import React from 'react';
 import Spinner from '../../../../../shared/spinner';
-import { useQuery } from 'convex/react';
+import { useConvexAuth, useQuery } from 'convex/react';
 import { api } from '../../../../../convex/_generated/api';
 import { Id } from '../../../../../convex/_generated/dataModel';
 import { useSearchParams } from 'next/navigation';
@@ -11,12 +11,26 @@ import { FormComponent } from '../components/editReservationForm';
 
 export default function Page() {
   const searchParams = useSearchParams();
-  const id = searchParams.get("reservation_id") ?? null;
-  const response = useQuery(api.reservations.getReservation, { reservationId: id as Id<'reservations'> });
+  const id = searchParams.get('reservation_id');
+  const { isAuthenticated, isLoading } = useConvexAuth();
+  const response = useQuery(
+    api.reservations.getReservation,
+    id && isAuthenticated ? { reservationId: id as Id<'reservations'> } : 'skip',
+  );
 
-  // Check response for data
-  if (response === undefined) return <div className='w-full h-screen flex items-center justify-center'><Spinner  size='sm'  /></div>;
-  if (!response.success || !response.data) return <div>No data available!</div>;
+  if (!id) return <div className="p-4 text-gray-700">No reservation selected.</div>;
+  if (!isAuthenticated) {
+    if (isLoading) {
+      return <div className='w-full h-screen flex items-center justify-center'><Spinner size='sm' /></div>;
+    }
+    return <div className="p-4 text-gray-700">Your sign-in session could not be loaded. Refresh the page and try again.</div>;
+  }
+  if (response === undefined) {
+    return <div className='w-full h-screen flex items-center justify-center'><Spinner size='sm' /></div>;
+  }
+  if (!response.success || !response.data) {
+    return <div className="p-4 text-gray-700">{response.message || 'No data available!'}</div>;
+  }
 
   const reservation = response.data;
 

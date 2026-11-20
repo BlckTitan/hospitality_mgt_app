@@ -25,7 +25,7 @@ export default function Page() {
       <header className="w-full border-b mb-4 pb-3 flex justify-between items-start gap-3">
       <div className="min-w-0">
         <h1 className="text-2xl font-bold text-gray-800">Update {guest.firstName} {guest.lastName}</h1>
-        <p className="text-gray-600">Update this guest’s contact details, photo, and loyalty notes.</p>
+        <p className="text-gray-600">Update this guest’s contact details, occupation, state of origin, and spouse biodata.</p>
       </div>
         <BackLink />
       </header>
@@ -37,6 +37,9 @@ export default function Page() {
         email={guest.email}
         phone={guest.phone}
         address={guest.address}
+        occupation={guest.occupation}
+        stateOfOrigin={guest.stateOfOrigin}
+        spouse={guest.spouse}
         dateOfBirth={guest.dateOfBirth}
         loyaltyNumber={guest.loyaltyNumber}
         imageUrl={guest.imageUrl}

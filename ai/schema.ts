@@ -139,6 +139,16 @@ export default defineSchema({
     email: v.optional(v.string()),
     phone: v.optional(v.string()),
     address: v.optional(v.string()),
+    occupation: v.optional(v.string()),
+    /** Nigerian state, same list as staff state of origin. */
+    stateOfOrigin: v.optional(v.string()),
+    /** Present only when the guest form checkbox “Add spouse biodata” is on. */
+    spouse: v.optional(v.object({
+      firstName: v.string(),
+      lastName: v.string(),
+      phone: v.optional(v.string()),
+      occupation: v.optional(v.string()),
+    })),
     dateOfBirth: v.optional(v.number()),
     loyaltyNumber: v.optional(v.string()),
     preferences: v.optional(v.any()), // JSON object

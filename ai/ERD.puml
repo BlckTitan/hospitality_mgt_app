@@ -98,6 +98,9 @@ package "Room Management" {
         + email : String
         + phone : String
         + address : String
+        + occupation : String
+        + stateOfOrigin : String
+        + spouse : firstName, lastName, phone, occupation
         + dateOfBirth : Date
         + loyaltyNumber : String
         + preferences : JSON

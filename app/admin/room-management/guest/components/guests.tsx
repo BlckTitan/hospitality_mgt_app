@@ -20,6 +20,8 @@ interface GuestProps {
   email?: string;
   phone?: string;
   address?: string;
+  occupation?: string;
+  stateOfOrigin?: string;
   dateOfBirth?: number;
   loyaltyNumber?: string;
   preferences?: any;
@@ -80,6 +82,8 @@ const Guests = ({ propertyId }: { propertyId: string }) => {
     },
     { label: 'Email', key: 'email' },
     { label: 'Phone', key: 'phone' },
+    { label: 'Occupation', key: 'occupation' },
+    { label: 'State of origin', key: 'stateOfOrigin' },
     {
       label: 'Date of Birth',
       key: 'dateOfBirth',

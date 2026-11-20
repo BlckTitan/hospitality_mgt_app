@@ -1,6 +1,6 @@
 import { goToList } from '../../../../../shared/goToList';
 import { useMutation, useQuery } from "convex/react";
-import { SubmitHandler, useForm } from "react-hook-form";
+import { FieldErrors, SubmitHandler, UseFormRegister, useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { formSchema } from "./validation";
 import { toast } from "sonner";
@@ -12,6 +12,7 @@ import { Id } from "../../../../../convex/_generated/dataModel";
 import InputComponent from "../../../../../shared/input";
 import ImageUpload from "../../../../../shared/imageUpload";
 import { DEFAULT_STAFF_AVATAR_URL } from "../../../../../lib/staffAvatar";
+import { GuestBiodataFields, GuestBiodataValues, spousePayload } from "./guestBiodataFields";
 
 type FormData = {
   firstName: string;
@@ -19,6 +20,13 @@ type FormData = {
   email?: string;
   phone?: string;
   address?: string;
+  occupation?: string;
+  stateOfOrigin?: string;
+  includeSpouse?: boolean;
+  spouseFirstName?: string;
+  spouseLastName?: string;
+  spousePhone?: string;
+  spouseOccupation?: string;
   dateOfBirth?: string;
   loyaltyNumber?: string;
   imageUrl?: string | null;
@@ -35,6 +43,13 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess?: 
       email: '',
       phone: '',
       address: '',
+      occupation: '',
+      stateOfOrigin: '',
+      includeSpouse: false,
+      spouseFirstName: '',
+      spouseLastName: '',
+      spousePhone: '',
+      spouseOccupation: '',
       dateOfBirth: '',
       loyaltyNumber: '',
       imageUrl: null,
@@ -42,6 +57,7 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess?: 
   });
 
   const imageUrl = watch('imageUrl');
+  const includeSpouse = watch('includeSpouse');
 
   const onSubmit: SubmitHandler<FormData> = async (data) => {
     try {
@@ -54,6 +70,9 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess?: 
         email: data.email || undefined,
         phone: data.phone || undefined,
         address: data.address || undefined,
+        occupation: data.occupation?.trim() || undefined,
+        stateOfOrigin: data.stateOfOrigin?.trim() || undefined,
+        spouse: spousePayload(data) ?? undefined,
         dateOfBirth: dateOfBirthTimestamp,
         loyaltyNumber: data.loyaltyNumber || undefined,
         imageUrl: data.imageUrl || undefined,
@@ -163,6 +182,12 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess?: 
           error={errors.address}
         />
       </div>
+
+      <GuestBiodataFields
+        register={register as UseFormRegister<GuestBiodataValues>}
+        errors={errors as FieldErrors<GuestBiodataValues>}
+        includeSpouse={Boolean(includeSpouse)}
+      />
 
       <div
         className='w-full h-fit flex flex-col lg:flex-row lg:justify-start lg:items-center gap-1 

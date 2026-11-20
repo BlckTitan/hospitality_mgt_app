@@ -81,7 +81,7 @@ John Smith calls to book a room. The agent opens **Reservations → Add New Rese
 - `email: "john.smith@email.com"`
 - `phone: "+1-555-0123"`
 
-Optional CRM fields (photo, address, DOB, loyalty) can be filled later on **Guests**. Returning guests are selected from search; Guests list also has **Book stay** (`?guest_id=`) to open the reservation form with that guest preselected.
+Optional CRM fields (photo, address, DOB, loyalty, occupation, state of origin, spouse biodata) can be filled later on **Guests**. Spouse biodata is shown only after “Add spouse biodata” is checked. Returning guests are selected from search; Guests list also has **Book stay** (`?guest_id=`) to open the reservation form with that guest preselected.
 
 **Step 2: Reservation Creation**
 

@@ -153,6 +153,9 @@ Represents customers/guests who make reservations.
 - `email`: Email address (optional)
 - `phone`: Phone number (optional)
 - `address`: Physical address (optional)
+- `occupation`: Occupation (optional)
+- `stateOfOrigin`: Nigerian state of origin (optional; same list as staff)
+- `spouse`: Optional spouse biodata (`firstName`, `lastName`, optional `phone`, optional `occupation`). Stored only when the guest form checkbox “Add spouse biodata” is checked. Saving with the box unchecked removes it.
 - `dateOfBirth`: Date of birth (optional)
 - `loyaltyNumber`: Loyalty program number (optional)
 - `preferences`: JSON object for guest preferences (optional)
@@ -161,7 +164,7 @@ Represents customers/guests who make reservations.
 - `createdAt`: Timestamp of creation
 - `updatedAt`: Timestamp of last update
 
-**Purpose**: Maintains guest profiles and history for personalized service and repeat bookings. Profiles can be created inline during booking (name + contact) and enriched later on the Guests CRM pages (photo, loyalty, address, DOB).
+**Purpose**: Maintains guest profiles and history for personalized service and repeat bookings. Profiles can be created inline during booking (name + contact) and enriched later on the Guests CRM pages (photo, loyalty, address, DOB, occupation, state of origin, and optional spouse biodata).
 
 ---
 

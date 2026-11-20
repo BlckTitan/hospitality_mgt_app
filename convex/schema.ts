@@ -620,6 +620,14 @@ export default defineSchema({
     email: v.optional(v.string()),
     phone: v.optional(v.string()),
     address: v.optional(v.string()),
+    occupation: v.optional(v.string()),
+    stateOfOrigin: v.optional(v.string()),
+    spouse: v.optional(v.object({
+      firstName: v.string(),
+      lastName: v.string(),
+      phone: v.optional(v.string()),
+      occupation: v.optional(v.string()),
+    })),
     dateOfBirth: v.optional(v.number()),
     loyaltyNumber: v.optional(v.string()),
     preferences: v.optional(v.any()), // JSON object

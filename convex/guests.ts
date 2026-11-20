@@ -3,6 +3,56 @@ import { v } from 'convex/values';
 import { requirePermission } from './lib/rbac';
 import { peopleSearchName } from './lib/searchNames';
 
+const spouseValidator = v.object({
+  firstName: v.string(),
+  lastName: v.string(),
+  phone: v.optional(v.string()),
+  occupation: v.optional(v.string()),
+});
+
+const NAME_PATTERN = /^[A-Za-z\s'-]+$/;
+const PHONE_PATTERN = /^\+?\d{10,15}$/;
+
+function storedText(value: string | null | undefined, label: string, max: number): { value?: string; error?: string } {
+  const trimmed = value?.trim() ?? '';
+  if (!trimmed) return {};
+  if (trimmed.length > max) return { error: `${label} is too long` };
+  return { value: trimmed };
+}
+
+function storedSpouse(
+  spouse: {
+    firstName: string;
+    lastName: string;
+    phone?: string;
+    occupation?: string;
+  } | null | undefined,
+): { value?: { firstName: string; lastName: string; phone?: string; occupation?: string }; error?: string } {
+  if (!spouse) return {};
+  const firstName = spouse.firstName.trim();
+  const lastName = spouse.lastName.trim();
+  if (firstName.length < 2 || lastName.length < 2) {
+    return { error: 'Spouse first and last name are required' };
+  }
+  if (!NAME_PATTERN.test(firstName) || !NAME_PATTERN.test(lastName)) {
+    return { error: 'Spouse name can use only letters, spaces, hyphens, and apostrophes' };
+  }
+  const phone = spouse.phone?.trim() ?? '';
+  if (phone && !PHONE_PATTERN.test(phone)) {
+    return { error: 'Enter a valid spouse phone number' };
+  }
+  const occupation = storedText(spouse.occupation, 'Spouse occupation', 80);
+  if (occupation.error) return { error: occupation.error };
+  return {
+    value: {
+      firstName,
+      lastName,
+      ...(phone ? { phone } : {}),
+      ...(occupation.value ? { occupation: occupation.value } : {}),
+    },
+  };
+}
+
 export const getAllGuests = query({
   args: { propertyId: v.id('properties') },
   handler: async (ctx, args) => {
@@ -104,6 +154,9 @@ export const createGuest = mutation({
     email: v.optional(v.string()),
     phone: v.optional(v.string()),
     address: v.optional(v.string()),
+    occupation: v.optional(v.string()),
+    stateOfOrigin: v.optional(v.string()),
+    spouse: v.optional(spouseValidator),
     dateOfBirth: v.optional(v.number()),
     loyaltyNumber: v.optional(v.string()),
     preferences: v.optional(v.any()),
@@ -111,6 +164,12 @@ export const createGuest = mutation({
   },
   handler: async (ctx, args) => {
     await requirePermission(ctx, 'reservations.create', args.propertyId);
+    const occupation = storedText(args.occupation, 'Occupation', 80);
+    if (occupation.error) return { success: false, message: occupation.error };
+    const stateOfOrigin = storedText(args.stateOfOrigin, 'State of origin', 40);
+    if (stateOfOrigin.error) return { success: false, message: stateOfOrigin.error };
+    const spouse = storedSpouse(args.spouse);
+    if (spouse.error) return { success: false, message: spouse.error };
     try {
       const now = Date.now();
       const trimmedImage = args.imageUrl?.trim();
@@ -121,6 +180,9 @@ export const createGuest = mutation({
         email: args.email,
         phone: args.phone,
         address: args.address,
+        ...(occupation.value ? { occupation: occupation.value } : {}),
+        ...(stateOfOrigin.value ? { stateOfOrigin: stateOfOrigin.value } : {}),
+        ...(spouse.value ? { spouse: spouse.value } : {}),
         dateOfBirth: args.dateOfBirth,
         loyaltyNumber: args.loyaltyNumber,
         preferences: args.preferences,
@@ -146,6 +208,9 @@ export const updateGuest = mutation({
     email: v.optional(v.string()),
     phone: v.optional(v.string()),
     address: v.optional(v.string()),
+    occupation: v.optional(v.union(v.string(), v.null())),
+    stateOfOrigin: v.optional(v.union(v.string(), v.null())),
+    spouse: v.optional(v.union(spouseValidator, v.null())),
     dateOfBirth: v.optional(v.number()),
     loyaltyNumber: v.optional(v.string()),
     preferences: v.optional(v.any()),
@@ -157,6 +222,12 @@ export const updateGuest = mutation({
       return { success: false, message: 'Guest not found' };
     }
     await requirePermission(ctx, 'reservations.update', existingGuest.propertyId);
+    const occupation = storedText(args.occupation, 'Occupation', 80);
+    if (occupation.error) return { success: false, message: occupation.error };
+    const stateOfOrigin = storedText(args.stateOfOrigin, 'State of origin', 40);
+    if (stateOfOrigin.error) return { success: false, message: stateOfOrigin.error };
+    const spouse = storedSpouse(args.spouse);
+    if (spouse.error) return { success: false, message: spouse.error };
 
     try {
       const now = Date.now();
@@ -172,6 +243,9 @@ export const updateGuest = mutation({
         email: args.email,
         phone: args.phone,
         address: args.address,
+        ...(args.occupation !== undefined ? { occupation: occupation.value } : {}),
+        ...(args.stateOfOrigin !== undefined ? { stateOfOrigin: stateOfOrigin.value } : {}),
+        ...(args.spouse !== undefined ? { spouse: args.spouse === null ? undefined : spouse.value } : {}),
         dateOfBirth: args.dateOfBirth,
         loyaltyNumber: args.loyaltyNumber,
         preferences: args.preferences,

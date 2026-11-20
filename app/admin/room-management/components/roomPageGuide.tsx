@@ -17,7 +17,7 @@ const DESCRIPTIONS: Record<GuidePage, string> = {
   reservations:
     'Reminders above the list show short stays ending within the hour and overnight guests near checkout. Book an overnight stay or a short stay of 1–7 hours. A short stay uses the room type’s package price and does not take the night. A room reserved for an overnight stay is not offered for a short stay on those nights, including the morning of arrival. Search for an existing guest or create one inline, then save as pending or confirmed. The receptionist on duty is recorded on the booking. An administrator chooses the receptionist on rotation and works the desk for that person. Use Confirm, Check in, Check out, or Cancel — do not pick status from a dropdown. Check-in occupies the room and can collect payment; check-out frees it, can collect the balance, and opens a checkout-clean. Mark an overnight guest as “may extend” when their length of stay is uncertain. Any amount collected needs evidence: cash attestation at the desk, or a receipt / transfer file for other methods. Guest count cannot exceed the room type’s max.',
   guests:
-    'Guest profiles (CRM). Enrich photo, loyalty, and contact details here. Use Book stay to open a new reservation with that guest selected. You cannot delete a guest who still has a reservation.',
+    'Guest profiles (CRM). Enrich photo, loyalty, contact details, occupation, and state of origin here. Spouse biodata is optional and opens from a checkbox. Use Book stay to open a new reservation with that guest selected. You cannot delete a guest who still has a reservation.',
 };
 
 export function RoomPageGuide({ page }: { page: GuidePage }) {

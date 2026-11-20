@@ -2,7 +2,10 @@
 
 import { useMutation } from 'convex/react';
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
+import { MdCancel, MdLogout } from 'react-icons/md';
 import { Button } from '../../../../../shared/button';
+import BootstrapModal, { Modal } from '../../../../../shared/modal';
 import { toast } from 'sonner';
 import { api } from '../../../../../convex/_generated/api';
 import { Id } from '../../../../../convex/_generated/dataModel';
@@ -242,112 +245,144 @@ export function ReservationLifecycleActions({
     );
   };
 
-  const paymentFields = collecting ? (
-    <div className={layout === 'full' ? 'mt-3 grid gap-2 sm:grid-cols-2' : 'mt-2 flex flex-col gap-2'}>
-      <label className="text-sm">
-        Amount collected{currency ? ` (${currency})` : ''}
-        <input
-          type="number"
-          min={0}
-          step="0.01"
-          value={Number.isFinite(amount) ? amount : 0}
-          onChange={(event) => setAmount(Number(event.target.value))}
-          className="mt-1 w-full border rounded p-2"
-        />
-      </label>
-      <label className="text-sm">
-        Method
-        <select
-          value={method}
-          onChange={(event) => {
-            setMethod(event.target.value as PaymentMethod);
-            setCashAttested(false);
-            setReceiptFile(null);
-          }}
-          className="mt-1 w-full border rounded p-2"
-        >
-          {PAYMENT_METHODS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </label>
-      {needsEvidence && method === 'cash' && (
-        <label className="text-sm sm:col-span-2 flex items-start gap-2">
-          <input
-            type="checkbox"
-            className="mt-1"
-            checked={cashAttested}
-            onChange={(event) => setCashAttested(event.target.checked)}
-          />
-          <span>Cash received and counted at the desk</span>
-        </label>
-      )}
-      {needsEvidence && method !== 'cash' && (
-        <label className="text-sm sm:col-span-2">
-          Receipt / transfer confirmation *
-          <input
-            type="file"
-            accept="image/*,.pdf"
-            className="mt-1 block w-full text-sm"
-            onChange={(event) => setReceiptFile(event.target.files?.[0] ?? null)}
-          />
-        </label>
-      )}
-      <div className="flex items-end gap-2 sm:col-span-2">
-        <Button variant="dark" size="sm" disabled={busy || desk.blocked} onClick={() => void submitCollection()}>
-          {collecting === 'check-in' ? 'Complete check-in' : 'Complete check-out'}
-        </Button>
-        <Button variant="secondary" size="sm" disabled={busy || desk.blocked} onClick={() => setCollecting(null)}>
-          Back
-        </Button>
-      </div>
-    </div>
-  ) : null;
+  const closeCollection = () => {
+    if (!busy) setCollecting(null);
+  };
+
+  const paymentModal =
+    collecting && typeof document !== 'undefined'
+      ? createPortal(
+          <BootstrapModal
+            show
+            onHide={closeCollection}
+            heading={collecting === 'check-in' ? 'Check in' : 'Check out'}
+            className="max-w-lg"
+            body={
+              <div>
+                <div className="mb-3 text-sm text-gray-700">
+                  <p className="mb-0"><strong>Total:</strong> {formatPropertyMoney(totalAmount, currency)}</p>
+                  <p className="mb-0"><strong>Paid:</strong> {formatPropertyMoney(credited, currency)}</p>
+                  <p className="mb-0"><strong>Balance:</strong> {formatPropertyMoney(remaining, currency)}</p>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="text-sm">
+                    Amount collected{currency ? ` (${currency})` : ''}
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={Number.isFinite(amount) ? amount : 0}
+                      onChange={(event) => setAmount(Number(event.target.value))}
+                      className="mt-1 w-full rounded border p-2"
+                    />
+                  </label>
+                  <label className="text-sm">
+                    Method
+                    <select
+                      value={method}
+                      onChange={(event) => {
+                        setMethod(event.target.value as PaymentMethod);
+                        setCashAttested(false);
+                        setReceiptFile(null);
+                      }}
+                      className="mt-1 w-full rounded border p-2"
+                    >
+                      {PAYMENT_METHODS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {needsEvidence && method === 'cash' && (
+                    <label className="flex items-start gap-2 text-sm sm:col-span-2">
+                      <input
+                        type="checkbox"
+                        className="mt-1"
+                        checked={cashAttested}
+                        onChange={(event) => setCashAttested(event.target.checked)}
+                      />
+                      <span>Cash received and counted at the desk</span>
+                    </label>
+                  )}
+                  {needsEvidence && method !== 'cash' && (
+                    <label className="text-sm sm:col-span-2">
+                      Receipt / transfer confirmation *
+                      <input
+                        type="file"
+                        accept="image/*,.pdf"
+                        className="mt-1 block w-full text-sm"
+                        onChange={(event) => setReceiptFile(event.target.files?.[0] ?? null)}
+                      />
+                    </label>
+                  )}
+                </div>
+                <Modal.Footer>
+                  <Button variant="secondary" size="sm" disabled={busy} onClick={closeCollection}>
+                    Back
+                  </Button>
+                  <Button variant="dark" size="sm" disabled={busy || desk.blocked} onClick={() => void submitCollection()}>
+                    {collecting === 'check-in' ? 'Complete check-in' : 'Complete check-out'}
+                  </Button>
+                </Modal.Footer>
+              </div>
+            }
+          />,
+          document.body,
+        )
+      : null;
 
   if (layout === 'compact') {
     return (
-      <div className="flex flex-col items-start gap-1">
-        <div className="flex flex-wrap items-center gap-1">
-          {canConfirm && (
-            <Button
-              variant="outline-primary"
-              size="sm"
-              disabled={busy || desk.blocked}
-              onClick={() => {
-                if (!confirm('Confirm this reservation?')) return;
-                void run(() => confirmReservation({ reservationId, ...desk.userArgs }));
-              }}
-            >
-              Confirm
-            </Button>
-          )}
-          {canCheckIn && (
-            <Button variant="outline-success" size="sm" disabled={busy || desk.blocked} onClick={() => startCollecting('check-in')}>
-              Check in
-            </Button>
-          )}
-          {canCheckOut && (
-            <Button variant="outline-dark" size="sm" disabled={busy || desk.blocked} onClick={() => startCollecting('check-out')}>
-              Check out
-            </Button>
-          )}
-          {canCancel && (
-            <Button
-              variant="outline-danger"
-              size="sm"
-              disabled={busy || desk.blocked}
-              onClick={() => {
-                if (!confirm('Cancel this reservation?')) return;
-                void run(() => cancelReservation({ reservationId, ...desk.userArgs }));
-              }}
-            >
-              Cancel
-            </Button>
-          )}
-        </div>
-        {paymentFields}
+      <div className="flex flex-wrap items-center gap-1">
+        {canConfirm && (
+          <Button
+            variant="outline-primary"
+            size="sm"
+            disabled={busy || desk.blocked}
+            onClick={() => {
+              if (!confirm('Confirm this reservation?')) return;
+              void run(() => confirmReservation({ reservationId, ...desk.userArgs }));
+            }}
+          >
+            Confirm
+          </Button>
+        )}
+        {canCheckIn && (
+          <Button variant="outline-success" size="sm" disabled={busy || desk.blocked} onClick={() => startCollecting('check-in')}>
+            Check in
+          </Button>
+        )}
+        {canCheckOut && (
+          <Button
+            variant="outline-dark"
+            size="sm"
+            className="size-8 p-0"
+            title="Check out"
+            aria-label="Check out"
+            disabled={busy || desk.blocked}
+            onClick={() => startCollecting('check-out')}
+          >
+            <MdLogout className="h-4 w-4" aria-hidden />
+          </Button>
+        )}
+        {canCancel && (
+          <Button
+            variant="outline-danger"
+            size="sm"
+            className="size-8 p-0"
+            title="Cancel reservation"
+            aria-label="Cancel reservation"
+            disabled={busy || desk.blocked}
+            onClick={() => {
+              if (!confirm('Cancel this reservation?')) return;
+              void run(() => cancelReservation({ reservationId, ...desk.userArgs }));
+            }}
+          >
+            <MdCancel className="h-4 w-4" aria-hidden />
+          </Button>
+        )}
+        {paymentModal}
       </div>
     );
   }
@@ -404,7 +439,7 @@ export function ReservationLifecycleActions({
           </Button>
         )}
       </div>
-      {paymentFields}
+      {paymentModal}
     </div>
   );
 }

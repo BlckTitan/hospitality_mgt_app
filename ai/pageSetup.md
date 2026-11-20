@@ -228,7 +228,7 @@ This document outlines which entities should have dedicated pages and the data f
 - Sort by: lastName, firstName, createdAt
 
 **Actions:**
-- Add / edit guest (full profile: photo, address, DOB, loyalty, contact)
+- Add / edit guest (full profile: photo, address, DOB, loyalty, contact, occupation, state of origin). Spouse biodata (name, phone, occupation) is optional and opens from an “Add spouse biodata” checkbox. The list shows occupation and state of origin.
 - **Book stay** → `/admin/room-management/reservation?guest_id={id}` opens New Reservation with that guest preselected
 - Delete guest only when they have no reservations
 
@@ -247,7 +247,7 @@ This document outlines which entities should have dedicated pages and the data f
 **Data Fetching:**
 - Fetch single `Guest` by `guest_id`
 - Optionally fetch recent `Reservation` history for this guest
-- Show and allow update of photo, contact, address, DOB, loyalty
+- Show and allow update of photo, contact, address, DOB, loyalty, occupation, state of origin, and spouse biodata. Spouse fields appear only while “Add spouse biodata” is checked; saving with it unchecked clears the stored spouse.
 
 **Related Entities to Include:**
 - `Reservation` (where `guestId` matches, with joined `Room` and `RoomType`)

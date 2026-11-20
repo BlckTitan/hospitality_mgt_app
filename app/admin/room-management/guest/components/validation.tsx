@@ -1,4 +1,18 @@
 import * as yup from "yup";
+import { states_lga } from "../../../../../lib/data";
+
+const STATE_NAMES = new Set(states_lga.map((row) => row.state));
+
+const optionalText = (value: unknown, original: unknown) =>
+  original == null || String(original).trim() === "" ? undefined : value;
+
+const personName = (label: string) =>
+  yup
+    .string()
+    .trim()
+    .min(2, `${label} must be at least 2 characters`)
+    .matches(/^[A-Za-z\s'-]+$/, `${label} must contain only letters, spaces, hyphens, and apostrophes`)
+    .required(`${label} is required`);
 
 export const formSchema = yup.object().shape({
   firstName: yup
@@ -48,6 +62,49 @@ export const formSchema = yup.object().shape({
   address: yup
     .string()
     .max(500, "Address is too long"),
+
+  occupation: yup
+    .string()
+    .trim()
+    .transform(optionalText)
+    .optional()
+    .max(80, "Occupation is too long"),
+
+  stateOfOrigin: yup
+    .string()
+    .trim()
+    .transform(optionalText)
+    .optional()
+    .test("known-state", "Choose a Nigerian state", (value) => !value || STATE_NAMES.has(value)),
+
+  includeSpouse: yup.boolean().default(false),
+
+  spouseFirstName: yup.string().when("includeSpouse", {
+    is: true,
+    then: () => personName("Spouse first name"),
+    otherwise: (schema) => schema.transform(() => undefined).notRequired(),
+  }),
+
+  spouseLastName: yup.string().when("includeSpouse", {
+    is: true,
+    then: () => personName("Spouse last name"),
+    otherwise: (schema) => schema.transform(() => undefined).notRequired(),
+  }),
+
+  spousePhone: yup.string().when("includeSpouse", {
+    is: true,
+    then: (schema) => schema
+      .transform(optionalText)
+      .optional()
+      .matches(/^\+?\d{10,15}$/, "Enter a valid phone number (10-15 digits)"),
+    otherwise: (schema) => schema.transform(() => undefined).notRequired(),
+  }),
+
+  spouseOccupation: yup.string().when("includeSpouse", {
+    is: true,
+    then: (schema) => schema.trim().transform(optionalText).optional().max(80, "Spouse occupation is too long"),
+    otherwise: (schema) => schema.transform(() => undefined).notRequired(),
+  }),
 
   dateOfBirth: yup
     .date()

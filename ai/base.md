@@ -125,6 +125,16 @@ interface Guest {
   email?: string;
   phone?: string;
   address?: string;
+  occupation?: string;
+  /** Nigerian state, same list as staff state of origin. */
+  stateOfOrigin?: string;
+  /** Set only when spouse biodata was included. The checkbox itself is not stored. */
+  spouse?: {
+    firstName: string;
+    lastName: string;
+    phone?: string;
+    occupation?: string;
+  };
   dateOfBirth?: Date;
   loyaltyNumber?: string;
   preferences?: Record<string, any>;

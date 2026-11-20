@@ -72,7 +72,7 @@ export function DeskReminders({ propertyId }: { propertyId: Id<'properties'> }) 
         {retainers.length === 0 ? (
           <p className="text-sm text-slate-600">No one to follow up with.</p>
         ) : (
-          <ul className="space-y-3 text-sm">
+          <ul className="max-h-80 space-y-3 overflow-y-auto overscroll-contain pr-1 text-sm">
             {retainers.map((guest) => (
               <li key={guest._id} className="rounded border p-2">
                 <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
@@ -139,10 +139,12 @@ export function RetainerActions({
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Button
           type="button"
+          size="sm"
           variant="outline-secondary"
+          className="shrink-0"
           disabled={desk.blocked}
           onClick={() => run(() => extendStay({ reservationId, extraNights: 1, ...desk.userArgs }))}
         >
@@ -150,16 +152,17 @@ export function RetainerActions({
         </Button>
         <Button
           type="button"
+          size="sm"
           variant="outline-secondary"
+          className="shrink-0"
           disabled={desk.blocked}
           onClick={() => run(() => extendStay({ reservationId, extraNights: 2, ...desk.userArgs }))}
         >
           +2 nights
         </Button>
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
         <select
-          className="rounded border p-1"
+          aria-label="Follow-up"
+          className="min-w-[9rem] flex-1 rounded border p-1"
           value={nextFollowUp}
           onChange={(event) => setNextFollowUp(event.target.value as FollowUp)}
         >
@@ -167,6 +170,8 @@ export function RetainerActions({
             <option key={item.value} value={item.value}>{item.label}</option>
           ))}
         </select>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
         <input
           className="min-w-[10rem] flex-1 rounded border p-1"
           value={nextNote}

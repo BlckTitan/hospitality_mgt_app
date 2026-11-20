@@ -199,12 +199,22 @@ export const getAllReservations = query({
 export const getReservation = query({
   args: { reservationId: v.id('reservations') },
   handler: async (ctx, args) => {
-    const reservation = await ctx.db.get(args.reservationId);
-    if (!reservation) {
-      return { success: false, data: null, message: 'Reservation not found' };
-    }
-    await requirePermission(ctx, 'reservations.read', reservation.propertyId);
     try {
+      const reservation = await ctx.db.get(args.reservationId);
+      if (!reservation) {
+        return { success: false, data: null, message: 'Reservation not found' };
+      }
+      const allowed = await tryRequirePermission(ctx, 'reservations.read', reservation.propertyId);
+      if (!allowed) {
+        const identity = await ctx.auth.getUserIdentity();
+        return {
+          success: false,
+          data: null,
+          message: identity
+            ? 'You do not have access to this reservation'
+            : 'Not authenticated',
+        };
+      }
       const guest = await ctx.db.get(reservation.guestId);
       const room = await ctx.db.get(reservation.roomId);
       const roomType = room ? await ctx.db.get(room.roomTypeId) : null;

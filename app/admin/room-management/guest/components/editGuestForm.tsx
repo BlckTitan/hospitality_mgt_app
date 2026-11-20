@@ -3,13 +3,21 @@ import { useMutation } from "convex/react";
 import { Button } from '../../../../../shared/button';
 import { yupResolver } from "@hookform/resolvers/yup";
 import { formSchema } from "./validation";
-import { FieldValues, SubmitHandler, useForm } from "react-hook-form";
+import { FieldErrors, SubmitHandler, UseFormRegister, useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { api } from "../../../../../convex/_generated/api";
 import InputComponent from "../../../../../shared/input";
 import ImageUpload from "../../../../../shared/imageUpload";
 import { DEFAULT_STAFF_AVATAR_URL } from "../../../../../lib/staffAvatar";
+import { GuestBiodataFields, GuestBiodataValues, spousePayload } from "./guestBiodataFields";
+
+type Spouse = {
+  firstName: string;
+  lastName: string;
+  phone?: string;
+  occupation?: string;
+};
 
 type FormData = {
   id: Id<'guests'>;
@@ -18,6 +26,13 @@ type FormData = {
   email?: string;
   phone?: string;
   address?: string;
+  occupation?: string;
+  stateOfOrigin?: string;
+  includeSpouse?: boolean;
+  spouseFirstName?: string;
+  spouseLastName?: string;
+  spousePhone?: string;
+  spouseOccupation?: string;
   dateOfBirth?: string;
   loyaltyNumber?: string;
   imageUrl?: string | null;
@@ -30,6 +45,9 @@ export function FormComponent({
   email,
   phone,
   address,
+  occupation,
+  stateOfOrigin,
+  spouse,
   dateOfBirth,
   loyaltyNumber,
   imageUrl: initialImageUrl,
@@ -40,6 +58,9 @@ export function FormComponent({
   email?: string;
   phone?: string;
   address?: string;
+  occupation?: string;
+  stateOfOrigin?: string;
+  spouse?: Spouse;
   dateOfBirth?: number;
   loyaltyNumber?: string;
   imageUrl?: string;
@@ -60,6 +81,13 @@ export function FormComponent({
       email: email || '',
       phone: phone || '',
       address: address || '',
+      occupation: occupation || '',
+      stateOfOrigin: stateOfOrigin || '',
+      includeSpouse: Boolean(spouse),
+      spouseFirstName: spouse?.firstName || '',
+      spouseLastName: spouse?.lastName || '',
+      spousePhone: spouse?.phone || '',
+      spouseOccupation: spouse?.occupation || '',
       dateOfBirth: formatDateForInput(dateOfBirth),
       loyaltyNumber: loyaltyNumber || '',
       imageUrl: initialImageUrl || null,
@@ -67,8 +95,9 @@ export function FormComponent({
   });
 
   const imageUrl = watch('imageUrl');
+  const includeSpouse = watch('includeSpouse');
 
-  const onSubmit: SubmitHandler<FormData | FieldValues> = async (data) => {
+  const onSubmit: SubmitHandler<FormData> = async (data) => {
     try {
       const dateOfBirthTimestamp = data.dateOfBirth ? new Date(data.dateOfBirth as string).getTime() : undefined;
 
@@ -79,6 +108,9 @@ export function FormComponent({
         email: data.email || undefined,
         phone: data.phone || undefined,
         address: data.address || undefined,
+        occupation: data.occupation?.trim() || null,
+        stateOfOrigin: data.stateOfOrigin?.trim() || null,
+        spouse: spousePayload(data),
         dateOfBirth: dateOfBirthTimestamp,
         loyaltyNumber: data.loyaltyNumber || undefined,
         imageUrl: data.imageUrl ? data.imageUrl : null,
@@ -186,6 +218,12 @@ export function FormComponent({
             error={errors.address}
           />
         </div>
+
+        <GuestBiodataFields
+          register={register as UseFormRegister<GuestBiodataValues>}
+          errors={errors as FieldErrors<GuestBiodataValues>}
+          includeSpouse={Boolean(includeSpouse)}
+        />
 
         <div
           className='w-full h-fit flex flex-col lg:flex-row lg:justify-start lg:items-center gap-1 
