@@ -1,10 +1,10 @@
 import { mutation, query, MutationCtx, QueryCtx } from './_generated/server';
 import { v } from 'convex/values';
 import { Id } from './_generated/dataModel';
-import { requirePermission, tryRequirePermission } from './lib/rbac';
+import { requirePermission, tryRequirePermission, AuthContext } from './lib/rbac';
+import { resolveDeskOperator } from './lib/deskOperator';
 import { peopleSearchName } from './lib/searchNames';
 import { maybeCreateCheckoutOnCheckOut, maybeCreateStayoverOnCheckIn } from './lib/taskAssignment';
-import { requireFrontOfficeDuty } from './lib/dutyContext';
 import { propertyTimeZone, localDayBounds } from './lib/billingPeriods';
 import {
   DAY_MS,
@@ -54,12 +54,18 @@ async function resolveDeskActor(
   };
 }
 
+const deskActorArgs = {
+  /** Receptionist an administrator is working for. Ignored for the receptionist on shift. */
+  deskUserId: v.optional(v.id('users')),
+};
+
 async function guardFrontOffice(
   ctx: MutationCtx,
+  auth: AuthContext,
   propertyId: Id<'properties'>,
-  userId: Id<'users'>,
+  deskUserId?: Id<'users'>,
 ) {
-  return await requireFrontOfficeDuty(ctx, { userId, propertyId });
+  return await resolveDeskOperator(ctx, { auth, propertyId, deskUserId });
 }
 
 async function bookingConflict(
@@ -278,10 +284,11 @@ export const createReservation = mutation({
     stayKind: v.optional(v.union(v.literal('overnight'), v.literal('short'))),
     durationHours: v.optional(v.number()),
     mayExtend: v.optional(v.boolean()),
+    ...deskActorArgs,
   },
   handler: async (ctx, args) => {
     const auth = await requirePermission(ctx, 'reservations.create', args.propertyId);
-    const duty = await guardFrontOffice(ctx, args.propertyId, auth.user._id);
+    const duty = await guardFrontOffice(ctx, auth, args.propertyId, args.deskUserId);
     if (duty.ok === false) return { success: false, message: duty.message };
     try {
       const hasExisting = Boolean(args.guestId);
@@ -389,15 +396,9 @@ export const createReservation = mutation({
         stayKind,
         ...(durationHours ? { durationHours } : {}),
         ...(stayKind === 'overnight' && args.mayExtend ? { mayExtend: true } : {}),
-        bookedByUserId: auth.user._id,
-        ...(duty.stamp
-          ? {
-              ...(duty.stamp.employeeId
-                ? { bookedByEmployeeId: duty.stamp.employeeId }
-                : {}),
-              bookedShiftId: duty.stamp.shiftId,
-            }
-          : {}),
+        bookedByUserId: duty.operator.userId,
+        ...(duty.operator.staffId ? { bookedByEmployeeId: duty.operator.staffId } : {}),
+        ...(duty.operator.shiftId ? { bookedShiftId: duty.operator.shiftId } : {}),
         createdAt: now,
         updatedAt: now,
       });
@@ -512,14 +513,14 @@ async function recordReservationPayment(
 }
 
 export const generateReservationPaymentUploadUrl = mutation({
-  args: { reservationId: v.id('reservations') },
+  args: { reservationId: v.id('reservations'), ...deskActorArgs },
   handler: async (ctx, args) => {
     const reservation = await ctx.db.get(args.reservationId);
     if (!reservation) {
       throw new Error('Reservation not found');
     }
     const auth = await requirePermission(ctx, 'reservations.update', reservation.propertyId);
-    const duty = await guardFrontOffice(ctx, reservation.propertyId, auth.user._id);
+    const duty = await guardFrontOffice(ctx, auth, reservation.propertyId, args.deskUserId);
     if (duty.ok === false) {
       throw new Error(duty.message);
     }
@@ -541,6 +542,7 @@ export const updateReservation = mutation({
     specialRequests: v.optional(v.string()),
     durationHours: v.optional(v.number()),
     mayExtend: v.optional(v.boolean()),
+    ...deskActorArgs,
   },
   handler: async (ctx, args) => {
     const existingReservation = await ctx.db.get(args.reservationId);
@@ -550,7 +552,7 @@ export const updateReservation = mutation({
     }
 
     const auth = await requirePermission(ctx, 'reservations.update', existingReservation.propertyId);
-    const duty = await guardFrontOffice(ctx, existingReservation.propertyId, auth.user._id);
+    const duty = await guardFrontOffice(ctx, auth, existingReservation.propertyId, args.deskUserId);
     if (duty.ok === false) return { success: false, message: duty.message };
 
     try {
@@ -641,14 +643,14 @@ export const updateReservation = mutation({
 });
 
 export const confirmReservation = mutation({
-  args: { reservationId: v.id('reservations') },
+  args: { reservationId: v.id('reservations'), ...deskActorArgs },
   handler: async (ctx, args) => {
     const reservation = await ctx.db.get(args.reservationId);
     if (!reservation) {
       return { success: false, message: 'Reservation does not exist' };
     }
     const auth = await requirePermission(ctx, 'reservations.update', reservation.propertyId);
-    const duty = await guardFrontOffice(ctx, reservation.propertyId, auth.user._id);
+    const duty = await guardFrontOffice(ctx, auth, reservation.propertyId, args.deskUserId);
     if (duty.ok === false) return { success: false, message: duty.message };
     if (reservation.status !== 'pending') {
       return { success: false, message: 'Only pending reservations can be confirmed' };
@@ -672,6 +674,7 @@ export const checkInReservation = mutation({
     amountCollected: v.optional(v.number()),
     paymentMethod: v.optional(paymentMethodValidator),
     ...paymentEvidenceArgs,
+    ...deskActorArgs,
   },
   handler: async (ctx, args) => {
     const reservation = await ctx.db.get(args.reservationId);
@@ -679,7 +682,7 @@ export const checkInReservation = mutation({
       return { success: false, message: 'Reservation does not exist' };
     }
     const auth = await requirePermission(ctx, 'reservations.update', reservation.propertyId);
-    const duty = await guardFrontOffice(ctx, reservation.propertyId, auth.user._id);
+    const duty = await guardFrontOffice(ctx, auth, reservation.propertyId, args.deskUserId);
     if (duty.ok === false) return { success: false, message: duty.message };
     if (reservation.status !== 'pending' && reservation.status !== 'confirmed') {
       return { success: false, message: 'Only pending or confirmed reservations can be checked in' };
@@ -714,7 +717,7 @@ export const checkInReservation = mutation({
       reservationId: reservation._id,
       amount,
       paymentMethod,
-      createdBy: auth.user._id,
+      createdBy: duty.operator.userId,
       cashAttested: args.cashAttested,
       evidenceStorageId: args.evidenceStorageId,
       evidenceFileName: args.evidenceFileName,
@@ -730,22 +733,16 @@ export const checkInReservation = mutation({
     await ctx.db.patch(args.reservationId, {
       status: 'checked-in',
       checkedInAt: now,
-      checkedInByUserId: auth.user._id,
-      ...(duty.stamp
-        ? {
-            ...(duty.stamp.employeeId
-              ? { checkedInByEmployeeId: duty.stamp.employeeId }
-              : {}),
-            checkedInShiftId: duty.stamp.shiftId,
-          }
-        : {}),
+      checkedInByUserId: duty.operator.userId,
+      ...(duty.operator.staffId ? { checkedInByEmployeeId: duty.operator.staffId } : {}),
+      ...(duty.operator.shiftId ? { checkedInShiftId: duty.operator.shiftId } : {}),
       depositAmount: nextDeposit,
       updatedAt: now,
     });
     await syncRoomOccupancy(ctx, reservation.roomId);
     const updated = await ctx.db.get(args.reservationId);
     if (updated) {
-      await maybeCreateStayoverOnCheckIn(ctx, updated, auth.user._id);
+      await maybeCreateStayoverOnCheckIn(ctx, updated, duty.operator.userId);
     }
     return { success: true, message: 'Guest checked in' };
   },
@@ -757,6 +754,7 @@ export const checkOutReservation = mutation({
     amountCollected: v.optional(v.number()),
     paymentMethod: v.optional(paymentMethodValidator),
     ...paymentEvidenceArgs,
+    ...deskActorArgs,
   },
   handler: async (ctx, args) => {
     const reservation = await ctx.db.get(args.reservationId);
@@ -764,7 +762,7 @@ export const checkOutReservation = mutation({
       return { success: false, message: 'Reservation does not exist' };
     }
     const auth = await requirePermission(ctx, 'reservations.update', reservation.propertyId);
-    const duty = await guardFrontOffice(ctx, reservation.propertyId, auth.user._id);
+    const duty = await guardFrontOffice(ctx, auth, reservation.propertyId, args.deskUserId);
     if (duty.ok === false) return { success: false, message: duty.message };
     if (reservation.status !== 'checked-in') {
       return { success: false, message: 'Only checked-in reservations can be checked out' };
@@ -778,7 +776,7 @@ export const checkOutReservation = mutation({
       reservationId: reservation._id,
       amount,
       paymentMethod,
-      createdBy: auth.user._id,
+      createdBy: duty.operator.userId,
       cashAttested: args.cashAttested,
       evidenceStorageId: args.evidenceStorageId,
       evidenceFileName: args.evidenceFileName,
@@ -793,35 +791,29 @@ export const checkOutReservation = mutation({
     await ctx.db.patch(args.reservationId, {
       status: 'checked-out',
       checkedOutAt: now,
-      checkedOutByUserId: auth.user._id,
-      ...(duty.stamp
-        ? {
-            ...(duty.stamp.employeeId
-              ? { checkedOutByEmployeeId: duty.stamp.employeeId }
-              : {}),
-            checkedOutShiftId: duty.stamp.shiftId,
-          }
-        : {}),
+      checkedOutByUserId: duty.operator.userId,
+      ...(duty.operator.staffId ? { checkedOutByEmployeeId: duty.operator.staffId } : {}),
+      ...(duty.operator.shiftId ? { checkedOutShiftId: duty.operator.shiftId } : {}),
       updatedAt: now,
     });
     await syncRoomOccupancy(ctx, reservation.roomId);
     const updated = await ctx.db.get(args.reservationId);
     if (updated) {
-      await maybeCreateCheckoutOnCheckOut(ctx, updated, auth.user._id);
+      await maybeCreateCheckoutOnCheckOut(ctx, updated, duty.operator.userId);
     }
     return { success: true, message: 'Guest checked out' };
   },
 });
 
 export const cancelReservation = mutation({
-  args: { reservationId: v.id('reservations') },
+  args: { reservationId: v.id('reservations'), ...deskActorArgs },
   handler: async (ctx, args) => {
     const reservation = await ctx.db.get(args.reservationId);
     if (!reservation) {
       return { success: false, message: 'Reservation does not exist' };
     }
     const auth = await requirePermission(ctx, 'reservations.update', reservation.propertyId);
-    const duty = await guardFrontOffice(ctx, reservation.propertyId, auth.user._id);
+    const duty = await guardFrontOffice(ctx, auth, reservation.propertyId, args.deskUserId);
     if (duty.ok === false) return { success: false, message: duty.message };
     if (reservation.status !== 'pending' && reservation.status !== 'confirmed') {
       return { success: false, message: 'Only pending or confirmed reservations can be cancelled' };
@@ -833,7 +825,7 @@ export const cancelReservation = mutation({
 });
 
 export const deleteReservation = mutation({
-  args: { reservationId: v.id('reservations') },
+  args: { reservationId: v.id('reservations'), ...deskActorArgs },
   handler: async (ctx, args) => {
     const existingReservation = await ctx.db.get(args.reservationId);
 
@@ -842,7 +834,7 @@ export const deleteReservation = mutation({
     }
 
     const auth = await requirePermission(ctx, 'reservations.delete', existingReservation.propertyId);
-    const duty = await guardFrontOffice(ctx, existingReservation.propertyId, auth.user._id);
+    const duty = await guardFrontOffice(ctx, auth, existingReservation.propertyId, args.deskUserId);
     if (duty.ok === false) return { success: false, message: duty.message };
 
     try {
@@ -872,12 +864,13 @@ export const extendOvernightStay = mutation({
   args: {
     reservationId: v.id('reservations'),
     extraNights: v.union(v.literal(1), v.literal(2)),
+    ...deskActorArgs,
   },
   handler: async (ctx, args) => {
     const reservation = await ctx.db.get(args.reservationId);
     if (!reservation) return { success: false, message: 'Reservation does not exist' };
     const auth = await requirePermission(ctx, 'reservations.update', reservation.propertyId);
-    const duty = await guardFrontOffice(ctx, reservation.propertyId, auth.user._id);
+    const duty = await guardFrontOffice(ctx, auth, reservation.propertyId, args.deskUserId);
     if (duty.ok === false) return { success: false, message: duty.message };
     if (reservation.status !== 'checked-in' || isShortStay(reservation)) {
       return { success: false, message: 'Only a checked-in overnight guest can extend' };
@@ -901,8 +894,8 @@ export const extendOvernightStay = mutation({
       totalAmount: nightly * (nights + args.extraNights),
       retainerFollowUp: 'extending',
       retainerFollowedUpAt: now,
-      retainerFollowedUpByUserId: auth.user._id,
-      ...(duty.stamp.employeeId ? { retainerFollowedUpByEmployeeId: duty.stamp.employeeId } : {}),
+      retainerFollowedUpByUserId: duty.operator.userId,
+      ...(duty.operator.staffId ? { retainerFollowedUpByEmployeeId: duty.operator.staffId } : {}),
       updatedAt: now,
     });
     return {
@@ -917,12 +910,13 @@ export const recordRetainerFollowUp = mutation({
     reservationId: v.id('reservations'),
     followUp: retainerFollowUpValidator,
     note: v.optional(v.string()),
+    ...deskActorArgs,
   },
   handler: async (ctx, args) => {
     const reservation = await ctx.db.get(args.reservationId);
     if (!reservation) return { success: false, message: 'Reservation does not exist' };
     const auth = await requirePermission(ctx, 'reservations.update', reservation.propertyId);
-    const duty = await guardFrontOffice(ctx, reservation.propertyId, auth.user._id);
+    const duty = await guardFrontOffice(ctx, auth, reservation.propertyId, args.deskUserId);
     if (duty.ok === false) return { success: false, message: duty.message };
     if (reservation.status !== 'checked-in' || isShortStay(reservation)) {
       return { success: false, message: 'Follow-up is for a checked-in overnight guest' };
@@ -932,8 +926,8 @@ export const recordRetainerFollowUp = mutation({
     await ctx.db.patch(args.reservationId, {
       retainerFollowUp: args.followUp,
       retainerFollowedUpAt: now,
-      retainerFollowedUpByUserId: auth.user._id,
-      ...(duty.stamp.employeeId ? { retainerFollowedUpByEmployeeId: duty.stamp.employeeId } : {}),
+      retainerFollowedUpByUserId: duty.operator.userId,
+      ...(duty.operator.staffId ? { retainerFollowedUpByEmployeeId: duty.operator.staffId } : {}),
       ...(note ? { retainerNote: note } : {}),
       updatedAt: now,
     });

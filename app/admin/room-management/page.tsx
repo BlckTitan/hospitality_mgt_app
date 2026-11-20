@@ -6,6 +6,7 @@ import { api } from '../../../convex/_generated/api';
 import { OccupancyCalendar } from './occupancy/occupancyCalendar';
 import { RoomPageGuide } from './components/roomPageGuide';
 import { DeskReminders } from './components/deskReminders';
+import { DeskOperatorBar } from './components/deskOperator';
 import { LodgingSummary } from './summary/lodgingSummary';
 
 export default function RoomManagementPage() {
@@ -44,6 +45,7 @@ export default function RoomManagementPage() {
       </div>
         <BackLink />
       </header>
+      <DeskOperatorBar />
       <DeskReminders propertyId={currentPropertyId} />
       <LodgingSummary propertyId={currentPropertyId} />
       <h2 className="mb-3 text-base font-semibold text-slate-900">Occupancy</h2>

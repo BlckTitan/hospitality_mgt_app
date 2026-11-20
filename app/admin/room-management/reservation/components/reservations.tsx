@@ -12,6 +12,7 @@ import { TableColumn } from "../../../../../shared/table";
 import PaginationComponent from "../../../../../shared/pagination";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { ReservationLifecycleActions, ReservationStatusBadge } from "./reservationLifecycle";
+import { useDeskOperator } from "../../components/deskOperator";
 import { formatPropertyMoney, usePropertyCurrency } from "../../../inventory-management/components/money";
 
 interface ReservationProps {
@@ -57,12 +58,13 @@ interface ReservationProps {
 
 const Reservations = ({ propertyId }: { propertyId: string }) => {
   const currency = usePropertyCurrency(propertyId);
+  const desk = useDeskOperator();
   const removeReservation = useMutation(api.reservations.deleteReservation);
 
   const handleDelete = async (id: string, confirmationNumber: string) => {
     if (!confirm('Are you sure you want to delete reservation: ' + confirmationNumber + '?')) return;
     try {
-      const response = await removeReservation({ reservationId: id as Id<'reservations'> });
+      const response = await removeReservation({ reservationId: id as Id<'reservations'>, ...desk.userArgs });
 
       if (response.success === true) {
         toast.success(response.message);
@@ -177,7 +179,7 @@ const Reservations = ({ propertyId }: { propertyId: string }) => {
               variant='white'
               onClick={() => handleDelete(row._id, row.confirmationNumber)}
               title='Delete reservation'
-              disabled={row.status === 'checked-in' || row.status === 'checked-out'}
+              disabled={desk.blocked || row.status === 'checked-in' || row.status === 'checked-out'}
             >
               <i className='icon'>
                 <FcEmptyTrash />

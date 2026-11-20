@@ -8,7 +8,7 @@ import { api } from '../../../../convex/_generated/api';
 import { Id } from '../../../../convex/_generated/dataModel';
 import { Button } from '../../../../shared/button';
 import { formatPropertyMoney, usePropertyCurrency } from '../../inventory-management/components/money';
-import { useFrontOfficeDuty } from './useFrontOfficeDuty';
+import { useDeskOperator } from './deskOperator';
 
 const FOLLOW_UP = [
   { value: 'not-contacted', label: 'Not contacted' },
@@ -117,7 +117,7 @@ export function RetainerActions({
   followedUpBy?: string | null;
   followedUpAt?: number | null;
 }) {
-  const desk = useFrontOfficeDuty();
+  const desk = useDeskOperator();
   const extendStay = useMutation(api.reservations.extendOvernightStay);
   const recordFollowUp = useMutation(api.reservations.recordRetainerFollowUp);
   const [nextFollowUp, setNextFollowUp] = useState<FollowUp>(
@@ -144,7 +144,7 @@ export function RetainerActions({
           type="button"
           variant="outline-secondary"
           disabled={desk.blocked}
-          onClick={() => run(() => extendStay({ reservationId, extraNights: 1 }))}
+          onClick={() => run(() => extendStay({ reservationId, extraNights: 1, ...desk.userArgs }))}
         >
           +1 night
         </Button>
@@ -152,7 +152,7 @@ export function RetainerActions({
           type="button"
           variant="outline-secondary"
           disabled={desk.blocked}
-          onClick={() => run(() => extendStay({ reservationId, extraNights: 2 }))}
+          onClick={() => run(() => extendStay({ reservationId, extraNights: 2, ...desk.userArgs }))}
         >
           +2 nights
         </Button>
@@ -181,6 +181,7 @@ export function RetainerActions({
             reservationId,
             followUp: nextFollowUp,
             note: nextNote.trim() || undefined,
+            ...desk.userArgs,
           }))}
         >
           Save follow-up

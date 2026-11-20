@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { api } from '../../../../../convex/_generated/api';
 import { Id } from '../../../../../convex/_generated/dataModel';
 import { formatPropertyMoney } from '../../../inventory-management/components/money';
-import { useFrontOfficeDuty } from '../../components/useFrontOfficeDuty';
+import { useDeskOperator } from '../../components/deskOperator';
 
 type PaymentMethod = 'cash' | 'card' | 'bank_transfer' | 'other';
 
@@ -123,7 +123,7 @@ export function ReservationLifecycleActions({
   currency?: string;
   layout?: 'full' | 'compact';
 }) {
-  const desk = useFrontOfficeDuty();
+  const desk = useDeskOperator();
   const confirmReservation = useMutation(api.reservations.confirmReservation);
   const checkInReservation = useMutation(api.reservations.checkInReservation);
   const checkOutReservation = useMutation(api.reservations.checkOutReservation);
@@ -200,7 +200,7 @@ export function ReservationLifecycleActions({
       if (method === 'cash') {
         evidence = { cashAttested: true };
       } else if (receiptFile) {
-        const postUrl = await generateUploadUrl({ reservationId });
+        const postUrl = await generateUploadUrl({ reservationId, ...desk.userArgs });
         const result = await fetch(postUrl, {
           method: 'POST',
           headers: { 'Content-Type': receiptFile.type || 'application/octet-stream' },
@@ -227,6 +227,7 @@ export function ReservationLifecycleActions({
           amountCollected: collected,
           paymentMethod: method,
           ...evidence,
+          ...desk.userArgs,
         }),
       );
     }
@@ -236,6 +237,7 @@ export function ReservationLifecycleActions({
         amountCollected: collected,
         paymentMethod: method,
         ...evidence,
+        ...desk.userArgs,
       }),
     );
   };
@@ -304,10 +306,6 @@ export function ReservationLifecycleActions({
     </div>
   ) : null;
 
-  const dutyNote = desk.message ? (
-    <p className={`mb-0 text-sm ${desk.blocked ? 'text-amber-800' : 'text-gray-700'}`}>{desk.message}</p>
-  ) : null;
-
   if (layout === 'compact') {
     return (
       <div className="flex flex-col items-start gap-1">
@@ -319,7 +317,7 @@ export function ReservationLifecycleActions({
               disabled={busy || desk.blocked}
               onClick={() => {
                 if (!confirm('Confirm this reservation?')) return;
-                void run(() => confirmReservation({ reservationId }));
+                void run(() => confirmReservation({ reservationId, ...desk.userArgs }));
               }}
             >
               Confirm
@@ -342,7 +340,7 @@ export function ReservationLifecycleActions({
               disabled={busy || desk.blocked}
               onClick={() => {
                 if (!confirm('Cancel this reservation?')) return;
-                void run(() => cancelReservation({ reservationId }));
+                void run(() => cancelReservation({ reservationId, ...desk.userArgs }));
               }}
             >
               Cancel
@@ -367,7 +365,6 @@ export function ReservationLifecycleActions({
           <p className="mb-0"><strong>Balance:</strong> {formatPropertyMoney(remaining, currency)}</p>
         </div>
       </div>
-      {dutyNote ? <div className="mt-2">{dutyNote}</div> : null}
       <p className="mt-2 mb-0 text-sm text-gray-600">
         Status changes only through these actions. Payment over zero needs evidence — cash attestation or a receipt file.
       </p>
@@ -378,7 +375,7 @@ export function ReservationLifecycleActions({
             disabled={busy || desk.blocked}
             onClick={() => {
               if (!confirm('Confirm this reservation?')) return;
-              void run(() => confirmReservation({ reservationId }));
+              void run(() => confirmReservation({ reservationId, ...desk.userArgs }));
             }}
           >
             Confirm
@@ -400,7 +397,7 @@ export function ReservationLifecycleActions({
             disabled={busy || desk.blocked}
             onClick={() => {
               if (!confirm('Cancel this reservation?')) return;
-              void run(() => cancelReservation({ reservationId }));
+              void run(() => cancelReservation({ reservationId, ...desk.userArgs }));
             }}
           >
             Cancel stay

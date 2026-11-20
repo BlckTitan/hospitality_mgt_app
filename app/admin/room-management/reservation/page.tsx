@@ -12,7 +12,7 @@ import BootstrapModal from '../../../../shared/modal';
 import { RoomPageGuide } from '../components/roomPageGuide';
 import { DeskReminders } from '../components/deskReminders';
 import { useSearchParams } from 'next/navigation';
-import { useFrontOfficeDuty } from '../components/useFrontOfficeDuty';
+import { DeskOperatorBar, useDeskOperator } from '../components/deskOperator';
 
 export default function ReservationPage() {
   return (
@@ -32,7 +32,7 @@ function ReservationPageInner() {
   const [modalShow, setModalShow] = useState(false);
   const [initialGuestId, setInitialGuestId] = useState<string | null>(null);
 
-  const desk = useFrontOfficeDuty();
+  const desk = useDeskOperator();
   const propertiesResponse = useQuery(api.property.getAllProperties);
   const properties = propertiesResponse?.data || [];
   const currentProperty = properties[0];
@@ -74,9 +74,7 @@ function ReservationPageInner() {
       <div className="min-w-0">
         <h1 className="text-2xl font-bold text-gray-800">Reservations</h1>
         <RoomPageGuide page="reservations" />
-        {desk.message ? (
-          <p className={`text-sm mt-1 mb-0 ${desk.blocked ? 'text-amber-800' : 'text-gray-700'}`}>{desk.message}</p>
-        ) : null}
+        <DeskOperatorBar />
       </div>
         <div className="flex items-center gap-3">
           <BackLink />

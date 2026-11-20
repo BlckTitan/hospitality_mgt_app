@@ -21,6 +21,7 @@ import type * as cashSettlements from "../cashSettlements.js";
 import type * as cron from "../cron.js";
 import type * as crons from "../crons.js";
 import type * as dashboard from "../dashboard.js";
+import type * as deskDuty from "../deskDuty.js";
 import type * as expenseCategories from "../expenseCategories.js";
 import type * as expenses from "../expenses.js";
 import type * as functions_paginated from "../functions/paginated.js";
@@ -40,6 +41,7 @@ import type * as lib_beverageCategoryCatalog from "../lib/beverageCategoryCatalo
 import type * as lib_billingPeriods from "../lib/billingPeriods.js";
 import type * as lib_categoryNames from "../lib/categoryNames.js";
 import type * as lib_clockMethod from "../lib/clockMethod.js";
+import type * as lib_deskOperator from "../lib/deskOperator.js";
 import type * as lib_dutyContext from "../lib/dutyContext.js";
 import type * as lib_expenseCategoryCatalog from "../lib/expenseCategoryCatalog.js";
 import type * as lib_fieldText from "../lib/fieldText.js";
@@ -134,6 +136,7 @@ declare const fullApi: ApiFromModules<{
   cron: typeof cron;
   crons: typeof crons;
   dashboard: typeof dashboard;
+  deskDuty: typeof deskDuty;
   expenseCategories: typeof expenseCategories;
   expenses: typeof expenses;
   "functions/paginated": typeof functions_paginated;
@@ -153,6 +156,7 @@ declare const fullApi: ApiFromModules<{
   "lib/billingPeriods": typeof lib_billingPeriods;
   "lib/categoryNames": typeof lib_categoryNames;
   "lib/clockMethod": typeof lib_clockMethod;
+  "lib/deskOperator": typeof lib_deskOperator;
   "lib/dutyContext": typeof lib_dutyContext;
   "lib/expenseCategoryCatalog": typeof lib_expenseCategoryCatalog;
   "lib/fieldText": typeof lib_fieldText;

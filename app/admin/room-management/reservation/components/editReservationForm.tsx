@@ -12,7 +12,7 @@ import InputComponent from "../../../../../shared/input";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { ReservationLifecycleActions, ReservationPaymentHistory } from "./reservationLifecycle";
 import { formatPropertyMoney, usePropertyCurrency } from "../../../inventory-management/components/money";
-import { useFrontOfficeDuty } from "../../components/useFrontOfficeDuty";
+import { DeskOperatorBar, useDeskOperator } from "../../components/deskOperator";
 import { RetainerActions } from "../../components/deskReminders";
 
 type FormData = {
@@ -94,7 +94,7 @@ export function FormComponent({
     } | null;
   }>;
 }) {
-  const desk = useFrontOfficeDuty();
+  const desk = useDeskOperator();
   const updateReservation = useMutation(api.reservations.updateReservation);
   const currency = usePropertyCurrency(propertyId);
   const roomsResponse = useQuery(api.rooms.getAllRooms, { propertyId: propertyId as Id<'properties'> });
@@ -192,6 +192,7 @@ export function FormComponent({
         mayExtend: stayKind === 'overnight' ? Boolean(data.mayExtend) : false,
         source: data.source as 'direct' | 'ota' | 'walk-in' | 'phone' | 'other' | undefined,
         specialRequests: data.specialRequests || undefined,
+        ...desk.userArgs,
       });
 
       if (response.success === false) {
@@ -233,6 +234,7 @@ export function FormComponent({
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className='editReservationForm'>
+      <DeskOperatorBar />
       <ReservationLifecycleActions
         reservationId={id}
         status={status}
@@ -260,10 +262,6 @@ export function FormComponent({
           Checked out by: <span className="font-medium text-gray-900">{checkedOutBy.name}</span>
         </p>
       ) : null}
-      {desk.message ? (
-        <p className={`mb-4 text-sm ${desk.blocked ? 'text-amber-800' : 'text-gray-700'}`}>{desk.message}</p>
-      ) : null}
-
       {isClosed && (
         <p className="mb-4 text-sm text-gray-600">
           This reservation is {status === 'checked-out' ? 'checked out' : 'cancelled'} and can no longer be edited.
