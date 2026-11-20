@@ -11,6 +11,8 @@ import { TableColumn } from "../../../../../shared/table";
 import PaginationComponent from "../../../../../shared/pagination";
 import ImageThumbnail from "../../../../../shared/imageThumbnail";
 import { formatPropertyMoney, usePropertyCurrency } from "../../../inventory-management/components/money";
+import { usePermissions } from "../../../../../hooks/usePermissions";
+import { showRoomListActions } from "../../../../../lib/roomListAccess";
 
 interface RoomTypeProps {
   _id: string;
@@ -29,6 +31,8 @@ interface RoomTypeProps {
 const RoomTypes = ({ propertyId }: { propertyId: string }) => {
   const removeRoomType = useMutation(api.roomTypes.deleteRoomType);
   const currency = usePropertyCurrency(propertyId);
+  const { roles, isLoading: permissionsLoading } = usePermissions();
+  const showActions = !permissionsLoading && showRoomListActions(roles);
 
   const handleDelete = async (id: string, name: string) => {
     if (!confirm('Are you sure you want to delete room type: ' + name + '?')) return;
@@ -65,7 +69,16 @@ const RoomTypes = ({ propertyId }: { propertyId: string }) => {
       ),
     },
     { label: 'Room Type', key: 'name' },
-    { label: 'Description', key: 'description' },
+    {
+      label: 'Description',
+      key: 'description',
+      className: '!w-40 !max-w-40 !whitespace-normal overflow-hidden',
+      render: (_value, row) => (
+        <span className="line-clamp-2 block w-40" title={row.description || undefined}>
+          {row.description || ''}
+        </span>
+      ),
+    },
     {
       label: 'Max Occupancy',
       key: 'maxOccupancy',
@@ -132,7 +145,11 @@ const RoomTypes = ({ propertyId }: { propertyId: string }) => {
   return (
     <div className='w-full h-full overflow-x-scroll lg:!overflow-x-hidden'>
       <Suspense>
-        <PaginationComponent collectionName='roomTypes' columns={tableColumns} propertyId={propertyId} />
+        <PaginationComponent
+          collectionName='roomTypes'
+          columns={showActions ? tableColumns : tableColumns.filter((column) => column.label !== 'Action')}
+          propertyId={propertyId}
+        />
       </Suspense>
     </div>
   );

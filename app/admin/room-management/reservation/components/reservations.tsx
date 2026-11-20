@@ -1,6 +1,8 @@
 'use client';
 import { goToList } from '../../../../../shared/goToList';
 
+import { FcEmptyTrash } from "react-icons/fc";
+import { MdEditDocument } from "react-icons/md";
 import { Button } from '../../../../../shared/button';
 import { Suspense } from "react";
 import { useMutation } from "convex/react";
@@ -169,20 +171,22 @@ const Reservations = ({ propertyId, timeZone }: { propertyId: string; timeZone?:
             <>
               <a
                 href={`/admin/room-management/reservation/edit?reservation_id=${row._id}`}
-                className="inline-flex h-8 min-w-0 flex-1 items-center justify-center rounded-md border border-amber-500 px-1 text-sm font-medium text-amber-600 no-underline hover:bg-amber-50"
+                className="!no-underline !text-amber-400"
                 title="Edit booking details"
+                aria-label="Edit booking details"
               >
-                Edit
+                <i className="icon"><MdEditDocument /></i>
               </a>
               <Button
-                variant="outline-danger"
-                size="sm"
-                className="min-w-0 flex-1 px-1"
+                variant="white"
                 onClick={() => handleDelete(row._id, row.confirmationNumber)}
                 title="Delete reservation"
+                aria-label="Delete reservation"
                 disabled={desk.blocked || row.status === 'checked-in' || row.status === 'checked-out'}
               >
-                Delete
+                <i className="icon">
+                  <FcEmptyTrash />
+                </i>
               </Button>
             </>
           }

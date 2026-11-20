@@ -108,6 +108,11 @@ Legend:
 - reservations.checkout
 - reservations.cancel
 
+**Rooms and room types lists** (`/admin/room-management/room`, `/admin/room-management/room-type`):
+- Receptionist: no Action column (edit and delete stay off the list). Room type Description is a narrow two-line column.
+- A receptionist who also holds Administrator, Director, General Manager, Operations Manager, IT Manager, Manager, Assistant Manager, or Supervisor still sees Action.
+- This is list UI only. The Receptionist matrix cell for rooms stays FULL.
+
 ### Financial Management
 - finance.view
 - finance.charge

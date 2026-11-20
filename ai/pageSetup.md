@@ -136,6 +136,11 @@ This document outlines which entities should have dedicated pages and the data f
 ### 7. Room Types Page (`/room-types`)
 **Purpose**: Manage room type categories
 
+**List:**
+- Columns: image, name, description, max occupancy, base rate, amenities, status, created at, and Action (edit / delete)
+- Description is a narrow column (`w-40`) and wraps to two lines; the full text is on the cell tooltip
+- Receptionists do not see Action. A receptionist who also holds Administrator, Director, General Manager, Operations Manager, IT Manager, Manager, Assistant Manager, or Supervisor still does
+
 **Data Fetching:**
 - Fetch all `RoomType` records for current property (with pagination)
 - Include count of `Room` records per room type
@@ -172,6 +177,10 @@ This document outlines which entities should have dedicated pages and the data f
 
 ### 9. Rooms Page (`/rooms`)
 **Purpose**: Manage room inventory and status
+
+**List:**
+- Columns include room number, room type, floor, status, ready, last cleaned, active, created at, and Action (edit / delete)
+- Receptionists do not see Action. A receptionist who also holds Administrator, Director, General Manager, Operations Manager, IT Manager, Manager, Assistant Manager, or Supervisor still does
 
 **Data Fetching:**
 - Fetch all `Room` records for current property (with pagination)

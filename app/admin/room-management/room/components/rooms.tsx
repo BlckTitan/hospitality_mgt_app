@@ -11,6 +11,8 @@ import { api } from "../../../../../convex/_generated/api";
 import { TableColumn } from "../../../../../shared/table";
 import PaginationComponent from "../../../../../shared/pagination";
 import { Id } from "../../../../../convex/_generated/dataModel";
+import { usePermissions } from "../../../../../hooks/usePermissions";
+import { showRoomListActions } from "../../../../../lib/roomListAccess";
 
 interface RoomProps {
   _id: string;
@@ -36,6 +38,8 @@ interface RoomProps {
 const Rooms = ({ currentPropertyId }: { currentPropertyId: Id<"properties"> }) => {
   const roomData = useQuery(api.rooms.getAllRooms, { propertyId: currentPropertyId }); //data from rooms
   const removeRoom = useMutation(api.rooms.deleteRoom);
+  const { roles, isLoading: permissionsLoading } = usePermissions();
+  const showActions = !permissionsLoading && showRoomListActions(roles);
 
   const handleDelete = async (id: string, roomNumber: string) => {
     if (!confirm('Are you sure you want to delete room: ' + roomNumber + '?')) return;
@@ -171,7 +175,7 @@ const Rooms = ({ currentPropertyId }: { currentPropertyId: Id<"properties"> }) =
       <Suspense>
         <PaginationComponent 
           collectionName='rooms' 
-          columns={tableColumns}
+          columns={showActions ? tableColumns : tableColumns.filter((column) => column.label !== 'Action')}
           propertyId={currentPropertyId}
           jointTableData={roomData.success === true ? roomData.data : []}
         />

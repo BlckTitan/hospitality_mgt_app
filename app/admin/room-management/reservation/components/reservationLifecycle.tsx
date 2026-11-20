@@ -3,6 +3,7 @@
 import { useMutation } from 'convex/react';
 import { ReactNode, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { MdCancel } from 'react-icons/md';
 import { Button } from '../../../../../shared/button';
 import BootstrapModal, { Modal } from '../../../../../shared/modal';
 import { toast } from 'sonner';
@@ -375,20 +376,22 @@ export function ReservationLifecycleActions({
           </Button>
         )}
         {showRow && (
-          <div className="flex w-full gap-1">
+          <div className="flex items-center gap-1">
             {canCancel && (
               <Button
-                variant="outline-danger"
-                size="sm"
-                className="min-w-0 flex-1 px-1"
+                variant="white"
                 title="Cancel reservation"
+                aria-label="Cancel reservation"
+                className="px-2 text-red-600"
                 disabled={busy || desk.blocked}
                 onClick={() => {
                   if (!confirm('Cancel this reservation?')) return;
                   void run(() => cancelReservation({ reservationId, ...desk.userArgs }));
                 }}
               >
-                Cancel
+                <i className="icon">
+                  <MdCancel />
+                </i>
               </Button>
             )}
             {rowActions}

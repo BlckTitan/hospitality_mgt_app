@@ -9,6 +9,8 @@ export interface TableColumn<T> {
   render?: (value: any, row: T) => ReactNode
   /** Keep this column at the left edge while the rest of the row scrolls. */
   pin?: 'left'
+  /** Extra classes for this column's header and cells. */
+  className?: string
 }
 
 interface TableProps<T> {
@@ -36,7 +38,7 @@ function TableComponent<T extends Record<string, any>>({ data, columns, showInde
           <tr>
             {showIndex && <th className={headCell}>SN</th>}
             {columns?.map((items, index) => (
-              <th key={index} className={cn(headCell, items.pin === 'left' && pinHead)}>
+              <th key={index} className={cn(headCell, items.pin === 'left' && pinHead, items.className)}>
                 {items.label}
               </th>
             ))}
@@ -48,7 +50,7 @@ function TableComponent<T extends Record<string, any>>({ data, columns, showInde
               <tr key={index} className="group odd:bg-white even:bg-neutral-50 hover:bg-neutral-100">
                 {showIndex && <td className={bodyCell}>{index + 1}</td>}
                 {columns.map((col, i) => (
-                  <td key={i} className={cn(bodyCell, col.pin === 'left' && pinBody)}>
+                  <td key={i} className={cn(bodyCell, col.pin === 'left' && pinBody, col.className)}>
                     {col.render ? col.render(row[col.key], row) : (row[col.key] as ReactNode)}
                   </td>
                 ))}
