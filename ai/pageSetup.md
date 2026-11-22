@@ -282,7 +282,11 @@ This document outlines which entities should have dedicated pages and the data f
 - Check-in cannot be before today for a receptionist: overnight uses the calendar day, and a short stay cannot start before midnight today (property timezone on the server). An administrator (`isAdministratorAtProperty`) may create a stay whose check-in is already in the past. Check-out must still be after check-in.
 - Overnight form can mark **May extend**
 - One submit → `createReservation` with either `guestId` or `newGuest`; server sets `bookedByUserId` from the receptionist on the desk
+<<<<<<< HEAD
 - An administrator is not a receptionist. The reservation dropdown lists every active receptionist at the property, on duty or not. Administrators are left out. The administrator picks one; that person is recorded on the booking
+=======
+- An administrator is not a receptionist. The reservation dropdown lists receptionists on the front desk only (`staff.role` Receptionist, and not an Administrator at the property). The administrator picks one; that person is recorded on the booking
+>>>>>>> ceb3705c88838781ecac9b91f66e6430dc435676
 - Optional deep link `?guest_id=` from Guests **Book stay**
 - List shows Stay: Overnight, or Short plus hours
 
