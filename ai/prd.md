@@ -52,6 +52,7 @@ Hospitality operators juggle siloed systems for reservations, POS, payroll, proc
   - PMS integrations for reservation ingestion and synchronization (for businesses with existing PMS).
   - Room inventory, status, rates, occupancy forecasts.
   - Short stays: 1–7 hour day-use with a package price per length. A room reserved overnight is not offered for a short stay on those nights.
+  - Check-in cannot be in the past for a receptionist. An administrator can book a stay that already started. Check-out must still be after check-in.
   - Retainer follow-up: reminder list for checked-in overnight guests whose checkout is near or who may extend, with +1 / +2 night actions.
   - Revenue tracking: room sales, discounts, net revPAR metrics.
   - Housekeeping assignments, checklists, supplies usage (lead + helpers; see Task Assignment).
@@ -129,7 +130,7 @@ Hospitality operators juggle siloed systems for reservations, POS, payroll, proc
 
 - **Native Reservation Management** (for businesses without PMS):
   - Guest profile management and history.
-  - Reservation creation, modification, cancellation workflows.
+  - Reservation creation, modification, cancellation workflows. Receptionists cannot create a check-in before today. Administrators can.
   - Check-in/check-out processes with payment collection.
   - Channel management for direct bookings.
   - Rate management and promotional pricing.

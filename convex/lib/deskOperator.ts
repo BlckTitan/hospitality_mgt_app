@@ -3,6 +3,7 @@ import { MutationCtx, QueryCtx } from "../_generated/server";
 import { localDayBounds, propertyTimeZone } from "./billingPeriods";
 import { requireFrontOfficeDuty } from "./dutyContext";
 import { AuthContext, isAdministratorAtProperty } from "./rbac";
+import { ADMINISTRATOR_ROLE_NAME } from "./systemRoles";
 import { placementForStaff, zonedWallTimeToUtc } from "./rotation";
 import { isActiveStatus } from "./staffAccess";
 import { findOpenShiftNear, staffDisplayName, staffForUser } from "./shiftHelpers";
@@ -20,6 +21,35 @@ export const NOBODY_ON_ROTATION = "Nobody is on rotation at the front desk.";
 export const CHOOSE_RECEPTIONIST = "Choose the receptionist this booking belongs to.";
 const OWN_DESK = "You can only work your own desk.";
 const NOT_ON_ROTATION = "That person is not on rotation at the front desk.";
+
+const ADMINISTRATOR_ROLE_NAMES = new Set([
+  ADMINISTRATOR_ROLE_NAME.trim().toLowerCase(),
+  "admin",
+  "administrator",
+  "admin role",
+  "system admin",
+]);
+
+function isReceptionistJob(role: string | undefined): boolean {
+  return role?.trim().toLowerCase() === "receptionist";
+}
+
+/** An administrator is not a receptionist, even when their login is also on the desk. */
+async function userIsAdministrator(
+  ctx: DbCtx,
+  userId: Id<"users">,
+  propertyId: Id<"properties">,
+): Promise<boolean> {
+  const assignments = await ctx.db
+    .query("userRoles")
+    .withIndex("by_userId_propertyId", (q) => q.eq("userId", userId).eq("propertyId", propertyId))
+    .take(20);
+  for (const assignment of assignments) {
+    const role = await ctx.db.get(assignment.roleId);
+    if (role && ADMINISTRATOR_ROLE_NAMES.has(role.name.trim().toLowerCase())) return true;
+  }
+  return false;
+}
 
 /** Receptionists the front-office rotation (or today's desk roster) puts on duty. */
 export async function listFrontOfficeOperators(
@@ -127,8 +157,10 @@ async function rememberIfOnDesk(
   timeZone: string,
 ) {
   if (!isActiveStatus(staff.employmentStatus) || !staff.userId) return;
+  if (!isReceptionistJob(staff.role)) return;
   if (staff.propertyId && staff.propertyId !== propertyId) return;
   if (byUser.has(staff.userId)) return;
+  if (await userIsAdministrator(ctx, staff.userId, propertyId)) return;
   if (!(await isOnFrontOfficeDuty(ctx, staff, propertyId, logDate, timeZone))) return;
   const user = await ctx.db.get(staff.userId);
   if (!user?.isActive) return;

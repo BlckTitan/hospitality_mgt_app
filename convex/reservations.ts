@@ -1,11 +1,12 @@
 import { mutation, query, MutationCtx, QueryCtx } from './_generated/server';
 import { v } from 'convex/values';
 import { Id } from './_generated/dataModel';
-import { requirePermission, tryRequirePermission, AuthContext } from './lib/rbac';
+import { requirePermission, tryRequirePermission, AuthContext, isAdministratorAtProperty } from './lib/rbac';
 import { resolveDeskOperator } from './lib/deskOperator';
 import { peopleSearchName } from './lib/searchNames';
 import { maybeCreateCheckoutOnCheckOut, maybeCreateStayoverOnCheckIn } from './lib/taskAssignment';
 import { propertyTimeZone, localDayBounds } from './lib/billingPeriods';
+import { zonedWallTimeToUtc } from './lib/rotation';
 import {
   HOUR_MS,
   MAY_EXTEND_LEAD_DAYS,
@@ -36,6 +37,24 @@ function generateConfirmationNumber(timestamp: number): string {
 
 function isBlockingStatus(status: string): boolean {
   return status === 'pending' || status === 'confirmed' || status === 'checked-in';
+}
+
+/** Overnight: calendar day before today. Short stay: earlier than midnight today in the property timezone. */
+function checkInStartsBeforeToday(
+  stayKind: 'overnight' | 'short',
+  checkInDate: number,
+  timeZone: string,
+  now: number,
+): boolean {
+  const todayKey = localDayBounds(now, timeZone).dateKey;
+  if (stayKind === 'overnight') {
+    return stayCalendarKey(checkInDate, timeZone) < todayKey;
+  }
+  const startOfToday = zonedWallTimeToUtc(`${todayKey}T00:00`, timeZone);
+  if (startOfToday == null) {
+    return localDayBounds(checkInDate, timeZone).dateKey < todayKey;
+  }
+  return checkInDate < startOfToday;
 }
 
 async function resolveDeskActor(
@@ -364,6 +383,18 @@ export const createReservation = mutation({
       }
 
       const now = Date.now();
+      if (
+        !isAdministratorAtProperty(auth, args.propertyId) &&
+        checkInStartsBeforeToday(stayKind, args.checkInDate, timeZone, now)
+      ) {
+        return {
+          success: false,
+          message: stayKind === 'short'
+            ? 'Start time cannot be before today'
+            : 'Check-in date cannot be in the past',
+        };
+      }
+
       let guestId: Id<'guests'>;
 
       if (args.newGuest) {

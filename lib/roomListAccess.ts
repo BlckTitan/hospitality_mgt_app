@@ -10,7 +10,7 @@ const ROOM_LIST_EDITOR_ROLES = new Set([
   'Supervisor',
 ]);
 
-/** Receptionists see Rooms and Room Types without the Action column. */
+/** Receptionists see Rooms and Room Types without edit, delete, or create. */
 export function showRoomListActions(roles: string[]) {
   if (!roles.includes('Receptionist')) return true;
   return roles.some((role) => ROOM_LIST_EDITOR_ROLES.has(role));

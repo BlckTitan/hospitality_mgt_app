@@ -139,7 +139,7 @@ This document outlines which entities should have dedicated pages and the data f
 **List:**
 - Columns: image, name, description, max occupancy, base rate, amenities, status, created at, and Action (edit / delete)
 - Description is a narrow column (`w-40`) and wraps to two lines; the full text is on the cell tooltip
-- Receptionists do not see Action. A receptionist who also holds Administrator, Director, General Manager, Operations Manager, IT Manager, Manager, Assistant Manager, or Supervisor still does
+- Receptionists do not see Action, and the create (+) button is disabled. A receptionist who also holds Administrator, Director, General Manager, Operations Manager, IT Manager, Manager, Assistant Manager, or Supervisor still sees Action and can create
 
 **Data Fetching:**
 - Fetch all `RoomType` records for current property (with pagination)
@@ -180,7 +180,7 @@ This document outlines which entities should have dedicated pages and the data f
 
 **List:**
 - Columns include room number, room type, floor, status, ready, last cleaned, active, created at, and Action (edit / delete)
-- Receptionists do not see Action. A receptionist who also holds Administrator, Director, General Manager, Operations Manager, IT Manager, Manager, Assistant Manager, or Supervisor still does
+- Receptionists do not see Action, and the create (+) button is disabled. A receptionist who also holds Administrator, Director, General Manager, Operations Manager, IT Manager, Manager, Assistant Manager, or Supervisor still sees Action and can create
 
 **Data Fetching:**
 - Fetch all `Room` records for current property (with pagination)
@@ -279,8 +279,10 @@ This document outlines which entities should have dedicated pages and the data f
 **Create booking UX:**
 - Search existing guests (`searchGuests`: name search index + phone/email match) or **New guest** (first/last + optional email/phone)
 - Stay kind: **Overnight** (dates, nightly rate) or **Short stay** (start time, 1–7 hours). Short-stay total comes from `shortStayRates` for that room type and length. The server rejects a length with no price, a room reserved overnight on that day, and a room with an open checkout clean.
+- Check-in cannot be before today for a receptionist: overnight uses the calendar day, and a short stay cannot start before midnight today (property timezone on the server). An administrator (`isAdministratorAtProperty`) may create a stay whose check-in is already in the past. Check-out must still be after check-in.
 - Overnight form can mark **May extend**
-- One submit → `createReservation` with either `guestId` or `newGuest`; server sets `bookedByUserId` from auth
+- One submit → `createReservation` with either `guestId` or `newGuest`; server sets `bookedByUserId` from the receptionist on the desk
+- An administrator is not a receptionist. The reservation dropdown lists receptionists on the front desk only (`staff.role` Receptionist, and not an Administrator at the property). The administrator picks one; that person is recorded on the booking
 - Optional deep link `?guest_id=` from Guests **Book stay**
 - List shows Stay: Overnight, or Short plus hours
 

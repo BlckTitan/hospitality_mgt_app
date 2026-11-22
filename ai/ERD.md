@@ -197,7 +197,7 @@ Represents room bookings/reservations.
 - `checkedInAt`: Check-in timestamp
 - `checkedOutAt`: Check-out timestamp
 
-**Purpose**: Core entity for room revenue tracking, occupancy management, and guest service coordination. Front desk creates stays via find-or-create: search an existing guest or supply new guest fields in the same booking mutation; the signed-in receptionist is recorded on `bookedByUserId`.
+**Purpose**: Core entity for room revenue tracking, occupancy management, and guest service coordination. Front desk creates stays via find-or-create: search an existing guest or supply new guest fields in the same booking mutation; the signed-in receptionist is recorded on `bookedByUserId`. A receptionist cannot set `checkInDate` before today (overnight: calendar day; short stay: before midnight today in the property timezone). An administrator can create a reservation whose check-in is already in the past. Check-out must still be after check-in.
 
 A **short stay** is a day-use visit of 1–7 hours. It does not take the night, does not add a sold night, and uses the room type’s package price for that length. A room with a pending, confirmed, or checked-in overnight reservation is closed to short stays on every reserved night (check-in inclusive, check-out exclusive), including the morning before an evening arrival. While that overnight guest is still checked in, the checkout morning is closed too. After checkout, a short stay also waits until the open checkout clean is finished.
 

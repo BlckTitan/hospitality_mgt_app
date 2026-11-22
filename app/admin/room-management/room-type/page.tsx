@@ -10,10 +10,14 @@ import RoomTypes from './components/roomTypes';
 import BootstrapModal from '../../../../shared/modal';
 import { FormComponent } from './components/createRoomTypeForm';
 import { RoomPageGuide } from '../components/roomPageGuide';
+import { usePermissions } from '../../../../hooks/usePermissions';
+import { showRoomListActions } from '../../../../lib/roomListAccess';
 
 export default function RoomTypePage() {
   const [modalShow, setModalShow] = useState(false);
   const [propertyId, setPropertyId] = useState<string>('');
+  const { roles, isLoading: permissionsLoading } = usePermissions();
+  const canCreate = !permissionsLoading && showRoomListActions(roles);
 
   // Fetch properties to get the current property
   const propertiesResponse = useQuery(api.property.getAllProperties);
@@ -50,6 +54,8 @@ export default function RoomTypePage() {
           variant="light"
           className="cursor-pointer"
           circle
+          disabled={!canCreate}
+          title={canCreate ? 'Add room type' : 'Receptionists cannot add room types'}
           onClick={() => setModalShow(true)}
         >
           <FcPlus className="w-8 h-8" />
