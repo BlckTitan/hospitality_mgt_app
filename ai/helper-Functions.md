@@ -1333,21 +1333,28 @@ export function isValidPhoneNumber(phone: string, country: string = 'US'): boole
 
 ```typescript
 /**
- * Validates reservation date range
+ * Validates reservation date range.
+ * Receptionists cannot check in before today. Administrators pass `allowPastCheckIn`.
+ * Live rule: `createReservation` in `convex/reservations.ts` (`isAdministratorAtProperty`).
+ * Overnight compares the calendar day. A short stay cannot start before midnight today
+ * in the property timezone. Check-out must still be after check-in.
  * @param checkInDate - Check-in date
  * @param checkOutDate - Check-out date
+ * @param options.allowPastCheckIn - True for an administrator
  * @returns Object with validation result and error message
  */
 export function validateReservationDates(
   checkInDate: Date,
-  checkOutDate: Date
+  checkOutDate: Date,
+  options?: { allowPastCheckIn?: boolean }
 ): { isValid: boolean; error?: string } {
   if (checkInDate >= checkOutDate) {
     return { isValid: false, error: 'Check-out must be after check-in' };
   }
 
-  const now = new Date();
-  if (checkInDate < now) {
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  if (!options?.allowPastCheckIn && checkInDate < startOfToday) {
     return { isValid: false, error: 'Check-in date cannot be in the past' };
   }
 

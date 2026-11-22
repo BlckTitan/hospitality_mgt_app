@@ -3,6 +3,7 @@ import { MutationCtx, QueryCtx } from "../_generated/server";
 import { localDayBounds, propertyTimeZone } from "./billingPeriods";
 import { requireFrontOfficeDuty } from "./dutyContext";
 import { AuthContext, isAdministratorAtProperty } from "./rbac";
+import { ADMINISTRATOR_ROLE_NAME } from "./systemRoles";
 import { placementForStaff, zonedWallTimeToUtc } from "./rotation";
 import { isActiveStatus } from "./staffAccess";
 import { findOpenShiftNear, staffDisplayName, staffForUser } from "./shiftHelpers";
@@ -17,9 +18,39 @@ export type DeskOperator = {
 };
 
 export const NOBODY_ON_ROTATION = "Nobody is on rotation at the front desk.";
+export const NO_RECEPTIONISTS = "There are no receptionists to choose.";
 export const CHOOSE_RECEPTIONIST = "Choose the receptionist this booking belongs to.";
 const OWN_DESK = "You can only work your own desk.";
-const NOT_ON_ROTATION = "That person is not on rotation at the front desk.";
+const NOT_A_RECEPTIONIST = "Choose a receptionist.";
+
+const ADMINISTRATOR_ROLE_NAMES = new Set([
+  ADMINISTRATOR_ROLE_NAME.trim().toLowerCase(),
+  "admin",
+  "administrator",
+  "admin role",
+  "system admin",
+]);
+
+function isReceptionistJob(role: string | undefined): boolean {
+  return role?.trim().toLowerCase() === "receptionist";
+}
+
+/** An administrator is not a receptionist, even when their login is also on the desk. */
+async function userIsAdministrator(
+  ctx: DbCtx,
+  userId: Id<"users">,
+  propertyId: Id<"properties">,
+): Promise<boolean> {
+  const assignments = await ctx.db
+    .query("userRoles")
+    .withIndex("by_userId_propertyId", (q) => q.eq("userId", userId).eq("propertyId", propertyId))
+    .take(20);
+  for (const assignment of assignments) {
+    const role = await ctx.db.get(assignment.roleId);
+    if (role && ADMINISTRATOR_ROLE_NAMES.has(role.name.trim().toLowerCase())) return true;
+  }
+  return false;
+}
 
 /** Receptionists the front-office rotation (or today's desk roster) puts on duty. */
 export async function listFrontOfficeOperators(
@@ -69,8 +100,47 @@ export async function listFrontOfficeOperators(
 }
 
 /**
+ * Every active receptionist at the property who can sign in.
+ * Administrators are left out. Duty is not required.
+ */
+export async function listPropertyReceptionists(
+  ctx: DbCtx,
+  propertyId: Id<"properties">,
+): Promise<DeskOperator[]> {
+  const property = await ctx.db.get(propertyId);
+  const timeZone = propertyTimeZone(property);
+  const logDate = localDayBounds(Date.now(), timeZone).dateKey;
+  const byUser = new Map<string, DeskOperator>();
+
+  const staffRows = await ctx.db
+    .query("staffs")
+    .withIndex("by_propertyId", (q) => q.eq("propertyId", propertyId))
+    .take(500);
+  for (const staff of staffRows) {
+    if (!isReceptionistJob(staff.role)) continue;
+    await rememberReceptionist(ctx, byUser, staff, propertyId, logDate);
+  }
+
+  const assignments = await ctx.db
+    .query("userRoles")
+    .withIndex("by_propertyId", (q) => q.eq("propertyId", propertyId))
+    .take(500);
+  for (const assignment of assignments) {
+    const role = await ctx.db.get(assignment.roleId);
+    if (!role || role.name.trim().toLowerCase() !== "receptionist") continue;
+    const staff = await staffForUser(ctx, assignment.userId);
+    if (!staff) continue;
+    await rememberReceptionist(ctx, byUser, staff, propertyId, logDate);
+  }
+
+  return [...byUser.values()].sort((a, b) =>
+    a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
+  );
+}
+
+/**
  * A receptionist works their own open front-office shift.
- * An administrator works for a receptionist the rotation has on the desk.
+ * An administrator works for any receptionist at the property.
  */
 export async function resolveDeskOperator(
   ctx: DbCtx,
@@ -107,15 +177,39 @@ export async function resolveDeskOperator(
     };
   }
 
-  const operators = await listFrontOfficeOperators(ctx, args.propertyId);
-  if (operators.length === 0) return { ok: false, message: NOBODY_ON_ROTATION };
+  const operators = await listPropertyReceptionists(ctx, args.propertyId);
+  if (operators.length === 0) return { ok: false, message: NO_RECEPTIONISTS };
   if (args.deskUserId) {
     const chosen = operators.find((person) => person.userId === args.deskUserId);
-    if (!chosen) return { ok: false, message: NOT_ON_ROTATION };
+    if (!chosen) return { ok: false, message: NOT_A_RECEPTIONIST };
     return { ok: true, operator: chosen };
   }
   if (operators.length === 1) return { ok: true, operator: operators[0] };
   return { ok: false, message: CHOOSE_RECEPTIONIST };
+}
+
+async function rememberReceptionist(
+  ctx: DbCtx,
+  byUser: Map<string, DeskOperator>,
+  staff: Doc<"staffs">,
+  propertyId: Id<"properties">,
+  logDate: string,
+) {
+  if (!isActiveStatus(staff.employmentStatus) || !staff.userId) return;
+  if (staff.propertyId && staff.propertyId !== propertyId) return;
+  if (byUser.has(staff.userId)) return;
+  if (await userIsAdministrator(ctx, staff.userId, propertyId)) return;
+  const user = await ctx.db.get(staff.userId);
+  if (!user?.isActive) return;
+  const open = await findOpenShiftNear(ctx, staff._id, logDate);
+  const shift =
+    open && open.propertyId === propertyId && open.department === "front-office" ? open : null;
+  byUser.set(staff.userId, {
+    userId: staff.userId,
+    staffId: staff._id,
+    ...(shift ? { shiftId: shift._id } : {}),
+    name: user.name?.trim() || staffDisplayName(staff),
+  });
 }
 
 async function rememberIfOnDesk(
@@ -127,8 +221,10 @@ async function rememberIfOnDesk(
   timeZone: string,
 ) {
   if (!isActiveStatus(staff.employmentStatus) || !staff.userId) return;
+  if (!isReceptionistJob(staff.role)) return;
   if (staff.propertyId && staff.propertyId !== propertyId) return;
   if (byUser.has(staff.userId)) return;
+  if (await userIsAdministrator(ctx, staff.userId, propertyId)) return;
   if (!(await isOnFrontOfficeDuty(ctx, staff, propertyId, logDate, timeZone))) return;
   const user = await ctx.db.get(staff.userId);
   if (!user?.isActive) return;

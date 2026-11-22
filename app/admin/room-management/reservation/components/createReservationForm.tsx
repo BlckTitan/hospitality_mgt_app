@@ -107,12 +107,18 @@ export function FormComponent({
   );
 
   const maxOccupancyRef = useRef<number | undefined>(undefined);
+  const allowPastCheckInRef = useRef(false);
+  allowPastCheckInRef.current = desk.mode === "admin";
   const resolver = useMemo(() => {
     const resolve = yupResolver(formSchema);
     return (values: unknown, context: unknown, options: unknown) =>
       resolve(
         values as never,
-        { ...(context as object), maxOccupancy: maxOccupancyRef.current },
+        {
+          ...(context as object),
+          maxOccupancy: maxOccupancyRef.current,
+          allowPastCheckIn: allowPastCheckInRef.current,
+        },
         options as never,
       );
   }, []);
@@ -173,6 +179,11 @@ export function FormComponent({
     setValue("guestId", g._id, { shouldValidate: true });
     setGuestSearch("");
   }, [prefillGuest, selectedGuest, setValue]);
+
+  useEffect(() => {
+    if (desk.mode !== "admin" || !watchCheckIn) return;
+    void trigger("checkInDate");
+  }, [desk.mode, watchCheckIn, trigger]);
 
   useEffect(() => {
     if (watchStayKind === "short") return;

@@ -1,8 +1,8 @@
 import { query } from "./_generated/server";
 import { v } from "convex/values";
 import {
-  listFrontOfficeOperators,
-  NOBODY_ON_ROTATION,
+  listPropertyReceptionists,
+  NO_RECEPTIONISTS,
   resolveDeskOperator,
 } from "./lib/deskOperator";
 import { isAdministratorAtProperty, tryRequirePermission } from "./lib/rbac";
@@ -54,12 +54,12 @@ export const listOnDutyReceptionists = query({
       };
     }
 
-    const receptionists = await listFrontOfficeOperators(ctx, args.propertyId);
+    const receptionists = await listPropertyReceptionists(ctx, args.propertyId);
     return {
       success: true as const,
       mode: "admin" as const,
       mustChoose: receptionists.length > 1,
-      message: receptionists.length === 0 ? NOBODY_ON_ROTATION : null,
+      message: receptionists.length === 0 ? NO_RECEPTIONISTS : null,
       receptionists,
     };
   },

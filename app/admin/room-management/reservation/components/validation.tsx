@@ -190,18 +190,18 @@ export const formSchema = yup.object().shape({
     .date()
     .required("Check-in date is required")
     .typeError("Please enter a valid date")
-    .when("stayKind", {
-      is: "short",
-      then: (schema) => schema.min(startOfToday(), "Start time cannot be before today"),
-      otherwise: (schema) => schema.test(
-        "not-before-today",
-        "Check-in date cannot be in the past",
-        function (value) {
-          const key = pickedDateKey(this.originalValue, value);
-          if (!key) return false;
-          return key >= localDateKey();
-        },
-      ),
+    .test("not-before-today", function (value) {
+      if (this.options.context?.allowPastCheckIn) return true;
+      const stayKind = this.parent?.stayKind;
+      if (stayKind === "short") {
+        if (!(value instanceof Date) || Number.isNaN(value.getTime()) || value >= startOfToday()) return true;
+        return this.createError({ message: "Start time cannot be before today" });
+      }
+      const key = pickedDateKey(this.originalValue, value);
+      if (!key || key < localDateKey()) {
+        return this.createError({ message: "Check-in date cannot be in the past" });
+      }
+      return true;
     }),
 
   ...sharedReservationFields,

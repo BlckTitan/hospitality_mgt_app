@@ -109,6 +109,8 @@ The agent checks available rooms. The system queries:
 
 A short stay is the same mutation with `stayKind: "short"`, a clock `checkInDate`, and `durationHours` from 1 to 7. The server sets `checkOutDate`, `rate`, and `totalAmount` from `shortStayRates` for that room type. It refuses the room when an overnight reservation already holds that calendar day, while an overnight guest is still checked in on the checkout morning, or while a checkout clean is open. Short stays do not count as sold nights.
 
+A receptionist cannot create a stay that already started. Overnight check-in is compared as a calendar day; a short stay cannot start before midnight today in the property timezone. An administrator can. The form skips that check when desk mode is `admin`, and `createReservation` enforces the same rule with `isAdministratorAtProperty`. Check-out must still be after check-in.
+
 When a checked-in overnight guest may stay longer, the desk marks `mayExtend` or waits for the property reminder window (`retainerReminderDays`, default today and tomorrow). `getDeskReminders` lists them with balance and the last follow-up. `extendOvernightStay` adds one or two nights at the nightly rate and records the follow-up as extending. The guest is not extended automatically.
 
 **Step 3: Payment Processing**

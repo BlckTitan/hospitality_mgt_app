@@ -37,6 +37,11 @@ export function DeskOperatorProvider({ children }: { children: React.ReactNode }
 
   useEffect(() => {
     if (!roster || roster.mode !== 'admin') return
+    if (roster.receptionists.length === 1) {
+      const onlyId = roster.receptionists[0].userId
+      if (deskUserId !== onlyId) setDeskUserId(onlyId)
+      return
+    }
     if (deskUserId && !roster.receptionists.some((person) => person.userId === deskUserId)) {
       setDeskUserId('')
     }
@@ -108,7 +113,7 @@ export function DeskOperatorBar() {
   const desk = useDeskOperator()
   const selectId = useId()
   if (!desk.ready) return null
-  const showChoice = desk.mode === 'admin' && desk.mustChoose
+  const showChoice = desk.mode === 'admin' && desk.receptionists.length > 0
   if (!showChoice && !desk.message) return null
   return (
     <div className="mt-2 space-y-2">
