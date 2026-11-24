@@ -66,6 +66,7 @@ export default function PaginationComponent({
   showSearch = true,
   showIndex = true,
   emptyLabel,
+  reservationStatus,
 }: {
   collectionName: string;
   columns: TableColumn<any>[];
@@ -81,6 +82,8 @@ export default function PaginationComponent({
   showIndex?: boolean;
   /** Shown when the list is empty and no search is active. */
   emptyLabel?: string;
+  /** Reservations list only. Narrows the page to one booking status. */
+  reservationStatus?: 'pending' | 'confirmed' | 'checked-in' | 'checked-out' | 'cancelled';
 }) {
   const limit = 10;
   const listMemory = useRememberedList(
@@ -121,6 +124,7 @@ export default function PaginationComponent({
           cursor: currentCursor,
           ...(searchTerm ? { searchTerm } : {}),
           ...(propertyId ? { propertyId: propertyId as Id<'properties'> } : {}),
+          ...(reservationStatus ? { reservationStatus } : {}),
         },
   );
 

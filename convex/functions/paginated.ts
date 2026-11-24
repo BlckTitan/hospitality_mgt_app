@@ -193,6 +193,33 @@ async function enrichInvite(ctx: QueryCtx, invite: Doc<"pendingInvites">) {
   };
 }
 
+const reservationStatusValidator = v.union(
+  v.literal("pending"),
+  v.literal("confirmed"),
+  v.literal("checked-in"),
+  v.literal("checked-out"),
+  v.literal("cancelled"),
+);
+
+type ReservationStatus = "pending" | "confirmed" | "checked-in" | "checked-out" | "cancelled";
+
+async function propertyReservations(
+  ctx: QueryCtx,
+  propertyId: Id<"properties">,
+  status: ReservationStatus | undefined,
+) {
+  if (status) {
+    return await ctx.db
+      .query("reservations")
+      .withIndex("by_propertyId_status", (q) => q.eq("propertyId", propertyId).eq("status", status))
+      .collect();
+  }
+  return await ctx.db
+    .query("reservations")
+    .withIndex("by_propertyId", (q) => q.eq("propertyId", propertyId))
+    .collect();
+}
+
 async function searchReservations(
   ctx: QueryCtx,
   propertyId: Id<"properties">,
@@ -200,11 +227,9 @@ async function searchReservations(
   cursor: string | undefined,
   pageSize: number,
   order: "asc" | "desc",
+  status: ReservationStatus | undefined,
 ) {
-  const reservations = await ctx.db
-    .query("reservations")
-    .withIndex("by_propertyId", (q) => q.eq("propertyId", propertyId))
-    .collect();
+  const reservations = await propertyReservations(ctx, propertyId, status);
   const guests = await ctx.db
     .query("guests")
     .withIndex("by_propertyId", (q) => q.eq("propertyId", propertyId))
@@ -326,9 +351,10 @@ export const getPaginatedData = query({
     cursor: v.optional(v.string()),
     sortOrder: v.optional(v.union(v.literal("asc"), v.literal("desc"))),
     propertyId: v.optional(v.id("properties")),
+    reservationStatus: v.optional(reservationStatusValidator),
   },
 
-  handler: async (ctx, { table, limit, cursor, sortOrder, searchTerm, propertyId }) => {
+  handler: async (ctx, { table, limit, cursor, sortOrder, searchTerm, propertyId, reservationStatus }) => {
     const pageSize = Math.min(Math.max(Math.floor(limit), 1), 50);
     const auth = await getAuthContext(ctx);
     if (!auth) return emptyPage();
@@ -492,13 +518,21 @@ export const getPaginatedData = query({
 
       if (propertyId && table === "reservations") {
         if (term) {
-          return await searchReservations(ctx, propertyId, term, cursor, pageSize, order);
+          return await searchReservations(ctx, propertyId, term, cursor, pageSize, order, reservationStatus);
         }
-        const items = await ctx.db
-          .query("reservations")
-          .withIndex("by_propertyId", (q) => q.eq("propertyId", propertyId))
-          .order(order)
-          .paginate(paginationOpts);
+        const items = reservationStatus
+          ? await ctx.db
+            .query("reservations")
+            .withIndex("by_propertyId_status", (q) =>
+              q.eq("propertyId", propertyId).eq("status", reservationStatus),
+            )
+            .order(order)
+            .paginate(paginationOpts)
+          : await ctx.db
+            .query("reservations")
+            .withIndex("by_propertyId", (q) => q.eq("propertyId", propertyId))
+            .order(order)
+            .paginate(paginationOpts);
         const enrichedPage = await Promise.all(
           items.page.map(async (reservation) => {
             const guest = await ctx.db.get(reservation.guestId);

@@ -1,5 +1,33 @@
 import * as yup from "yup";
 
+export const requestFormSchema = yup.object().shape({
+  roomId: yup
+    .string()
+    .required("Room is required"),
+
+  taskType: yup
+    .string()
+    .oneOf(["checkout", "stayover", "deep-clean", "inspection"], "Invalid task type")
+    .required("Task type is required"),
+
+  priority: yup
+    .string()
+    .oneOf(["low", "medium", "high", "urgent"], "Invalid priority")
+    .required("Priority is required"),
+
+  scheduledAt: yup
+    .date()
+    .nullable()
+    .transform((value, original) => (original === "" || original === null ? null : value))
+    .typeError("Please enter a valid date"),
+
+  notes: yup
+    .string()
+    .trim()
+    .required("Say what the room needs")
+    .max(1000, "Notes are too long"),
+});
+
 export const formSchema = yup.object().shape({
   roomId: yup
     .string()

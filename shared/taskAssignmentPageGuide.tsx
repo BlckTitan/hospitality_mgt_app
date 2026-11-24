@@ -14,7 +14,7 @@ type GuidePage =
 
 const DESCRIPTIONS: Record<GuidePage, string> = {
   housekeeping:
-    'Create checkout, stayover, deep-clean, or inspection work with +. Filter Unassigned, Mine, or Overdue. Any assignee may start; only the lead or a supervisor can complete. Completing a checkout task sets the room as cleaned. Front desk treats a room as unready while an open housekeeping task remains.',
+    'Supervisors create checkout, stayover, deep-clean, or inspection work with + and assign a lead. A receptionist uses + to request work for a room, with a note and no staff chosen; it lands on Unassigned. Filter Unassigned, Mine, or Overdue. Any assignee may start; only the lead or a supervisor can complete. Completing a checkout task sets the room as cleaned. Front desk treats a room as unready while an open housekeeping task remains.',
   'housekeeping-edit':
     'Update type, lead, helpers, and status. Any assignee may start. Only the lead or a supervisor can complete or skip — skip requires notes. Completing a checkout task updates Room last cleaned.',
   maintenance:

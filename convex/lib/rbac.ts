@@ -137,6 +137,14 @@ export function hasGranularPermission(authContext: AuthContext, granularPerm: st
     return true;
   }
 
+  // File an unassigned housekeeping request. Does not grant assign, templates, or SLA.
+  if (
+    granularPerm === "housekeeping.task.request" &&
+    authContext.roles.includes("Receptionist")
+  ) {
+    return true;
+  }
+
   return false;
 }
 

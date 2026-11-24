@@ -15,7 +15,9 @@ import { TaskAssignmentPageGuide } from '../../../../shared/taskAssignmentPageGu
 export default function Page() {
   const [modalShow, setModalShow] = useState(false);
   const { hasGranularPermission } = usePermissions();
-  const canCreate = hasGranularPermission('housekeeping.task.assign');
+  const canAssign = hasGranularPermission('housekeeping.task.assign');
+  const canRequest = hasGranularPermission('housekeeping.task.request');
+  const canCreate = canAssign || canRequest;
   const propertiesResponse = useQuery(api.property.getAllProperties);
   const currentPropertyId = propertiesResponse?.data?.[0]?._id || '';
 
@@ -58,12 +60,22 @@ export default function Page() {
       </header>
       <HousekeepingTasks currentPropertyId={currentPropertyId}/>
 
-      <ModalComponent modalShow={modalShow} setModalShow={setModalShow} propertyId={currentPropertyId}/>
+      <ModalComponent
+        modalShow={modalShow}
+        setModalShow={setModalShow}
+        propertyId={currentPropertyId}
+        mode={canAssign ? 'assign' : 'request'}
+      />
     </div>
   )
 }
 
-function ModalComponent(props: { modalShow: boolean; setModalShow: (show: boolean) => void; propertyId: string }) {
+function ModalComponent(props: {
+  modalShow: boolean;
+  setModalShow: (show: boolean) => void;
+  propertyId: string;
+  mode: 'assign' | 'request';
+}) {
   return (
     <>
       <BootstrapModal
@@ -71,9 +83,10 @@ function ModalComponent(props: { modalShow: boolean; setModalShow: (show: boolea
         onHide={() => props.setModalShow(false)}
         backdrop="static"
         keyboard={false}
-        heading="Add New Housekeeping Task"
+        heading={props.mode === 'request' ? 'Request housekeeping' : 'Add New Housekeeping Task'}
         body={
           <FormComponent
+            mode={props.mode}
             onClose={() => props.setModalShow(false)}
             propertyId={props.propertyId}
           />

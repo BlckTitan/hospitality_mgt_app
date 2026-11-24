@@ -72,9 +72,9 @@ const RoomTypes = ({ propertyId }: { propertyId: string }) => {
     {
       label: 'Description',
       key: 'description',
-      className: '!w-40 !max-w-40 !whitespace-normal overflow-hidden',
+      className: '!w-80 !max-w-80 !whitespace-normal overflow-hidden',
       render: (_value, row) => (
-        <span className="line-clamp-2 block w-40" title={row.description || undefined}>
+        <span className="line-clamp-2 block w-80" title={row.description || undefined}>
           {row.description || ''}
         </span>
       ),

@@ -242,6 +242,64 @@ export const createHousekeepingTask = mutation({
   },
 });
 
+/** Front desk files work for a room. No lead, helpers, status, or checklist edits. */
+export const requestHousekeepingTask = mutation({
+  args: {
+    propertyId: v.id('properties'),
+    roomId: v.id('rooms'),
+    taskType: taskTypeValidator,
+    priority: v.optional(priorityValidator),
+    scheduledAt: v.optional(v.number()),
+    notes: v.string(),
+  },
+  returns: v.union(
+    v.object({
+      success: v.literal(true),
+      id: v.id('housekeepingTasks'),
+      message: v.string(),
+    }),
+    v.object({
+      success: v.literal(false),
+      message: v.string(),
+      id: v.optional(v.id('housekeepingTasks')),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const auth = await requirePermission(ctx, 'housekeeping.task.request', args.propertyId);
+    const notes = args.notes.trim();
+    if (!notes) {
+      return { success: false as const, message: 'Say what the room needs' };
+    }
+    if (notes.length > 1000) {
+      return { success: false as const, message: 'Notes are too long' };
+    }
+    try {
+      const result = await createHousekeepingWork(ctx, {
+        propertyId: args.propertyId,
+        roomId: args.roomId,
+        taskType: args.taskType,
+        source: 'front_desk',
+        priority: args.priority,
+        scheduledAt: args.scheduledAt,
+        notes,
+        createdBy: auth.user._id,
+        leadId: null,
+      });
+      if (result.success) {
+        return {
+          success: true as const,
+          id: result.id,
+          message: 'Housekeeping request sent. A supervisor will assign it.',
+        };
+      }
+      return result;
+    } catch (error) {
+      console.log(`Failed to request housekeeping task: ${error}`);
+      return { success: false as const, message: error instanceof Error ? error.message : 'Failed to request housekeeping' };
+    }
+  },
+});
+
 export const listHousekeepingSupplies = query({
   args: { taskId: v.id('housekeepingTasks') },
   handler: async (ctx, args) => {

@@ -619,6 +619,7 @@ export const PERMISSION_GROUPS = [
     category: "Task Assignment",
     permissions: [
       { key: "housekeeping.task.read", label: "View housekeeping tasks" },
+      { key: "housekeeping.task.request", label: "Request housekeeping for a room" },
       { key: "housekeeping.task.assign", label: "Assign housekeeping tasks" },
       { key: "housekeeping.task.update", label: "Update housekeeping tasks" },
       { key: "housekeeping.task.complete", label: "Complete housekeeping tasks" },

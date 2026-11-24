@@ -4,7 +4,7 @@ import { goToList } from '../../../../../shared/goToList';
 import { FcEmptyTrash } from "react-icons/fc";
 import { MdEditDocument } from "react-icons/md";
 import { Button } from '../../../../../shared/button';
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 import { useMutation } from "convex/react";
 import { toast } from "sonner";
 import { api } from "../../../../../convex/_generated/api";
@@ -15,6 +15,17 @@ import { ReservationLifecycleActions, ReservationStatusBadge } from "./reservati
 import { useDeskOperator } from "../../components/deskOperator";
 import { formatPropertyMoney, usePropertyCurrency } from "../../../inventory-management/components/money";
 import { formatPropertyWhen } from "../../stayDates";
+
+const RESERVATION_STATUSES = [
+  { value: 'all', label: 'All statuses' },
+  { value: 'pending', label: 'Pending' },
+  { value: 'confirmed', label: 'Confirmed' },
+  { value: 'checked-in', label: 'Checked in' },
+  { value: 'checked-out', label: 'Checked out' },
+  { value: 'cancelled', label: 'Cancelled' },
+] as const;
+
+type ReservationStatusFilter = (typeof RESERVATION_STATUSES)[number]['value'];
 
 interface ReservationProps {
   _id: string;
@@ -58,6 +69,7 @@ interface ReservationProps {
 }
 
 const Reservations = ({ propertyId, timeZone }: { propertyId: string; timeZone?: string }) => {
+  const [status, setStatus] = useState<ReservationStatusFilter>('all');
   const currency = usePropertyCurrency(propertyId);
   const desk = useDeskOperator();
   const removeReservation = useMutation(api.reservations.deleteReservation);
@@ -198,7 +210,29 @@ const Reservations = ({ propertyId, timeZone }: { propertyId: string; timeZone?:
   return (
     <div className='w-full h-full overflow-x-scroll lg:!overflow-x-hidden'>
       <Suspense>
-        <PaginationComponent collectionName='reservations' columns={tableColumns} propertyId={propertyId} />
+        <PaginationComponent
+          collectionName='reservations'
+          columns={tableColumns}
+          propertyId={propertyId}
+          filterKey={status}
+          reservationStatus={status === 'all' ? undefined : status}
+          emptyLabel={status === 'all' ? undefined : 'No reservations with this status.'}
+          searchLeading={
+            <label className="flex items-center gap-2 text-sm text-gray-700">
+              <span>Status</span>
+              <select
+                aria-label="Reservation status"
+                className="rounded border border-neutral-300 bg-white px-2 py-1"
+                value={status}
+                onChange={(event) => setStatus(event.target.value as ReservationStatusFilter)}
+              >
+                {RESERVATION_STATUSES.map((item) => (
+                  <option key={item.value} value={item.value}>{item.label}</option>
+                ))}
+              </select>
+            </label>
+          }
+        />
       </Suspense>
     </div>
   );

@@ -236,7 +236,7 @@ Represents housekeeping work and room-readiness tracking. Assignees live on `tas
 - `taskType`: Type (checkout, stayover, deep-clean, inspection)
 - `status`: Status (pending, in-progress, completed, skipped)
 - `priority`: Priority level (low, medium, high, urgent)
-- `source`: Origin (manual, reservation_checkout, reservation_stayover)
+- `source`: Origin (manual, front_desk, reservation_checkout, reservation_stayover). `front_desk` is a receptionist request with no lead.
 - `reservationId` (FK, optional): Reservation that triggered auto-create
 - `templateId` (FK, optional): Task template used at create
 - `createdBy` (FK, optional): User who created the task (null on auto-create)
@@ -1900,7 +1900,7 @@ Tracks all system actions for compliance and security auditing.
 
 #### Reservation → HousekeepingTask (One-to-Many, Optional)
 - **Relationship**: A Reservation can trigger HousekeepingTasks (`source` checkout or stayover).
-- **Explanation**: Check-in creates stayover; checkout creates checkout-clean. Duplicate open tasks are blocked by uniqueness rules.
+- **Explanation**: Check-in creates stayover; checkout creates checkout-clean. A receptionist can also file `source: front_desk` with no lead. Duplicate open tasks are blocked by uniqueness rules.
 
 ---
 
@@ -2509,7 +2509,7 @@ Beverages relationships: see Bar ERD/PRD.
 
 10. **Comprehensive Reporting & Analytics**: Report and ReportSnapshot entities enable calculation of all four metric categories (Operational Performance, Profitability, Cost & Efficiency, Liquidity & Solvency) from entity data. Reports aggregate data from Reservation, RestaurantOrder, beverage `orders`, JournalEntry, Payroll, InventoryTransaction, Asset, and ChartOfAccounts entities. Persona-based access control ensures appropriate metric visibility (daily, monthly, yearly) for different user roles. All metrics are derived from transactional data, ensuring accuracy and real-time availability. G3 uses completed housekeeping + maintenance + inventory tasks with `completedAt <= dueAt`.
 
-11. **Task Assignment**: Shared `taskAssignments` / `taskTemplates` / `taskSlaDefaults`. No generic Task table. Room readiness is inferred from open housekeeping tasks.
+11. **Task Assignment**: Shared `taskAssignments` / `taskTemplates` / `taskSlaDefaults`. No generic Task table. Room readiness is inferred from open housekeeping tasks. A receptionist request (`source: front_desk`) is an unassigned housekeeping task.
 
 12. **Organizational billing**: BillAccount (cadence) → BillPeriod (cycle) → Payment + Expense on mark-paid. Payroll, maintenance complete-with-cost, PO mark-paid, and Record expense use the same `postCashOutflow` helper. No `UtilityBill` table. Duplicate check before billed expense insert. Journals from billing are later.
 

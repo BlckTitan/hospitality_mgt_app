@@ -481,7 +481,7 @@ export async function createHousekeepingWork(
     propertyId: Id<"properties">;
     roomId: Id<"rooms">;
     taskType: "checkout" | "stayover" | "deep-clean" | "inspection";
-    source: "manual" | "reservation_checkout" | "reservation_stayover";
+    source: "manual" | "front_desk" | "reservation_checkout" | "reservation_stayover";
     reservationId?: Id<"reservations">;
     priority?: "low" | "medium" | "high" | "urgent";
     scheduledAt?: number;

@@ -477,6 +477,8 @@ export const GRANULAR_PERMISSIONS = {
     'staff.self.read': 'staff.read',
   },
   housekeeping: {
+    // Read follows front-desk reservation access. Request is not aliased:
+    // only the Receptionist role can file an unassigned task.
     'housekeeping.task.read': 'reservations.read',
   },
   rooms: {

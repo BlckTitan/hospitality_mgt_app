@@ -251,6 +251,7 @@ export default defineSchema({
     ),
     source: v.union(
       v.literal("manual"),
+      v.literal("front_desk"),
       v.literal("reservation_checkout"),
       v.literal("reservation_stayover")
     ),

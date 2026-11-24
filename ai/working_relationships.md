@@ -238,6 +238,8 @@ The **Room** entity's `status` field drives sellability:
 
 There is no `dirty` / `cleaning` status. Readiness = no open housekeeping tasks on the room.
 
+A receptionist can also file a **HousekeepingTask** during the stay (`source: "front_desk"`) for extra towels, a spill, or an early clean. The note is required. No lead is chosen; the row stays on the unassigned board until a supervisor assigns it. That request does not open templates, SLA, or task edit.
+
 When a room goes out of order:
 1. **Room** updated: `status: "out-of-order"`
 2. **MaintenanceOrder** created (see [Maintenance](#maintenance) section)

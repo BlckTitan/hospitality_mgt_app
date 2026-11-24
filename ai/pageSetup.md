@@ -347,7 +347,7 @@ This document outlines which entities should have dedicated pages and the data f
 ### 16. Housekeeping Dashboard (`/admin/room-management/housekeeping-task`)
 **Purpose**: Manage housekeeping tasks and room readiness. Boards: unassigned (no lead), mine, overdue (`dueAt` passed, not completed).
 
-**Permission:** `housekeeping.task.read` (assign: `housekeeping.task.assign`)
+**Permission:** `housekeeping.task.read` (create and assign: `housekeeping.task.assign`; front-desk request with no lead: `housekeeping.task.request`)
 
 **Data Fetching:**
 - Fetch all `HousekeepingTask` records for current property (with pagination)

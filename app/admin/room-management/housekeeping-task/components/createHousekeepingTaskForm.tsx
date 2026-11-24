@@ -5,7 +5,7 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import { SubmitHandler, useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
-import { formSchema } from "./validation";
+import { formSchema, requestFormSchema } from "./validation";
 import { toast } from "sonner";
 import InputComponent from "../../../../../shared/input";
 import { Button } from '../../../../../shared/button';
@@ -24,7 +24,184 @@ type FormData = {
   notes?: string;
 };
 
-export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess?: () => void; onClose?: () => void; propertyId: string }) {
+type FormMode = 'assign' | 'request';
+
+const taskTypeOptions = [
+  { value: 'checkout', label: 'Checkout' },
+  { value: 'stayover', label: 'Stayover' },
+  { value: 'deep-clean', label: 'Deep Clean' },
+  { value: 'inspection', label: 'Inspection' },
+] as const;
+
+const priorityOptions = [
+  { value: 'low', label: 'Low' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'high', label: 'High' },
+  { value: 'urgent', label: 'Urgent' },
+] as const;
+
+const statusOptions = [
+  { value: 'pending', label: 'Pending' },
+  { value: 'in-progress', label: 'In Progress' },
+  { value: 'completed', label: 'Completed' },
+  { value: 'skipped', label: 'Skipped' },
+] as const;
+
+export function FormComponent({
+  onSuccess,
+  onClose,
+  propertyId,
+  mode = 'assign',
+}: {
+  onSuccess?: () => void;
+  onClose?: () => void;
+  propertyId: string;
+  mode?: FormMode;
+}) {
+  if (mode === 'request') {
+    return <RequestForm onSuccess={onSuccess} onClose={onClose} propertyId={propertyId} />;
+  }
+  return <AssignForm onSuccess={onSuccess} onClose={onClose} propertyId={propertyId} />;
+}
+
+function RequestForm({ onSuccess, onClose, propertyId }: { onSuccess?: () => void; onClose?: () => void; propertyId: string }) {
+  const requestTask = useMutation(api.housekeepingTasks.requestHousekeepingTask);
+  const roomsResponse = useQuery(api.rooms.getAllRooms, { propertyId: propertyId as Id<'properties'> });
+  const rooms = roomsResponse?.data || [];
+
+  const { register, handleSubmit, formState: { errors } } = useForm<Pick<FormData, 'roomId' | 'taskType' | 'priority' | 'scheduledAt' | 'notes'>>({
+    resolver: yupResolver(requestFormSchema) as any,
+    defaultValues: {
+      roomId: '',
+      taskType: 'stayover',
+      priority: 'medium',
+      scheduledAt: '',
+      notes: '',
+    },
+  });
+
+  const onSubmit: SubmitHandler<Pick<FormData, 'roomId' | 'taskType' | 'priority' | 'scheduledAt' | 'notes'>> = async (data) => {
+    try {
+      const scheduledAtTimestamp = data.scheduledAt ? new Date(data.scheduledAt).getTime() : undefined;
+      const response = await requestTask({
+        propertyId: propertyId as Id<'properties'>,
+        roomId: data.roomId as Id<'rooms'>,
+        taskType: data.taskType,
+        priority: data.priority,
+        scheduledAt: scheduledAtTimestamp,
+        notes: data.notes?.trim() || '',
+      });
+
+      if (response.success === false) {
+        toast.error(response.message);
+      } else {
+        toast.success(response.message);
+        if (onSuccess) onSuccess();
+        if (onClose) onClose();
+        goToList("/admin/room-management/housekeeping-task");
+      }
+    } catch (error: any) {
+      console.error("Request housekeeping failed:", error);
+      toast.error("Failed to request housekeeping. Please try again.");
+    }
+  };
+
+  const availableRooms = rooms.filter((room: any) => room.isActive);
+  const roomOptions = availableRooms.map((room: any) => ({
+    value: room._id,
+    label: `${room.roomNumber}${room.roomType ? ` - ${room.roomType.name}` : ''} (${room.status})`,
+  }));
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)} className='requestHousekeepingTaskForm'>
+      <p className="text-sm text-gray-600 mb-4">
+        A supervisor assigns someone. This request does not pick a housekeeper.
+      </p>
+      <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-start gap-2 mb-2 lg:mb-4">
+        <div className="flex-1">
+          <label htmlFor="roomId" className="block mb-2">Room *</label>
+          <select
+            id="roomId"
+            {...register('roomId', { required: true })}
+            className="w-full border rounded p-2"
+            defaultValue=""
+          >
+            <option disabled value="">Select a room</option>
+            {roomOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          {errors.roomId && <span className="text-red-500 text-sm">{errors.roomId.message}</span>}
+        </div>
+        <div className="flex-1">
+          <label htmlFor="taskType" className="block mb-2">Task Type *</label>
+          <select
+            id="taskType"
+            {...register('taskType', { required: true })}
+            className="w-full border rounded p-2"
+            defaultValue="stayover"
+          >
+            {taskTypeOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          {errors.taskType && <span className="text-red-500 text-sm">{errors.taskType.message}</span>}
+        </div>
+      </div>
+
+      <div className="w-full h-fit flex flex-col lg:flex-row lg:justify-between lg:items-start gap-2 mb-2 lg:mb-4">
+        <div className="flex-1">
+          <label htmlFor="priority" className="block mb-2">Priority *</label>
+          <select
+            id="priority"
+            {...register('priority', { required: true })}
+            className="w-full border rounded p-2"
+            defaultValue="medium"
+          >
+            {priorityOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          {errors.priority && <span className="text-red-500 text-sm">{errors.priority.message}</span>}
+        </div>
+        <div className="flex-1">
+          <InputComponent
+            id="scheduledAt"
+            label="Scheduled At"
+            type="datetime-local"
+            inputWidth="w-full"
+            register={register('scheduledAt')}
+            error={errors.scheduledAt}
+          />
+        </div>
+      </div>
+
+      <div className="w-full mb-2 lg:mb-4">
+        <label htmlFor="notes">What does the room need? *</label>
+        <textarea
+          id="notes"
+          {...register('notes')}
+          rows={3}
+          className="w-full border rounded p-2"
+          placeholder="Extra towels, a spill, an early clean"
+        />
+        {errors.notes && <span className="text-red-500 text-sm">{errors.notes.message}</span>}
+      </div>
+
+      <Modal.Footer>
+        <Button type="submit" variant='dark'>Send request</Button>
+      </Modal.Footer>
+    </form>
+  );
+}
+
+function AssignForm({ onSuccess, onClose, propertyId }: { onSuccess?: () => void; onClose?: () => void; propertyId: string }) {
   const createTask = useMutation(api.housekeepingTasks.createHousekeepingTask);
   const roomsResponse = useQuery(api.rooms.getAllRooms, { propertyId: propertyId as Id<'properties'> });
   const staffList = useQuery(api.housekeepingTasks.listAssignableStaff, { propertyId: propertyId as Id<'properties'> });
@@ -83,27 +260,6 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess?: 
       toast.error("Failed to add new housekeeping task. Please try again.");
     }
   };
-
-  const taskTypeOptions = [
-    { value: 'checkout', label: 'Checkout' },
-    { value: 'stayover', label: 'Stayover' },
-    { value: 'deep-clean', label: 'Deep Clean' },
-    { value: 'inspection', label: 'Inspection' },
-  ];
-
-  const statusOptions = [
-    { value: 'pending', label: 'Pending' },
-    { value: 'in-progress', label: 'In Progress' },
-    { value: 'completed', label: 'Completed' },
-    { value: 'skipped', label: 'Skipped' },
-  ];
-
-  const priorityOptions = [
-    { value: 'low', label: 'Low' },
-    { value: 'medium', label: 'Medium' },
-    { value: 'high', label: 'High' },
-    { value: 'urgent', label: 'Urgent' },
-  ];
 
   const availableRooms = rooms.filter((room: any) => room.isActive);
 

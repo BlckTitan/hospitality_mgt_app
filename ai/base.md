@@ -209,7 +209,7 @@ interface HousekeepingTask {
   taskType: 'checkout' | 'stayover' | 'deep-clean' | 'inspection';
   status: 'pending' | 'in-progress' | 'completed' | 'skipped';
   priority: 'low' | 'medium' | 'high' | 'urgent';
-  source: 'manual' | 'reservation_checkout' | 'reservation_stayover';
+  source: 'manual' | 'front_desk' | 'reservation_checkout' | 'reservation_stayover';
   reservationId?: string;
   templateId?: string;
   createdBy?: string;

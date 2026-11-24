@@ -473,8 +473,9 @@ export const GRANULAR_PERMISSIONS: Record<string, Record<string, string>> = {
     "staff.self.read": "staff.read",
   },
   housekeeping: {
-    // Read follows front-desk reservation access. Assign, update, and complete
-    // stay explicit so a receptionist with reservations FULL cannot open templates.
+    // Read follows front-desk reservation access. Request, assign, update, and
+    // complete stay explicit so a receptionist with reservations FULL cannot
+    // open templates or pick a housekeeper. Request is granted on Receptionist only.
     "housekeeping.task.read": "reservations.read",
   },
   rooms: {

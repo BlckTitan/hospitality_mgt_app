@@ -129,7 +129,9 @@ export const ROUTE_PERMISSIONS: Record<string, RoutePermission> = {
   '/admin/room-management/room-type/[id]/edit': { granular: 'rooms.update' },
   '/admin/room-management/guest/create': { granular: 'reservations.create' },
   '/admin/room-management/guest/[id]/edit': { granular: 'reservations.update' },
-  '/admin/room-management/housekeeping-task/create': { granular: 'housekeeping.task.assign' },
+  '/admin/room-management/housekeeping-task/create': {
+    granular: ['housekeeping.task.assign', 'housekeeping.task.request'],
+  },
   '/admin/room-management/housekeeping-task/[id]/edit': { granular: 'housekeeping.task.update' },
 
   // Food & Beverage

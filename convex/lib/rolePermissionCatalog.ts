@@ -128,7 +128,8 @@ function expandTaskKeysFromModules(
   if (roleName === "Housekeeping") {
     grant(["housekeeping.task.read", "housekeeping.task.update"], permissions);
   } else if (roleName === "Receptionist") {
-    grant(["housekeeping.task.read"], permissions);
+    // Request files an unassigned task. Assign, templates, and SLA stay off.
+    grant(["housekeeping.task.read", "housekeeping.task.request"], permissions);
   } else if (roleName === "Supervisor") {
     // Assign + complete across F&B / housekeeping / inventory task modules
     grant(

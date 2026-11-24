@@ -276,6 +276,7 @@ Keys live in Convex + frontend matrices (`restaurant.read|create|update|delete`)
 Permission keys stay technical. Work records stay `HousekeepingTask`, `MaintenanceOrder`, and `InventoryTask`. Assignment is `taskAssignments` (lead + helpers).
 
 - housekeeping.task.read
+- housekeeping.task.request
 - housekeeping.task.assign
 - housekeeping.task.update
 - housekeeping.task.complete
@@ -293,7 +294,7 @@ Staff (Housekeeping Staff / Maintenance Staff / storekeepers with `beverages` or
 | Screen | Path | Permission |
 |---|---|---|
 | Housekeeping board | `/admin/room-management/housekeeping-task` | `housekeeping.task.read` |
-| Housekeeping create | `/admin/room-management/housekeeping-task/create` | `housekeeping.task.assign` |
+| Housekeeping create | `/admin/room-management/housekeeping-task/create` | `housekeeping.task.assign` or `housekeeping.task.request` |
 | Housekeeping edit | `/admin/room-management/housekeeping-task/edit` | `housekeeping.task.update` |
 | My tasks | `/admin/tasks/mine` | `housekeeping.task.read` or `maintenance.order.read` or `inventory.task.read` |
 | Maintenance orders | `/admin/maintenance` | `maintenance.order.read` (parts catalog picker included; `inventory.read` not required) |
@@ -307,7 +308,7 @@ Staff (Housekeeping Staff / Maintenance Staff / storekeepers with `beverages` or
 - Housekeeping (`Housekeeping` role name): `housekeeping.task.read` + `update`; complete only as lead
 - Maintenance Staff: `maintenance.order.read` + `update`; complete only as lead
 - Bartender / Cook / Chef / Kitchen Assistant: `inventory.task.read` + `update`; complete only as lead
-- Receptionist: `housekeeping.task.read` (room readiness from open tasks); no assign/complete
+- Receptionist: `housekeeping.task.read` (room readiness from open tasks) and `housekeeping.task.request` (file an unassigned task for a room: type, priority, schedule, and a required note). No lead, helpers, status, assign, update, or complete. Templates and SLA stay on `housekeeping.task.assign`. Check-in and check-out still create stayover and checkout-clean on their own.
 
 ---
 

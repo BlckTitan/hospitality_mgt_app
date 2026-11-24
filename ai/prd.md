@@ -233,6 +233,7 @@ Shared assignment, SLA, templates, and checklists across housekeeping, maintenan
 - **SLA**: every work record has `dueAt` = trigger/create time + property `taskSlaDefaults.dueMinutes` for that module/`typeKey`. Snapshot; later default edits do not rewrite open work. Seeded defaults: checkout 45, stayover 180, emergency WO 120, restock 480, putaway 120, preventive 1440. A scheduled maintenance order is the exception: `dueAt` is the chosen maintenance date.
 - **G3**: percent of **completed** housekeeping + maintenance + inventory tasks in the period with `completedAt <= dueAt`. Skipped/cancelled excluded.
 - **Templates**: reusable checklists per property + module + `typeKey` (optional `roomTypeId` for housekeeping). At create, snapshot steps onto the work record as `{ id, label, isComplete }[]`. Putaway may seed checklist from PO lines (item + qty).
+- **Front-desk request**: a receptionist with `housekeeping.task.request` files a task for a room (`source: front_desk`) with type, priority, optional schedule, and a required note. No lead or helpers. Status stays `pending`. A supervisor assigns it from the unassigned board. This key does not open templates, SLA, edit, or complete.
 - **Auto-create**:
   - Reservation checkout → housekeeping `checkout` task (open checkout task is what blocks “room ready”; room status is not changed to dirty/cleaning).
   - Reservation check-in → housekeeping `stayover` task.
@@ -243,7 +244,7 @@ Shared assignment, SLA, templates, and checklists across housekeeping, maintenan
 - **Duration**: `estimatedDuration` / `actualDuration` on housekeeping are productivity-only; they do not post Hours.
 - **Notifications**: in-app this phase.
 - **Boards**: unassigned (no lead), mine (current user’s linked staff), overdue (`dueAt` passed, not completed). Maintenance also has **due soon** (open scheduled order inside `reminderDays`, including overdue).
-- **Permissions**: `housekeeping.task.`*, `maintenance.order.*`, `inventory.task.*` with `read | assign | update | complete`. Staff: read/update assigned rows; complete only if lead. Supervisors: assign and complete any in module. Do not gate these screens on `system.admin`.
+- **Permissions**: `housekeeping.task.*` (`read | request | assign | update | complete`), `maintenance.order.*`, `inventory.task.*` with `read | assign | update | complete`. Staff: read/update assigned rows; complete only if lead. Supervisors: assign and complete any in module. Receptionist: read and request only (unassigned task, no staff). Do not gate these screens on `system.admin`.
 
 
 
