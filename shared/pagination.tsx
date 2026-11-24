@@ -27,6 +27,7 @@ const SEARCH_PLACEHOLDERS: Record<string, string> = {
   roomTypes: 'Search by name or description',
   rooms: 'Search by room number or type',
   reservations: 'Search by confirmation, guest, or room',
+  housekeepingTasks: 'Search by room, type, or staff',
   bars: 'Search by name or location',
   userRoles: 'Search by user, email, or role',
   storeInventories: 'Search by beverage',

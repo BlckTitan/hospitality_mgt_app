@@ -329,6 +329,112 @@ export const getPeriod = query({
   },
 });
 
+const chartQuotaValidator = v.object({
+  accountId: v.id("billAccounts"),
+  name: v.string(),
+  billType: billTypeValidator,
+  frequency: frequencyValidator,
+  amount: v.number(),
+  annualized: v.number(),
+  share: v.number(),
+  source: v.union(v.literal("captured"), v.literal("expected")),
+});
+
+const chartPointValidator = v.object({
+  periodStart: v.number(),
+  amount: v.number(),
+  unitRate: v.union(v.number(), v.null()),
+});
+
+const chartSeriesValidator = v.object({
+  accountId: v.id("billAccounts"),
+  name: v.string(),
+  points: v.array(chartPointValidator),
+});
+
+const ANNUAL_FACTOR: Record<Frequency, number> = {
+  weekly: 52,
+  monthly: 12,
+  annually: 1,
+};
+
+export const getBillingCharts = query({
+  args: { propertyId: v.id("properties") },
+  returns: v.object({
+    success: v.literal(true),
+    data: v.object({
+      quota: v.array(chartQuotaValidator),
+      series: v.array(chartSeriesValidator),
+    }),
+  }),
+  handler: async (ctx, args) => {
+    await requirePermission(ctx, "billing.period.read", args.propertyId);
+    const accounts = await ctx.db
+      .query("billAccounts")
+      .withIndex("by_propertyId_isActive", (q) =>
+        q.eq("propertyId", args.propertyId).eq("isActive", true),
+      )
+      .take(40);
+
+    const rows = await Promise.all(
+      accounts.map(async (account) => {
+        const periods = await ctx.db
+          .query("billPeriods")
+          .withIndex("by_accountId_periodStart", (q) => q.eq("accountId", account._id))
+          .order("desc")
+          .take(24);
+        const captured = periods
+          .filter((period) => period.amount != null && period.amount > 0)
+          .sort((a, b) => a.periodStart - b.periodStart);
+        const latest = captured[captured.length - 1];
+        const amount = latest?.amount ?? account.expectedAmount;
+        const factor = isFrequency(account.frequency) ? ANNUAL_FACTOR[account.frequency] : 1;
+        const quota =
+          amount != null && Number.isFinite(amount) && amount > 0 && isBillType(account.billType) && isFrequency(account.frequency)
+            ? {
+                accountId: account._id,
+                name: account.name,
+                billType: account.billType,
+                frequency: account.frequency,
+                amount,
+                annualized: amount * factor,
+                share: 0,
+                source: latest ? ("captured" as const) : ("expected" as const),
+              }
+            : null;
+        return {
+          quota,
+          series: {
+            accountId: account._id,
+            name: account.name,
+            points: captured.map((period) => ({
+              periodStart: period.periodStart,
+              amount: period.amount ?? 0,
+              unitRate: period.unitRate ?? null,
+            })),
+          },
+        };
+      }),
+    );
+
+    const quotaRows = rows
+      .map((row) => row.quota)
+      .filter((row): row is NonNullable<typeof row> => row !== null)
+      .sort((a, b) => b.annualized - a.annualized || a.name.localeCompare(b.name));
+    const annualTotal = quotaRows.reduce((sum, row) => sum + row.annualized, 0);
+    const quota = quotaRows.map((row) => ({
+      ...row,
+      share: annualTotal > 0 ? (row.annualized / annualTotal) * 100 : 0,
+    }));
+    const series = rows
+      .map((row) => row.series)
+      .filter((row) => row.points.length > 0)
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    return { success: true as const, data: { quota, series } };
+  },
+});
+
 export const listDashboard = query({
   args: { propertyId: v.id("properties") },
   handler: async (ctx, args) => {

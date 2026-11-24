@@ -16,6 +16,7 @@ import {
   type CashPeriodKind,
 } from '../../../../lib/cashPeriod';
 import { EXPENSE_CATEGORY_OPTIONS } from '../../expenses/components/categoryLabels';
+import { BillingCharts } from '../../billing/components/billingCharts';
 import { SalesByDayChart } from './sales-by-day-chart';
 import { usePermissions } from '../../../../hooks/usePermissions';
 import { isWaiterView } from '../../../../lib/staff-scope';
@@ -462,7 +463,7 @@ export function BillingCard({
         <Kpi label="Due this week" value={dueThisWeek.length} />
       </KpiGrid>
       {overdue.slice(0, 3).length > 0 && (
-        <ul className="text-sm space-y-1">
+        <ul className="text-sm space-y-1 mb-4">
           {overdue.slice(0, 3).map((row) => (
             <li key={row._id} className="text-red-600">
               {row.accountName} · {formatPropertyMoney(row.amount, currency)}
@@ -470,6 +471,7 @@ export function BillingCard({
           ))}
         </ul>
       )}
+      <BillingCharts propertyId={propertyId} currency={currency} />
     </CardShell>
   );
 }

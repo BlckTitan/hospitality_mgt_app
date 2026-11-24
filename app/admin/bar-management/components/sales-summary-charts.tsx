@@ -46,6 +46,15 @@ const CHART_TABS = [
   'SKU Performance',
 ] as const;
 
+const METRIC_TABS = [
+  { id: 'sales', label: 'Sales', hint: 'Revenue, cost, and quantity from stock-sheet sales' },
+  { id: 'employee', label: 'Employee', hint: 'Staff with sales, and revenue per waiter-shift' },
+  { id: 'store', label: 'Store', hint: 'Reorder alerts and the latest central-store count' },
+  { id: 'employee-related', label: 'Employee related', hint: 'Stock-sheet close-out and requests staff still have open' },
+] as const;
+
+type MetricTab = (typeof METRIC_TABS)[number]['id'];
+
 const PERIODS = [
   { id: 'daily', label: 'Daily' },
   { id: 'weekly', label: 'Weekly' },
@@ -102,6 +111,7 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
   const { roles, isLoading: rolesLoading } = usePermissions();
   const showGrossProfit = !rolesLoading && !isWaiterView(roles);
   const [periodType, setPeriodType] = useState<PeriodView>('daily');
+  const [metricTab, setMetricTab] = useState<MetricTab>('sales');
   const [tab, setTab] = useState<(typeof CHART_TABS)[number]>('Bar Performance');
   const [pickedDate, setPickedDate] = useState('');
   const summaryPeriod = periodType === 'yoy' ? 'yearly' : periodType;
@@ -422,7 +432,7 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
   const dateControl = (
     <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
       <div>
-        <h2 className="text-lg font-semibold text-gray-800">Sales</h2>
+        <h2 className="text-lg font-semibold text-gray-800">Performance</h2>
         {viewDate && (
           <p className="text-sm text-gray-500">
             {periodCaption(periodType, viewDate, salesReady ? salesByBarData.periodKey : '')}
@@ -473,7 +483,30 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
   return (
     <div className="w-full">
       {dateControl}
-      <div className="mb-6 grid grid-cols-1 md:grid-cols-3 xl:grid-cols-7 gap-4">
+      <div className="mb-6">
+        <div className="flex gap-1 overflow-x-auto border-b" role="tablist" aria-label="Performance metrics">
+          {METRIC_TABS.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              role="tab"
+              aria-selected={metricTab === item.id}
+              className={`shrink-0 border-b-2 px-3 py-2 text-sm ${
+                metricTab === item.id
+                  ? 'border-slate-900 font-medium text-slate-900'
+                  : 'border-transparent text-slate-600 hover:text-slate-900'
+              }`}
+              onClick={() => setMetricTab(item.id)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+        <p className="mt-3 text-sm text-gray-500">
+          {METRIC_TABS.find((item) => item.id === metricTab)?.hint}
+        </p>
+      {metricTab === 'sales' && (
+        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3" role="tabpanel">
         <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
           <MetricLabel sectionId="total-revenue" className="text-sm text-blue-600 font-medium">
             Total Revenue
@@ -589,7 +622,15 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
           <div className="text-xl font-bold text-purple-800">
             {salesByBarData.data?.length || 0}
           </div>
+          <div className="text-xs text-gray-600 mt-1">
+            Bars with a sales summary this period
+          </div>
         </div>
+        </div>
+      )}
+
+      {metricTab === 'employee' && (
+        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3" role="tabpanel">
         <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
           <MetricLabel sectionId="active-staff" className="text-sm text-orange-600 font-medium">
             Active Staff
@@ -598,38 +639,30 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
             {salesByUserData.data?.length || 0}
           </div>
         </div>
-      </div>
-
-      {health === undefined ? (
-        <div className="mb-6 text-sm text-gray-500">Loading health metrics…</div>
-      ) : (
-        <div className="mb-6 grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-4">
-          <div className={`p-4 rounded-lg border ${
-            health.openLogCount > 0
-              ? 'bg-yellow-50 border-yellow-200'
-              : 'bg-teal-50 border-teal-200'
-          }`}>
-            <MetricLabel
-              sectionId="stock-days"
-              className={`text-sm font-medium ${health.openLogCount > 0 ? 'text-yellow-700' : 'text-teal-700'}`}
-            >
-              Stock days finalized
+        {health === undefined ? (
+          <div className="text-sm text-gray-500 sm:col-span-2">Loading health metrics…</div>
+        ) : (
+          <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-200">
+            <MetricLabel sectionId="revenue-per-shift" className="text-sm text-indigo-600 font-medium">
+              Revenue / waiter-shift
             </MetricLabel>
-            <div className={`text-xl font-bold ${health.openLogCount > 0 ? 'text-yellow-900' : 'text-teal-900'}`}>
-              {health.sessionCount === 0
-                ? '—'
-                : `${health.finalizedSessionCount} / ${health.sessionCount}`}
+            <div className="text-xl font-bold text-indigo-800">
+              {formatCurrency(health.revenuePerWaiterShift)}
             </div>
             <div className="text-xs text-gray-600 mt-1">
-              {health.sessionCount === 0
-                ? 'No stock sessions this period'
-                : `${formatPercent(health.finalizeRate)}${
-                    health.healthWindowDays && (periodType === 'yearly' || periodType === 'yoy')
-                      ? ` · last ${health.healthWindowDays} days`
-                      : ''
-                  }`}
+              {health.waiterShiftCount} waiter-shift{health.waiterShiftCount === 1 ? '' : 's'}
+              {periodType === 'yearly' || periodType === 'yoy' ? ' · last 30 days' : ''}
             </div>
           </div>
+        )}
+        </div>
+      )}
+
+      {metricTab === 'store' && (
+        health === undefined ? (
+          <div className="mt-4 text-sm text-gray-500">Loading health metrics…</div>
+        ) : (
+        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3" role="tabpanel">
           <div className={`p-4 rounded-lg border ${
             (health.openReorderCount ?? 0) > 0
               ? 'bg-red-50 border-red-200'
@@ -671,30 +704,6 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
             </div>
           </div>
           <div className={`p-4 rounded-lg border ${
-            (health.openStockRequestCount ?? 0) > 0
-              ? 'bg-orange-50 border-orange-200'
-              : 'bg-slate-50 border-slate-200'
-          }`}>
-            <MetricLabel
-              sectionId="stock-requests"
-              className={`text-sm font-medium ${(health.openStockRequestCount ?? 0) > 0 ? 'text-orange-700' : 'text-slate-600'}`}
-            >
-              Open stock requests
-            </MetricLabel>
-            <div className={`text-xl font-bold ${(health.openStockRequestCount ?? 0) > 0 ? 'text-orange-900' : 'text-slate-800'}`}>
-              {health.openStockRequestCount ?? '—'}
-            </div>
-            <div className="text-xs text-gray-600 mt-1">
-              {health.openStockRequestCount === null
-                ? 'Needs inventory access'
-                : (
-                  <a href="/admin/bar-management/stock-requests" className="text-blue-700 underline">
-                    Review queue
-                  </a>
-                )}
-            </div>
-          </div>
-          <div className={`p-4 rounded-lg border ${
             (health.latestStoreVarianceQty ?? 0) < 0
               ? 'bg-rose-50 border-rose-200'
               : 'bg-slate-50 border-slate-200'
@@ -720,23 +729,69 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
                   : 'No posted count yet'}
             </div>
           </div>
-          <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-200">
-            <MetricLabel sectionId="revenue-per-shift" className="text-sm text-indigo-600 font-medium">
-              Revenue / waiter-shift
+        </div>
+        )
+      )}
+
+      {metricTab === 'employee-related' && (
+        health === undefined ? (
+          <div className="mt-4 text-sm text-gray-500">Loading health metrics…</div>
+        ) : (
+        <>
+        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3" role="tabpanel">
+          <div className={`p-4 rounded-lg border ${
+            health.openLogCount > 0
+              ? 'bg-yellow-50 border-yellow-200'
+              : 'bg-teal-50 border-teal-200'
+          }`}>
+            <MetricLabel
+              sectionId="stock-days"
+              className={`text-sm font-medium ${health.openLogCount > 0 ? 'text-yellow-700' : 'text-teal-700'}`}
+            >
+              Stock days finalized
             </MetricLabel>
-            <div className="text-xl font-bold text-indigo-800">
-              {formatCurrency(health.revenuePerWaiterShift)}
+            <div className={`text-xl font-bold ${health.openLogCount > 0 ? 'text-yellow-900' : 'text-teal-900'}`}>
+              {health.sessionCount === 0
+                ? '—'
+                : `${health.finalizedSessionCount} / ${health.sessionCount}`}
             </div>
             <div className="text-xs text-gray-600 mt-1">
-              {health.waiterShiftCount} waiter-shift{health.waiterShiftCount === 1 ? '' : 's'}
-              {periodType === 'yearly' || periodType === 'yoy' ? ' · last 30 days' : ''}
+              {health.sessionCount === 0
+                ? 'No stock sessions this period'
+                : `${formatPercent(health.finalizeRate)}${
+                    health.healthWindowDays && (periodType === 'yearly' || periodType === 'yoy')
+                      ? ` · last ${health.healthWindowDays} days`
+                      : ''
+                  }`}
+            </div>
+          </div>
+          <div className={`p-4 rounded-lg border ${
+            (health.openStockRequestCount ?? 0) > 0
+              ? 'bg-orange-50 border-orange-200'
+              : 'bg-slate-50 border-slate-200'
+          }`}>
+            <MetricLabel
+              sectionId="stock-requests"
+              className={`text-sm font-medium ${(health.openStockRequestCount ?? 0) > 0 ? 'text-orange-700' : 'text-slate-600'}`}
+            >
+              Open stock requests
+            </MetricLabel>
+            <div className={`text-xl font-bold ${(health.openStockRequestCount ?? 0) > 0 ? 'text-orange-900' : 'text-slate-800'}`}>
+              {health.openStockRequestCount ?? '—'}
+            </div>
+            <div className="text-xs text-gray-600 mt-1">
+              {health.openStockRequestCount === null
+                ? 'Needs inventory access'
+                : (
+                  <a href="/admin/bar-management/stock-requests" className="text-blue-700 underline">
+                    Review queue
+                  </a>
+                )}
             </div>
           </div>
         </div>
-      )}
-
-      {health && (health.openStockRequests?.length ?? 0) > 0 && (
-        <div className="mb-6 border rounded-lg p-4">
+        {(health.openStockRequests?.length ?? 0) > 0 && (
+        <div className="mt-4 border rounded-lg p-4">
           <div className="flex justify-between items-center mb-2">
             <h4 className="font-medium text-sm">Open stock requests</h4>
             <a href="/admin/bar-management/stock-requests" className="text-sm text-blue-700 underline">
@@ -766,7 +821,11 @@ const SalesSummaryCharts: React.FC<SalesSummaryChartsProps> = ({ currentProperty
             </tbody>
           </table>
         </div>
+        )}
+        </>
+        )
       )}
+      </div>
 
       <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-wrap gap-2">

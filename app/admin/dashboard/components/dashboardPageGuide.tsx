@@ -56,6 +56,11 @@ const SECTIONS: GuideSection[] = [
     body: 'These name the strongest day for rooms, bar, and food. A weekday that stays weak is where to look at price, staffing, or promotion.',
   },
   {
+    id: 'billing',
+    title: 'Billing charts',
+    body: 'Quota is each bill’s share of annual cost: the latest captured amount, or the expected amount, with weekly bills counted 52 times and monthly bills 12 times. Price over time is the captured amount of each bill by period.',
+  },
+  {
     id: 'watch',
     title: 'What to act on',
     body: 'Red means act now: overdue housekeeping, low stock, beverage reorder alerts, and overdue bills. Also watch waste and comps, bar stock sheets still open, and a high restaurant food-cost share. The amber list is maintenance coming due.',

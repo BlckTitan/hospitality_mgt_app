@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useQuery } from 'convex/react';
 import { api } from '../../../convex/_generated/api';
 import { usePermissions } from '../../../hooks/usePermissions';
+import { BillingCharts } from './components/billingCharts';
 import { BillingPageGuide } from './components/billingPageGuide';
 import { HubUrgencyTables } from './components/hubUrgencyTables';
 
@@ -35,6 +36,7 @@ export default function BillingHubPage() {
     );
   }
 
+  const property = propertiesResponse.data[0];
   const overdue = dashboard?.data?.overdue ?? [];
   const dueThisWeek = dashboard?.data?.dueThisWeek ?? [];
 
@@ -70,6 +72,8 @@ export default function BillingHubPage() {
         {' '}
         <span className='text-amber-600 font-medium'>Due this week {dueThisWeek.length}</span>.
       </p>
+
+      <BillingCharts propertyId={property._id} currency={property.currency} />
 
       <HubUrgencyTables overdue={overdue} dueThisWeek={dueThisWeek} />
     </div>

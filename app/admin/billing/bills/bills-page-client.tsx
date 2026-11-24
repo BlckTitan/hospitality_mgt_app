@@ -4,6 +4,7 @@ import { BackLink } from '../../../../shared/pageHeader';
 import { useQuery } from 'convex/react';
 import { api } from '../../../../convex/_generated/api';
 import { BillsTable } from '../components/billsTable';
+import { BillingCharts } from '../components/billingCharts';
 import { BillingPageGuide } from '../components/billingPageGuide';
 
 export function BillsPageClient() {
@@ -33,6 +34,10 @@ export function BillsPageClient() {
       </div>
         <BackLink />
       </header>
+      <BillingCharts
+        propertyId={currentPropertyId}
+        currency={propertiesResponse.data[0]?.currency}
+      />
       <BillsTable currentPropertyId={currentPropertyId} />
     </div>
   );
