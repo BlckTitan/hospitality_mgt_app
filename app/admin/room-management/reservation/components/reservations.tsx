@@ -100,7 +100,44 @@ const Reservations = ({ propertyId, timeZone }: { propertyId: string; timeZone?:
   };
 
   const tableColumns: TableColumn<ReservationProps>[] = [
-    { label: 'Confirmation #', key: 'confirmationNumber' },
+    {
+      label: 'Action',
+      key: '_id',
+      pin: 'left',
+      render: (value, row) => (
+        <ReservationLifecycleActions
+          reservationId={row._id as Id<'reservations'>}
+          status={row.status}
+          totalAmount={row.totalAmount}
+          depositAmount={row.depositAmount ?? 0}
+          currency={currency}
+          layout="compact"
+          rowActions={
+            <>
+              <a
+                href={`/admin/room-management/reservation/edit?reservation_id=${row._id}`}
+                className="!no-underline !text-amber-400"
+                title="Edit booking details"
+                aria-label="Edit booking details"
+              >
+                <i className="icon"><MdEditDocument /></i>
+              </a>
+              <Button
+                variant="white"
+                onClick={() => handleDelete(row._id, row.confirmationNumber)}
+                title="Delete reservation"
+                aria-label="Delete reservation"
+                disabled={desk.blocked || row.status === 'checked-in' || row.status === 'checked-out'}
+              >
+                <i className="icon">
+                  <FcEmptyTrash />
+                </i>
+              </Button>
+            </>
+          }
+        />
+      ),
+    },
     {
       label: 'Guest',
       key: 'guest',
@@ -115,6 +152,7 @@ const Reservations = ({ propertyId, timeZone }: { propertyId: string; timeZone?:
         <span>{row.room ? `${row.room.roomNumber}${row.room.roomType ? ` (${row.room.roomType.name})` : ''}` : 'N/A'}</span>
       )
     },
+    { label: 'Confirmation #', key: 'confirmationNumber' },
     {
       label: 'Stay',
       key: 'stayKind',
@@ -168,43 +206,6 @@ const Reservations = ({ propertyId, timeZone }: { propertyId: string; timeZone?:
         <span>{formatDateTime(row.createdAt)}</span>
       )
     },
-    {
-      label: 'Action',
-      key: '_id',
-      render: (value, row) => (
-        <ReservationLifecycleActions
-          reservationId={row._id as Id<'reservations'>}
-          status={row.status}
-          totalAmount={row.totalAmount}
-          depositAmount={row.depositAmount ?? 0}
-          currency={currency}
-          layout="compact"
-          rowActions={
-            <>
-              <a
-                href={`/admin/room-management/reservation/edit?reservation_id=${row._id}`}
-                className="!no-underline !text-amber-400"
-                title="Edit booking details"
-                aria-label="Edit booking details"
-              >
-                <i className="icon"><MdEditDocument /></i>
-              </a>
-              <Button
-                variant="white"
-                onClick={() => handleDelete(row._id, row.confirmationNumber)}
-                title="Delete reservation"
-                aria-label="Delete reservation"
-                disabled={desk.blocked || row.status === 'checked-in' || row.status === 'checked-out'}
-              >
-                <i className="icon">
-                  <FcEmptyTrash />
-                </i>
-              </Button>
-            </>
-          }
-        />
-      ),
-    },
   ];
 
   return (
@@ -213,6 +214,7 @@ const Reservations = ({ propertyId, timeZone }: { propertyId: string; timeZone?:
         <PaginationComponent
           collectionName='reservations'
           columns={tableColumns}
+          showIndex={false}
           propertyId={propertyId}
           filterKey={status}
           reservationStatus={status === 'all' ? undefined : status}
