@@ -104,6 +104,7 @@ const Reservations = ({ propertyId, timeZone }: { propertyId: string; timeZone?:
       label: 'Action',
       key: '_id',
       pin: 'left',
+      className: 'min-w-0',
       render: (value, row) => (
         <ReservationLifecycleActions
           reservationId={row._id as Id<'reservations'>}

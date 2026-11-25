@@ -264,10 +264,21 @@ export const getBarHealthMetrics = query({
           q.eq("propertyId", args.propertyId).eq("status", "partial"),
         )
         .collect();
-      const openRequests = [...pendingRequests, ...partialRequests]
+      const seenRequests = new Set<string>();
+      const stillOpen: typeof pendingRequests = [];
+      for (const request of [...pendingRequests, ...partialRequests]) {
+        if (seenRequests.has(request._id)) continue;
+        seenRequests.add(request._id);
+        const lines = await ctx.db
+          .query("stockRequestLines")
+          .withIndex("by_requestId", (q) => q.eq("requestId", request._id))
+          .collect();
+        if (lines.some((line) => line.status === "pending")) stillOpen.push(request);
+      }
+      const openRequests = stillOpen
         .sort((a, b) => a.requestedAt - b.requestedAt)
         .slice(0, 10);
-      openStockRequestCount = pendingRequests.length + partialRequests.length;
+      openStockRequestCount = stillOpen.length;
       openStockRequests = await Promise.all(
         openRequests.map(async (request) => {
           const [user, bar] = await Promise.all([

@@ -292,7 +292,7 @@ const GUIDES: Record<GuidePage, GuideSection[] | string> = {
     {
       id: 'issue',
       title: 'Issue',
-      body: 'Removes bottles from the store and posts them to the chosen bar for today.',
+      body: 'Removes bottles from the store and posts them to the chosen bar for today. Bottle cost is the store cost in effect for that drink. Total cost is that cost times the bottles.',
     },
     {
       id: 'count',

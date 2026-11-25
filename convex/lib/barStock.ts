@@ -49,6 +49,7 @@ export async function issueStockToUser(
     return { success: false, message: preview.error };
   }
 
+  const bottleCost = purchaseUnitCost(inventory.unitCost) ? inventory.unitCost : args.unitCost;
   const transactionId = await ctx.db.insert("storeTransactions", {
     propertyId: args.propertyId,
     beverageId: args.beverageId,
@@ -56,6 +57,8 @@ export async function issueStockToUser(
     userId: args.userId,
     txnType: "issue",
     qty: args.qty,
+    unitCost: bottleCost,
+    totalCost: lineTotalCost(args.qty, bottleCost),
     txnDate: now,
     txnDateKey,
     notes: args.notes,
@@ -800,6 +803,37 @@ export function replayStoreDayValues(args: {
     issuedValue,
     onHandValue: Math.max(qtyNow, 0) * costNow,
   };
+}
+
+/** Bottle cost in effect for each issue, walking newest movements first. */
+export function issueCostsInEffect<T extends string>(args: {
+  qtyInStore: number;
+  unitCost: number;
+  movements: (StoreDayMovement & { id: T })[];
+}): Map<T, number> {
+  const costNow = resolveUnitCost(args.unitCost);
+  let qty = Number.isFinite(args.qtyInStore) ? args.qtyInStore : 0;
+  let cost = costNow;
+  const movements = [...args.movements].sort(
+    (a, b) => b.txnDate - a.txnDate || b.createdAt - a.createdAt,
+  );
+  const costs = new Map<T, number>();
+  for (const movement of movements) {
+    if (!movement.changesStoreQty) continue;
+    if (movement.txnType === "issue") {
+      costs.set(movement.id, cost);
+      qty += Math.max(movement.qty, 0);
+      continue;
+    }
+    if (movement.txnType === "count_adjust") {
+      qty -= movement.qty;
+      continue;
+    }
+    const purchaseQty = Math.max(movement.qty, 0);
+    cost = reversedAverageCost(qty, cost, purchaseQty, movementPurchaseCost(movement, cost));
+    qty -= purchaseQty;
+  }
+  return costs;
 }
 
 /** Records a purchase against on-hand quantity, then the caller changes that quantity. */

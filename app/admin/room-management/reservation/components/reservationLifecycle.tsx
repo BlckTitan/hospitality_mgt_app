@@ -338,12 +338,12 @@ export function ReservationLifecycleActions({
   if (layout === 'compact') {
     const showRow = canCancel || Boolean(rowActions);
     return (
-      <div className="flex w-56 flex-col gap-1">
+      <div className="flex w-fit flex-col items-start gap-1">
         {canConfirm && (
           <Button
             variant="outline-primary"
             size="sm"
-            className="w-full"
+            className="px-2"
             disabled={busy || desk.blocked}
             onClick={() => {
               if (!confirm('Confirm this reservation?')) return;
@@ -357,7 +357,7 @@ export function ReservationLifecycleActions({
           <Button
             variant="outline-success"
             size="sm"
-            className="w-full"
+            className="px-2"
             disabled={busy || desk.blocked}
             onClick={() => startCollecting('check-in')}
           >
@@ -368,7 +368,7 @@ export function ReservationLifecycleActions({
           <Button
             variant="outline-dark"
             size="sm"
-            className="w-full"
+            className="px-2"
             disabled={busy || desk.blocked}
             onClick={() => startCollecting('check-out')}
           >
@@ -422,6 +422,8 @@ export function ReservationLifecycleActions({
         {canConfirm && (
           <Button
             variant="outline-primary"
+            size="sm"
+            className="w-fit px-2"
             disabled={busy || desk.blocked}
             onClick={() => {
               if (!confirm('Confirm this reservation?')) return;
@@ -432,12 +434,24 @@ export function ReservationLifecycleActions({
           </Button>
         )}
         {canCheckIn && (
-          <Button variant="success" disabled={busy || desk.blocked} onClick={() => startCollecting('check-in')}>
+          <Button
+            variant="success"
+            size="sm"
+            className="w-fit px-2"
+            disabled={busy || desk.blocked}
+            onClick={() => startCollecting('check-in')}
+          >
             Check in
           </Button>
         )}
         {canCheckOut && (
-          <Button variant="dark" disabled={busy || desk.blocked} onClick={() => startCollecting('check-out')}>
+          <Button
+            variant="dark"
+            size="sm"
+            className="w-fit px-2"
+            disabled={busy || desk.blocked}
+            onClick={() => startCollecting('check-out')}
+          >
             Check out
           </Button>
         )}

@@ -132,19 +132,25 @@ const StoreTransactions = ({ currentPropertyId }: { currentPropertyId: Id<"prope
       label: 'Bottle cost',
       key: 'unitCost',
       render: (value, row) => (
-        <span>{row.txnType === 'receive' ? formatPropertyMoney(row.unitCost, currency) : '—'}</span>
+        <span>
+          {row.txnType === 'receive' || row.txnType === 'issue'
+            ? formatPropertyMoney(row.unitCost, currency)
+            : '—'}
+        </span>
       )
     },
     {
       label: 'Total cost',
       key: 'totalCost',
       render: (value, row) => {
-        if (row.txnType !== 'receive') return <span>—</span>;
-        const supply = row.supplyCosts?.map((cost) => `${cost.label} ${formatPropertyMoney(cost.amount, currency)}`).join(', ');
+        if (row.txnType !== 'receive' && row.txnType !== 'issue') return <span>—</span>;
+        const supply = row.txnType === 'receive'
+          ? row.supplyCosts?.map((cost) => `${cost.label} ${formatPropertyMoney(cost.amount, currency)}`).join(', ')
+          : undefined;
         return (
           <div>
             <div>{formatPropertyMoney(row.totalCost, currency)}</div>
-            {row.packPrice !== undefined && (
+            {row.txnType === 'receive' && row.packPrice !== undefined && (
               <div className="text-xs text-gray-500">
                 {formatPropertyMoney(row.packPrice, currency)} / crate{supply ? ` + ${supply}` : ''}
               </div>

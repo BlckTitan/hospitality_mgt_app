@@ -38,6 +38,19 @@ async function loadRequestWithLines(ctx: DbCtx, requestId: Id<"stockRequests">) 
   return { ...request, bar, requester, reviewer, lines: linesWithData };
 }
 
+function statusFromLines(lines: Array<Pick<Doc<"stockRequestLines">, "status">>) {
+  const pending = lines.filter((line) => line.status === "pending").length;
+  const approved = lines.filter((line) => line.status === "approved").length;
+  const rejected = lines.filter((line) => line.status === "rejected").length;
+  if (pending > 0) return approved > 0 ? "partial" : "pending";
+  if (approved > 0 && rejected === 0) return "approved";
+  if (approved === 0 && rejected > 0) return "rejected";
+  // Every line is decided, and the request was only partly issued.
+  // "partial" stays on the record, but the open queue must ignore it.
+  if (approved > 0) return "partial";
+  return "pending";
+}
+
 async function refreshRequestStatus(
   ctx: MutationCtx,
   requestId: Id<"stockRequests">,
@@ -47,13 +60,7 @@ async function refreshRequestStatus(
     .query("stockRequestLines")
     .withIndex("by_requestId", (q) => q.eq("requestId", requestId))
     .collect();
-  const pending = lines.filter((line) => line.status === "pending").length;
-  const approved = lines.filter((line) => line.status === "approved").length;
-  const rejected = lines.filter((line) => line.status === "rejected").length;
-  let status: Doc<"stockRequests">["status"] = "pending";
-  if (pending === 0 && approved > 0 && rejected === 0) status = "approved";
-  else if (pending === 0 && approved === 0 && rejected > 0) status = "rejected";
-  else if (approved > 0) status = "partial";
+  const status = statusFromLines(lines);
   await ctx.db.patch(requestId, {
     status,
     reviewedAt: Date.now(),
@@ -75,13 +82,39 @@ export const listStockRequests = query({
       ),
     ),
     mineOnly: v.optional(v.boolean()),
+    openOnly: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const auth = await requirePermission(ctx, "fnb.read", args.propertyId);
     const seeAll = canViewTeamRecords(rolesForProperty(auth, args.propertyId));
 
     let rows;
-    if (args.status) {
+    if (args.openOnly) {
+      const [pending, partial] = await Promise.all([
+        ctx.db
+          .query("stockRequests")
+          .withIndex("by_propertyId_status", (q) =>
+            q.eq("propertyId", args.propertyId).eq("status", "pending"),
+          )
+          .order("desc")
+          .take(100),
+        ctx.db
+          .query("stockRequests")
+          .withIndex("by_propertyId_status", (q) =>
+            q.eq("propertyId", args.propertyId).eq("status", "partial"),
+          )
+          .order("desc")
+          .take(100),
+      ]);
+      const seen = new Set<string>();
+      rows = [...pending, ...partial]
+        .sort((a, b) => b.requestedAt - a.requestedAt)
+        .filter((row) => {
+          if (seen.has(row._id)) return false;
+          seen.add(row._id);
+          return true;
+        });
+    } else if (args.status) {
       rows = await ctx.db
         .query("stockRequests")
         .withIndex("by_propertyId_status", (q) =>
@@ -101,12 +134,15 @@ export const listStockRequests = query({
       ? rows
       : rows.filter((row) => row.requestedByUserId === auth.user._id);
 
-    const data = await Promise.all(
+    const loaded = await Promise.all(
       scoped.map(async (request) => {
-        const loaded = await loadRequestWithLines(ctx, request._id);
-        return loaded!;
+        const withLines = await loadRequestWithLines(ctx, request._id);
+        return withLines!;
       }),
     );
+    const data = args.openOnly
+      ? loaded.filter((request) => request.lines.some((line) => line.status === "pending"))
+      : loaded;
     return { success: true, data };
   },
 });
@@ -308,13 +344,11 @@ export const rejectStockRequest = mutation({
         await ctx.db.patch(line._id, { status: "rejected" });
       }
     }
-    await ctx.db.patch(args.requestId, {
-      status: "rejected",
-      rejectionReason: args.rejectionReason,
-      reviewedAt: Date.now(),
-      reviewedByUserId: auth.user._id,
-    });
-    return { success: true, message: "Stock request rejected" };
+    if (args.rejectionReason) {
+      await ctx.db.patch(args.requestId, { rejectionReason: args.rejectionReason });
+    }
+    await refreshRequestStatus(ctx, args.requestId, auth.user._id);
+    return { success: true, message: "Pending lines rejected" };
   },
 });
 

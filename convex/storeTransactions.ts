@@ -9,6 +9,7 @@ import {
   crateReceiptFields,
   ensureStoreInventoryForReceive,
   findStoreInventory,
+  issueCostsInEffect,
   issueStockToUser,
   landedCratePurchase,
   lineTotalCost,
@@ -114,12 +115,59 @@ export const getAllStoreTransactions = query({
       .order('desc')
       .take(200);
 
+    const issueCostById = new Map<Id<'storeTransactions'>, number>();
+    const beveragesNeedingCost = new Set<Id<'beverages'>>();
+    for (const transaction of transactions) {
+      if (transaction.txnType === 'issue' && !purchaseUnitCost(transaction.unitCost)) {
+        beveragesNeedingCost.add(transaction.beverageId);
+      }
+    }
+    for (const beverageId of beveragesNeedingCost) {
+      const inventory = await findStoreInventory(ctx, args.propertyId, beverageId);
+      const storedCost = inventory?.unitCost;
+      const beverage = purchaseUnitCost(storedCost) ? null : await ctx.db.get(beverageId);
+      const unitCost = purchaseUnitCost(storedCost)
+        ? storedCost
+        : await resolveBeverageUnitCost(ctx, beverage);
+      const costs = issueCostsInEffect({
+        qtyInStore: inventory?.qtyInStore ?? 0,
+        unitCost,
+        movements: transactions
+          .filter((transaction) => transaction.beverageId === beverageId)
+          .map((transaction) => ({
+            id: transaction._id,
+            txnType: transaction.txnType,
+            qty: transaction.qty,
+            unitCost: transaction.unitCost,
+            totalCost: transaction.totalCost,
+            txnDate: transaction.txnDate,
+            createdAt: transaction._creationTime,
+            changesStoreQty: !(
+              transaction.txnType === 'receive' && transaction.inventoryTransactionId !== undefined
+            ),
+          })),
+      });
+      for (const [id, cost] of costs) issueCostById.set(id, cost);
+    }
+
     const data = await Promise.all(
       transactions.map(async (transaction) => {
         const beverage = await ctx.db.get(transaction.beverageId);
         const bar = transaction.barId ? await ctx.db.get(transaction.barId) : null;
         const user = transaction.userId ? await ctx.db.get(transaction.userId) : null;
-        return { ...transaction, beverage, bar, user };
+        if (transaction.txnType !== 'issue') {
+          return { ...transaction, beverage, bar, user };
+        }
+        const unitCost = purchaseUnitCost(transaction.unitCost)
+          ? transaction.unitCost
+          : issueCostById.get(transaction._id) ?? 0;
+        const totalCost =
+          purchaseUnitCost(transaction.unitCost) &&
+          typeof transaction.totalCost === 'number' &&
+          Number.isFinite(transaction.totalCost)
+            ? transaction.totalCost
+            : lineTotalCost(transaction.qty, unitCost);
+        return { ...transaction, unitCost, totalCost, beverage, bar, user };
       }),
     );
     return { success: true, data };
@@ -426,6 +474,19 @@ export const updateStoreTransaction = mutation({
     const newStoreDelta = args.txnType === 'receive' ? movementQty : -movementQty;
     const newQty = await applyStoreQtyChange(ctx, inventoryForNew, newStoreDelta);
 
+    let issuedBottleCost: number | undefined;
+    if (args.txnType === 'issue') {
+      const keepSnapshotted =
+        existing.txnType === 'issue' &&
+        args.beverageId === existing.beverageId &&
+        purchaseUnitCost(existing.unitCost);
+      issuedBottleCost = keepSnapshotted
+        ? existing.unitCost
+        : purchaseUnitCost(inventoryForNew.unitCost)
+          ? inventoryForNew.unitCost
+          : await resolveBeverageUnitCost(ctx, beverage);
+    }
+
     if (args.txnType === 'issue' && args.barId) {
       await applyIssuedQtyToStockLog(ctx, {
         propertyId: existing.propertyId,
@@ -454,7 +515,11 @@ export const updateStoreTransaction = mutation({
         : {}),
       txnType: args.txnType,
       ...(receipt ? crateReceiptFields(receipt.purchase) : { qty: movementQty }),
-      ...(purchased ? { unitCost: purchased.unitCost, totalCost: purchased.totalCost } : {}),
+      ...(purchased
+        ? { unitCost: purchased.unitCost, totalCost: purchased.totalCost }
+        : issuedBottleCost !== undefined
+          ? { unitCost: issuedBottleCost, totalCost: lineTotalCost(movementQty, issuedBottleCost) }
+          : {}),
       txnDate: existing.txnDate,
       txnDateKey: existing.txnDateKey,
       ...(args.notes ? { notes: args.notes } : {}),

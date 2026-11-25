@@ -41,9 +41,11 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
   const propertyArgs = isAuthenticated && propertyId ? { propertyId: propertyId as Id<'properties'> } : 'skip';
   const beveragesResponse = useQuery(api.beverages.getAllBeverages, propertyArgs);
   const barsResponse = useQuery(api.bars.getAllBars, propertyArgs);
+  const inventoriesResponse = useQuery(api.storeInventories.getAllStoreInventories, propertyArgs);
 
   const beverages = beveragesResponse?.data || [];
   const bars = barsResponse?.data || [];
+  const inventories = inventoriesResponse?.success ? inventoriesResponse.data : [];
 
   const currency = usePropertyCurrency(propertyId);
   const [supplyCosts, setSupplyCosts] = useState<SupplyCostDraft[]>(blankSupplyCosts());
@@ -75,6 +77,11 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
   const unitsPerPackLocked = typeof selected?.unitsPerPack === 'number';
   const catalogTotal =
     Number.isFinite(qty) && Number.isFinite(unitCost) ? Number(qty) * Number(unitCost) : undefined;
+  const issueBottleCost = inventories.find((row) => row.beverageId === beverageId)?.unitCost;
+  const issueTotal =
+    watchedTxnType === 'issue' && typeof issueBottleCost === 'number' && Number.isFinite(qty)
+      ? Math.round(Number(qty) * issueBottleCost * 100) / 100
+      : undefined;
 
   useEffect(() => {
     if (crateReceive && typeof selected?.unitsPerPack === 'number') {
@@ -257,6 +264,32 @@ export function FormComponent({ onSuccess, onClose, propertyId }: { onSuccess: (
           </div>
           <p className="text-xs text-gray-500 mb-4">
             This drink is linked to a storeroom item. The receipt moves that quantity into the bar.
+          </p>
+        </>
+      )}
+
+      {watchedTxnType === 'issue' && (
+        <>
+          <div className="mb-1 flex w-full flex-nowrap flex-row items-start gap-3">
+            <Field id="issueBottleCost" label="Bottle cost" widthClass={alignedField} labelClassName={alignedLabel}>
+              <input
+                id="issueBottleCost"
+                readOnly
+                value={typeof issueBottleCost === 'number' ? formatPropertyMoney(issueBottleCost, currency) : ''}
+                className="bg-gray-100"
+              />
+            </Field>
+            <Field id="issueTotalCost" label="Total cost" widthClass={alignedField} labelClassName={alignedLabel}>
+              <input
+                id="issueTotalCost"
+                readOnly
+                value={issueTotal === undefined ? '' : formatPropertyMoney(issueTotal, currency)}
+                className="bg-gray-100"
+              />
+            </Field>
+          </div>
+          <p className="text-xs text-gray-500 mb-4">
+            Bottle cost is the store cost for this drink. Total cost is that cost times the bottles.
           </p>
         </>
       )}

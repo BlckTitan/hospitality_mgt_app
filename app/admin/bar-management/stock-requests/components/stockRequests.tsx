@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery } from 'convex/react'
 import { Button } from '../../../../../shared/button'
 import { toast } from 'sonner'
@@ -18,24 +18,16 @@ export default function StockRequests({
   const canApprove = hasGranularPermission('inventory.update') && !isFloorServiceOnly(roles)
 
   const [statusFilter, setStatusFilter] = useState<'pending' | 'all'>('pending')
+  const inflight = useRef(new Set<string>())
+  const [inflightIds, setInflightIds] = useState<string[]>([])
 
-  const requestsPending = useQuery(
+  const requestsOpen = useQuery(
     api.stockRequests.listStockRequests,
     statusFilter === 'pending'
       ? {
           propertyId: currentPropertyId,
-          status: 'pending',
+          openOnly: true,
           mineOnly: !canApprove,
-        }
-      : 'skip',
-  )
-  const requestsPartial = useQuery(
-    api.stockRequests.listStockRequests,
-    statusFilter === 'pending' && canApprove
-      ? {
-          propertyId: currentPropertyId,
-          status: 'partial',
-          mineOnly: false,
         }
       : 'skip',
   )
@@ -54,10 +46,26 @@ export default function StockRequests({
   const rejectLine = useMutation(api.stockRequests.rejectStockRequestLine)
   const rejectRequest = useMutation(api.stockRequests.rejectStockRequest)
 
-  const rows =
-    statusFilter === 'all'
-      ? (requestsAll?.data ?? [])
-      : [...(requestsPending?.data ?? []), ...(requestsPartial?.data ?? [])]
+  const rows = useMemo(() => {
+    const source = statusFilter === 'all' ? (requestsAll?.data ?? []) : (requestsOpen?.data ?? [])
+    const seenRequests = new Set<string>()
+    const next = []
+    for (const request of source) {
+      if (seenRequests.has(request._id)) continue
+      seenRequests.add(request._id)
+      const seenLines = new Set<string>()
+      const lines = []
+      for (const line of request.lines) {
+        if (seenLines.has(line._id)) continue
+        seenLines.add(line._id)
+        if (statusFilter === 'pending' && line.status !== 'pending') continue
+        lines.push(line)
+      }
+      if (statusFilter === 'pending' && lines.length === 0) continue
+      next.push({ ...request, lines, reviewedCount: request.lines.length - lines.length })
+    }
+    return next
+  }, [requestsAll?.data, requestsOpen?.data, statusFilter])
 
   const pendingLineCount = useMemo(
     () =>
@@ -68,16 +76,29 @@ export default function StockRequests({
     [rows],
   )
 
+  const runAction = async (id: string, action: () => Promise<{ success: boolean; message: string }>) => {
+    if (inflight.current.has(id)) return
+    inflight.current.add(id)
+    setInflightIds([...inflight.current])
+    try {
+      const response = await action()
+      if (response.success === false) toast.error(response.message)
+      else toast.success(response.message)
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : 'Request failed')
+    } finally {
+      inflight.current.delete(id)
+      setInflightIds([...inflight.current])
+    }
+  }
+
   const formatAge = (requestedAt: number) => {
     const minutes = Math.max(0, Math.floor((Date.now() - requestedAt) / 60_000))
     if (minutes < 60) return `${minutes}m`
     return `${Math.floor(minutes / 60)}h ${minutes % 60}m`
   }
 
-  const loading =
-    statusFilter === 'all'
-      ? requestsAll === undefined
-      : requestsPending === undefined || (canApprove && requestsPartial === undefined)
+  const loading = statusFilter === 'all' ? requestsAll === undefined : requestsOpen === undefined
 
   if (loading) {
     return <p className="p-4">Loading</p>
@@ -103,7 +124,9 @@ export default function StockRequests({
       </div>
 
       {rows.length === 0 ? (
-        <p className="text-gray-600">No stock requests yet.</p>
+        <p className="text-gray-600">
+          {statusFilter === 'pending' ? 'No open stock requests.' : 'No stock requests yet.'}
+        </p>
       ) : (
         <div className="space-y-4">
           {rows.map((request) => (
@@ -115,6 +138,7 @@ export default function StockRequests({
                   </div>
                   <div className="text-sm text-gray-500">
                     {formatAge(request.requestedAt)} ago · {request.status}
+                    {request.reviewedCount > 0 ? ` · ${request.reviewedCount} already reviewed` : ''}
                     {request.note ? ` · ${request.note}` : ''}
                   </div>
                 </div>
@@ -123,11 +147,10 @@ export default function StockRequests({
                     <Button
                       size="sm"
                       variant="outline-secondary"
-                      onClick={async () => {
-                        const response = await cancelRequest({ requestId: request._id })
-                        if (response.success === false) toast.error(response.message)
-                        else toast.success(response.message)
-                      }}
+                      disabled={inflightIds.includes(request._id)}
+                      onClick={() =>
+                        runAction(request._id, () => cancelRequest({ requestId: request._id }))
+                      }
                     >
                       Cancel
                     </Button>
@@ -137,11 +160,10 @@ export default function StockRequests({
                       <Button
                         size="sm"
                         variant="outline-danger"
-                        onClick={async () => {
-                          const response = await rejectRequest({ requestId: request._id })
-                          if (response.success === false) toast.error(response.message)
-                          else toast.success(response.message)
-                        }}
+                        disabled={inflightIds.includes(request._id)}
+                        onClick={() =>
+                          runAction(request._id, () => rejectRequest({ requestId: request._id }))
+                        }
                       >
                         Reject all pending
                       </Button>
@@ -176,22 +198,20 @@ export default function StockRequests({
                                 <Button
                                   size="sm"
                                   variant="dark"
-                                  onClick={async () => {
-                                    const response = await approveLine({ lineId: line._id })
-                                    if (response.success === false) toast.error(response.message)
-                                    else toast.success(response.message)
-                                  }}
+                                  disabled={inflightIds.includes(line._id)}
+                                  onClick={() =>
+                                    runAction(line._id, () => approveLine({ lineId: line._id }))
+                                  }
                                 >
                                   Approve
                                 </Button>
                                 <Button
                                   size="sm"
                                   variant="outline-secondary"
-                                  onClick={async () => {
-                                    const response = await rejectLine({ lineId: line._id })
-                                    if (response.success === false) toast.error(response.message)
-                                    else toast.success(response.message)
-                                  }}
+                                  disabled={inflightIds.includes(line._id)}
+                                  onClick={() =>
+                                    runAction(line._id, () => rejectLine({ lineId: line._id }))
+                                  }
                                 >
                                   Reject
                                 </Button>

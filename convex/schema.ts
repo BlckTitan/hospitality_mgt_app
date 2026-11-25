@@ -1306,7 +1306,9 @@ export default defineSchema({
       v.literal("count_adjust"),
     ),
     qty: v.number(),
-    // Landed cost per bottle for a receive. Total cost is the crate purchase plus supply costs.
+    // Bottle cost. On a receive this is that purchase's landed cost per bottle.
+    // On an issue this is the store bottle cost in effect when the stock went out.
+    // Total cost is bottle cost times quantity. A crate receipt's total also includes supply costs.
     unitCost: v.optional(v.number()),
     totalCost: v.optional(v.number()),
     // Crate receipt. qty is packQty × unitsPerPack. Older receipts only have qty and unitCost.

@@ -1,6 +1,6 @@
 'use client'
 
-import { FormEvent, useState } from 'react'
+import { FormEvent, useRef, useState } from 'react'
 import { useConvexAuth, useMutation, useQuery } from 'convex/react'
 import { Button } from '../../../../../shared/button'
 import { toast } from 'sonner'
@@ -30,9 +30,12 @@ export function FormComponent({
   const [barId, setBarId] = useState('')
   const [note, setNote] = useState('')
   const [lines, setLines] = useState<LineDraft[]>([{ beverageId: '', qtyRequested: '' }])
+  const submitting = useRef(false)
+  const [saving, setSaving] = useState(false)
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
+    if (submitting.current) return
     if (!propertyId || !barId) {
       toast.error('Select a bar')
       return
@@ -50,6 +53,8 @@ export function FormComponent({
       toast.error('Add valid beverage lines')
       return
     }
+    submitting.current = true
+    setSaving(true)
     try {
       const response = await createRequest({
         propertyId: propertyId as Id<'properties'>,
@@ -65,8 +70,11 @@ export function FormComponent({
         setBarId('')
         onSuccess()
       }
-    } catch (error: any) {
-      toast.error(error?.message || 'Failed to submit request')
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : 'Failed to submit request')
+    } finally {
+      submitting.current = false
+      setSaving(false)
     }
   }
 
@@ -158,11 +166,11 @@ export function FormComponent({
         />
       </div>
       <div className="flex gap-2 justify-end pt-2">
-        <Button type="button" variant="outline-secondary" onClick={onClose}>
+        <Button type="button" variant="outline-secondary" onClick={onClose} disabled={saving}>
           Cancel
         </Button>
-        <Button type="submit" variant="dark">
-          Submit request
+        <Button type="submit" variant="dark" disabled={saving}>
+          {saving ? 'Submitting...' : 'Submit request'}
         </Button>
       </div>
     </form>
